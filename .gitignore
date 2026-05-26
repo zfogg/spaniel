@@ -27,6 +27,13 @@ go.work.sum
 # env file
 .env
 
+# spaniel build artifacts
+frontend/dist/*
+!frontend/dist/.placeholder
+frontend/node_modules/
+spaniel
+*.duckdb
+
 # Editor/IDE
 # .idea/
 # .vscode/
