@@ -41,11 +41,7 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	resp := ptraceotlp.NewExportResponse()
-	data, _ := resp.MarshalProto()
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.WriteHeader(http.StatusOK)
-	w.Write(data) //nolint:errcheck
+	writeOTLPResponse(w, ptraceotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
 }
 
 func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
@@ -68,11 +64,7 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	resp := plogotlp.NewExportResponse()
-	data, _ := resp.MarshalProto()
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.WriteHeader(http.StatusOK)
-	w.Write(data) //nolint:errcheck
+	writeOTLPResponse(w, plogotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
 }
 
 func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -95,13 +87,28 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	resp := pmetricotlp.NewExportResponse()
-	data, _ := resp.MarshalProto()
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.WriteHeader(http.StatusOK)
-	w.Write(data) //nolint:errcheck
+	writeOTLPResponse(w, pmetricotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
 }
 
 func isJSON(ct string) bool {
 	return strings.Contains(ct, "application/json")
+}
+
+type otlpMarshaler interface {
+	MarshalProto() ([]byte, error)
+	MarshalJSON() ([]byte, error)
+}
+
+func writeOTLPResponse(w http.ResponseWriter, resp otlpMarshaler, json bool) {
+	if json {
+		data, _ := resp.MarshalJSON()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(data) //nolint:errcheck
+	} else {
+		data, _ := resp.MarshalProto()
+		w.Header().Set("Content-Type", "application/x-protobuf")
+		w.WriteHeader(http.StatusOK)
+		w.Write(data) //nolint:errcheck
+	}
 }
