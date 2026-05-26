@@ -69,6 +69,7 @@ export default function TraceList() {
         end_ns: (Date.now() * 1_000_000) + ev.durationNs,
         duration_ns: ev.durationNs,
         session_id: '',
+        has_n1: false,
       }
       setTraces(prev => {
         if (prev.some(t => t.trace_id === ev.traceId)) return prev
@@ -115,6 +116,7 @@ export default function TraceList() {
                 <TableHead className="text-right">Duration</TableHead>
                 <TableHead className="text-right">Time</TableHead>
                 <TableHead className="text-center w-20">Status</TableHead>
+                <TableHead className="text-center w-16">Issues</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,6 +136,17 @@ export default function TraceList() {
                   </TableCell>
                   <TableCell className="text-center">
                     <StatusBadge code={t.status_code} />
+                  </TableCell>
+                  <TableCell className="text-center w-16">
+                    {t.has_n1 && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                        padding: '2px 6px', borderRadius: 4,
+                        fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
+                        letterSpacing: '0.04em', textTransform: 'uppercase',
+                        color: 'var(--warn-ink)', background: 'var(--warn-bg)',
+                      }}>N+1</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

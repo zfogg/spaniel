@@ -36,6 +36,7 @@ func NewRouter(store *storage.DB, hub *ws.Hub) http.Handler {
 	mux.Get("/api/lint", r.listLint)
 	mux.Get("/api/stats", r.getStats)
 	mux.Get("/api/service-map", r.getServiceMap)
+	mux.Get("/api/issues", r.getIssues)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux
@@ -233,4 +234,18 @@ func (r *Router) getServiceMap(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	respond(w, data, 1, 1)
+}
+
+func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
+	traceID := req.URL.Query().Get("traceId")
+	if traceID == "" {
+		respondErr(w, 400, "traceId required")
+		return
+	}
+	issues, err := r.store.GetTraceIssues(traceID)
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	respond(w, issues, len(issues), 1)
 }

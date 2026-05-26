@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
-import { Span, LintWarning } from '@/lib/api'
+import { Span, LintWarning, TraceIssue } from '@/lib/api'
 
 // ── palette & svc color ──────────────────────────────────────────────────────
 
@@ -208,20 +208,21 @@ function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
 
 // ── SpanRow ───────────────────────────────────────────────────────────────────
 
-function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, onSelect, onHover }: {
+function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1, onSelect, onHover }: {
   flat: FlatSpan
   traceStartNs: number
   traceDurNs: number
   selected: boolean
   hovered: boolean
   tag: string | undefined
+  isN1: boolean
   onSelect: () => void
   onHover: (id: string | null) => void
 }) {
   const { span, depth, orphan } = flat
   const c = svcColor(span.service_name)
   const isError = span.status_code === 2
-  const tagColor = tag === 'n+1' ? '#ef4444' : '#f59e0b'
+  const tagColor = isN1 ? 'var(--warn)' : tag === 'n+1' ? '#ef4444' : '#f59e0b'
 
   const left  = traceDurNs > 0 ? ((span.start_ns - traceStartNs) / traceDurNs) * 100 : 0
   const width = traceDurNs > 0 ? Math.max(0.6, (span.duration_ns / traceDurNs) * 100) : 0.6
@@ -283,7 +284,23 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, onSel
         }}>
           {span.name}
         </span>
-        {tag && (
+        {isN1 && (
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            fontWeight: 700,
+            color: 'var(--warn-ink)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            flex: '0 0 auto',
+            padding: '1px 4px',
+            borderRadius: 3,
+            background: 'var(--warn-bg)',
+          }}>
+            n+1
+          </span>
+        )}
+        {!isN1 && tag && (
           <span style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 9,
@@ -325,15 +342,15 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, onSel
             : `inset 0 0 0 1px ${c.fg}30, inset 2px 0 0 ${c.fg}`,
         }} />
         {/* warning outline for n+1 */}
-        {tag === 'n+1' && (
+        {(isN1 || tag === 'n+1') && (
           <div style={{
             position: 'absolute',
             top: 1, height: 16,
             left: `${left}%`,
             width: `${width}%`,
             borderRadius: 3,
-            border: '1px solid #ef4444',
-            boxShadow: '0 0 0 2px #ef444430',
+            border: isN1 ? '1px solid var(--warn)' : '1px solid #ef4444',
+            boxShadow: isN1 ? '0 0 0 2px var(--warn-bg)' : '0 0 0 2px #ef444430',
             pointerEvents: 'none',
           }} />
         )}
@@ -541,10 +558,12 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
 
 // ── Inspector ─────────────────────────────────────────────────────────────────
 
-function Inspector({ span, traceStartNs, warnings, onClose }: {
+function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
   span: Span
   traceStartNs: number
   warnings: LintWarning[]
+  isN1: boolean
+  n1Count: number
   onClose: () => void
 }) {
   const c = svcColor(span.service_name)
@@ -631,6 +650,31 @@ function Inspector({ span, traceStartNs, warnings, onClose }: {
           </div>
         </div>
       </div>
+
+      {/* N+1 callout */}
+      {isN1 && (
+        <div style={{ margin: '12px 14px 0' }}>
+          <div style={{
+            padding: '10px 12px',
+            background: 'var(--warn-bg)',
+            border: '1px solid var(--warn)',
+            borderRadius: 7,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <AlertTriangle size={11} color="var(--warn)" style={{ flexShrink: 0 }} />
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9.5,
+                fontWeight: 700, color: 'var(--warn)', letterSpacing: '0.06em',
+              }}>
+                n_plus_one
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--warn-ink)', lineHeight: 1.45 }}>
+              This DB span is repeated <strong>{n1Count}×</strong> in the trace — likely an N+1 query pattern.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* warning callouts */}
       {spanWarnings.length > 0 && (
@@ -884,15 +928,52 @@ function FlameIcon() {
   )
 }
 
+// ── N+1 Issue Banner ──────────────────────────────────────────────────────────
+
+function N1Banner({ issues }: { issues: { fingerprint: string; count: number; wastedNs: number }[] }) {
+  if (issues.length === 0) return null
+  const top = issues[0]
+  const fp = top.fingerprint.length > 60 ? top.fingerprint.slice(0, 57) + '…' : top.fingerprint
+  return (
+    <div style={{
+      margin: '0 0 0 0',
+      padding: '9px 16px',
+      borderBottom: '1px solid var(--border)',
+      background: 'var(--warn-bg)',
+      borderLeft: '3px solid var(--warn)',
+      display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+    }}>
+      <AlertTriangle size={13} color="var(--warn)" style={{ flexShrink: 0 }} />
+      <span style={{
+        fontFamily: 'var(--font-mono)', fontSize: 11,
+        color: 'var(--warn-ink)', flex: 1, minWidth: 0,
+      }}>
+        <strong>N+1 detected</strong>
+        {' — '}
+        <span style={{ opacity: 0.85 }}>{fp}</span>
+        {' called '}
+        <strong>{top.count}×</strong>
+        {' — '}
+        <strong>{fmtNs(top.wastedNs)}</strong>
+        {' wasted'}
+        {issues.length > 1 && (
+          <span style={{ marginLeft: 8, opacity: 0.7 }}>+{issues.length - 1} more</span>
+        )}
+      </span>
+    </div>
+  )
+}
+
 // ── TraceWaterfall (main export) ──────────────────────────────────────────────
 
 interface Props {
   spans: Span[]
   warnings?: LintWarning[]
+  issues?: TraceIssue[]
   traceId?: string
 }
 
-export default function TraceWaterfall({ spans, warnings = [], traceId = '' }: Props) {
+export default function TraceWaterfall({ spans, warnings = [], issues = [], traceId = '' }: Props) {
   const traceStartNs = spans.reduce((m, s) => Math.min(m, s.start_ns), Infinity)
   const traceEndNs   = spans.reduce((m, s) => Math.max(m, s.end_ns), 0)
   const traceDurNs   = traceEndNs - traceStartNs
@@ -918,6 +999,64 @@ export default function TraceWaterfall({ spans, warnings = [], traceId = '' }: P
 
   const flatSpans    = flatten(spans)
   const tags         = buildTagMap(warnings)
+
+  // Client-side N+1 detection: group DB spans by raw db.statement and mark those
+  // with 10+ occurrences. Also incorporate server-detected issues.
+  const n1SpanIds = useMemo(() => {
+    const set = new Set<string>()
+    // From server issues: look up example_span_id and all spans sharing parent
+    for (const issue of issues) {
+      if (issue.kind !== 'n_plus_one') continue
+      if (issue.example_span_id) set.add(issue.example_span_id)
+    }
+    // Client-side: count by raw db.statement
+    const counts = new Map<string, string[]>()
+    for (const flat of flatSpans) {
+      const s = flat.span
+      let attrs: Record<string, unknown> = {}
+      try { attrs = JSON.parse(s.attributes ?? '{}') } catch { /* empty */ }
+      const stmt = attrs['db.statement']
+      if (typeof stmt !== 'string' || !stmt) continue
+      const ids = counts.get(stmt) ?? []
+      ids.push(s.span_id)
+      counts.set(stmt, ids)
+    }
+    for (const [, ids] of counts) {
+      if (ids.length >= 10) {
+        for (const id of ids) set.add(id)
+      }
+    }
+    return set
+  }, [flatSpans, issues])
+
+  // Build N+1 summary for the banner (from server issues, falling back to client-side counts)
+  const n1Banner = useMemo(() => {
+    if (issues.length > 0) {
+      return issues
+        .filter(i => i.kind === 'n_plus_one')
+        .map(i => ({ fingerprint: i.fingerprint, count: i.count, wastedNs: i.wasted_ns }))
+        .sort((a, b) => b.wastedNs - a.wastedNs)
+    }
+    // Fallback: build from client-side counts
+    const counts = new Map<string, { ids: string[]; totalNs: number }>()
+    for (const flat of flatSpans) {
+      const s = flat.span
+      let attrs: Record<string, unknown> = {}
+      try { attrs = JSON.parse(s.attributes ?? '{}') } catch { /* empty */ }
+      const stmt = attrs['db.statement']
+      if (typeof stmt !== 'string' || !stmt) continue
+      const entry = counts.get(stmt) ?? { ids: [], totalNs: 0 }
+      entry.ids.push(s.span_id)
+      entry.totalNs += s.duration_ns
+      counts.set(stmt, entry)
+    }
+    const result: { fingerprint: string; count: number; wastedNs: number }[] = []
+    for (const [fp, { ids, totalNs }] of counts) {
+      if (ids.length >= 10) result.push({ fingerprint: fp, count: ids.length, wastedNs: totalNs })
+    }
+    return result.sort((a, b) => b.wastedNs - a.wastedNs)
+  }, [issues, flatSpans])
+
   const rootSpan     = spans.find(s => !s.parent_span_id || s.parent_span_id === ZERO_ID)
   const serviceCount = new Set(spans.map(s => s.service_name)).size
   const errorCount   = spans.filter(s => s.status_code === 2).length
@@ -960,6 +1099,7 @@ export default function TraceWaterfall({ spans, warnings = [], traceId = '' }: P
         traceEndNs={traceEndNs}
         onResetZoom={resetZoom}
       />
+      <N1Banner issues={n1Banner} />
       <MiniTimeline
         flatSpans={flatSpans}
         traceStartNs={traceStartNs}
@@ -988,6 +1128,7 @@ export default function TraceWaterfall({ spans, warnings = [], traceId = '' }: P
                           selected={flat.span.span_id === selectedId}
                           hovered={flat.span.span_id === hoveredId}
                           tag={tags.get(flat.span.span_id)}
+                          isN1={n1SpanIds.has(flat.span.span_id)}
                           onSelect={() => handleSelect(flat.span.span_id)}
                           onHover={setHoveredId}
                         />
@@ -1014,14 +1155,33 @@ export default function TraceWaterfall({ spans, warnings = [], traceId = '' }: P
         </div>
 
         {/* right: inspector */}
-        {selectedSpan && (
-          <Inspector
-            span={selectedSpan}
-            traceStartNs={traceStartNs}
-            warnings={warnings}
-            onClose={() => setSelectedId(null)}
-          />
-        )}
+        {selectedSpan && (() => {
+          const selIsN1 = n1SpanIds.has(selectedSpan.span_id)
+          // Compute count for the selected span's db.statement
+          let selN1Count = 0
+          if (selIsN1) {
+            let attrs: Record<string, unknown> = {}
+            try { attrs = JSON.parse(selectedSpan.attributes ?? '{}') } catch { /* empty */ }
+            const stmt = attrs['db.statement']
+            if (typeof stmt === 'string') {
+              for (const flat of flatSpans) {
+                let a: Record<string, unknown> = {}
+                try { a = JSON.parse(flat.span.attributes ?? '{}') } catch { /* empty */ }
+                if (a['db.statement'] === stmt) selN1Count++
+              }
+            }
+          }
+          return (
+            <Inspector
+              span={selectedSpan}
+              traceStartNs={traceStartNs}
+              warnings={warnings}
+              isN1={selIsN1}
+              n1Count={selN1Count}
+              onClose={() => setSelectedId(null)}
+            />
+          )
+        })()}
       </div>
     </div>
   )

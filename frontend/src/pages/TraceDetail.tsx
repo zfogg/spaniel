@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { api, Span, LintWarning } from '@/lib/api'
+import { api, Span, LintWarning, TraceIssue } from '@/lib/api'
 import TraceWaterfall from '@/components/TraceWaterfall'
 
 export default function TraceDetail() {
   const { traceId } = useParams<{ traceId: string }>()
   const navigate = useNavigate()
-  const [spans, setSpans]     = useState<Span[]>([])
+  const [spans, setSpans]       = useState<Span[]>([])
   const [warnings, setWarnings] = useState<LintWarning[]>([])
-  const [loading, setLoading] = useState(true)
+  const [issues, setIssues]     = useState<TraceIssue[]>([])
+  const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
     if (!traceId) return
@@ -19,6 +20,9 @@ export default function TraceDetail() {
     api.lint.list().then(r => {
       setWarnings((r.data ?? []).filter(w => w.trace_id === traceId))
     })
+    api.issues.get(traceId).then(r => {
+      setIssues(r.data ?? [])
+    }).catch(() => { /* issues endpoint is optional */ })
   }, [traceId])
 
   return (
@@ -60,6 +64,7 @@ export default function TraceDetail() {
           <TraceWaterfall
             spans={spans}
             warnings={warnings}
+            issues={issues}
             traceId={traceId}
           />
         </div>

@@ -80,7 +80,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					StatusCode:  s.StatusCode,
 				})
 
-				p.scheduleN1Check(s.TraceID)
+				p.scheduleDetectors(s.TraceID)
 			}
 		}
 	}
@@ -125,7 +125,7 @@ func (p *Pipeline) IngestMetrics(_ context.Context, _ pmetric.Metrics) error {
 	return nil
 }
 
-func (p *Pipeline) scheduleN1Check(traceID string) {
+func (p *Pipeline) scheduleDetectors(traceID string) {
 	p.debounceMu.Lock()
 	defer p.debounceMu.Unlock()
 	if t, ok := p.debounce[traceID]; ok {
@@ -133,45 +133,11 @@ func (p *Pipeline) scheduleN1Check(traceID string) {
 		return
 	}
 	p.debounce[traceID] = time.AfterFunc(500*time.Millisecond, func() {
-		p.runN1Check(traceID)
+		runDetectors(traceID, p.store)
 		p.debounceMu.Lock()
 		delete(p.debounce, traceID)
 		p.debounceMu.Unlock()
 	})
-}
-
-func (p *Pipeline) runN1Check(traceID string) {
-	spans, err := p.store.GetTrace(traceID)
-	if err != nil || len(spans) == 0 {
-		return
-	}
-	// Count DB spans grouped by statement to detect N+1
-	stmtCount := make(map[string]int)
-	stmtSpan := make(map[string]*storage.Span)
-	for _, s := range spans {
-		if !findSubstr(s.Attributes, `"db.statement"`) {
-			continue
-		}
-		stmt := extractAttrString(s.Attributes, "db.statement")
-		stmtCount[stmt]++
-		stmtSpan[stmt] = s
-	}
-	sessionID := p.store.ActiveSessionID()
-	for stmt, count := range stmtCount {
-		if count >= 5 {
-			s := stmtSpan[stmt]
-			_ = p.store.InsertLintWarning(&storage.LintWarning{
-				SpanID:    s.SpanID,
-				TraceID:   traceID,
-				SessionID: sessionID,
-				RuleID:    "n_plus_one",
-				Message:   "Potential N+1: same DB statement executed " + itoa(count) + " times in one trace",
-				Severity:  "warning",
-				CreatedAt: time.Now().UnixNano(),
-			})
-			break
-		}
-	}
 }
 
 func serviceNameFromAttrs(attrs pcommon.Map) string {

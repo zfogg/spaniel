@@ -25,6 +25,20 @@ export interface TraceRow {
   end_ns: number
   duration_ns: number
   session_id: string
+  has_n1: boolean
+}
+
+export interface TraceIssue {
+  id: string
+  trace_id: string
+  session_id: string
+  kind: string
+  fingerprint: string
+  count: number
+  wasted_ns: number
+  parent_span_id: string
+  example_span_id: string
+  created_at: number
 }
 
 export interface Span {
@@ -139,5 +153,9 @@ export const api = {
   serviceMap: {
     get: (sessionId?: string) =>
       get<ServiceMapData>(`/api/service-map${sessionId ? `?sessionId=${sessionId}` : ''}`),
+  },
+  issues: {
+    get: (traceId: string) =>
+      get<TraceIssue[]>(`/api/issues?traceId=${traceId}`),
   },
 }

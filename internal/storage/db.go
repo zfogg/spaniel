@@ -75,6 +75,20 @@ type TraceRow struct {
 	DurationNs   int64  `json:"duration_ns"`
 	SessionID    string `json:"session_id"`
 	SessionLabel string `json:"session_label"`
+	HasN1        bool   `json:"has_n1"`
+}
+
+type TraceIssue struct {
+	ID            string `json:"id"`
+	TraceID       string `json:"trace_id"`
+	SessionID     string `json:"session_id"`
+	Kind          string `json:"kind"`
+	Fingerprint   string `json:"fingerprint"`
+	Count         int    `json:"count"`
+	WastedNs      int64  `json:"wasted_ns"`
+	ParentSpanID  string `json:"parent_span_id"`
+	ExampleSpanID string `json:"example_span_id"`
+	CreatedAt     int64  `json:"created_at"`
 }
 
 type Stats struct {
@@ -164,6 +178,18 @@ func (d *DB) migrate() error {
 			severity    TEXT,
 			created_at  BIGINT
 		);
+		CREATE TABLE IF NOT EXISTS trace_issues (
+			id             VARCHAR PRIMARY KEY,
+			trace_id       VARCHAR NOT NULL,
+			session_id     VARCHAR NOT NULL,
+			kind           VARCHAR NOT NULL,
+			fingerprint    VARCHAR NOT NULL,
+			count          INTEGER NOT NULL,
+			wasted_ns      BIGINT NOT NULL,
+			parent_span_id VARCHAR NOT NULL DEFAULT '',
+			example_span_id VARCHAR NOT NULL DEFAULT '',
+			created_at     BIGINT NOT NULL
+		);
 	`)
 	return err
 }
@@ -244,20 +270,26 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	offset := (f.Page - 1) * f.Limit
 
 	query := `
-		SELECT trace_id, service_name, name, status_code, start_ns, end_ns, duration_ns, session_id, session_label
-		FROM spans
-		WHERE (parent_span_id = '' OR parent_span_id IS NULL)`
+		SELECT s.trace_id, s.service_name, s.name, s.status_code, s.start_ns, s.end_ns, s.duration_ns, s.session_id, s.session_label,
+		       COALESCE(ti.has_n1, FALSE) AS has_n1
+		FROM spans s
+		LEFT JOIN (
+			SELECT trace_id, TRUE AS has_n1
+			FROM trace_issues WHERE kind = 'n_plus_one'
+			GROUP BY trace_id
+		) ti ON s.trace_id = ti.trace_id
+		WHERE (s.parent_span_id = '' OR s.parent_span_id IS NULL)`
 	args := []any{}
 
 	if f.SessionID != "" {
-		query += ` AND session_id = ?`
+		query += ` AND s.session_id = ?`
 		args = append(args, f.SessionID)
 	}
 	if f.Service != "" {
-		query += ` AND service_name = ?`
+		query += ` AND s.service_name = ?`
 		args = append(args, f.Service)
 	}
-	query += ` ORDER BY start_ns DESC LIMIT ? OFFSET ?`
+	query += ` ORDER BY s.start_ns DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Limit, offset)
 
 	rows, err := d.db.Query(query, args...)
@@ -269,7 +301,7 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	for rows.Next() {
 		t := &TraceRow{}
 		if err := rows.Scan(&t.TraceID, &t.ServiceName, &t.Name, &t.StatusCode,
-			&t.StartNs, &t.EndNs, &t.DurationNs, &t.SessionID, &t.SessionLabel); err != nil {
+			&t.StartNs, &t.EndNs, &t.DurationNs, &t.SessionID, &t.SessionLabel, &t.HasN1); err != nil {
 			return nil, err
 		}
 		result = append(result, t)
@@ -548,6 +580,43 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 		edges = []*ServiceMapEdge{}
 	}
 	return &ServiceMapData{Nodes: nodes, Edges: edges}, nil
+}
+
+func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
+	_, err := d.db.Exec(`
+		INSERT OR REPLACE INTO trace_issues
+			(id, trace_id, session_id, kind, fingerprint, count, wasted_ns, parent_span_id, example_span_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		issue.ID, issue.TraceID, issue.SessionID, issue.Kind,
+		issue.Fingerprint, issue.Count, issue.WastedNs,
+		issue.ParentSpanID, issue.ExampleSpanID, issue.CreatedAt,
+	)
+	return err
+}
+
+func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
+	rows, err := d.db.Query(`
+		SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
+		       parent_span_id, example_span_id, created_at
+		FROM trace_issues WHERE trace_id = ? ORDER BY wasted_ns DESC`, traceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []*TraceIssue
+	for rows.Next() {
+		issue := &TraceIssue{}
+		if err := rows.Scan(&issue.ID, &issue.TraceID, &issue.SessionID, &issue.Kind,
+			&issue.Fingerprint, &issue.Count, &issue.WastedNs,
+			&issue.ParentSpanID, &issue.ExampleSpanID, &issue.CreatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, issue)
+	}
+	if result == nil {
+		result = []*TraceIssue{}
+	}
+	return result, nil
 }
 
 func (d *DB) Close() error {
