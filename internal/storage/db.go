@@ -313,7 +313,7 @@ func (d *DB) GetTrace(traceID string) ([]*Span, error) {
 	rows, err := d.db.Query(`
 		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
 		       start_ns, end_ns, duration_ns, status_code, status_message,
-		       attributes, resource, session_id, session_label, received_at
+		       attributes::VARCHAR, resource::VARCHAR, session_id, session_label, received_at
 		FROM spans WHERE trace_id = ? ORDER BY start_ns`, traceID)
 	if err != nil {
 		return nil, err
@@ -338,7 +338,7 @@ func (d *DB) GetSpan(spanID string) (*Span, error) {
 	row := d.db.QueryRow(`
 		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
 		       start_ns, end_ns, duration_ns, status_code, status_message,
-		       attributes, resource, session_id, session_label, received_at
+		       attributes::VARCHAR, resource::VARCHAR, session_id, session_label, received_at
 		FROM spans WHERE span_id = ? LIMIT 1`, spanID)
 	s := &Span{}
 	err := row.Scan(
@@ -370,7 +370,7 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	offset := (f.Page - 1) * f.Limit
 
 	query := `
-		SELECT timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at
+		SELECT timestamp_ns, trace_id, span_id, severity, body, attributes::VARCHAR, service_name, session_id, received_at
 		FROM logs WHERE 1=1`
 	args := []any{}
 
