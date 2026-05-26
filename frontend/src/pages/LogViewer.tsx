@@ -1,123 +1,432 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { api, Log } from '../lib/api'
+import { api, Log } from '@/lib/api'
+import { svcColor } from '@/lib/span-utils'
 
-const SEVERITY_LABELS: Record<number, string> = {
-  1: 'TRACE', 2: 'TRACE2', 3: 'TRACE3', 4: 'TRACE4',
-  5: 'DEBUG', 6: 'DEBUG2', 7: 'DEBUG3', 8: 'DEBUG4',
-  9: 'INFO', 10: 'INFO2', 11: 'INFO3', 12: 'INFO4',
-  13: 'WARN', 14: 'WARN2', 15: 'WARN3', 16: 'WARN4',
-  17: 'ERROR', 18: 'ERROR2', 19: 'ERROR3', 20: 'ERROR4',
-  21: 'FATAL', 22: 'FATAL2', 23: 'FATAL3', 24: 'FATAL4',
+// ── severity helpers ──────────────────────────────────────────────────────────
+
+function sevLabel(n: number): string {
+  if (n >= 17) return 'ERROR'
+  if (n >= 13) return 'WARN'
+  if (n >= 9)  return 'INFO'
+  return 'DEBUG'
 }
 
-function severityVariant(n: number): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (n >= 17) return 'destructive'
-  if (n >= 13) return 'outline'
-  if (n >= 9) return 'secondary'
-  return 'secondary'
+function sevBadgeStyle(n: number): React.CSSProperties {
+  const base: React.CSSProperties = {
+    borderRadius: 3,
+    padding: '1px 5px',
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    fontFamily: 'var(--font-mono)',
+    flexShrink: 0,
+    display: 'inline-block',
+  }
+  if (n >= 17) return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)' }
+  if (n >= 13) return { ...base, color: 'var(--warn)', background: 'var(--warn-bg)' }
+  if (n >= 9)  return { ...base, color: 'var(--ink2)', background: 'transparent' }
+  return { ...base, color: 'var(--ink3)', background: 'transparent' }
 }
 
-function fmtTs(ns: number) {
-  return new Date(ns / 1_000_000).toLocaleTimeString(undefined, { hour12: false })
+function sevBodyColor(n: number): string {
+  if (n >= 13) return 'var(--ink)'
+  if (n >= 9)  return 'var(--ink2)'
+  return 'var(--ink3)'
 }
+
+function isZeroTraceId(id: string): boolean {
+  return !id || /^0+$/.test(id)
+}
+
+// ── timestamp helpers ─────────────────────────────────────────────────────────
+
+function fmtAbsolute(ns: number): string {
+  const d = new Date(ns / 1_000_000)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  const ms = String(d.getMilliseconds()).padStart(3, '0')
+  return `${hh}:${mm}:${ss}.${ms}`
+}
+
+function fmtRelative(ns: number, nowMs: number): string {
+  const diffMs = nowMs - ns / 1_000_000
+  if (diffMs < 0) return 'just now'
+  if (diffMs < 1000) return `${Math.round(diffMs)}ms ago`
+  if (diffMs < 60_000) return `${Math.round(diffMs / 1000)}s ago`
+  if (diffMs < 3_600_000) return `${Math.round(diffMs / 60_000)}m ago`
+  return `${Math.round(diffMs / 3_600_000)}h ago`
+}
+
+// ── severity filter chip levels ───────────────────────────────────────────────
+
+type SevFilter = 'ALL' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
+
+const SEV_CHIPS: SevFilter[] = ['ALL', 'DEBUG', 'INFO', 'WARN', 'ERROR']
+
+function chipActiveStyle(chip: SevFilter): React.CSSProperties {
+  const base: React.CSSProperties = {
+    padding: '3px 10px',
+    borderRadius: 12,
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    border: '1px solid transparent',
+    background: 'transparent',
+  }
+  switch (chip) {
+    case 'ERROR': return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)' }
+    case 'WARN':  return { ...base, color: 'var(--warn)',   background: 'var(--warn-bg)',   border: '1px solid var(--warn)' }
+    case 'INFO':  return { ...base, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent)' }
+    case 'DEBUG': return { ...base, color: 'var(--ink3)',   background: 'var(--surface3)', border: '1px solid var(--line)' }
+    default:      return { ...base, color: 'var(--ink)',    background: 'var(--surface2)', border: '1px solid var(--line)' }
+  }
+}
+
+function chipInactiveStyle(): React.CSSProperties {
+  return {
+    padding: '3px 10px',
+    borderRadius: 12,
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    border: '1px solid transparent',
+    background: 'transparent',
+    color: 'var(--ink3)',
+  }
+}
+
+function matchesSevFilter(severity: number, filter: SevFilter): boolean {
+  if (filter === 'ALL')   return true
+  if (filter === 'ERROR') return severity >= 17
+  if (filter === 'WARN')  return severity >= 13 && severity < 17
+  if (filter === 'INFO')  return severity >= 9  && severity < 13
+  if (filter === 'DEBUG') return severity < 9
+  return true
+}
+
+// ── LogRow ────────────────────────────────────────────────────────────────────
+
+function LogRow({ log, i, nowMs, navigate }: {
+  log: Log
+  i: number
+  nowMs: number
+  navigate: (path: string) => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  const c = svcColor(log.service_name)
+
+  const rowBg = hovered
+    ? 'var(--surface2)'
+    : i % 2 === 0 ? 'var(--surface)' : 'var(--bg)'
+
+  const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '90px 52px 130px 1fr 22px',
+        alignItems: 'center',
+        height: 28,
+        background: rowBg,
+        borderBottom: '1px solid var(--line2)',
+        paddingLeft: 10,
+        paddingRight: 8,
+        gap: 6,
+        transition: 'background 0.07s',
+        cursor: 'default',
+      }}
+    >
+      {/* timestamp */}
+      <div
+        title={fmtAbsolute(log.timestamp_ns)}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          color: 'var(--ink3)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
+        }}
+      >
+        {fmtRelative(log.timestamp_ns, nowMs)}
+      </div>
+
+      {/* severity badge */}
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
+      </div>
+
+      {/* service chip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', minWidth: 0 }}>
+        <span style={{
+          width: 5, height: 5,
+          borderRadius: '50%',
+          background: c.fg,
+          flexShrink: 0,
+        }} />
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--ink3)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {log.service_name}
+        </span>
+      </div>
+
+      {/* body */}
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        color: sevBodyColor(log.severity),
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>
+        {log.body}
+      </div>
+
+      {/* trace link */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {hasTrace && (
+          <button
+            type="button"
+            onClick={() => navigate('/traces/' + log.trace_id)}
+            title={`view trace ${log.trace_id}`}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px 3px',
+              borderRadius: 3,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9,
+              color: 'var(--accent)',
+              lineHeight: 1,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            →
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── LogViewer ─────────────────────────────────────────────────────────────────
 
 export default function LogViewer() {
-  const [logs, setLogs] = useState<Log[]>([])
-  const [services, setServices] = useState<string[]>([])
+  const [logs, setLogs]               = useState<Log[]>([])
+  const [services, setServices]       = useState<string[]>([])
   const [filterService, setFilterService] = useState('all')
-  const [filterSeverity, setFilterSeverity] = useState('all')
-  const [loading, setLoading] = useState(true)
+  const [filterSev, setFilterSev]     = useState<SevFilter>('ALL')
+  const [search, setSearch]           = useState('')
+  const [loading, setLoading]         = useState(true)
+  const [nowMs, setNowMs]             = useState(() => Date.now())
   const navigate = useNavigate()
+  const knownIds = useRef<Set<string>>(new Set())
 
+  // initial load + services
   useEffect(() => {
     api.logs.list({}).then(r => {
-      setLogs(r.data ?? [])
+      const rows = r.data ?? []
+      setLogs(rows)
+      for (const l of rows) knownIds.current.add(logKey(l))
       setLoading(false)
     }).catch(() => setLoading(false))
     api.services.list().then(r => setServices(r.data ?? []))
   }, [])
 
+  // live poll every 3s
+  useEffect(() => {
+    const id = setInterval(() => {
+      api.logs.list({}).then(r => {
+        const rows = r.data ?? []
+        const newRows = rows.filter(l => !knownIds.current.has(logKey(l)))
+        if (newRows.length > 0) {
+          for (const l of newRows) knownIds.current.add(logKey(l))
+          setLogs(prev => [...newRows, ...prev].slice(0, 500))
+        }
+      }).catch(() => { /* ignore poll errors */ })
+    }, 3_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // tick relative timestamps every second
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1_000)
+    return () => clearInterval(id)
+  }, [])
+
   const filtered = logs.filter(l => {
     if (filterService !== 'all' && l.service_name !== filterService) return false
-    if (filterSeverity === 'error' && l.severity < 17) return false
-    if (filterSeverity === 'warn' && l.severity < 13) return false
-    if (filterSeverity === 'info' && l.severity < 9) return false
+    if (!matchesSevFilter(l.severity, filterSev)) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q)) return false
+    }
     return true
   })
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-        <h1 className="text-sm font-medium flex-1">Logs</h1>
-        <Select value={filterService} onValueChange={v => setFilterService(v ?? 'all')}>
-          <SelectTrigger className="w-40 h-8 text-xs">
-            <SelectValue placeholder="All services" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All services</SelectItem>
-            {services.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterSeverity} onValueChange={v => setFilterSeverity(v ?? 'all')}>
-          <SelectTrigger className="w-32 h-8 text-xs">
-            <SelectValue placeholder="All levels" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All levels</SelectItem>
-            <SelectItem value="info">INFO+</SelectItem>
-            <SelectItem value="warn">WARN+</SelectItem>
-            <SelectItem value="error">ERROR+</SelectItem>
-          </SelectContent>
-        </Select>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* filter bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '8px 14px',
+        background: 'var(--surface)',
+        borderBottom: '1px solid var(--line)',
+        flexShrink: 0,
+        flexWrap: 'wrap',
+      }}>
+        {/* search */}
+        <input
+          type="text"
+          placeholder="search logs…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            width: 260,
+            height: 28,
+            background: 'var(--surface2)',
+            border: '1px solid var(--line)',
+            borderRadius: 5,
+            padding: '0 10px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--ink)',
+            outline: 'none',
+          }}
+        />
+
+        {/* service filter */}
+        <select
+          value={filterService}
+          onChange={e => setFilterService(e.target.value)}
+          style={{
+            height: 28,
+            background: 'var(--surface2)',
+            border: '1px solid var(--line)',
+            borderRadius: 5,
+            padding: '0 8px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--ink)',
+            cursor: 'pointer',
+            outline: 'none',
+          }}
+        >
+          <option value="all">all services</option>
+          {services.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        {/* severity chips */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {SEV_CHIPS.map(chip => (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => setFilterSev(chip)}
+              style={filterSev === chip ? chipActiveStyle(chip) : chipInactiveStyle()}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        {/* log count */}
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'var(--ink3)',
+        }}>
+          {filtered.length} logs
+        </span>
       </div>
 
+      {/* body */}
       {loading ? (
-        <div className="p-8 text-muted-foreground text-sm">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No logs yet</div>
-      ) : (
-        <div className="overflow-auto flex-1">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">Time</TableHead>
-                <TableHead className="w-24">Level</TableHead>
-                <TableHead className="w-32">Service</TableHead>
-                <TableHead>Body</TableHead>
-                <TableHead className="w-28">Trace</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((l, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{fmtTs(l.timestamp_ns)}</TableCell>
-                  <TableCell>
-                    <Badge variant={severityVariant(l.severity)} className="font-mono text-[10px]">
-                      {SEVERITY_LABELS[l.severity] ?? String(l.severity)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{l.service_name}</TableCell>
-                  <TableCell className="font-mono text-xs max-w-md truncate">{l.body}</TableCell>
-                  <TableCell>
-                    {l.trace_id && l.trace_id !== '00000000000000000000000000000000' && (
-                      <button
-                        onClick={() => navigate(`/traces/${l.trace_id}`)}
-                        className="font-mono text-[10px] text-primary hover:underline truncate w-24 text-left block"
-                      >
-                        {l.trace_id.slice(0, 8)}…
-                      </button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
+        }}>
+          loading…
         </div>
+      ) : filtered.length === 0 ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
+          textAlign: 'center', padding: 24,
+        }}>
+          no logs yet — send traces with OTel logging attached
+        </div>
+      ) : (
+        <>
+          {/* column header */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '90px 52px 130px 1fr 22px',
+            alignItems: 'center',
+            height: 24,
+            paddingLeft: 10,
+            paddingRight: 8,
+            gap: 6,
+            background: 'var(--surface)',
+            borderBottom: '1px solid var(--line)',
+            flexShrink: 0,
+          }}>
+            {['time', 'level', 'service', 'body', ''].map((h, i) => (
+              <div key={i} style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9,
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+                color: 'var(--ink3)',
+              }}>
+                {h}
+              </div>
+            ))}
+          </div>
+
+          {/* rows */}
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+            {filtered.map((log, i) => (
+              <LogRow
+                key={logKey(log)}
+                log={log}
+                i={i}
+                nowMs={nowMs}
+                navigate={navigate}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
+}
+
+function logKey(l: Log): string {
+  return `${l.timestamp_ns}:${l.span_id}:${l.body.slice(0, 40)}`
 }

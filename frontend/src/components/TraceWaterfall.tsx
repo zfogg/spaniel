@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
-import { Span, LintWarning, TraceIssue } from '@/lib/api'
+import { Span, LintWarning, TraceIssue, Log, api } from '@/lib/api'
 import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, FlatSpan } from '@/lib/span-utils'
 
 // ── layout constants ──────────────────────────────────────────────────────────
@@ -481,6 +481,102 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
   )
 }
 
+// ── Inspector helpers ─────────────────────────────────────────────────────────
+
+function inspSevColor(n: number): string {
+  if (n >= 17) return 'var(--danger)'
+  if (n >= 13) return 'var(--warn)'
+  if (n >= 9)  return 'var(--accent)'
+  return 'var(--ink3)'
+}
+
+function inspBodyColor(n: number): string {
+  if (n >= 13) return 'var(--ink)'
+  return 'var(--ink2)'
+}
+
+function inspFmtRelative(ns: number): string {
+  const diffMs = Date.now() - ns / 1_000_000
+  if (diffMs < 0) return 'just now'
+  if (diffMs < 1000) return `${Math.round(diffMs)}ms ago`
+  if (diffMs < 60_000) return `${Math.round(diffMs / 1000)}s ago`
+  return `${Math.round(diffMs / 60_000)}m ago`
+}
+
+// ── SpanLogs ──────────────────────────────────────────────────────────────────
+
+function SpanLogs({ spanId }: { spanId: string }) {
+  const [logs, setLogs]       = useState<Log[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    setLogs([])
+    api.logs.list({ spanId }).then(r => {
+      setLogs(r.data ?? [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [spanId])
+
+  if (loading) {
+    return (
+      <div style={{ padding: '14px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)' }}>
+        …
+      </div>
+    )
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div style={{ padding: '14px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)' }}>
+        no logs for this span
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ flex: 1, overflow: 'auto' }}>
+      {logs.map((log, i) => (
+        <div key={i} style={{
+          padding: '4px 10px',
+          display: 'flex', alignItems: 'flex-start', gap: 7,
+          borderBottom: '1px solid var(--line2)',
+        }}>
+          {/* severity dot */}
+          <span style={{
+            width: 5, height: 5,
+            borderRadius: '50%',
+            background: inspSevColor(log.severity),
+            flexShrink: 0,
+            marginTop: 4,
+          }} />
+          {/* timestamp */}
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--ink3)',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}>
+            {inspFmtRelative(log.timestamp_ns)}
+          </span>
+          {/* body */}
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            color: inspBodyColor(log.severity),
+            lineHeight: 1.4,
+            wordBreak: 'break-word',
+            minWidth: 0,
+          }}>
+            {log.body}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Inspector ─────────────────────────────────────────────────────────────────
 
 function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
@@ -496,6 +592,11 @@ function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
   const kind = KIND_LABELS[span.kind] ?? 'unknown'
   const spanWarnings = warnings.filter(w => w.span_id === span.span_id)
 
+  const [activeTab, setActiveTab] = useState<'attrs' | 'logs'>('attrs')
+
+  // Reset to attrs tab when span changes
+  useEffect(() => { setActiveTab('attrs') }, [span.span_id])
+
   let attrs: Record<string, unknown> = {}
   let resource: Record<string, unknown> = {}
   try { attrs = JSON.parse(span.attributes) } catch { /* empty */ }
@@ -503,6 +604,26 @@ function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
 
   const attrEntries = Object.entries(attrs)
   const resEntries  = Object.entries(resource).filter(([k]) => k !== 'service.name')
+
+  function tabStyle(tab: 'attrs' | 'logs'): React.CSSProperties {
+    const active = activeTab === tab
+    return {
+      padding: '6px 10px',
+      fontFamily: 'var(--font-mono)',
+      fontSize: 11,
+      fontWeight: active ? 600 : 400,
+      color: active ? 'var(--ink)' : 'var(--ink3)',
+      borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+      background: 'none',
+      border: 'none',
+      borderBottomStyle: 'solid',
+      borderBottomWidth: 2,
+      borderBottomColor: active ? 'var(--accent)' : 'transparent',
+      cursor: 'pointer',
+      outline: 'none',
+      marginBottom: -1,
+    }
+  }
 
   return (
     <aside style={{
@@ -629,47 +750,68 @@ function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
         </div>
       )}
 
-      {/* attributes + resource */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-        {attrEntries.length > 0 && (
-          <>
-            <div style={{
-              padding: '12px 14px 5px',
-              display: 'flex', alignItems: 'center',
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              textTransform: 'uppercase', letterSpacing: '0.14em',
-              color: 'var(--muted-foreground)',
-            }}>
-              attributes
-              <span style={{ flex: 1 }} />
-              <span style={{ textTransform: 'none', letterSpacing: 0 }}>{attrEntries.length}</span>
-            </div>
-            <AttrGrid entries={attrEntries} />
-          </>
-        )}
-        {resEntries.length > 0 && (
-          <>
-            <div style={{
-              padding: '12px 14px 5px',
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              textTransform: 'uppercase', letterSpacing: '0.14em',
-              color: 'var(--muted-foreground)',
-            }}>
-              resource
-            </div>
-            <AttrGrid entries={resEntries} />
-          </>
-        )}
-        {attrEntries.length === 0 && resEntries.length === 0 && (
-          <div style={{
-            padding: '18px 16px',
-            fontFamily: 'var(--font-mono)', fontSize: 11,
-            color: 'var(--muted-foreground)',
-          }}>
-            no attributes
-          </div>
-        )}
+      {/* tab bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        borderBottom: '1px solid var(--line)',
+        padding: '0 14px',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        flexShrink: 0,
+      }}>
+        <button type="button" onClick={() => setActiveTab('attrs')} style={tabStyle('attrs')}>attrs</button>
+        <button type="button" onClick={() => setActiveTab('logs')}  style={tabStyle('logs')}>logs</button>
       </div>
+
+      {/* attrs tab */}
+      {activeTab === 'attrs' && (
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {attrEntries.length > 0 && (
+            <>
+              <div style={{
+                padding: '12px 14px 5px',
+                display: 'flex', alignItems: 'center',
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                textTransform: 'uppercase', letterSpacing: '0.14em',
+                color: 'var(--muted-foreground)',
+              }}>
+                attributes
+                <span style={{ flex: 1 }} />
+                <span style={{ textTransform: 'none', letterSpacing: 0 }}>{attrEntries.length}</span>
+              </div>
+              <AttrGrid entries={attrEntries} />
+            </>
+          )}
+          {resEntries.length > 0 && (
+            <>
+              <div style={{
+                padding: '12px 14px 5px',
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                textTransform: 'uppercase', letterSpacing: '0.14em',
+                color: 'var(--muted-foreground)',
+              }}>
+                resource
+              </div>
+              <AttrGrid entries={resEntries} />
+            </>
+          )}
+          {attrEntries.length === 0 && resEntries.length === 0 && (
+            <div style={{
+              padding: '18px 16px',
+              fontFamily: 'var(--font-mono)', fontSize: 11,
+              color: 'var(--muted-foreground)',
+            }}>
+              no attributes
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* logs tab */}
+      {activeTab === 'logs' && (
+        <SpanLogs spanId={span.span_id} />
+      )}
     </aside>
   )
 }
