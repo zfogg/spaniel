@@ -31,6 +31,7 @@ go.work.sum
 frontend/dist/*
 !frontend/dist/.placeholder
 frontend/node_modules/
+frontend/package-lock.json
 /spaniel
 *.duckdb
 
