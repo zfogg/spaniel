@@ -15,6 +15,7 @@ var upgrader = websocket.Upgrader{
 type SpanEvent struct {
 	Type        string `json:"type"`
 	TraceID     string `json:"traceId"`
+	SpanID      string `json:"spanId"`
 	ServiceName string `json:"serviceName"`
 	Name        string `json:"name"`
 	DurationNs  int64  `json:"durationNs"`

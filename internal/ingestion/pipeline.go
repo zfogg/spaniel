@@ -73,6 +73,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				p.hub.Broadcast(&ws.SpanEvent{
 					Type:        "span",
 					TraceID:     s.TraceID,
+					SpanID:      s.SpanID,
 					ServiceName: s.ServiceName,
 					Name:        s.Name,
 					DurationNs:  s.EndNs - s.StartNs,
