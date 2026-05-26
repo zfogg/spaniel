@@ -1,0 +1,75 @@
+<svg width="100%" viewBox="0 0 680 260" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>spaniel logo</title>
+<desc>A cartoon spaniel dog sitting beside a trace waterfall visualization</desc>
+<style>
+  .dog-body { fill: #c8a07a; }
+  .dog-dark  { fill: #a07040; }
+  .dog-nose  { fill: #2a1205; }
+  .dog-eye-w { fill: #fff; }
+  .dog-eye   { fill: #1a0800; }
+  .bar-api   { fill: #34d399; }
+  .bar-db    { fill: #22d3ee; }
+  .bar-redis { fill: #a78bfa; }
+  .bar-cache { fill: #fb923c; }
+  .lbl       { font-family: monospace; font-size: 13px; font-weight: 600; }
+  .ms        { font-family: monospace; font-size: 11px; opacity: 0.6; }
+  .conn      { stroke: #6b7280; stroke-width: 1; fill: none; opacity: 0.35; stroke-dasharray: 3 3; }
+  .tick      { stroke: #6b7280; stroke-width: 0.5; opacity: 0.2; }
+</style>
+
+<line class="tick" x1="100" y1="40" x2="100" y2="220"/>
+<line class="tick" x1="200" y1="40" x2="200" y2="220"/>
+<line class="tick" x1="300" y1="40" x2="300" y2="220"/>
+<line class="tick" x1="400" y1="40" x2="400" y2="220"/>
+
+<text class="lbl" x="38" y="76" fill="#34d399">api</text>
+<rect class="bar-api" x="100" y="62" width="305" height="18" rx="4" opacity="0.92"/>
+<text class="ms" x="412" y="76" fill="#34d399">305ms</text>
+
+<line class="conn" x1="155" y1="80" x2="155" y2="103"/>
+
+<text class="lbl" x="38" y="114" fill="#22d3ee">postgres</text>
+<rect class="bar-db" x="130" y="100" width="180" height="18" rx="4" opacity="0.92"/>
+<text class="ms" x="316" y="114" fill="#22d3ee">180ms</text>
+
+<line class="conn" x1="190" y1="118" x2="190" y2="141"/>
+
+<text class="lbl" x="38" y="152" fill="#a78bfa">redis</text>
+<rect class="bar-redis" x="160" y="138" width="85" height="18" rx="4" opacity="0.92"/>
+<text class="ms" x="251" y="152" fill="#a78bfa">85ms</text>
+
+<line class="conn" x1="270" y1="80" x2="270" y2="179"/>
+
+<text class="lbl" x="38" y="190" fill="#fb923c">cache</text>
+<rect class="bar-cache" x="240" y="176" width="60" height="18" rx="4" opacity="0.92"/>
+<text class="ms" x="306" y="190" fill="#fb923c">60ms</text>
+
+<path d="M530 175 Q510 135 525 112" stroke="#c8a07a" stroke-width="14" fill="none" stroke-linecap="round"/>
+<path d="M530 175 Q510 135 525 112" stroke="#a07040" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
+
+<ellipse class="dog-body" cx="580" cy="185" rx="62" ry="40"/>
+
+<rect class="dog-dark" x="534" y="210" width="16" height="30" rx="8"/>
+<rect class="dog-dark" x="555" y="212" width="16" height="28" rx="8"/>
+
+<rect class="dog-body" x="590" y="213" width="16" height="28" rx="8"/>
+<rect class="dog-body" x="610" y="211" width="16" height="30" rx="8"/>
+
+<ellipse class="dog-body" cx="622" cy="168" rx="22" ry="20"/>
+
+<circle class="dog-body" cx="632" cy="145" r="34"/>
+
+<ellipse class="dog-dark" cx="608" cy="140" rx="14" ry="28" transform="rotate(-20 608 140)"/>
+<ellipse class="dog-dark" cx="657" cy="133" rx="12" ry="25" transform="rotate(15 657 133)"/>
+
+<ellipse class="dog-dark" cx="648" cy="157" rx="16" ry="11"/>
+<ellipse style="fill:#2a1205" cx="654" cy="151" rx="6" ry="5"/>
+<ellipse style="fill:#fff" cx="655.5" cy="149.5" rx="2" ry="1.5"/>
+
+<circle style="fill:#1a0800" cx="626" cy="138" r="6"/>
+<circle style="fill:#fff" cx="628" cy="136" r="2"/>
+
+<path d="M620 130 Q626 127 632 130" stroke="#7a5530" stroke-width="2" fill="none" stroke-linecap="round"/>
+<path d="M642 162 Q648 167 654 162" stroke="#7a5530" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+</svg>
