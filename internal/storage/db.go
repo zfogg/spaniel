@@ -10,37 +10,40 @@ import (
 )
 
 type DB struct {
-	db            *sql.DB
-	activeSession string
+	db                 *sql.DB
+	activeSessionID    string
+	activeSessionLabel string
 }
 
 type Span struct {
-	TraceID       string
-	SpanID        string
-	ParentSpanID  string
-	ServiceName   string
-	Name          string
-	Kind          int
-	StartNs       int64
-	EndNs         int64
-	StatusCode    int
-	StatusMessage string
-	Attributes    string
-	Resource      string
-	SessionID     string
-	ReceivedAt    int64
+	TraceID       string `json:"trace_id"`
+	SpanID        string `json:"span_id"`
+	ParentSpanID  string `json:"parent_span_id"`
+	ServiceName   string `json:"service_name"`
+	Name          string `json:"name"`
+	Kind          int    `json:"kind"`
+	StartNs       int64  `json:"start_ns"`
+	EndNs         int64  `json:"end_ns"`
+	DurationNs    int64  `json:"duration_ns"`
+	StatusCode    int    `json:"status_code"`
+	StatusMessage string `json:"status_message"`
+	Attributes    string `json:"attributes"`
+	Resource      string `json:"resource"`
+	SessionID     string `json:"session_id"`
+	SessionLabel  string `json:"session_label"`
+	ReceivedAt    int64  `json:"received_at"`
 }
 
 type Log struct {
-	TimestampNs int64
-	TraceID     string
-	SpanID      string
-	Severity    int
-	Body        string
-	Attributes  string
-	ServiceName string
-	SessionID   string
-	ReceivedAt  int64
+	TimestampNs int64  `json:"timestamp_ns"`
+	TraceID     string `json:"trace_id"`
+	SpanID      string `json:"span_id"`
+	Severity    int    `json:"severity"`
+	Body        string `json:"body"`
+	Attributes  string `json:"attributes"`
+	ServiceName string `json:"service_name"`
+	SessionID   string `json:"session_id"`
+	ReceivedAt  int64  `json:"received_at"`
 }
 
 type Session struct {
@@ -63,14 +66,21 @@ type LintWarning struct {
 }
 
 type TraceRow struct {
-	TraceID     string `json:"trace_id"`
-	ServiceName string `json:"service_name"`
-	Name        string `json:"name"`
-	StatusCode  int    `json:"status_code"`
-	StartNs     int64  `json:"start_ns"`
-	EndNs       int64  `json:"end_ns"`
-	DurationNs  int64  `json:"duration_ns"`
-	SessionID   string `json:"session_id"`
+	TraceID      string `json:"trace_id"`
+	ServiceName  string `json:"service_name"`
+	Name         string `json:"name"`
+	StatusCode   int    `json:"status_code"`
+	StartNs      int64  `json:"start_ns"`
+	EndNs        int64  `json:"end_ns"`
+	DurationNs   int64  `json:"duration_ns"`
+	SessionID    string `json:"session_id"`
+	SessionLabel string `json:"session_label"`
+}
+
+type Stats struct {
+	SpanCount  int `json:"span_count"`
+	TraceCount int `json:"trace_count"`
+	LogCount   int `json:"log_count"`
 }
 
 func Open(path string) (*DB, error) {
@@ -99,11 +109,13 @@ func (d *DB) migrate() error {
 			kind            INTEGER,
 			start_ns        BIGINT,
 			end_ns          BIGINT,
+			duration_ns     BIGINT GENERATED ALWAYS AS (end_ns - start_ns),
 			status_code     INTEGER,
 			status_message  TEXT,
-			attributes      TEXT,
-			resource        TEXT,
+			attributes      JSON,
+			resource        JSON,
 			session_id      TEXT,
+			session_label   TEXT,
 			received_at     BIGINT
 		);
 		CREATE TABLE IF NOT EXISTS logs (
@@ -112,18 +124,18 @@ func (d *DB) migrate() error {
 			span_id       TEXT,
 			severity      INTEGER,
 			body          TEXT,
-			attributes    TEXT,
+			attributes    JSON,
 			service_name  TEXT,
 			session_id    TEXT,
 			received_at   BIGINT
 		);
 		CREATE TABLE IF NOT EXISTS sessions (
-			id          TEXT PRIMARY KEY,
-			label       TEXT,
-			created_at  BIGINT,
-			is_baseline BOOLEAN DEFAULT FALSE,
-			span_count  INTEGER DEFAULT 0,
-			services    TEXT
+			id            TEXT PRIMARY KEY,
+			label         TEXT,
+			created_at    BIGINT,
+			is_baseline   BOOLEAN DEFAULT FALSE,
+			span_count    INTEGER DEFAULT 0,
+			services      JSON
 		);
 		CREATE TABLE IF NOT EXISTS lint_warnings (
 			span_id     TEXT,
@@ -155,27 +167,33 @@ func (d *DB) CreateSession(label string) (*Session, error) {
 	return &Session{ID: id, Label: label, CreatedAt: now, Services: string(services)}, nil
 }
 
-func (d *DB) SetActiveSession(id string) {
-	d.activeSession = id
+func (d *DB) SetActiveSession(id, label string) {
+	d.activeSessionID = id
+	d.activeSessionLabel = label
 }
 
-func (d *DB) ActiveSessionID() string {
-	return d.activeSession
-}
+func (d *DB) ActiveSessionID() string    { return d.activeSessionID }
+func (d *DB) ActiveSessionLabel() string { return d.activeSessionLabel }
 
 func (d *DB) InsertSpan(s *Span) error {
-	_, err := d.db.Exec(
-		`INSERT INTO spans VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	// duration_ns is a generated column — omit it from INSERT
+	_, err := d.db.Exec(`
+		INSERT INTO spans (
+			trace_id, span_id, parent_span_id, service_name, name, kind,
+			start_ns, end_ns, status_code, status_message,
+			attributes, resource, session_id, session_label, received_at
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		s.TraceID, s.SpanID, s.ParentSpanID, s.ServiceName, s.Name, s.Kind,
-		s.StartNs, s.EndNs, s.StatusCode, s.StatusMessage, s.Attributes,
-		s.Resource, s.SessionID, s.ReceivedAt,
+		s.StartNs, s.EndNs, s.StatusCode, s.StatusMessage,
+		s.Attributes, s.Resource, s.SessionID, s.SessionLabel, s.ReceivedAt,
 	)
 	return err
 }
 
 func (d *DB) InsertLog(l *Log) error {
-	_, err := d.db.Exec(
-		`INSERT INTO logs VALUES (?,?,?,?,?,?,?,?,?)`,
+	_, err := d.db.Exec(`
+		INSERT INTO logs (timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
 		l.TimestampNs, l.TraceID, l.SpanID, l.Severity, l.Body,
 		l.Attributes, l.ServiceName, l.SessionID, l.ReceivedAt,
 	)
@@ -183,8 +201,9 @@ func (d *DB) InsertLog(l *Log) error {
 }
 
 func (d *DB) InsertLintWarning(w *LintWarning) error {
-	_, err := d.db.Exec(
-		`INSERT INTO lint_warnings VALUES (?,?,?,?,?,?,?)`,
+	_, err := d.db.Exec(`
+		INSERT INTO lint_warnings (span_id, trace_id, session_id, rule_id, message, severity, created_at)
+		VALUES (?,?,?,?,?,?,?)`,
 		w.SpanID, w.TraceID, w.SessionID, w.RuleID, w.Message, w.Severity, w.CreatedAt,
 	)
 	return err
@@ -194,20 +213,20 @@ func (d *DB) ListTraces(sessionID string, limit int) ([]*TraceRow, error) {
 	if limit <= 0 {
 		limit = 100
 	}
-	var rows *sql.Rows
-	var err error
+	var (
+		rows *sql.Rows
+		err  error
+	)
 	if sessionID != "" {
 		rows, err = d.db.Query(`
-			SELECT trace_id, service_name, name, status_code, start_ns, end_ns,
-			       (end_ns - start_ns) as duration_ns, session_id
+			SELECT trace_id, service_name, name, status_code, start_ns, end_ns, duration_ns, session_id, session_label
 			FROM spans
 			WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND session_id = ?
 			ORDER BY start_ns DESC
 			LIMIT ?`, sessionID, limit)
 	} else {
 		rows, err = d.db.Query(`
-			SELECT trace_id, service_name, name, status_code, start_ns, end_ns,
-			       (end_ns - start_ns) as duration_ns, session_id
+			SELECT trace_id, service_name, name, status_code, start_ns, end_ns, duration_ns, session_id, session_label
 			FROM spans
 			WHERE (parent_span_id = '' OR parent_span_id IS NULL)
 			ORDER BY start_ns DESC
@@ -220,7 +239,8 @@ func (d *DB) ListTraces(sessionID string, limit int) ([]*TraceRow, error) {
 	var result []*TraceRow
 	for rows.Next() {
 		t := &TraceRow{}
-		if err := rows.Scan(&t.TraceID, &t.ServiceName, &t.Name, &t.StatusCode, &t.StartNs, &t.EndNs, &t.DurationNs, &t.SessionID); err != nil {
+		if err := rows.Scan(&t.TraceID, &t.ServiceName, &t.Name, &t.StatusCode,
+			&t.StartNs, &t.EndNs, &t.DurationNs, &t.SessionID, &t.SessionLabel); err != nil {
 			return nil, err
 		}
 		result = append(result, t)
@@ -231,7 +251,8 @@ func (d *DB) ListTraces(sessionID string, limit int) ([]*TraceRow, error) {
 func (d *DB) GetTrace(traceID string) ([]*Span, error) {
 	rows, err := d.db.Query(`
 		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
-		       start_ns, end_ns, status_code, status_message, attributes, resource, session_id, received_at
+		       start_ns, end_ns, duration_ns, status_code, status_message,
+		       attributes, resource, session_id, session_label, received_at
 		FROM spans WHERE trace_id = ? ORDER BY start_ns`, traceID)
 	if err != nil {
 		return nil, err
@@ -240,9 +261,11 @@ func (d *DB) GetTrace(traceID string) ([]*Span, error) {
 	var result []*Span
 	for rows.Next() {
 		s := &Span{}
-		if err := rows.Scan(&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name,
-			&s.Kind, &s.StartNs, &s.EndNs, &s.StatusCode, &s.StatusMessage,
-			&s.Attributes, &s.Resource, &s.SessionID, &s.ReceivedAt); err != nil {
+		if err := rows.Scan(
+			&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name, &s.Kind,
+			&s.StartNs, &s.EndNs, &s.DurationNs, &s.StatusCode, &s.StatusMessage,
+			&s.Attributes, &s.Resource, &s.SessionID, &s.SessionLabel, &s.ReceivedAt,
+		); err != nil {
 			return nil, err
 		}
 		result = append(result, s)
@@ -253,12 +276,15 @@ func (d *DB) GetTrace(traceID string) ([]*Span, error) {
 func (d *DB) GetSpan(spanID string) (*Span, error) {
 	row := d.db.QueryRow(`
 		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
-		       start_ns, end_ns, status_code, status_message, attributes, resource, session_id, received_at
+		       start_ns, end_ns, duration_ns, status_code, status_message,
+		       attributes, resource, session_id, session_label, received_at
 		FROM spans WHERE span_id = ? LIMIT 1`, spanID)
 	s := &Span{}
-	err := row.Scan(&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name,
-		&s.Kind, &s.StartNs, &s.EndNs, &s.StatusCode, &s.StatusMessage,
-		&s.Attributes, &s.Resource, &s.SessionID, &s.ReceivedAt)
+	err := row.Scan(
+		&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name, &s.Kind,
+		&s.StartNs, &s.EndNs, &s.DurationNs, &s.StatusCode, &s.StatusMessage,
+		&s.Attributes, &s.Resource, &s.SessionID, &s.SessionLabel, &s.ReceivedAt,
+	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -269,8 +295,10 @@ func (d *DB) ListLogs(sessionID string, limit int) ([]*Log, error) {
 	if limit <= 0 {
 		limit = 500
 	}
-	var rows *sql.Rows
-	var err error
+	var (
+		rows *sql.Rows
+		err  error
+	)
 	if sessionID != "" {
 		rows, err = d.db.Query(`
 			SELECT timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at
@@ -341,12 +369,18 @@ func (d *DB) GetSession(id string) (*Session, error) {
 }
 
 func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
-	var rows *sql.Rows
-	var err error
+	var (
+		rows *sql.Rows
+		err  error
+	)
 	if sessionID != "" {
-		rows, err = d.db.Query(`SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at FROM lint_warnings WHERE session_id = ? ORDER BY created_at DESC`, sessionID)
+		rows, err = d.db.Query(`
+			SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at
+			FROM lint_warnings WHERE session_id = ? ORDER BY created_at DESC`, sessionID)
 	} else {
-		rows, err = d.db.Query(`SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at FROM lint_warnings ORDER BY created_at DESC LIMIT 500`)
+		rows, err = d.db.Query(`
+			SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at
+			FROM lint_warnings ORDER BY created_at DESC LIMIT 500`)
 	}
 	if err != nil {
 		return nil, err
@@ -361,12 +395,6 @@ func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 		result = append(result, w)
 	}
 	return result, rows.Err()
-}
-
-type Stats struct {
-	SpanCount  int `json:"span_count"`
-	TraceCount int `json:"trace_count"`
-	LogCount   int `json:"log_count"`
 }
 
 func (d *DB) GetStats(sessionID string) (*Stats, error) {

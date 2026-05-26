@@ -34,6 +34,8 @@ func NewPipeline(store *storage.DB, hub *ws.Hub) *Pipeline {
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
 	sessionID := p.store.ActiveSessionID()
 
+	sessionLabel := p.store.ActiveSessionLabel()
+
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
 		rs := traces.ResourceSpans().At(i)
 		svcName := serviceNameFromAttrs(rs.Resource().Attributes())
@@ -58,6 +60,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					Attributes:    mapToJSON(span.Attributes()),
 					Resource:      resourceJSON,
 					SessionID:     sessionID,
+					SessionLabel:  sessionLabel,
 					ReceivedAt:    time.Now().UnixNano(),
 				}
 
