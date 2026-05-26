@@ -1,6 +1,6 @@
 const BASE = ''
 
-async function get<T>(path: string): Promise<{ data: T; meta: { total: number } }> {
+async function get<T>(path: string): Promise<{ data: T; meta: { total: number; page: number } }> {
   const res = await fetch(BASE + path)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return res.json()
@@ -91,8 +91,14 @@ export const api = {
     get: (spanId: string) => get<Span>(`/api/spans/${spanId}`),
   },
   logs: {
-    list: (sessionId?: string) =>
-      get<Log[]>(`/api/logs${sessionId ? `?sessionId=${sessionId}` : ''}`),
+    list: (params?: { sessionId?: string; traceId?: string; spanId?: string }) => {
+      const q = new URLSearchParams()
+      if (params?.sessionId) q.set('sessionId', params.sessionId)
+      if (params?.traceId) q.set('traceId', params.traceId)
+      if (params?.spanId) q.set('spanId', params.spanId)
+      const qs = q.toString()
+      return get<Log[]>(`/api/logs${qs ? `?${qs}` : ''}`)
+    },
   },
   services: {
     list: () => get<string[]>('/api/services'),

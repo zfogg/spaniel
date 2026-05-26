@@ -53,11 +53,11 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func respond(w http.ResponseWriter, data any, total int) {
+func respond(w http.ResponseWriter, data any, total, page int) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
 		"data": data,
-		"meta": map[string]any{"total": total},
+		"meta": map[string]any{"total": total, "page": page},
 	})
 }
 
@@ -68,13 +68,25 @@ func respondErr(w http.ResponseWriter, code int, msg string) {
 }
 
 func (r *Router) health(w http.ResponseWriter, _ *http.Request) {
-	respond(w, map[string]string{"status": "ok"}, 1)
+	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 
 func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
-	sessionID := req.URL.Query().Get("sessionId")
-	limit, _ := strconv.Atoi(req.URL.Query().Get("limit"))
-	traces, err := r.store.ListTraces(sessionID, limit)
+	q := req.URL.Query()
+	sessionID := q.Get("sessionId")
+	service := q.Get("service")
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+
+	traces, err := r.store.ListTraces(storage.TraceFilter{
+		SessionID: sessionID,
+		Service:   service,
+		Limit:     limit,
+		Page:      page,
+	})
 	if err != nil {
 		respondErr(w, 500, err.Error())
 		return
@@ -82,7 +94,7 @@ func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 	if traces == nil {
 		traces = []*storage.TraceRow{}
 	}
-	respond(w, traces, len(traces))
+	respond(w, traces, len(traces), page)
 }
 
 func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
@@ -95,7 +107,7 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 	if spans == nil {
 		spans = []*storage.Span{}
 	}
-	respond(w, spans, len(spans))
+	respond(w, spans, len(spans), 1)
 }
 
 func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
@@ -109,13 +121,24 @@ func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, 404, "span not found")
 		return
 	}
-	respond(w, span, 1)
+	respond(w, span, 1, 1)
 }
 
 func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
-	sessionID := req.URL.Query().Get("sessionId")
-	limit, _ := strconv.Atoi(req.URL.Query().Get("limit"))
-	logs, err := r.store.ListLogs(sessionID, limit)
+	q := req.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+
+	logs, err := r.store.ListLogs(storage.LogFilter{
+		SessionID: q.Get("sessionId"),
+		TraceID:   q.Get("traceId"),
+		SpanID:    q.Get("spanId"),
+		Limit:     limit,
+		Page:      page,
+	})
 	if err != nil {
 		respondErr(w, 500, err.Error())
 		return
@@ -123,7 +146,7 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 	if logs == nil {
 		logs = []*storage.Log{}
 	}
-	respond(w, logs, len(logs))
+	respond(w, logs, len(logs), page)
 }
 
 func (r *Router) listServices(w http.ResponseWriter, _ *http.Request) {
@@ -135,7 +158,7 @@ func (r *Router) listServices(w http.ResponseWriter, _ *http.Request) {
 	if services == nil {
 		services = []string{}
 	}
-	respond(w, services, len(services))
+	respond(w, services, len(services), 1)
 }
 
 func (r *Router) listSessions(w http.ResponseWriter, _ *http.Request) {
@@ -147,20 +170,21 @@ func (r *Router) listSessions(w http.ResponseWriter, _ *http.Request) {
 	if sessions == nil {
 		sessions = []*storage.Session{}
 	}
-	respond(w, sessions, len(sessions))
+	respond(w, sessions, len(sessions), 1)
 }
 
 func (r *Router) createSession(w http.ResponseWriter, req *http.Request) {
 	var body struct {
-		Label string `json:"label"`
+		Label      string `json:"label"`
+		IsBaseline bool   `json:"is_baseline"`
 	}
 	json.NewDecoder(req.Body).Decode(&body) //nolint:errcheck
-	sess, err := r.store.CreateSession(body.Label)
+	sess, err := r.store.CreateSession(body.Label, body.IsBaseline)
 	if err != nil {
 		respondErr(w, 500, err.Error())
 		return
 	}
-	respond(w, sess, 1)
+	respond(w, sess, 1, 1)
 }
 
 func (r *Router) getSession(w http.ResponseWriter, req *http.Request) {
@@ -174,7 +198,7 @@ func (r *Router) getSession(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, 404, "session not found")
 		return
 	}
-	respond(w, sess, 1)
+	respond(w, sess, 1, 1)
 }
 
 func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {
@@ -187,7 +211,7 @@ func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {
 	if warnings == nil {
 		warnings = []*storage.LintWarning{}
 	}
-	respond(w, warnings, len(warnings))
+	respond(w, warnings, len(warnings), 1)
 }
 
 func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
@@ -197,5 +221,5 @@ func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, 500, err.Error())
 		return
 	}
-	respond(w, stats, 1)
+	respond(w, stats, 1, 1)
 }

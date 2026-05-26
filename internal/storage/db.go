@@ -150,7 +150,7 @@ func (d *DB) migrate() error {
 	return err
 }
 
-func (d *DB) CreateSession(label string) (*Session, error) {
+func (d *DB) CreateSession(label string, isBaseline bool) (*Session, error) {
 	now := time.Now().UnixNano()
 	id := fmt.Sprintf("session_%d", time.Now().UnixMilli())
 	if label == "" {
@@ -158,13 +158,13 @@ func (d *DB) CreateSession(label string) (*Session, error) {
 	}
 	services, _ := json.Marshal([]string{})
 	_, err := d.db.Exec(
-		`INSERT INTO sessions (id, label, created_at, is_baseline, span_count, services) VALUES (?, ?, ?, false, 0, ?)`,
-		id, label, now, string(services),
+		`INSERT INTO sessions (id, label, created_at, is_baseline, span_count, services) VALUES (?, ?, ?, ?, 0, ?)`,
+		id, label, now, isBaseline, string(services),
 	)
 	if err != nil {
 		return nil, err
 	}
-	return &Session{ID: id, Label: label, CreatedAt: now, Services: string(services)}, nil
+	return &Session{ID: id, Label: label, CreatedAt: now, IsBaseline: isBaseline, Services: string(services)}, nil
 }
 
 func (d *DB) SetActiveSession(id, label string) {
@@ -209,29 +209,40 @@ func (d *DB) InsertLintWarning(w *LintWarning) error {
 	return err
 }
 
-func (d *DB) ListTraces(sessionID string, limit int) ([]*TraceRow, error) {
-	if limit <= 0 {
-		limit = 100
+type TraceFilter struct {
+	SessionID string
+	Service   string
+	Limit     int
+	Page      int
+}
+
+func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
+	if f.Limit <= 0 {
+		f.Limit = 100
 	}
-	var (
-		rows *sql.Rows
-		err  error
-	)
-	if sessionID != "" {
-		rows, err = d.db.Query(`
-			SELECT trace_id, service_name, name, status_code, start_ns, end_ns, duration_ns, session_id, session_label
-			FROM spans
-			WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND session_id = ?
-			ORDER BY start_ns DESC
-			LIMIT ?`, sessionID, limit)
-	} else {
-		rows, err = d.db.Query(`
-			SELECT trace_id, service_name, name, status_code, start_ns, end_ns, duration_ns, session_id, session_label
-			FROM spans
-			WHERE (parent_span_id = '' OR parent_span_id IS NULL)
-			ORDER BY start_ns DESC
-			LIMIT ?`, limit)
+	if f.Page < 1 {
+		f.Page = 1
 	}
+	offset := (f.Page - 1) * f.Limit
+
+	query := `
+		SELECT trace_id, service_name, name, status_code, start_ns, end_ns, duration_ns, session_id, session_label
+		FROM spans
+		WHERE (parent_span_id = '' OR parent_span_id IS NULL)`
+	args := []any{}
+
+	if f.SessionID != "" {
+		query += ` AND session_id = ?`
+		args = append(args, f.SessionID)
+	}
+	if f.Service != "" {
+		query += ` AND service_name = ?`
+		args = append(args, f.Service)
+	}
+	query += ` ORDER BY start_ns DESC LIMIT ? OFFSET ?`
+	args = append(args, f.Limit, offset)
+
+	rows, err := d.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -291,23 +302,44 @@ func (d *DB) GetSpan(spanID string) (*Span, error) {
 	return s, err
 }
 
-func (d *DB) ListLogs(sessionID string, limit int) ([]*Log, error) {
-	if limit <= 0 {
-		limit = 500
+type LogFilter struct {
+	SessionID string
+	TraceID   string
+	SpanID    string
+	Limit     int
+	Page      int
+}
+
+func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
+	if f.Limit <= 0 {
+		f.Limit = 500
 	}
-	var (
-		rows *sql.Rows
-		err  error
-	)
-	if sessionID != "" {
-		rows, err = d.db.Query(`
-			SELECT timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at
-			FROM logs WHERE session_id = ? ORDER BY timestamp_ns DESC LIMIT ?`, sessionID, limit)
-	} else {
-		rows, err = d.db.Query(`
-			SELECT timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at
-			FROM logs ORDER BY timestamp_ns DESC LIMIT ?`, limit)
+	if f.Page < 1 {
+		f.Page = 1
 	}
+	offset := (f.Page - 1) * f.Limit
+
+	query := `
+		SELECT timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at
+		FROM logs WHERE 1=1`
+	args := []any{}
+
+	if f.SessionID != "" {
+		query += ` AND session_id = ?`
+		args = append(args, f.SessionID)
+	}
+	if f.TraceID != "" {
+		query += ` AND trace_id = ?`
+		args = append(args, f.TraceID)
+	}
+	if f.SpanID != "" {
+		query += ` AND span_id = ?`
+		args = append(args, f.SpanID)
+	}
+	query += ` ORDER BY timestamp_ns DESC LIMIT ? OFFSET ?`
+	args = append(args, f.Limit, offset)
+
+	rows, err := d.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

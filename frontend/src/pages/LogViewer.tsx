@@ -34,7 +34,7 @@ export default function LogViewer() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    api.logs.list().then(r => {
+    api.logs.list({}).then(r => {
       setLogs(r.data ?? [])
       setLoading(false)
     }).catch(() => setLoading(false))

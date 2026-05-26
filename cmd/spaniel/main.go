@@ -60,7 +60,7 @@ func run(port int, dev bool, dbPath string, noBrowser bool) error {
 	}
 	defer store.Close()
 
-	sess, err := store.CreateSession("")
+	sess, err := store.CreateSession("", false)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
