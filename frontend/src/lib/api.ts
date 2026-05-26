@@ -36,11 +36,13 @@ export interface Span {
   kind: number
   start_ns: number
   end_ns: number
+  duration_ns: number
   status_code: number
   status_message: string
   attributes: string
   resource: string
   session_id: string
+  session_label: string
   received_at: number
 }
 
@@ -81,6 +83,24 @@ export interface Stats {
   log_count: number
 }
 
+export interface ServiceMapNode {
+  id: string
+  span_count: number
+  error_count: number
+}
+
+export interface ServiceMapEdge {
+  from: string
+  to: string
+  call_count: number
+  avg_duration_ns: number
+}
+
+export interface ServiceMapData {
+  nodes: ServiceMapNode[]
+  edges: ServiceMapEdge[]
+}
+
 export const api = {
   traces: {
     list: (sessionId?: string) =>
@@ -115,5 +135,9 @@ export const api = {
   stats: {
     get: (sessionId?: string) =>
       get<Stats>(`/api/stats${sessionId ? `?sessionId=${sessionId}` : ''}`),
+  },
+  serviceMap: {
+    get: (sessionId?: string) =>
+      get<ServiceMapData>(`/api/service-map${sessionId ? `?sessionId=${sessionId}` : ''}`),
   },
 }

@@ -35,6 +35,7 @@ func NewRouter(store *storage.DB, hub *ws.Hub) http.Handler {
 	mux.Get("/api/sessions/{sessionId}", r.getSession)
 	mux.Get("/api/lint", r.listLint)
 	mux.Get("/api/stats", r.getStats)
+	mux.Get("/api/service-map", r.getServiceMap)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux
@@ -222,4 +223,14 @@ func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	respond(w, stats, 1, 1)
+}
+
+func (r *Router) getServiceMap(w http.ResponseWriter, req *http.Request) {
+	sessionID := req.URL.Query().Get("sessionId")
+	data, err := r.store.GetServiceMap(sessionID)
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	respond(w, data, 1, 1)
 }

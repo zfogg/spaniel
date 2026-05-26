@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Spaniel · design exploration</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#f0eee9; font-family:'Inter Tight', system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="themes.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel" src="screen-system.jsx"></script>
+<script type="text/babel" src="screen-trace.jsx"></script>
+<script type="text/babel" src="screen-other.jsx"></script>
+<script type="text/babel" src="screen-field.jsx"></script>
+<script type="text/babel" src="screen-cartograph.jsx"></script>
+<script type="text/babel" src="screen-settings.jsx"></script>
+<script type="text/babel" src="screen-sessions.jsx"></script>
+<script type="text/babel" src="screen-spans.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+const { THEMES } = window;
+
+// Themed-frame wrapper: applies the theme's CSS-var bundle to a root div so
+// every descendant inherits the right colors and fonts.
+function Themed({ themeKey, children }) {
+  const t = THEMES[themeKey];
+  return (
+    <div style={{ ...Object.fromEntries(Object.entries(t.css)), width:'100%', height:'100%' }}>
+      {children}
+    </div>
+  );
+}
+
+// Build a row of three artboards: Field · Cartograph · Drift.
+// `picks` selects which screen to render per direction; defaults align the
+// three directions on the same screen type.
+function TriRow({ row, w, h, picks }) {
+  const cols = [
+    { key:'field',      label:'Field · terminal',          Component: picks.field      },
+    { key:'cartograph', label:'Cartograph · editorial',    Component: picks.cartograph },
+    { key:'drift',      label:'Drift · clean dashboard',   Component: picks.drift      },
+  ];
+  return cols.map(c => {
+    const T = THEMES[c.key];
+    return (
+      <DCArtboard key={c.key} id={`${row}-${c.key}`} label={c.label} width={w} height={h}>
+        <Themed themeKey={c.key}><c.Component theme={T} /></Themed>
+      </DCArtboard>
+    );
+  });
+}
+
+function App() {
+  const F = window.Field;
+  const C = window.Cartograph;
+
+  // Drift uses the legacy "generic" components (window.SystemCard, etc.)
+  const D = {
+    SystemCard:    window.SystemCard,
+    TraceDetail:   window.TraceDetail,
+    TraceList:     window.TraceList,
+    LintWarnings:  window.LintWarnings,
+    ServiceMap:    window.ServiceMap,
+    SessionDiff:   window.SessionDiff,
+    CommandPalette: window.CommandPalette,
+    EmptyState:    window.EmptyState,
+  };
+
+  return (
+    <DesignCanvas>
+
+      <DCSection id="intro" title="Spaniel · three design directions"
+        subtitle="Same product, three radically different visual ideas — pastel-light, paper-toned, side by side">
+        <DCPostIt x={40} y={50} width={300}>
+          <div style={{ fontFamily:'"Inter Tight", sans-serif', fontSize:12, lineHeight:1.5 }}>
+            <strong>How to read this board.</strong><br/>
+            Each row is one screen.  The three columns are:<br/>
+            <strong style={{ color:'#3a5a3d' }}>Field</strong> (terminal),{' '}
+            <strong style={{ color:'#9a4f3b' }}>Cartograph</strong> (atlas),{' '}
+            <strong style={{ color:'#284a6a' }}>Drift</strong> (dashboard).
+            <br/><br/>
+            The component vocabularies differ — not just colors.
+          </div>
+        </DCPostIt>
+        <DCPostIt x={360} y={50} width={300}>
+          <div style={{ fontFamily:'"Inter Tight", sans-serif', fontSize:12, lineHeight:1.5 }}>
+            <strong>The last row</strong> is each direction's signature screen — the one it does best.
+            Field gets the ⌘K palette, Cartograph gets the service map (it really wants to be a map),
+            Drift gets the session diff.
+          </div>
+        </DCPostIt>
+        <DCPostIt x={680} y={50} width={300}>
+          <div style={{ fontFamily:'"Inter Tight", sans-serif', fontSize:12, lineHeight:1.5 }}>
+            <strong>Rows 05 – 07</strong> show each direction's signature screen, with the Drift
+            dashboard treatment alongside it for the ⌘K palette and service map.
+          </div>
+        </DCPostIt>
+      </DCSection>
+
+      <DCSection id="system" title="01 · Component system"
+        subtitle="Palette, type, span-bar atoms, status tags — the shared vocabulary in each direction's idiom">
+        {TriRow({ row:'sys', w:520, h:680, picks:{
+          field:      F.SystemCard,
+          cartograph: C.SystemCard,
+          drift:      D.SystemCard,
+        }})}
+      </DCSection>
+
+      <DCSection id="detail" title="02 · Trace detail — the waterfall"
+        subtitle="Hero screen · same trace + same selected N+1 span across all three directions">
+        {TriRow({ row:'detail', w:1180, h:760, picks:{
+          field:      F.TraceDetail,
+          cartograph: C.TraceDetail,
+          drift:      D.TraceDetail,
+        }})}
+      </DCSection>
+
+      <DCSection id="list" title="03 · Trace list"
+        subtitle="Live inbox — Drift uses a sidebar, Field uses a query line, Cartograph uses an index">
+        {TriRow({ row:'list', w:1080, h:620, picks:{
+          field:      F.TraceList,
+          cartograph: C.TraceList,
+          drift:      D.TraceList,
+        }})}
+      </DCSection>
+
+      <DCSection id="lints" title="04 · Lint warnings"
+        subtitle="OTel semconv validator + N+1 detector + coverage">
+        {TriRow({ row:'lints', w:880, h:680, picks:{
+          field:      F.LintWarnings,
+          cartograph: C.LintWarnings,
+          drift:      D.LintWarnings,
+        }})}
+      </DCSection>
+
+      <DCSection id="palette" title="05 · ⌘K palette"
+        subtitle="Global search — Field's signature plus the Drift dashboard treatment">
+        <DCArtboard id="palette-field" label="Field · terminal-style ⌘K (the signature screen)" width={780} height={560}>
+          <Themed themeKey="field"><F.CommandPalette theme={THEMES.field} /></Themed>
+        </DCArtboard>
+        <DCArtboard id="palette-drift" label="Drift · clean dashboard ⌘K" width={780} height={560}>
+          <Themed themeKey="drift"><D.CommandPalette theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="map" title="06 · Service map"
+        subtitle="Auto-generated DAG — Cartograph's signature plus the Drift dashboard treatment">
+        <DCArtboard id="map-cartograph" label="Cartograph · the atlas (signature)" width={1080} height={620}>
+          <Themed themeKey="cartograph"><C.ServiceMap theme={THEMES.cartograph} /></Themed>
+        </DCArtboard>
+        <DCArtboard id="map-drift" label="Drift · clean dashboard service map" width={1080} height={620}>
+          <Themed themeKey="drift"><D.ServiceMap theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="diff" title="07 · Session diff"
+        subtitle="Drift's signature — side-by-side comparison with per-service deltas">
+        <DCArtboard id="diff-drift" label="Drift · session diff (signature)" width={1180} height={620}>
+          <Themed themeKey="drift"><D.SessionDiff theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="sessions" title="08 · Sessions"
+        subtitle="Named windows of telemetry · mark a baseline (★) and a comparison (+), then Compare">
+        <DCArtboard id="sessions-drift" label="Drift · sessions — the diff starts here" width={1280} height={920}>
+          <Themed themeKey="drift"><window.Sessions theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="spans" title="09 · Spans"
+        subtitle="Flat browser over every span in the local DuckDB · search, filter, inspect attributes">
+        <DCArtboard id="spans-drift" label="Drift · spans — search + facet + attribute inspector" width={1380} height={780}>
+          <Themed themeKey="drift"><window.Spans theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="settings" title="10 · Settings"
+        subtitle="Network · storage · cloud sync · about — interactive (toggles, ports, retention, paths all live)">
+        <DCArtboard id="settings-drift" label="Drift · settings (interactive)" width={1180} height={840}>
+          <Themed themeKey="drift"><window.Settings theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

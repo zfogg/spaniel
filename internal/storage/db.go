@@ -83,6 +83,24 @@ type Stats struct {
 	LogCount   int `json:"log_count"`
 }
 
+type ServiceMapNode struct {
+	ID         string `json:"id"`
+	SpanCount  int    `json:"span_count"`
+	ErrorCount int    `json:"error_count"`
+}
+
+type ServiceMapEdge struct {
+	From          string `json:"from"`
+	To            string `json:"to"`
+	CallCount     int    `json:"call_count"`
+	AvgDurationNs int64  `json:"avg_duration_ns"`
+}
+
+type ServiceMapData struct {
+	Nodes []*ServiceMapNode `json:"nodes"`
+	Edges []*ServiceMapEdge `json:"edges"`
+}
+
 func Open(path string) (*DB, error) {
 	db, err := sql.Open("duckdb", path)
 	if err != nil {
@@ -457,6 +475,79 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
+	// Nodes
+	nodeQuery := `
+		SELECT service_name,
+		       COUNT(*) AS span_count,
+		       COUNT(*) FILTER (WHERE status_code = 2) AS error_count
+		FROM spans`
+	nodeArgs := []any{}
+	if sessionID != "" {
+		nodeQuery += ` WHERE session_id = ?`
+		nodeArgs = append(nodeArgs, sessionID)
+	}
+	nodeQuery += ` GROUP BY service_name ORDER BY service_name`
+
+	nrows, err := d.db.Query(nodeQuery, nodeArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("service map nodes: %w", err)
+	}
+	defer nrows.Close()
+	var nodes []*ServiceMapNode
+	for nrows.Next() {
+		n := &ServiceMapNode{}
+		if err := nrows.Scan(&n.ID, &n.SpanCount, &n.ErrorCount); err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, n)
+	}
+	if err := nrows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Edges: parent-child pairs that cross service boundaries
+	edgeQuery := `
+		SELECT p.service_name,
+		       c.service_name,
+		       COUNT(*) AS call_count,
+		       CAST(AVG(c.duration_ns) AS BIGINT) AS avg_duration_ns
+		FROM spans c
+		INNER JOIN spans p ON c.parent_span_id = p.span_id
+		WHERE c.service_name != p.service_name`
+	edgeArgs := []any{}
+	if sessionID != "" {
+		edgeQuery += ` AND c.session_id = ?`
+		edgeArgs = append(edgeArgs, sessionID)
+	}
+	edgeQuery += ` GROUP BY p.service_name, c.service_name`
+
+	erows, err := d.db.Query(edgeQuery, edgeArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("service map edges: %w", err)
+	}
+	defer erows.Close()
+	var edges []*ServiceMapEdge
+	for erows.Next() {
+		e := &ServiceMapEdge{}
+		if err := erows.Scan(&e.From, &e.To, &e.CallCount, &e.AvgDurationNs); err != nil {
+			return nil, err
+		}
+		edges = append(edges, e)
+	}
+	if err := erows.Err(); err != nil {
+		return nil, err
+	}
+
+	if nodes == nil {
+		nodes = []*ServiceMapNode{}
+	}
+	if edges == nil {
+		edges = []*ServiceMapEdge{}
+	}
+	return &ServiceMapData{Nodes: nodes, Edges: edges}, nil
 }
 
 func (d *DB) Close() error {

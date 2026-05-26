@@ -85,6 +85,45 @@ var rules = []LintRule{
 			return "", false
 		},
 	},
+	{
+		ID:       "rpc.missing_system",
+		Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			if !hasAttr(s.Attributes, "rpc.service") && !hasAttr(s.Attributes, "rpc.method") {
+				return "", false
+			}
+			if !hasAttr(s.Attributes, "rpc.system") {
+				return "RPC span missing required rpc.system attribute", true
+			}
+			return "", false
+		},
+	},
+	{
+		ID:       "rpc.missing_method",
+		Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			if !hasAttr(s.Attributes, "rpc.system") {
+				return "", false
+			}
+			if !hasAttr(s.Attributes, "rpc.method") {
+				return "RPC span missing required rpc.method attribute", true
+			}
+			return "", false
+		},
+	},
+	{
+		ID:       "rpc.missing_service",
+		Severity: "info",
+		Check: func(s *storage.Span) (string, bool) {
+			if !hasAttr(s.Attributes, "rpc.system") {
+				return "", false
+			}
+			if !hasAttr(s.Attributes, "rpc.service") {
+				return "RPC span missing recommended rpc.service attribute", true
+			}
+			return "", false
+		},
+	},
 }
 
 func lintSpan(s *storage.Span, sessionID string, store *storage.DB) {

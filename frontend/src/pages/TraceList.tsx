@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -43,7 +43,8 @@ function EmptyState() {
 export default function TraceList() {
   const [traces, setTraces] = useState<TraceRow[]>([])
   const [services, setServices] = useState<string[]>([])
-  const [filterService, setFilterService] = useState('all')
+  const [searchParams] = useSearchParams()
+  const [filterService, setFilterService] = useState(searchParams.get('service') ?? 'all')
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const tracesRef = useRef(traces)

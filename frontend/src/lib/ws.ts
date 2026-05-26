@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 export interface SpanEvent {
   type: 'span'
   traceId: string
@@ -54,4 +56,8 @@ export function createWS(onEvent: Handler): () => void {
     clearTimeout(retryTimeout)
     ws?.close()
   }
+}
+
+export function useWS(onEvent: Handler) {
+  useEffect(() => createWS(onEvent), [])
 }
