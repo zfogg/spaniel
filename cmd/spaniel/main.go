@@ -27,24 +27,30 @@ import (
 
 func main() {
 	var (
-		port      int
-		dev       bool
-		dbPath    string
-		noBrowser bool
-		apiBase   string
+		port          int
+		dev           bool
+		dbPath        string
+		noBrowser     bool
+		apiBase       string
+		retentionDays int
+		maxSessions   int
+		maxDBSizeMB   int
 	)
 
 	root := &cobra.Command{
 		Use:   "spaniel",
 		Short: "Local OpenTelemetry collector and viewer",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(port, dev, dbPath, noBrowser)
+			return run(port, dev, dbPath, noBrowser, retentionConfig(retentionDays, maxSessions, maxDBSizeMB))
 		},
 	}
 
+	root.PersistentFlags().StringVar(&dbPath, "db-path", defaultDBPath(), "Path to DuckDB file")
+	root.PersistentFlags().IntVar(&retentionDays, "retention", 7, "Delete sessions older than N days (0 = disabled)")
+	root.PersistentFlags().IntVar(&maxSessions, "max-sessions", 50, "Keep at most N sessions (0 = unlimited)")
+	root.PersistentFlags().IntVar(&maxDBSizeMB, "max-db-size", 500, "Shrink DB to at most N MB (0 = unlimited)")
 	root.Flags().IntVar(&port, "port", 8080, "HTTP server port")
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
-	root.Flags().StringVar(&dbPath, "db-path", defaultDBPath(), "Path to DuckDB file")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
 
 	// session subcommand
@@ -70,12 +76,37 @@ func main() {
 	sessionCmd.AddCommand(sessionNewCmd)
 	root.AddCommand(sessionCmd)
 
+	// prune subcommand: apply retention policy once and exit.
+	pruneCmd := &cobra.Command{
+		Use:   "prune",
+		Short: "Apply the retention policy now (delete old / excess / oversized data)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return prune(dbPath, retentionConfig(retentionDays, maxSessions, maxDBSizeMB))
+		},
+	}
+	root.AddCommand(pruneCmd)
+
+	// reset subcommand: wipe everything.
+	var resetYes bool
+	resetCmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Wipe all spaniel data and start fresh",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !resetYes {
+				return fmt.Errorf("refusing to wipe data without --yes")
+			}
+			return reset(dbPath)
+		},
+	}
+	resetCmd.Flags().BoolVar(&resetYes, "yes", false, "Confirm: yes, delete everything")
+	root.AddCommand(resetCmd)
+
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-func run(port int, dev bool, dbPath string, noBrowser bool) error {
+func run(port int, dev bool, dbPath string, noBrowser bool, retention storage.RetentionConfig) error {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
 	}
@@ -91,6 +122,10 @@ func run(port int, dev bool, dbPath string, noBrowser bool) error {
 		return fmt.Errorf("create session: %w", err)
 	}
 	store.SetActiveSession(sess.ID, sess.Label)
+
+	// Retention: run once at startup, then every hour. The active session is
+	// the one we just created; retention preserves it.
+	go runRetention(store, retention, sess.ID)
 
 	hub := ws.NewHub()
 	pipeline := ingestion.NewPipeline(store, hub)

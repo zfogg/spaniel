@@ -95,10 +95,12 @@ type TraceIssue struct {
 }
 
 type Stats struct {
-	SpanCount  int   `json:"span_count"`
-	TraceCount int   `json:"trace_count"`
-	LogCount   int   `json:"log_count"`
-	DBSize     int64 `json:"db_size"`
+	SpanCount       int   `json:"span_count"`
+	TraceCount      int   `json:"trace_count"`
+	LogCount        int   `json:"log_count"`
+	DBSize          int64 `json:"db_size"`
+	SessionCount    int   `json:"session_count"`
+	OldestSessionAt int64 `json:"oldest_session_at"`
 }
 
 type ServiceMapNode struct {
@@ -541,6 +543,12 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 		if fi, err := os.Stat(d.path); err == nil {
 			s.DBSize = fi.Size()
 		}
+	}
+	_ = d.db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&s.SessionCount)
+	var oldest sql.NullInt64
+	_ = d.db.QueryRow(`SELECT MIN(created_at) FROM sessions`).Scan(&oldest)
+	if oldest.Valid {
+		s.OldestSessionAt = oldest.Int64
 	}
 	return s, nil
 }
