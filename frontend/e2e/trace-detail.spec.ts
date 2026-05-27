@@ -244,6 +244,14 @@ test.describe('Trace detail page', () => {
     await expect(page.getByText('slow query: SELECT * FROM items')).toBeVisible()
   })
 
+  test('?spanId= deep-link pre-selects the span on load', async ({ page }) => {
+    await stubBackend(page, makeTrace())
+    await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
+    // Inspector for db1 (SELECT items) appears without any user click.
+    await expect(page.getByText('postgres').first()).toBeVisible()
+    await expect(page.getByText('db.statement').first()).toBeVisible()
+  })
+
   test('back button navigates away from the trace detail page', async ({ page }) => {
     // Land on the traces index first so there's history to go back to.
     await stubBackend(page, makeTrace())

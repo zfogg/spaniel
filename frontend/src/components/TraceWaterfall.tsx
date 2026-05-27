@@ -1059,8 +1059,13 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
   const traceEndNs   = spans.reduce((m, s) => Math.max(m, s.end_ns), 0)
   const traceDurNs   = traceEndNs - traceStartNs
 
+  // Deep-link: ?spanId=X pre-selects and (below) scrolls to that span.
+  const initialSelected = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('spanId')
+    : null
+
   const [view,       setView]       = useState<'waterfall' | 'flame' | 'graph'>('waterfall')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelected)
   const [hoveredId,  setHoveredId]  = useState<string | null>(null)
   const [zoom,       setZoom]       = useState<[number, number]>([traceStartNs, traceEndNs])
 
@@ -1100,6 +1105,14 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
     estimateSize: () => ROW_H,
     overscan: 10,
   })
+
+  // After mount, scroll the deep-linked span into view (?spanId=X).
+  useEffect(() => {
+    if (!initialSelected || flatSpans.length === 0) return
+    const idx = flatSpans.findIndex(f => f.span.span_id === initialSelected)
+    if (idx >= 0) virtualizer.scrollToIndex(idx, { align: 'center' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSelected, flatSpans.length])
 
   if (spans.length === 0) {
     return (

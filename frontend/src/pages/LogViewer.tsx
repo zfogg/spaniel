@@ -5,11 +5,13 @@ import { svcColor } from '@/lib/span-utils'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
-function sevLabel(n: number): string {
+export function sevLabel(n: number): string {
+  if (n >= 21) return 'FATAL'
   if (n >= 17) return 'ERROR'
   if (n >= 13) return 'WARN'
   if (n >= 9)  return 'INFO'
-  return 'DEBUG'
+  if (n >= 5)  return 'DEBUG'
+  return 'TRACE'
 }
 
 function sevBadgeStyle(n: number): React.CSSProperties {
@@ -24,10 +26,12 @@ function sevBadgeStyle(n: number): React.CSSProperties {
     flexShrink: 0,
     display: 'inline-block',
   }
+  if (n >= 21) return { ...base, color: '#fff',         background: 'var(--danger)' }
   if (n >= 17) return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)' }
-  if (n >= 13) return { ...base, color: 'var(--warn)', background: 'var(--warn-bg)' }
-  if (n >= 9)  return { ...base, color: 'var(--ink2)', background: 'transparent' }
-  return { ...base, color: 'var(--ink3)', background: 'transparent' }
+  if (n >= 13) return { ...base, color: 'var(--warn)',   background: 'var(--warn-bg)' }
+  if (n >= 9)  return { ...base, color: 'var(--ink2)',   background: 'transparent' }
+  if (n >= 5)  return { ...base, color: 'var(--ink3)',   background: 'transparent' }
+  return       { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
 }
 
 function sevBodyColor(n: number): string {
@@ -62,9 +66,9 @@ function fmtRelative(ns: number, nowMs: number): string {
 
 // ── severity filter chip levels ───────────────────────────────────────────────
 
-type SevFilter = 'ALL' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
+type SevFilter = 'ALL' | 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'
 
-const SEV_CHIPS: SevFilter[] = ['ALL', 'DEBUG', 'INFO', 'WARN', 'ERROR']
+const SEV_ORDER: SevFilter[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
 
 function chipActiveStyle(chip: SevFilter): React.CSSProperties {
   const base: React.CSSProperties = {
@@ -80,10 +84,12 @@ function chipActiveStyle(chip: SevFilter): React.CSSProperties {
     background: 'transparent',
   }
   switch (chip) {
+    case 'FATAL': return { ...base, color: '#fff',         background: 'var(--danger)',    border: '1px solid var(--danger)' }
     case 'ERROR': return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)' }
     case 'WARN':  return { ...base, color: 'var(--warn)',   background: 'var(--warn-bg)',   border: '1px solid var(--warn)' }
     case 'INFO':  return { ...base, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent)' }
     case 'DEBUG': return { ...base, color: 'var(--ink3)',   background: 'var(--surface3)', border: '1px solid var(--line)' }
+    case 'TRACE': return { ...base, color: 'var(--ink3)',   background: 'var(--surface3)', border: '1px solid var(--line)', opacity: 0.85 }
     default:      return { ...base, color: 'var(--ink)',    background: 'var(--surface2)', border: '1px solid var(--line)' }
   }
 }
@@ -104,34 +110,51 @@ function chipInactiveStyle(): React.CSSProperties {
   }
 }
 
-function matchesSevFilter(severity: number, filter: SevFilter): boolean {
+export function matchesSevFilter(severity: number, filter: SevFilter): boolean {
   if (filter === 'ALL')   return true
-  if (filter === 'ERROR') return severity >= 17
+  if (filter === 'FATAL') return severity >= 21
+  if (filter === 'ERROR') return severity >= 17 && severity < 21
   if (filter === 'WARN')  return severity >= 13 && severity < 17
   if (filter === 'INFO')  return severity >= 9  && severity < 13
-  if (filter === 'DEBUG') return severity < 9
+  if (filter === 'DEBUG') return severity >= 5  && severity < 9
+  if (filter === 'TRACE') return severity < 5
   return true
+}
+
+function presentSevFilters(logs: Log[]): SevFilter[] {
+  const present = new Set<SevFilter>()
+  for (const l of logs) present.add(sevLabel(l.severity) as SevFilter)
+  return SEV_ORDER.filter(s => present.has(s))
 }
 
 // ── LogRow ────────────────────────────────────────────────────────────────────
 
-function LogRow({ log, i, nowMs, navigate }: {
+function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
   log: Log
   i: number
   nowMs: number
+  selected: boolean
+  onSelect: () => void
   navigate: (path: string) => void
 }) {
   const [hovered, setHovered] = useState(false)
   const c = svcColor(log.service_name)
 
-  const rowBg = hovered
-    ? 'var(--surface2)'
-    : i % 2 === 0 ? 'var(--surface)' : 'var(--bg)'
+  const rowBg = selected
+    ? `color-mix(in oklch, var(--accent) 14%, var(--surface))`
+    : hovered
+      ? 'var(--surface2)'
+      : i % 2 === 0 ? 'var(--surface)' : 'var(--bg)'
 
   const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      onClick={onSelect}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -141,11 +164,12 @@ function LogRow({ log, i, nowMs, navigate }: {
         height: 28,
         background: rowBg,
         borderBottom: '1px solid var(--line2)',
-        paddingLeft: 10,
+        borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent',
+        paddingLeft: 8,
         paddingRight: 8,
         gap: 6,
         transition: 'background 0.07s',
-        cursor: 'default',
+        cursor: 'pointer',
       }}
     >
       {/* timestamp */}
@@ -206,7 +230,11 @@ function LogRow({ log, i, nowMs, navigate }: {
         {hasTrace && (
           <button
             type="button"
-            onClick={() => navigate('/traces/' + log.trace_id)}
+            onClick={e => {
+              e.stopPropagation()
+              const q = log.span_id && !/^0+$/.test(log.span_id) ? `?spanId=${log.span_id}` : ''
+              navigate(`/traces/${log.trace_id}${q}`)
+            }}
             title={`view trace ${log.trace_id}`}
             style={{
               background: 'none',
@@ -230,6 +258,175 @@ function LogRow({ log, i, nowMs, navigate }: {
   )
 }
 
+// ── LogInspector (right panel) ────────────────────────────────────────────────
+
+function LogInspector({ log, onClose, navigate }: {
+  log: Log
+  onClose: () => void
+  navigate: (path: string) => void
+}) {
+  const c = svcColor(log.service_name)
+  const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
+
+  let attrs: Record<string, unknown> = {}
+  try { attrs = JSON.parse(log.attributes || '{}') } catch { /* empty */ }
+  const attrEntries = Object.entries(attrs)
+
+  function openTrace() {
+    if (!hasTrace) return
+    const q = log.span_id && !/^0+$/.test(log.span_id) ? `?spanId=${log.span_id}` : ''
+    navigate(`/traces/${log.trace_id}${q}`)
+  }
+
+  return (
+    <aside
+      aria-label="Log details"
+      style={{
+        width: 360,
+        flexShrink: 0,
+        borderLeft: '1px solid var(--border)',
+        background: 'var(--surface)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      <header style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '10px 14px',
+        borderBottom: '1px solid var(--line)',
+        flexShrink: 0,
+      }}>
+        <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink2)' }}>
+          {fmtAbsolute(log.timestamp_ns)}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close inspector"
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--ink3)', fontSize: 14, lineHeight: 1, padding: '2px 6px',
+          }}
+        >
+          ×
+        </button>
+      </header>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+        {/* service chip */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.fg, flexShrink: 0 }} />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink2)' }}>
+            {log.service_name || '—'}
+          </span>
+        </div>
+
+        {/* body (full, wrapped) */}
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11.5,
+          lineHeight: 1.5,
+          color: sevBodyColor(log.severity),
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          background: 'var(--surface2)',
+          border: '1px solid var(--line)',
+          borderRadius: 5,
+          padding: '8px 10px',
+          marginBottom: 14,
+        }}>
+          {log.body || '(empty)'}
+        </div>
+
+        {/* attributes */}
+        <div style={{
+          fontFamily: 'var(--font-mono)', fontSize: 9,
+          color: 'var(--ink3)', letterSpacing: '0.1em', textTransform: 'uppercase',
+          marginBottom: 6,
+        }}>
+          attributes
+        </div>
+        {attrEntries.length === 0 ? (
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)' }}>
+            none
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr',
+            gap: '3px 10px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+          }}>
+            {attrEntries.map(([k, v]) => (
+              <Attribute key={k} k={k} v={v} />
+            ))}
+          </div>
+        )}
+
+        {/* trace + span IDs */}
+        {(hasTrace || log.span_id) && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 9,
+              color: 'var(--ink3)', letterSpacing: '0.1em', textTransform: 'uppercase',
+              marginBottom: 6,
+            }}>
+              ids
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px',
+              fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+              {hasTrace && (<><span style={{ color: 'var(--ink3)' }}>trace</span><span style={{ color: 'var(--ink2)', wordBreak: 'break-all' }}>{log.trace_id}</span></>)}
+              {log.span_id && !/^0+$/.test(log.span_id) && (<><span style={{ color: 'var(--ink3)' }}>span</span><span style={{ color: 'var(--ink2)', wordBreak: 'break-all' }}>{log.span_id}</span></>)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {hasTrace && (
+        <footer style={{
+          padding: '10px 14px',
+          borderTop: '1px solid var(--line)',
+          flexShrink: 0,
+          background: 'var(--surface)',
+        }}>
+          <button
+            type="button"
+            onClick={openTrace}
+            style={{
+              width: '100%',
+              padding: '7px 12px',
+              borderRadius: 5,
+              border: '1px solid var(--accent)',
+              background: 'var(--accent-bg)',
+              color: 'var(--accent-ink)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Open trace →
+          </button>
+        </footer>
+      )}
+    </aside>
+  )
+}
+
+function Attribute({ k, v }: { k: string; v: unknown }) {
+  const text = typeof v === 'string' ? v : JSON.stringify(v)
+  return (
+    <>
+      <span style={{ color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{k}</span>
+      <span style={{ color: 'var(--ink2)', wordBreak: 'break-word' }}>{text}</span>
+    </>
+  )
+}
+
 // ── LogViewer ─────────────────────────────────────────────────────────────────
 
 export default function LogViewer() {
@@ -240,6 +437,7 @@ export default function LogViewer() {
   const [search, setSearch]           = useState('')
   const [loading, setLoading]         = useState(true)
   const [nowMs, setNowMs]             = useState(() => Date.now())
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const navigate = useNavigate()
   const knownIds = useRef<Set<string>>(new Set())
 
@@ -273,6 +471,13 @@ export default function LogViewer() {
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1_000)
     return () => clearInterval(id)
+  }, [])
+
+  // Esc closes the inspector.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedKey(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   const filtered = logs.filter(l => {
@@ -340,9 +545,9 @@ export default function LogViewer() {
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
-        {/* severity chips */}
+        {/* severity chips — ALL + one per present severity */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {SEV_CHIPS.map(chip => (
+          {(['ALL', ...presentSevFilters(logs)] as SevFilter[]).map(chip => (
             <button
               key={chip}
               type="button"
@@ -366,64 +571,80 @@ export default function LogViewer() {
         </span>
       </div>
 
-      {/* body */}
-      {loading ? (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
-        }}>
-          loading…
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
-          textAlign: 'center', padding: 24,
-        }}>
-          no logs yet — send traces with OTel logging attached
-        </div>
-      ) : (
-        <>
-          {/* column header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '90px 52px 130px 1fr 22px',
-            alignItems: 'center',
-            height: 24,
-            paddingLeft: 10,
-            paddingRight: 8,
-            gap: 6,
-            background: 'var(--surface)',
-            borderBottom: '1px solid var(--line)',
-            flexShrink: 0,
-          }}>
-            {['time', 'level', 'service', 'body', ''].map((h, i) => (
-              <div key={i} style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9,
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-                color: 'var(--ink3)',
+      {/* body (list + optional right inspector) */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {loading ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
+            }}>
+              loading…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
+              textAlign: 'center', padding: 24,
+            }}>
+              no logs yet — send traces with OTel logging attached
+            </div>
+          ) : (
+            <>
+              {/* column header */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '90px 52px 130px 1fr 22px',
+                alignItems: 'center',
+                height: 24,
+                paddingLeft: 10,
+                paddingRight: 8,
+                gap: 6,
+                background: 'var(--surface)',
+                borderBottom: '1px solid var(--line)',
+                flexShrink: 0,
               }}>
-                {h}
+                {['time', 'level', 'service', 'body', ''].map((h, i) => (
+                  <div key={i} style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.12em',
+                    color: 'var(--ink3)',
+                  }}>
+                    {h}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* rows */}
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-            {filtered.map((log, i) => (
-              <LogRow
-                key={logKey(log)}
-                log={log}
-                i={i}
-                nowMs={nowMs}
-                navigate={navigate}
-              />
-            ))}
-          </div>
-        </>
-      )}
+              {/* rows */}
+              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+                {filtered.map((log, i) => {
+                  const k = logKey(log)
+                  return (
+                    <LogRow
+                      key={k}
+                      log={log}
+                      i={i}
+                      nowMs={nowMs}
+                      selected={selectedKey === k}
+                      onSelect={() => setSelectedKey(prev => prev === k ? null : k)}
+                      navigate={navigate}
+                    />
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {selectedKey && (() => {
+          const sel = filtered.find(l => logKey(l) === selectedKey)
+          return sel ? (
+            <LogInspector log={sel} onClose={() => setSelectedKey(null)} navigate={navigate} />
+          ) : null
+        })()}
+      </div>
     </div>
   )
 }
