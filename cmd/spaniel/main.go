@@ -21,6 +21,7 @@ import (
 
 	"github.com/zfogg/spaniel/frontend"
 	"github.com/zfogg/spaniel/internal/api"
+	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/ingestion"
 	"github.com/zfogg/spaniel/internal/receiver"
@@ -45,6 +46,7 @@ func main() {
 		maxSessions   int
 		maxDBSizeMB   int
 		forwardURLs   []string
+		routesFile    string
 	)
 
 	root := &cobra.Command{
@@ -58,6 +60,7 @@ func main() {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs)
+			cfg.RoutesFile = routesFile
 			return run(cfg)
 		},
 	}
@@ -70,6 +73,7 @@ func main() {
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
 	root.Flags().StringArrayVar(&forwardURLs, "forward", nil, "Forward OTLP to this URL (repeatable, e.g. http://tempo:4318)")
+	root.Flags().StringVar(&routesFile, "routes-file", "", "OpenAPI/proto spec file used as the coverage denominator")
 
 	// session subcommand
 	sessionCmd := &cobra.Command{
@@ -160,6 +164,7 @@ type runConfig struct {
 	MaxSessions   int
 	MaxDBSizeMB   int
 	ForwardURLs   []string
+	RoutesFile    string
 }
 
 // resolveConfig merges viper config with any explicitly-set CLI flags.
@@ -260,7 +265,21 @@ func run(cfg runConfig) error {
 		}
 	}()
 
-	apiRouter := api.NewRouter(store, hub, fwd)
+	var manifests *coverage.Manifests
+	if cfg.RoutesFile != "" {
+		m, err := coverage.LoadManifest(cfg.RoutesFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "routes-file: %v\n", err)
+		} else {
+			manifests = m
+			total := 0
+			for _, rs := range m.Routes {
+				total += len(rs)
+			}
+			fmt.Printf("  Routes    →  %s (%d declared)\n", cfg.RoutesFile, total)
+		}
+	}
+	apiRouter := api.NewRouterWithManifests(store, hub, fwd, manifests)
 
 	var uiHandler http.Handler
 	if cfg.Dev {

@@ -13,6 +13,7 @@ import ServiceMap from './pages/ServiceMap'
 import LintPage from './pages/LintPage'
 import DiffPage from './pages/DiffPage'
 import Metrics from './pages/Metrics'
+import Coverage from './pages/Coverage'
 import BottomBar from './components/BottomBar'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { api, type ForwarderStatus } from './lib/api'
@@ -210,6 +211,7 @@ function Chrome() {
         <NavPill to="/logs"           label="Logs"     />
         <NavPill to="/metrics"        label="Metrics"  />
         <NavPill to="/services"       label="Services" />
+        <NavPill to="/coverage"       label="Coverage" />
         <NavPill to="/lint"           label="Lint"     />
         <NavPill to="/sessions"       label="Sessions" />
       </nav>
@@ -264,6 +266,7 @@ function AppShell() {
           <Route path="/traces/:traceId"   element={<TraceDetail />} />
           <Route path="/logs"              element={<LogViewer />}   />
           <Route path="/metrics"           element={<Metrics />}     />
+          <Route path="/coverage"          element={<Coverage />}    />
           <Route path="/services"          element={<ServiceMap />}  />
           <Route path="/lint"              element={<LintPage />}    />
           <Route path="/sessions"          element={<Sessions />}    />

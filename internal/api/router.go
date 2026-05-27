@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
@@ -17,10 +18,17 @@ type Router struct {
 	store     *storage.DB
 	hub       *ws.Hub
 	forwarder *forwarder.Forwarder // nil when no upstream configured
+	manifests *coverage.Manifests  // nil when no spec file is loaded
 }
 
 func NewRouter(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder) http.Handler {
-	r := &Router{store: store, hub: hub, forwarder: fwd}
+	return NewRouterWithManifests(store, hub, fwd, nil)
+}
+
+// NewRouterWithManifests is the full constructor used when an OpenAPI/proto
+// spec has been imported via --routes-file. NewRouter forwards here with nil.
+func NewRouterWithManifests(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs *coverage.Manifests) http.Handler {
+	r := &Router{store: store, hub: hub, forwarder: fwd, manifests: mfs}
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
@@ -50,6 +58,7 @@ func NewRouter(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder) http.Ha
 	mux.Get("/api/sessions/{sessionId}/baseline-export", r.exportBaseline)
 	mux.Get("/api/metrics", r.listMetrics)
 	mux.Get("/api/metrics/series", r.getMetricSeries)
+	mux.Get("/api/coverage", r.getCoverage)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux

@@ -128,6 +128,34 @@ export interface MetricSeries {
   points: MetricSeriesPoint[]
 }
 
+export interface CoverageRoute {
+  method: string
+  path: string
+  hits: number
+  p95_ns?: number
+}
+
+export interface ServiceCoverage {
+  name: string
+  source: 'openapi' | 'observed'
+  spec?: string
+  observed_operations: number
+  total_routes: number
+  coverage_pct: number
+  dark_routes: CoverageRoute[]
+  observed_routes: CoverageRoute[]
+}
+
+export interface CoverageReport {
+  services: ServiceCoverage[]
+  overall: {
+    observed_operations: number
+    total_routes: number
+    dark_count: number
+    coverage_pct: number
+  }
+}
+
 export interface ForwarderStatus {
   url: string
   sent: number
@@ -231,6 +259,10 @@ export const api = {
   },
   forwarders: {
     list: () => get<ForwarderStatus[]>('/api/forwarders'),
+  },
+  coverage: {
+    get: (sessionId?: string) =>
+      get<CoverageReport>(`/api/coverage${sessionId ? `?sessionId=${sessionId}` : ''}`),
   },
   metrics: {
     list: (sessionId?: string) =>
