@@ -7,6 +7,7 @@ import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtN
 // ── layout constants ──────────────────────────────────────────────────────────
 
 const NAME_W = 320
+const ZERO_ID = '0000000000000000'
 const DUR_W = 56
 const ROW_H = 32
 const STEPS = 6
