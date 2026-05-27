@@ -219,10 +219,18 @@ export interface Stats {
   db_size: number
 }
 
+export interface ServiceMapOpStat {
+  name: string
+  count: number
+  p95_ns: number
+}
+
 export interface ServiceMapNode {
   id: string
   span_count: number
   error_count: number
+  p95_ns: number
+  top_operations: ServiceMapOpStat[]
 }
 
 export interface ServiceMapEdge {
@@ -230,6 +238,7 @@ export interface ServiceMapEdge {
   to: string
   call_count: number
   avg_duration_ns: number
+  error_count: number
 }
 
 export interface ServiceMapData {

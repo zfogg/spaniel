@@ -131,9 +131,19 @@ type MetricCatalogEntry struct {
 }
 
 type ServiceMapNode struct {
-	ID         string `json:"id"`
-	SpanCount  int    `json:"span_count"`
-	ErrorCount int    `json:"error_count"`
+	ID         string             `json:"id"`
+	SpanCount  int                `json:"span_count"`
+	ErrorCount int                `json:"error_count"`
+	P95Ns      int64              `json:"p95_ns"`
+	TopOps     []ServiceMapOpStat `json:"top_operations"`
+}
+
+// ServiceMapOpStat is one (operation name, count, p95) entry for the node
+// inspector panel. Capped server-side to keep the response cheap.
+type ServiceMapOpStat struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+	P95Ns int64  `json:"p95_ns"`
 }
 
 type ServiceMapEdge struct {
@@ -141,6 +151,7 @@ type ServiceMapEdge struct {
 	To            string `json:"to"`
 	CallCount     int    `json:"call_count"`
 	AvgDurationNs int64  `json:"avg_duration_ns"`
+	ErrorCount    int    `json:"error_count"`
 }
 
 type ServiceMapData struct {
@@ -677,10 +688,12 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 
 func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	// Nodes
+	// Nodes — span_count, error_count, p95(duration_ns).
 	nodeQuery := `
 		SELECT service_name,
 		       COUNT(*) AS span_count,
-		       COUNT(*) FILTER (WHERE status_code = 2) AS error_count
+		       COUNT(*) FILTER (WHERE status_code = 2) AS error_count,
+		       CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns
 		FROM spans`
 	nodeArgs := []any{}
 	if sessionID != "" {
@@ -697,7 +710,7 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	var nodes []*ServiceMapNode
 	for nrows.Next() {
 		n := &ServiceMapNode{}
-		if err := nrows.Scan(&n.ID, &n.SpanCount, &n.ErrorCount); err != nil {
+		if err := nrows.Scan(&n.ID, &n.SpanCount, &n.ErrorCount, &n.P95Ns); err != nil {
 			return nil, err
 		}
 		nodes = append(nodes, n)
@@ -706,12 +719,23 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 		return nil, err
 	}
 
-	// Edges: parent-child pairs that cross service boundaries
+	// Top operations per service for the inspector panel.
+	for _, n := range nodes {
+		ops, err := d.topOperationsForService(n.ID, sessionID, 5)
+		if err != nil {
+			return nil, fmt.Errorf("top ops for %s: %w", n.ID, err)
+		}
+		n.TopOps = ops
+	}
+
+	// Edges — parent → child where services differ. Adds error_count: the
+	// count of child spans on the edge that errored (status_code = 2).
 	edgeQuery := `
 		SELECT p.service_name,
 		       c.service_name,
 		       COUNT(*) AS call_count,
-		       CAST(AVG(c.duration_ns) AS BIGINT) AS avg_duration_ns
+		       CAST(AVG(c.duration_ns) AS BIGINT) AS avg_duration_ns,
+		       COUNT(*) FILTER (WHERE c.status_code = 2) AS error_count
 		FROM spans c
 		INNER JOIN spans p ON c.parent_span_id = p.span_id
 		WHERE c.service_name != p.service_name`
@@ -730,7 +754,7 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	var edges []*ServiceMapEdge
 	for erows.Next() {
 		e := &ServiceMapEdge{}
-		if err := erows.Scan(&e.From, &e.To, &e.CallCount, &e.AvgDurationNs); err != nil {
+		if err := erows.Scan(&e.From, &e.To, &e.CallCount, &e.AvgDurationNs, &e.ErrorCount); err != nil {
 			return nil, err
 		}
 		edges = append(edges, e)
@@ -746,6 +770,39 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 		edges = []*ServiceMapEdge{}
 	}
 	return &ServiceMapData{Nodes: nodes, Edges: edges}, nil
+}
+
+// topOperationsForService returns the N most-common (service, name) pairs for
+// the inspector panel, with per-op p95 latency.
+func (d *DB) topOperationsForService(service, sessionID string, limit int) ([]ServiceMapOpStat, error) {
+	q := `
+		SELECT name,
+		       COUNT(*) AS cnt,
+		       CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns
+		FROM spans
+		WHERE service_name = ?`
+	args := []any{service}
+	if sessionID != "" {
+		q += ` AND session_id = ?`
+		args = append(args, sessionID)
+	}
+	q += ` GROUP BY name ORDER BY cnt DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := d.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ServiceMapOpStat{}
+	for rows.Next() {
+		s := ServiceMapOpStat{}
+		if err := rows.Scan(&s.Name, &s.Count, &s.P95Ns); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
 
 func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {

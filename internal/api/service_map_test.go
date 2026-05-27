@@ -94,6 +94,95 @@ func TestGetServiceMap_ParentChild(t *testing.T) {
 	}
 }
 
+func TestGetServiceMap_IncludesP95(t *testing.T) {
+	handler, store := setupRouter(t)
+	// 20 spans on the same service with linearly increasing durations.
+	for i := 1; i <= 20; i++ {
+		insertSpanFull(t, store, "sess", "t", "s"+strconvI(i), "", "api", "op", int64(i)*1_000_000)
+	}
+	w := do(t, handler, http.MethodGet, "/api/service-map", nil)
+	data := decodeData[storage.ServiceMapData](t, w.Body.Bytes())
+	if len(data.Nodes) != 1 {
+		t.Fatalf("expected 1 node, got %+v", data.Nodes)
+	}
+	// p95 of 1..20ms is ~19ms (DuckDB QUANTILE_CONT interpolates ≈ 19.05ms).
+	if data.Nodes[0].P95Ns < 18_000_000 || data.Nodes[0].P95Ns > 20_000_000 {
+		t.Errorf("P95Ns out of expected ~19ms range: %d", data.Nodes[0].P95Ns)
+	}
+	// Top operations populated.
+	if len(data.Nodes[0].TopOps) == 0 || data.Nodes[0].TopOps[0].Name != "op" {
+		t.Errorf("expected top ops with 'op', got %+v", data.Nodes[0].TopOps)
+	}
+	if data.Nodes[0].TopOps[0].Count != 20 {
+		t.Errorf("top op count = %d, want 20", data.Nodes[0].TopOps[0].Count)
+	}
+}
+
+func TestGetServiceMap_EdgeErrorCount(t *testing.T) {
+	handler, store := setupRouter(t)
+	// api → db, 4 db calls, 2 of which are ERROR.
+	insertSpanFull(t, store, "sess", "t", "api-1", "",      "api", "GET /cart", 100_000_000)
+	insertSpanFull(t, store, "sess", "t", "db-1",  "api-1", "db",  "SELECT",     20_000_000)
+	insertSpanFull(t, store, "sess", "t", "db-2",  "api-1", "db",  "SELECT",     40_000_000)
+	insertSpanErr(t, store,  "sess", "t", "db-3",  "api-1", "db",  "SELECT",     30_000_000)
+	insertSpanErr(t, store,  "sess", "t", "db-4",  "api-1", "db",  "SELECT",     50_000_000)
+
+	w := do(t, handler, http.MethodGet, "/api/service-map", nil)
+	data := decodeData[storage.ServiceMapData](t, w.Body.Bytes())
+	if len(data.Edges) != 1 {
+		t.Fatalf("expected 1 edge, got %+v", data.Edges)
+	}
+	e := data.Edges[0]
+	if e.CallCount != 4 {
+		t.Errorf("CallCount = %d, want 4", e.CallCount)
+	}
+	if e.ErrorCount != 2 {
+		t.Errorf("ErrorCount = %d, want 2", e.ErrorCount)
+	}
+	// db service should also have ErrorCount=2.
+	var db *storage.ServiceMapNode
+	for _, n := range data.Nodes {
+		if n.ID == "db" {
+			db = n
+		}
+	}
+	if db == nil || db.ErrorCount != 2 {
+		t.Errorf("db node error_count = %v, want 2", db)
+	}
+}
+
+// insertSpanErr is insertSpanFull with status_code = 2.
+func insertSpanErr(t *testing.T, store *storage.DB, sessID, traceID, spanID, parent, svc, name string, durNs int64) {
+	t.Helper()
+	now := time.Now().UnixNano()
+	if err := store.InsertSpan(&storage.Span{
+		TraceID: traceID, SpanID: spanID, ParentSpanID: parent,
+		ServiceName: svc, Name: name,
+		StartNs: now, EndNs: now + durNs,
+		StatusCode: 2,
+		Attributes:  "{}",
+		Resource:    "{}",
+		SessionID:   sessID, SessionLabel: sessID, ReceivedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertSpan: %v", err)
+	}
+}
+
+// strconvI is a local helper so the test file doesn't need to import strconv.
+func strconvI(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	buf := [20]byte{}
+	pos := len(buf)
+	for n > 0 {
+		pos--
+		buf[pos] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[pos:])
+}
+
 func TestGetServiceMap_SessionFilter(t *testing.T) {
 	handler, store := setupRouter(t)
 	insertSpan(t, store, "keep",  "t1", "k1", "", "api", "op")
