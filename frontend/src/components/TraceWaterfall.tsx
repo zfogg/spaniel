@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, LintWarning, TraceIssue, Log, api } from '@/lib/api'
 import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, FlatSpan } from '@/lib/span-utils'
+import { computeLayout, detectN1SpanIds, n1BannerEntries } from '@/components/trace-waterfall-utils'
 import TraceGraph from '@/components/TraceGraph'
 
 // ── layout constants ──────────────────────────────────────────────────────────
@@ -151,8 +152,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
   const isError = span.status_code === 2
   const tagColor = isN1 ? 'var(--warn)' : tag === 'n+1' ? '#ef4444' : '#f59e0b'
 
-  const left  = traceDurNs > 0 ? ((span.start_ns - traceStartNs) / traceDurNs) * 100 : 0
-  const width = traceDurNs > 0 ? Math.max(0.6, (span.duration_ns / traceDurNs) * 100) : 0.6
+  const { leftPct: left, widthPct: width } = computeLayout(span, traceStartNs, traceDurNs)
 
   return (
     <div
@@ -1081,62 +1081,8 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
   const flatSpans    = flatten(spans)
   const tags         = buildTagMap(warnings)
 
-  // Client-side N+1 detection: group DB spans by raw db.statement and mark those
-  // with 10+ occurrences. Also incorporate server-detected issues.
-  const n1SpanIds = useMemo(() => {
-    const set = new Set<string>()
-    // From server issues: look up example_span_id and all spans sharing parent
-    for (const issue of issues) {
-      if (issue.kind !== 'n_plus_one') continue
-      if (issue.example_span_id) set.add(issue.example_span_id)
-    }
-    // Client-side: count by raw db.statement
-    const counts = new Map<string, string[]>()
-    for (const flat of flatSpans) {
-      const s = flat.span
-      let attrs: Record<string, unknown> = {}
-      try { attrs = JSON.parse(s.attributes ?? '{}') } catch { /* empty */ }
-      const stmt = attrs['db.statement']
-      if (typeof stmt !== 'string' || !stmt) continue
-      const ids = counts.get(stmt) ?? []
-      ids.push(s.span_id)
-      counts.set(stmt, ids)
-    }
-    for (const [, ids] of counts) {
-      if (ids.length >= 10) {
-        for (const id of ids) set.add(id)
-      }
-    }
-    return set
-  }, [flatSpans, issues])
-
-  // Build N+1 summary for the banner (from server issues, falling back to client-side counts)
-  const n1Banner = useMemo(() => {
-    if (issues.length > 0) {
-      return issues
-        .filter(i => i.kind === 'n_plus_one')
-        .map(i => ({ fingerprint: i.fingerprint, count: i.count, wastedNs: i.wasted_ns }))
-        .sort((a, b) => b.wastedNs - a.wastedNs)
-    }
-    // Fallback: build from client-side counts
-    const counts = new Map<string, { ids: string[]; totalNs: number }>()
-    for (const flat of flatSpans) {
-      const s = flat.span
-      let attrs: Record<string, unknown> = {}
-      try { attrs = JSON.parse(s.attributes ?? '{}') } catch { /* empty */ }
-      const stmt = attrs['db.statement']
-      if (typeof stmt !== 'string' || !stmt) continue
-      const entry = counts.get(stmt) ?? { ids: [], totalNs: 0 }
-      entry.ids.push(s.span_id)
-      entry.totalNs += s.duration_ns
-      counts.set(stmt, entry)
-    }
-    const result: { fingerprint: string; count: number; wastedNs: number }[] = []
-    for (const [fp, { ids, totalNs }] of counts) {
-      if (ids.length >= 10) result.push({ fingerprint: fp, count: ids.length, wastedNs: totalNs })
-    }
-    return result.sort((a, b) => b.wastedNs - a.wastedNs)
-  }, [issues, flatSpans])
+  const n1SpanIds = useMemo(() => detectN1SpanIds(flatSpans, issues), [flatSpans, issues])
+  const n1Banner  = useMemo(() => n1BannerEntries(flatSpans, issues), [flatSpans, issues])
 
   const rootSpan     = spans.find(s => !s.parent_span_id || s.parent_span_id === ZERO_ID)
   const serviceCount = new Set(spans.map(s => s.service_name)).size
