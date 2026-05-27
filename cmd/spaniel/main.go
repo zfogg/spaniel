@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/zfogg/spaniel/frontend"
 	"github.com/zfogg/spaniel/internal/api"
@@ -27,7 +28,10 @@ import (
 )
 
 func main() {
+	v := viper.New()
+
 	var (
+		// flag variables — overrides over config file values when explicitly set
 		port          int
 		dev           bool
 		dbPath        string
@@ -41,16 +45,22 @@ func main() {
 	root := &cobra.Command{
 		Use:   "spaniel",
 		Short: "Local OpenTelemetry collector and viewer",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			initViper(v)
+			bindRootFlags(v, cmd)
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(port, dev, dbPath, noBrowser, retentionConfig(retentionDays, maxSessions, maxDBSizeMB))
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB)
+			return run(cfg)
 		},
 	}
 
-	root.PersistentFlags().StringVar(&dbPath, "db-path", defaultDBPath(), "Path to DuckDB file")
-	root.PersistentFlags().IntVar(&retentionDays, "retention", 7, "Delete sessions older than N days (0 = disabled)")
-	root.PersistentFlags().IntVar(&maxSessions, "max-sessions", 50, "Keep at most N sessions (0 = unlimited)")
-	root.PersistentFlags().IntVar(&maxDBSizeMB, "max-db-size", 500, "Shrink DB to at most N MB (0 = unlimited)")
-	root.Flags().IntVar(&port, "port", 8080, "HTTP server port")
+	root.PersistentFlags().StringVar(&dbPath, "db-path", "", "Path to DuckDB file")
+	root.PersistentFlags().IntVar(&retentionDays, "retention", 0, "Delete sessions older than N days (0 = use config)")
+	root.PersistentFlags().IntVar(&maxSessions, "max-sessions", 0, "Keep at most N sessions (0 = use config)")
+	root.PersistentFlags().IntVar(&maxDBSizeMB, "max-db-size", 0, "Shrink DB to at most N MB (0 = use config)")
+	root.Flags().IntVar(&port, "port", 0, "HTTP server port (default 8080)")
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
 
@@ -73,11 +83,10 @@ func main() {
 			return sessionNew(apiBase, label)
 		},
 	}
-
 	sessionCmd.AddCommand(sessionNewCmd)
 	root.AddCommand(sessionCmd)
 
-	// import subcommand: spaniel import <session_name> <file>|'-'
+	// import subcommand
 	var importFormat string
 	importCmd := &cobra.Command{
 		Use:   "import <session_name> <file>",
@@ -98,17 +107,18 @@ Examples:
 	importCmd.Flags().StringVar(&apiBase, "api", "http://localhost:8080", "Spaniel API base URL")
 	root.AddCommand(importCmd)
 
-	// prune subcommand: apply retention policy once and exit.
+	// prune subcommand
 	pruneCmd := &cobra.Command{
 		Use:   "prune",
-		Short: "Apply the retention policy now (delete old / excess / oversized data)",
+		Short: "Apply the retention policy now and exit",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return prune(dbPath, retentionConfig(retentionDays, maxSessions, maxDBSizeMB))
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB)
+			return prune(cfg.DBPath, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB))
 		},
 	}
 	root.AddCommand(pruneCmd)
 
-	// reset subcommand: wipe everything.
+	// reset subcommand
 	var resetYes bool
 	resetCmd := &cobra.Command{
 		Use:   "reset",
@@ -117,27 +127,90 @@ Examples:
 			if !resetYes {
 				return fmt.Errorf("refusing to wipe data without --yes")
 			}
-			return reset(dbPath)
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB)
+			return reset(cfg.DBPath)
 		},
 	}
 	resetCmd.Flags().BoolVar(&resetYes, "yes", false, "Confirm: yes, delete everything")
 	root.AddCommand(resetCmd)
+
+	// config subcommand
+	root.AddCommand(configSubcommand(v))
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-func run(port int, dev bool, dbPath string, noBrowser bool, retention storage.RetentionConfig) error {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+// runConfig holds all resolved runtime parameters.
+type runConfig struct {
+	Port          int
+	Dev           bool
+	DBPath        string
+	NoBrowser     bool
+	RetentionDays int
+	MaxSessions   int
+	MaxDBSizeMB   int
+}
+
+// resolveConfig merges viper config with any explicitly-set CLI flags.
+// CLI flags win if they were actually changed from their zero-value sentinel.
+func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPath string, noBrowser bool, retentionDays, maxSessions, maxDBSizeMB int) runConfig {
+	cfg := runConfig{
+		Port:          v.GetInt("port"),
+		Dev:           dev,
+		DBPath:        expandHome(v.GetString("db_path")),
+		NoBrowser:     v.GetBool("no_browser"),
+		RetentionDays: v.GetInt("retention_days"),
+		MaxSessions:   v.GetInt("max_sessions"),
+		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
+	}
+	// CLI flags override if explicitly set (non-zero sentinel)
+	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
+		cfg.Port = port
+	}
+	if f := cmd.Flags().Lookup("no-browser"); f != nil && f.Changed {
+		cfg.NoBrowser = noBrowser
+	}
+	if f := cmd.PersistentFlags().Lookup("db-path"); f != nil && f.Changed {
+		cfg.DBPath = expandHome(dbPath)
+	}
+	if f := cmd.PersistentFlags().Lookup("retention"); f != nil && f.Changed {
+		cfg.RetentionDays = retentionDays
+	}
+	if f := cmd.PersistentFlags().Lookup("max-sessions"); f != nil && f.Changed {
+		cfg.MaxSessions = maxSessions
+	}
+	if f := cmd.PersistentFlags().Lookup("max-db-size"); f != nil && f.Changed {
+		cfg.MaxDBSizeMB = maxDBSizeMB
+	}
+	if cfg.Port == 0 {
+		cfg.Port = 8080
+	}
+	if cfg.DBPath == "" {
+		cfg.DBPath = defaultDBPath()
+	}
+	return cfg
+}
+
+func expandHome(p string) string {
+	if len(p) >= 2 && p[:2] == "~/" {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, p[2:])
+	}
+	return p
+}
+
+func run(cfg runConfig) error {
+	if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0o755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
 	}
 
-	store, err := storage.Open(dbPath)
+	store, err := storage.Open(cfg.DBPath)
 	if err != nil {
 		return fmt.Errorf("open storage: %w", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
 	if err != nil {
@@ -145,14 +218,11 @@ func run(port int, dev bool, dbPath string, noBrowser bool, retention storage.Re
 	}
 	store.SetActiveSession(sess.ID, sess.Label)
 
-	// Retention: run once at startup, then every hour. The active session is
-	// the one we just created; retention preserves it.
-	go runRetention(store, retention, sess.ID)
+	go runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB), sess.ID)
 
 	hub := ws.NewHub()
 	pipeline := ingestion.NewPipeline(store, hub)
 
-	// gRPC OTLP receiver on :4317
 	grpcRcv := receiver.NewGRPCReceiver(pipeline)
 	go func() {
 		if err := grpcRcv.ListenAndServe(":4317"); err != nil {
@@ -160,7 +230,6 @@ func run(port int, dev bool, dbPath string, noBrowser bool, retention storage.Re
 		}
 	}()
 
-	// HTTP OTLP receiver on :4318
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
 	otlpMux := http.NewServeMux()
 	otlpMux.HandleFunc("/v1/traces", httpRcv.HandleTraces)
@@ -172,11 +241,10 @@ func run(port int, dev bool, dbPath string, noBrowser bool, retention storage.Re
 		}
 	}()
 
-	// Main HTTP server (API + UI)
 	apiRouter := api.NewRouter(store, hub)
 
 	var uiHandler http.Handler
-	if dev {
+	if cfg.Dev {
 		viteURL, _ := url.Parse("http://localhost:5173")
 		uiHandler = httputil.NewSingleHostReverseProxy(viteURL)
 	} else {
@@ -192,19 +260,17 @@ func run(port int, dev bool, dbPath string, noBrowser bool, retention storage.Re
 	mainMux.Handle("/ws", apiRouter)
 	mainMux.Handle("/", uiHandler)
 
-	addr := fmt.Sprintf(":%d", port)
+	printBanner(cfg.Port, cfg.DBPath)
 
-	printBanner(port, dbPath)
-
-	if !noBrowser {
+	if !cfg.NoBrowser {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
-			openBrowser(fmt.Sprintf("http://localhost:%d", port))
+			openBrowser(fmt.Sprintf("http://localhost:%d", cfg.Port))
 		}()
 	}
 
 	_ = context.Background()
-	return http.ListenAndServe(addr, mainMux)
+	return http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), mainMux)
 }
 
 func printBanner(port int, dbPath string) {
@@ -295,19 +361,19 @@ func sessionNew(apiBase, label string) error {
 	return nil
 }
 
-func openBrowser(url string) {
+func openBrowser(u string) {
 	var cmd string
 	var args []string
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = "open"
-		args = []string{url}
+		args = []string{u}
 	case "windows":
 		cmd = "rundll32"
-		args = []string{"url.dll,FileProtocolHandler", url}
+		args = []string{"url.dll,FileProtocolHandler", u}
 	default:
 		cmd = "xdg-open"
-		args = []string{url}
+		args = []string{u}
 	}
 	exec.Command(cmd, args...).Start() //nolint:errcheck
 }
