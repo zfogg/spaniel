@@ -256,7 +256,7 @@ func (d *DB) CreateImportedSession(label string) (*Session, error) {
 
 func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session, error) {
 	now := time.Now().UnixNano()
-	id := fmt.Sprintf("session_%d", time.Now().UnixMilli())
+	id := fmt.Sprintf("session_%d", time.Now().UnixNano())
 	if label == "" {
 		label = id
 	}

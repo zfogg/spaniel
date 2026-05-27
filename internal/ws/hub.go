@@ -62,8 +62,8 @@ func (h *Hub) Broadcast(ev *SpanEvent) {
 	if err != nil {
 		return
 	}
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	for conn := range h.clients {
 		conn.WriteMessage(websocket.TextMessage, data) //nolint:errcheck
 	}
