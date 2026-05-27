@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/marcboeker/go-duckdb"
 )
 
@@ -256,7 +257,7 @@ func (d *DB) CreateImportedSession(label string) (*Session, error) {
 
 func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session, error) {
 	now := time.Now().UnixNano()
-	id := fmt.Sprintf("session_%d", time.Now().UnixNano())
+	id := uuid.New().String()
 	if label == "" {
 		label = id
 	}
