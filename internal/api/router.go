@@ -46,7 +46,10 @@ func NewRouter(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder) http.Ha
 	mux.Get("/api/issues", r.getIssues)
 	mux.Get("/api/diff", r.getDiff)
 	mux.Get("/api/forwarders", r.listForwarders)
+	mux.Get("/api/search", r.search)
 	mux.Get("/api/sessions/{sessionId}/baseline-export", r.exportBaseline)
+	mux.Get("/api/metrics", r.listMetrics)
+	mux.Get("/api/metrics/series", r.getMetricSeries)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux

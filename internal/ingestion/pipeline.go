@@ -120,9 +120,8 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 	return nil
 }
 
-func (p *Pipeline) IngestMetrics(_ context.Context, _ pmetric.Metrics) error {
-	// metrics storage is a future milestone; accept and discard for now
-	return nil
+func (p *Pipeline) IngestMetrics(_ context.Context, md pmetric.Metrics) error {
+	return p.ingestMetricsTree(md, p.store.ActiveSessionID())
 }
 
 func (p *Pipeline) scheduleDetectors(traceID string) {

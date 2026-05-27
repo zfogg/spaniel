@@ -95,6 +95,39 @@ export interface ImportResult {
   trace_count: number
 }
 
+export interface SearchResult {
+  kind: 'trace' | 'log'
+  trace_id: string
+  span_id?: string
+  title: string
+  subtitle: string
+  session_id: string
+}
+
+export interface MetricCatalogEntry {
+  name: string
+  description: string
+  unit: string
+  type: 'gauge' | 'counter' | 'histogram'
+  service_name: string
+  sample_count: number
+}
+
+export interface MetricSeriesPoint {
+  timestamp_ns: number
+  value: number
+  percentile?: 'p50' | 'p95' | 'p99'
+}
+
+export interface MetricSeries {
+  name: string
+  service_name: string
+  type: 'gauge' | 'counter' | 'histogram'
+  unit: string
+  description: string
+  points: MetricSeriesPoint[]
+}
+
 export interface ForwarderStatus {
   url: string
   sent: number
@@ -198,5 +231,24 @@ export const api = {
   },
   forwarders: {
     list: () => get<ForwarderStatus[]>('/api/forwarders'),
+  },
+  metrics: {
+    list: (sessionId?: string) =>
+      get<MetricCatalogEntry[]>(`/api/metrics${sessionId ? `?sessionId=${sessionId}` : ''}`),
+    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number }) => {
+      const q = new URLSearchParams({ name: params.name })
+      if (params.service) q.set('service', params.service)
+      if (params.sessionId) q.set('sessionId', params.sessionId)
+      if (params.from) q.set('from', String(params.from))
+      if (params.to) q.set('to', String(params.to))
+      return get<MetricSeries>(`/api/metrics/series?${q}`)
+    },
+  },
+  search: {
+    query: (q: string, sessionId?: string) => {
+      const params = new URLSearchParams({ q, limit: '20' })
+      if (sessionId) params.set('sessionId', sessionId)
+      return get<SearchResult[]>(`/api/search?${params}`)
+    },
   },
 }

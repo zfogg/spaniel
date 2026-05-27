@@ -233,3 +233,14 @@
   50%       { opacity: 0.5; transform: scale(1.3); }
 }
 .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+@keyframes ping {
+  75%, 100% { transform: scale(2.2); opacity: 0; }
+}
+.ping { animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 0.35s ease both; }

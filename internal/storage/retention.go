@@ -63,7 +63,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 // Reset wipes all telemetry data (spans, logs, lint warnings, trace issues, sessions).
 // The active session pointer in memory is cleared.
 func (d *DB) Reset() error {
-	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "spans", "sessions"} {
+	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "metrics", "spans", "sessions"} {
 		if _, err := d.db.Exec(`DELETE FROM ` + tbl); err != nil {
 			return fmt.Errorf("truncate %s: %w", tbl, err)
 		}

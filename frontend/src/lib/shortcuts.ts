@@ -5,17 +5,20 @@ import { api } from '@/lib/api'
 // Custom DOM event pages can listen to for Esc (close panel/modal).
 export const ESCAPE_EVENT = 'spaniel:escape'
 
+// Dispatched by ⌘K / Ctrl+K / `/` to open the command palette.
+export const SEARCH_PALETTE_EVENT = 'spaniel:open-search'
+
 function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
   const tag = el.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
 
-// Global keyboard shortcuts per spec #29:
+// Global keyboard shortcuts:
+//   ⌘K / Ctrl+K / `/` — open command palette
 //   n   — new session
 //   b   — toggle baseline on the active session
 //   d   — open diff view
-//   /   — focus search ([data-shortcut="search"])
 //   Esc — dispatch close-panel event (and blur)
 export function useGlobalShortcuts() {
   const navigate = useNavigate()
@@ -29,18 +32,21 @@ export function useGlobalShortcuts() {
         return
       }
 
+      // ⌘K / Ctrl+K opens palette even from inputs.
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent(SEARCH_PALETTE_EVENT))
+        return
+      }
+
       // Don't trigger letter shortcuts while typing.
       if (isTypingTarget(e.target)) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
 
       switch (e.key) {
         case '/': {
-          const el = document.querySelector<HTMLElement>('[data-shortcut="search"]')
-          if (el) {
-            e.preventDefault()
-            el.focus()
-            if (el instanceof HTMLInputElement) el.select()
-          }
+          e.preventDefault()
+          window.dispatchEvent(new CustomEvent(SEARCH_PALETTE_EVENT))
           return
         }
         case 'n': {

@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useTheme } from 'next-themes'
-import { Moon, Sun } from 'lucide-react'
+import { Moon, Sun, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { CommandPalette } from '@/components/CommandPalette'
+import { SEARCH_PALETTE_EVENT } from '@/lib/shortcuts'
 import TraceList from './pages/TraceList'
 import TraceDetail from './pages/TraceDetail'
 import LogViewer from './pages/LogViewer'
@@ -10,6 +12,7 @@ import Sessions from './pages/Sessions'
 import ServiceMap from './pages/ServiceMap'
 import LintPage from './pages/LintPage'
 import DiffPage from './pages/DiffPage'
+import Metrics from './pages/Metrics'
 import BottomBar from './components/BottomBar'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { api, type ForwarderStatus } from './lib/api'
@@ -205,6 +208,7 @@ function Chrome() {
       <nav style={{ display: 'flex', gap: 2 }}>
         <NavPill to="/"         end   label="Traces"   />
         <NavPill to="/logs"           label="Logs"     />
+        <NavPill to="/metrics"        label="Metrics"  />
         <NavPill to="/services"       label="Services" />
         <NavPill to="/lint"           label="Lint"     />
         <NavPill to="/sessions"       label="Sessions" />
@@ -214,6 +218,18 @@ function Chrome() {
 
       {/* forwarding status */}
       <ForwardingPills />
+
+      {/* search trigger */}
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent(SEARCH_PALETTE_EVENT))}
+        title="Search (⌘K)"
+        className="flex items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 font-sans text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <Search size={12} />
+        <span className="hidden sm:inline">Search</span>
+        <kbd className="hidden rounded border border-border px-1 py-px font-mono text-[9px] sm:inline-block">⌘K</kbd>
+      </button>
 
       {/* theme toggle */}
       <ThemeToggle />
@@ -225,6 +241,14 @@ function Chrome() {
 
 function AppShell() {
   useGlobalShortcuts()
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  useEffect(() => {
+    const open = () => setPaletteOpen(true)
+    window.addEventListener(SEARCH_PALETTE_EVENT, open)
+    return () => window.removeEventListener(SEARCH_PALETTE_EVENT, open)
+  }, [])
+
   return (
     <div style={{
       display: 'flex',
@@ -239,6 +263,7 @@ function AppShell() {
           <Route path="/"                  element={<TraceList />}   />
           <Route path="/traces/:traceId"   element={<TraceDetail />} />
           <Route path="/logs"              element={<LogViewer />}   />
+          <Route path="/metrics"           element={<Metrics />}     />
           <Route path="/services"          element={<ServiceMap />}  />
           <Route path="/lint"              element={<LintPage />}    />
           <Route path="/sessions"          element={<Sessions />}    />
@@ -246,6 +271,7 @@ function AppShell() {
         </Routes>
       </main>
       <BottomBar />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )
 }

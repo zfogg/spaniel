@@ -104,6 +104,31 @@ type Stats struct {
 	OldestSessionAt int64 `json:"oldest_session_at"`
 }
 
+// Metric is one data point of an OTLP metric (gauge, counter, or one
+// percentile of a histogram). Histogram data points are stored as three rows
+// (p50/p95/p99) with the percentile encoded in attributes.percentile.
+type Metric struct {
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Unit        string  `json:"unit"`
+	Type        string  `json:"type"` // gauge | counter | histogram
+	TimestampNs int64   `json:"timestamp_ns"`
+	Value       float64 `json:"value"`
+	Attributes  string  `json:"attributes"`
+	ServiceName string  `json:"service_name"`
+	SessionID   string  `json:"session_id"`
+}
+
+// MetricCatalogEntry summarizes one (name, service) metric stream.
+type MetricCatalogEntry struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Unit        string `json:"unit"`
+	Type        string `json:"type"`
+	ServiceName string `json:"service_name"`
+	SampleCount int    `json:"sample_count"`
+}
+
 type ServiceMapNode struct {
 	ID         string `json:"id"`
 	SpanCount  int    `json:"span_count"`
@@ -197,6 +222,17 @@ func (d *DB) migrate() error {
 			parent_span_id VARCHAR NOT NULL DEFAULT '',
 			example_span_id VARCHAR NOT NULL DEFAULT '',
 			created_at     BIGINT NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS metrics (
+			name         TEXT,
+			description  TEXT,
+			unit         TEXT,
+			type         TEXT,
+			timestamp_ns BIGINT,
+			value        DOUBLE,
+			attributes   JSON,
+			service_name TEXT,
+			session_id   TEXT
 		);
 	`)
 	if err != nil {
@@ -492,7 +528,7 @@ func (d *DB) SetBaseline(id string, isBaseline bool) error {
 }
 
 func (d *DB) DeleteSession(id string) error {
-	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "spans"} {
+	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "metrics", "spans"} {
 		if _, err := d.db.Exec(`DELETE FROM `+tbl+` WHERE session_id = ?`, id); err != nil {
 			return err
 		}
@@ -705,6 +741,103 @@ func (d *DB) GetSpansBySession(sessionID string) ([]*Span, error) {
 		result = append(result, s)
 	}
 	return result, rows.Err()
+}
+
+// InsertMetric stores one metric data point.
+func (d *DB) InsertMetric(m *Metric) error {
+	_, err := d.db.Exec(`
+		INSERT INTO metrics (name, description, unit, type, timestamp_ns, value, attributes, service_name, session_id)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		m.Name, m.Description, m.Unit, m.Type, m.TimestampNs, m.Value,
+		m.Attributes, m.ServiceName, m.SessionID,
+	)
+	return err
+}
+
+// ListMetricCatalog returns one entry per (service, name) seen in the session.
+// Pass "" to ignore the session filter.
+func (d *DB) ListMetricCatalog(sessionID string) ([]*MetricCatalogEntry, error) {
+	q := `
+		SELECT name, service_name, type, unit, description, COUNT(*) AS sample_count
+		FROM metrics`
+	args := []any{}
+	if sessionID != "" {
+		q += ` WHERE session_id = ?`
+		args = append(args, sessionID)
+	}
+	q += ` GROUP BY name, service_name, type, unit, description
+	       ORDER BY service_name, name`
+	rows, err := d.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*MetricCatalogEntry
+	for rows.Next() {
+		e := &MetricCatalogEntry{}
+		if err := rows.Scan(&e.Name, &e.ServiceName, &e.Type, &e.Unit, &e.Description, &e.SampleCount); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// MetricSeriesFilter scopes a series query.
+type MetricSeriesFilter struct {
+	Name      string
+	Service   string
+	SessionID string
+	FromNs    int64 // inclusive; 0 = no lower bound
+	ToNs      int64 // inclusive; 0 = no upper bound
+}
+
+// GetMetricSeries returns every data point matching the filter, ordered by
+// timestamp ascending. Histogram percentiles arrive as separate rows; callers
+// split them apart by attributes.percentile.
+func (d *DB) GetMetricSeries(f MetricSeriesFilter) ([]*Metric, error) {
+	q := `
+		SELECT name, description, unit, type, timestamp_ns, value,
+		       attributes::VARCHAR, service_name, session_id
+		FROM metrics WHERE 1=1`
+	args := []any{}
+	if f.Name != "" {
+		q += ` AND name = ?`
+		args = append(args, f.Name)
+	}
+	if f.Service != "" {
+		q += ` AND service_name = ?`
+		args = append(args, f.Service)
+	}
+	if f.SessionID != "" {
+		q += ` AND session_id = ?`
+		args = append(args, f.SessionID)
+	}
+	if f.FromNs > 0 {
+		q += ` AND timestamp_ns >= ?`
+		args = append(args, f.FromNs)
+	}
+	if f.ToNs > 0 {
+		q += ` AND timestamp_ns <= ?`
+		args = append(args, f.ToNs)
+	}
+	q += ` ORDER BY timestamp_ns ASC`
+
+	rows, err := d.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Metric
+	for rows.Next() {
+		m := &Metric{}
+		if err := rows.Scan(&m.Name, &m.Description, &m.Unit, &m.Type,
+			&m.TimestampNs, &m.Value, &m.Attributes, &m.ServiceName, &m.SessionID); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }
 
 // ListTraceIssuesBySession returns every detector finding for a session.
