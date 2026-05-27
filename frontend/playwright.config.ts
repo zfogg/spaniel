@@ -11,7 +11,11 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   reporter: 'list',
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
+  // Cap workers locally so the single Vite dev server isn't overwhelmed by
+  // 8 concurrent browser pages all triggering route handlers + reloads.
+  // CI runners pick their own default.
+  workers: process.env.CI ? undefined : 4,
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',

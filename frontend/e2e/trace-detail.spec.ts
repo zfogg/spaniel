@@ -85,24 +85,38 @@ interface Fixture {
 async function stubBackend(page: Page, fx: Fixture) {
   await page.routeWebSocket('**/ws', ws => ws.close())
 
-  // Chrome (bottom bar, forwarders, sessions) — quiet defaults.
-  await page.route('**/api/stats*',           r => json(r, { span_count: fx.spans?.length ?? 0, trace_count: 1, log_count: fx.logs?.length ?? 0, db_size: 0, session_count: 1, oldest_session_at: 0 }))
-  await page.route('**/api/forwarders',       r => json(r, []))
-  await page.route('**/api/sessions/active',  r => json(r, { id: 's1', label: 'live' }))
-  await page.route('**/api/sessions',         r => json(r, []))
-  await page.route('**/api/services',         r => json(r, ['api']))
-  await page.route('**/api/traces?*',         r => json(r, []))
+  // Single predicate handler for all API routes — avoids LIFO ordering races
+  // that can occur when many glob patterns are registered in parallel workers.
+  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+    const { pathname, searchParams } = new URL(r.request().url())
 
-  // Trace detail.
-  await page.route(`**/api/traces/${TRACE_ID}`, r => json(r, fx.spans ?? []))
-  await page.route('**/api/lint*',              r => json(r, fx.warnings ?? []))
-  await page.route(`**/api/issues?traceId=${TRACE_ID}`, r => json(r, fx.issues ?? []))
-  // Logs are queried by spanId. Default: empty list.
-  await page.route('**/api/logs*', r => {
-    const url = new URL(r.request().url())
-    const spanId = url.searchParams.get('spanId')
-    const matches = (fx.logs ?? []).filter(l => !spanId || l.span_id === spanId)
-    return json(r, matches)
+    if (pathname === '/api/stats')
+      return json(r, { span_count: fx.spans?.length ?? 0, trace_count: 1, log_count: fx.logs?.length ?? 0, db_size: 0, session_count: 1, oldest_session_at: 0 })
+    if (pathname === '/api/forwarders')
+      return json(r, [])
+    if (pathname === '/api/sessions/active')
+      return json(r, { id: 's1', label: 'live' })
+    if (pathname === '/api/sessions')
+      return json(r, [])
+    if (pathname === '/api/services')
+      return json(r, ['api'])
+
+    // Trace detail — must be checked before the list fallback.
+    if (pathname === `/api/traces/${TRACE_ID}`)
+      return json(r, fx.spans ?? [])
+    if (pathname === '/api/traces')
+      return json(r, [])
+
+    if (pathname.startsWith('/api/lint'))
+      return json(r, fx.warnings ?? [])
+    if (pathname.startsWith('/api/issues'))
+      return json(r, fx.issues ?? [])
+    if (pathname.startsWith('/api/logs')) {
+      const spanId = searchParams.get('spanId')
+      return json(r, (fx.logs ?? []).filter(l => !spanId || l.span_id === spanId))
+    }
+
+    return r.continue()
   })
 }
 

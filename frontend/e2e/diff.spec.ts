@@ -36,14 +36,24 @@ const DIFF_RESULT = {
 
 async function stubDiff(page: Page, diffResult: unknown = DIFF_RESULT) {
   await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/forwarders',      r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/sessions',        r => jsonResponse(r, SESSIONS))
-  await page.route('**/api/diff*',           r => r.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ data: diffResult }),
-  }))
+
+  // Single predicate handler — avoids LIFO ordering races under parallel load.
+  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+    const pathname = new URL(r.request().url()).pathname
+
+    if (pathname === '/api/forwarders')
+      return jsonResponse(r, [])
+    if (pathname === '/api/sessions/active')
+      return jsonResponse(r, { id: '', label: '' })
+    if (pathname === '/api/sessions')
+      return jsonResponse(r, SESSIONS)
+    if (pathname === '/api/stats')
+      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
+    if (pathname.startsWith('/api/diff'))
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: diffResult }) })
+
+    return r.continue()
+  })
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────

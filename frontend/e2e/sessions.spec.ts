@@ -408,8 +408,11 @@ test.describe('Sessions page', () => {
     await stubBackend(page, { sessions, activeId: 's-cmp' })
     await page.goto('/sessions')
 
-    // Seed localStorage directly (simulates having navigated to diff before)
+    // Seed localStorage directly (simulates having navigated to diff before).
+    // Clear first so a stale entry from a prior test in this worker can't
+    // produce duplicate <a>re-open</a> links that break strict-mode locators.
     await page.evaluate(() => {
+      localStorage.clear()
       localStorage.setItem('spaniel:diff-history', JSON.stringify([
         {
           baselineId: 's-base',
@@ -427,7 +430,8 @@ test.describe('Sessions page', () => {
     await expect(page.getByText('Recent diffs')).toBeVisible()
     await expect(page.getByText('base-session').first()).toBeVisible()
     await expect(page.getByText('cmp-session').first()).toBeVisible()
-    await expect(page.getByRole('link', { name: 're-open' })).toBeVisible()
+    // .first() in case a prior history entry survived test isolation.
+    await expect(page.getByRole('link', { name: 're-open' }).first()).toBeVisible()
   })
 
   test('"Compare sessions" click writes an entry to localStorage diff history', async ({ page }) => {
