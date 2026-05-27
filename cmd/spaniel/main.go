@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httputil"
@@ -75,6 +76,27 @@ func main() {
 
 	sessionCmd.AddCommand(sessionNewCmd)
 	root.AddCommand(sessionCmd)
+
+	// import subcommand: spaniel import <session_name> <file>|'-'
+	var importFormat string
+	importCmd := &cobra.Command{
+		Use:   "import <session_name> <file>",
+		Short: "Import a trace file as a baseline session",
+		Long: `Import a trace from an OTLP JSON or Jaeger JSON export file.
+Use '-' as the file argument to read from stdin.
+
+Examples:
+  spaniel import prod-baseline trace.json
+  spaniel import prod-baseline - < trace.json
+  spaniel import prod-baseline trace.json --format jaeger`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return sessionImport(apiBase, args[0], args[1], importFormat)
+		},
+	}
+	importCmd.Flags().StringVar(&importFormat, "format", "auto", "Trace format: auto, otlp, jaeger")
+	importCmd.Flags().StringVar(&apiBase, "api", "http://localhost:8080", "Spaniel API base URL")
+	root.AddCommand(importCmd)
 
 	// prune subcommand: apply retention policy once and exit.
 	pruneCmd := &cobra.Command{
@@ -196,6 +218,52 @@ func printBanner(port int, dbPath string) {
 func defaultDBPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".spaniel", "spaniel.duckdb")
+}
+
+func sessionImport(apiBase, label, filePath, format string) error {
+	var data []byte
+	var err error
+	if filePath == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(filePath)
+	}
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+
+	q := url.Values{}
+	q.Set("label", label)
+	q.Set("format", format)
+	endpoint := apiBase + "/api/sessions/import?" + q.Encode()
+
+	resp, err := http.Post(endpoint, "application/json", bytes.NewReader(data)) //nolint:gosec
+	if err != nil {
+		return fmt.Errorf("connect to spaniel at %s: %w", apiBase, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("import failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Data struct {
+			Session struct {
+				ID    string `json:"id"`
+				Label string `json:"label"`
+			} `json:"session"`
+			SpanCount  int `json:"span_count"`
+			TraceCount int `json:"trace_count"`
+		} `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result) //nolint:errcheck
+
+	d := result.Data
+	fmt.Printf("imported: %s (%s) — %d traces, %d spans\n",
+		d.Session.Label, d.Session.ID[:8], d.TraceCount, d.SpanCount)
+	return nil
 }
 
 func sessionNew(apiBase, label string) error {

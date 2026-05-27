@@ -49,13 +49,14 @@ type Log struct {
 }
 
 type Session struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	CreatedAt   int64  `json:"created_at"`
-	IsBaseline  bool   `json:"is_baseline"`
-	SpanCount   int    `json:"span_count"`
-	TraceCount  int    `json:"trace_count"`
-	Services    string `json:"services"`
+	ID         string `json:"id"`
+	Label      string `json:"label"`
+	CreatedAt  int64  `json:"created_at"`
+	IsBaseline bool   `json:"is_baseline"`
+	IsImported bool   `json:"is_imported"`
+	SpanCount  int    `json:"span_count"`
+	TraceCount int    `json:"trace_count"`
+	Services   string `json:"services"`
 }
 
 type LintWarning struct {
@@ -172,6 +173,7 @@ func (d *DB) migrate() error {
 			label         TEXT,
 			created_at    BIGINT,
 			is_baseline   BOOLEAN DEFAULT FALSE,
+			is_imported   BOOLEAN DEFAULT FALSE,
 			span_count    INTEGER DEFAULT 0,
 			services      JSON
 		);
@@ -197,10 +199,26 @@ func (d *DB) migrate() error {
 			created_at     BIGINT NOT NULL
 		);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	// Add is_imported column for existing databases that predate this field.
+	d.db.Exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE`) //nolint:errcheck
+	return nil
 }
 
 func (d *DB) CreateSession(label string, isBaseline bool) (*Session, error) {
+	return d.createSession(label, isBaseline, false)
+}
+
+func (d *DB) CreateImportedSession(label string) (*Session, error) {
+	if label == "" {
+		label = fmt.Sprintf("import_%d", time.Now().UnixMilli())
+	}
+	return d.createSession(label, true, true)
+}
+
+func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session, error) {
 	now := time.Now().UnixNano()
 	id := fmt.Sprintf("session_%d", time.Now().UnixMilli())
 	if label == "" {
@@ -208,13 +226,13 @@ func (d *DB) CreateSession(label string, isBaseline bool) (*Session, error) {
 	}
 	services, _ := json.Marshal([]string{})
 	_, err := d.db.Exec(
-		`INSERT INTO sessions (id, label, created_at, is_baseline, span_count, services) VALUES (?, ?, ?, ?, 0, ?)`,
-		id, label, now, isBaseline, string(services),
+		`INSERT INTO sessions (id, label, created_at, is_baseline, is_imported, span_count, services) VALUES (?, ?, ?, ?, ?, 0, ?)`,
+		id, label, now, isBaseline, isImported, string(services),
 	)
 	if err != nil {
 		return nil, err
 	}
-	return &Session{ID: id, Label: label, CreatedAt: now, IsBaseline: isBaseline, Services: string(services)}, nil
+	return &Session{ID: id, Label: label, CreatedAt: now, IsBaseline: isBaseline, IsImported: isImported, Services: string(services)}, nil
 }
 
 func (d *DB) SetActiveSession(id, label string) {
@@ -431,11 +449,11 @@ func (d *DB) ListServices() ([]string, error) {
 
 func (d *DB) ListSessions() ([]*Session, error) {
 	rows, err := d.db.Query(`
-		SELECT s.id, s.label, s.created_at, s.is_baseline, s.span_count, s.services,
+		SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services,
 		       COUNT(DISTINCT sp.trace_id) AS trace_count
 		FROM sessions s
 		LEFT JOIN spans sp ON sp.session_id = s.id
-		GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.span_count, s.services
+		GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services
 		ORDER BY s.created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -444,7 +462,7 @@ func (d *DB) ListSessions() ([]*Session, error) {
 	var result []*Session
 	for rows.Next() {
 		s := &Session{}
-		if err := rows.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.SpanCount, &s.Services, &s.TraceCount); err != nil {
+		if err := rows.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.IsImported, &s.SpanCount, &s.Services, &s.TraceCount); err != nil {
 			return nil, err
 		}
 		result = append(result, s)
@@ -453,9 +471,9 @@ func (d *DB) ListSessions() ([]*Session, error) {
 }
 
 func (d *DB) GetSession(id string) (*Session, error) {
-	row := d.db.QueryRow(`SELECT id, label, created_at, is_baseline, span_count, services FROM sessions WHERE id = ?`, id)
+	row := d.db.QueryRow(`SELECT id, label, created_at, is_baseline, is_imported, span_count, services FROM sessions WHERE id = ?`, id)
 	s := &Session{}
-	err := row.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.SpanCount, &s.Services)
+	err := row.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.IsImported, &s.SpanCount, &s.Services)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

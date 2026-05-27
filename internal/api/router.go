@@ -32,6 +32,7 @@ func NewRouter(store *storage.DB, hub *ws.Hub) http.Handler {
 	mux.Get("/api/services", r.listServices)
 	mux.Get("/api/sessions", r.listSessions)
 	mux.Post("/api/sessions", r.createSession)
+	mux.Post("/api/sessions/import", r.importSession)
 	mux.Get("/api/sessions/active", r.getActiveSession)
 	mux.Get("/api/sessions/{sessionId}", r.getSession)
 	mux.Post("/api/sessions/{sessionId}/activate", r.activateSession)

@@ -83,9 +83,16 @@ export interface Session {
   label: string
   created_at: number
   is_baseline: boolean
+  is_imported: boolean
   span_count: number
   trace_count: number
   services: string
+}
+
+export interface ImportResult {
+  session: Session
+  span_count: number
+  trace_count: number
 }
 
 export interface LintWarning {
@@ -154,6 +161,17 @@ export const api = {
     baseline: (id: string, isBaseline: boolean) =>
       post<{ ok: boolean }>(`/api/sessions/${id}/baseline`, { is_baseline: isBaseline }),
     delete: (id: string) => del<{ ok: boolean }>(`/api/sessions/${id}`),
+    import: (label: string, format: string, data: string) => {
+      const q = new URLSearchParams({ label, format })
+      return fetch(`/api/sessions/import?${q}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: data,
+      }).then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error(t) })
+        return r.json() as Promise<{ data: ImportResult; meta: { total: number; page: number } }>
+      })
+    },
   },
   lint: {
     list: (sessionId?: string) =>

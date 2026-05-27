@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, Session } from '@/lib/api'
 
@@ -149,6 +149,184 @@ function NumCell({ label, value, hot }: { label: string; value: string | number;
   )
 }
 
+// ── import modal ──────────────────────────────────────────────────────────────
+
+function ImportIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5" stroke="currentColor" strokeWidth="1.4"
+        strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1.5 10h9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [label, setLabel] = useState('')
+  const [format, setFormat] = useState('auto')
+  const [file, setFile] = useState<File | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [error, setError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function handleImport() {
+    if (!file) { setError('Select a file first'); return }
+    setStatus('loading')
+    setError('')
+    try {
+      const text = await file.text()
+      const res = await api.sessions.import(label || file.name.replace(/\.[^.]+$/, ''), format, text)
+      const r = res.data
+      alert(`Imported "${r.session.label}" — ${r.trace_count} traces, ${r.span_count} spans`)
+      onImported()
+      onClose()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+      setStatus('error')
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragging(false)
+    const f = e.dataTransfer.files[0]
+    if (f) setFile(f)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    display: 'block', width: '100%', padding: '6px 10px',
+    fontFamily: 'var(--font-mono)', fontSize: 12,
+    background: 'var(--surface)', border: '1px solid var(--line)',
+    borderRadius: 6, color: 'var(--ink)', outline: 'none',
+    boxSizing: 'border-box',
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.45)',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: 420, background: 'var(--surface)', border: '1px solid var(--line)',
+        borderRadius: 12, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16,
+        boxShadow: '0 16px 48px -12px rgba(0,0,0,.35)',
+      }}>
+        {/* header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: 'color-mix(in oklch, var(--accent) 18%, var(--surface))',
+            border: '1px solid color-mix(in oklch, var(--accent) 35%, transparent)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--accent-ink)',
+          }}>
+            <ImportIcon />
+          </span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>
+            Import trace
+          </span>
+          <div style={{ flex: 1 }} />
+          <button type="button" onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--ink3)', fontSize: 18, lineHeight: 1, padding: 2,
+          }}>×</button>
+        </div>
+
+        {/* drop zone */}
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileRef.current?.click()}
+          style={{
+            border: `2px dashed ${dragging ? 'var(--accent)' : file ? 'var(--ok)' : 'var(--line)'}`,
+            borderRadius: 8, padding: '18px 16px', textAlign: 'center' as const,
+            cursor: 'pointer',
+            background: dragging ? 'color-mix(in oklch, var(--accent) 8%, var(--surface))' :
+              file ? 'color-mix(in oklch, var(--ok) 8%, var(--surface))' : 'var(--surface2)',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+        >
+          <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
+            onChange={e => e.target.files?.[0] && setFile(e.target.files[0])} />
+          {file ? (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ok-ink)', fontWeight: 600 }}>
+              {file.name} ({(file.size / 1024).toFixed(0)} KB)
+            </span>
+          ) : (
+            <>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink2)', marginBottom: 4 }}>
+                Drop OTLP JSON or Jaeger JSON here
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)' }}>
+                or click to browse
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* label */}
+        <div>
+          <label style={{
+            display: 'block', fontFamily: 'var(--font-mono)', fontSize: 10,
+            textTransform: 'uppercase', letterSpacing: '0.12em',
+            color: 'var(--ink3)', marginBottom: 5,
+          }}>
+            session label
+          </label>
+          <input
+            type="text"
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            placeholder={file ? file.name.replace(/\.[^.]+$/, '') : 'prod-baseline'}
+            style={inputStyle}
+          />
+        </div>
+
+        {/* format */}
+        <div>
+          <label style={{
+            display: 'block', fontFamily: 'var(--font-mono)', fontSize: 10,
+            textTransform: 'uppercase', letterSpacing: '0.12em',
+            color: 'var(--ink3)', marginBottom: 5,
+          }}>
+            format
+          </label>
+          <select value={format} onChange={e => setFormat(e.target.value)} style={inputStyle}>
+            <option value="auto">Auto-detect</option>
+            <option value="otlp">OTLP JSON (otelcol export)</option>
+            <option value="jaeger">Jaeger JSON</option>
+          </select>
+        </div>
+
+        {/* error */}
+        {status === 'error' && (
+          <div style={{
+            padding: '8px 10px', borderRadius: 6,
+            background: 'color-mix(in oklch, var(--danger) 12%, var(--surface))',
+            border: '1px solid color-mix(in oklch, var(--danger) 35%, transparent)',
+            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--danger-ink)',
+          }}>
+            {error}
+          </div>
+        )}
+
+        {/* actions */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Btn tone="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn tone="primary" disabled={!file || status === 'loading'} onClick={handleImport}>
+            {status === 'loading' ? 'importing…' : (
+              <><ImportIcon /> Import as baseline</>
+            )}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── how-to-diff explainer ─────────────────────────────────────────────────────
 
 function HowToDiff() {
@@ -238,6 +416,16 @@ function SessionRow({
       {/* name + pills */}
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {s.is_imported && (
+            <span title="Imported trace" style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+              background: 'color-mix(in oklch, var(--accent) 18%, var(--surface))',
+              color: 'var(--accent-ink)',
+            }}>
+              <ImportIcon />
+            </span>
+          )}
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--ink)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -398,6 +586,7 @@ export default function Sessions() {
   const [compareId, setCompareId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   const load = useCallback(async () => {
     const [sessRes, activeRes] = await Promise.all([
@@ -463,6 +652,9 @@ export default function Sessions() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {showImport && (
+        <ImportModal onClose={() => setShowImport(false)} onImported={load} />
+      )}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
 
         {/* sidebar */}
@@ -495,6 +687,19 @@ export default function Sessions() {
               >
                 <span style={{ width: 7, height: 7, borderRadius: 7, background: 'var(--accent)' }} />
                 {creating ? 'creating…' : '+ new session'}
+              </div>
+              <div
+                role="button"
+                onClick={() => setShowImport(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 8px', borderRadius: 6,
+                  fontSize: 12, color: 'var(--ink2)',
+                  cursor: 'pointer', userSelect: 'none',
+                }}
+              >
+                <span style={{ display: 'inline-flex', color: 'var(--ink3)' }}><ImportIcon /></span>
+                import trace
               </div>
             </div>
           </div>
