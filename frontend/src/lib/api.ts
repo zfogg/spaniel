@@ -102,6 +102,7 @@ export interface Stats {
   span_count: number
   trace_count: number
   log_count: number
+  db_size: number
 }
 
 export interface ServiceMapNode {

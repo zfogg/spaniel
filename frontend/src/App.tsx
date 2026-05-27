@@ -9,6 +9,8 @@ import Sessions from './pages/Sessions'
 import ServiceMap from './pages/ServiceMap'
 import LintPage from './pages/LintPage'
 import DiffPage from './pages/DiffPage'
+import BottomBar from './components/BottomBar'
+import { useGlobalShortcuts } from './lib/shortcuts'
 
 // ── Spaniel logo SVG ──────────────────────────────────────────────────────────
 
@@ -152,30 +154,38 @@ function Chrome() {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
+function AppShell() {
+  useGlobalShortcuts()
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      overflow: 'hidden',
+      background: 'var(--background)',
+    }}>
+      <Chrome />
+      <main style={{ flex: 1, overflow: 'hidden' }}>
+        <Routes>
+          <Route path="/"                  element={<TraceList />}   />
+          <Route path="/traces/:traceId"   element={<TraceDetail />} />
+          <Route path="/logs"              element={<LogViewer />}   />
+          <Route path="/services"          element={<ServiceMap />}  />
+          <Route path="/lint"              element={<LintPage />}    />
+          <Route path="/sessions"          element={<Sessions />}    />
+          <Route path="/diff"              element={<DiffPage />}    />
+        </Routes>
+      </main>
+      <BottomBar />
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <TooltipProvider delay={300}>
       <BrowserRouter>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100vh',
-          overflow: 'hidden',
-          background: 'var(--background)',
-        }}>
-          <Chrome />
-          <main style={{ flex: 1, overflow: 'hidden' }}>
-            <Routes>
-              <Route path="/"                  element={<TraceList />}   />
-              <Route path="/traces/:traceId"   element={<TraceDetail />} />
-              <Route path="/logs"              element={<LogViewer />}   />
-              <Route path="/services"          element={<ServiceMap />}  />
-              <Route path="/lint"              element={<LintPage />}    />
-              <Route path="/sessions"          element={<Sessions />}    />
-              <Route path="/diff"              element={<DiffPage />}    />
-            </Routes>
-          </main>
-        </div>
+        <AppShell />
       </BrowserRouter>
     </TooltipProvider>
   )

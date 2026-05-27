@@ -110,7 +110,9 @@ export const DARK = {
   shadow: '0 1px 0 #0a1828, 0 12px 24px -16px rgba(0,10,24,.5)',
 } as const
 
-// Span timeline palette — consistent across themes
+// Span timeline palette — 12 perceptually distinct, Drift-aligned.
+// Used as the canonical service palette: services are assigned a slot by hash
+// of their name, so the same service gets the same color across sessions.
 export const SPAN_PALETTE = [
   '#7aa3c4', // sky  (accent)
   '#88b29a', // sage (ok)
@@ -122,11 +124,65 @@ export const SPAN_PALETTE = [
   '#7898c0', // periwinkle
   '#d69882', // coral
   '#98a8c0', // steel
+  '#b89ad0', // orchid
+  '#70a8a8', // teal
 ] as const
 
-// Helper — get service swatch (light or dark) with fallback
+// Pair each palette hex with fg/bg ink+tint pairs for chips.
+// Light: tinted bg + darker ink. Dark: deep bg + lifted ink.
+const PALETTE_CHIPS_LIGHT: ReadonlyArray<{ fg: string; bg: string }> = [
+  { fg: '#284a6a', bg: '#c4d8e8' },
+  { fg: '#2a5a3a', bg: '#c8e0d2' },
+  { fg: '#6a4f1e', bg: '#ecdcb4' },
+  { fg: '#4b3a6e', bg: '#d6c8e6' },
+  { fg: '#1f3e5a', bg: '#bccfe0' },
+  { fg: '#2f5a48', bg: '#c8e0d2' },
+  { fg: '#6a4f1e', bg: '#ecdcb4' },
+  { fg: '#2a4a78', bg: '#c8d8ec' },
+  { fg: '#7a3a2a', bg: '#ecc8bc' },
+  { fg: '#3d4a58', bg: '#dde6ee' },
+  { fg: '#4b3a6e', bg: '#e0d4ec' },
+  { fg: '#1e4848', bg: '#bcd8d8' },
+]
+const PALETTE_CHIPS_DARK: ReadonlyArray<{ fg: string; bg: string }> = [
+  { fg: '#c4dcf0', bg: '#1a3048' },
+  { fg: '#b8e0c8', bg: '#102818' },
+  { fg: '#f0d898', bg: '#2c2010' },
+  { fg: '#d0c4f0', bg: '#20183a' },
+  { fg: '#b8d4ec', bg: '#152a40' },
+  { fg: '#b8e0d0', bg: '#102820' },
+  { fg: '#f0d898', bg: '#2c2010' },
+  { fg: '#c4d8ec', bg: '#15263c' },
+  { fg: '#f0b8aa', bg: '#2c1a16' },
+  { fg: '#b8c4d4', bg: '#1a2330' },
+  { fg: '#d8c4ec', bg: '#241a3a' },
+  { fg: '#a8d4d4', bg: '#0e2828' },
+]
+
+// Stable string hash → palette index.
+function hashStr(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
+export function svcPaletteIndex(svcName: string): number {
+  return hashStr(svcName) % SPAN_PALETTE.length
+}
+
+export function svcHex(svcName: string): string {
+  return SPAN_PALETTE[svcPaletteIndex(svcName)]
+}
+
+// Helper — get service swatch (light or dark). Falls back to hash-based
+// palette slot for unknown services so colors stay stable per name.
 export function svcColor(svcName: string, dark: boolean) {
   const map = dark ? DARK.svc : LIGHT.svc
-  return (map as Record<string, { fg: string; bg: string }>)[svcName]
-    ?? { fg: dark ? DARK.chipInk : LIGHT.chipInk, bg: dark ? DARK.chipBg : LIGHT.chipBg }
+  const hard = (map as Record<string, { fg: string; bg: string }>)[svcName]
+  if (hard) return hard
+  const chips = dark ? PALETTE_CHIPS_DARK : PALETTE_CHIPS_LIGHT
+  return chips[svcPaletteIndex(svcName)]
 }

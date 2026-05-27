@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	_ "github.com/marcboeker/go-duckdb"
@@ -11,6 +12,7 @@ import (
 
 type DB struct {
 	db                 *sql.DB
+	path               string
 	activeSessionID    string
 	activeSessionLabel string
 }
@@ -93,9 +95,10 @@ type TraceIssue struct {
 }
 
 type Stats struct {
-	SpanCount  int `json:"span_count"`
-	TraceCount int `json:"trace_count"`
-	LogCount   int `json:"log_count"`
+	SpanCount  int   `json:"span_count"`
+	TraceCount int   `json:"trace_count"`
+	LogCount   int   `json:"log_count"`
+	DBSize     int64 `json:"db_size"`
 }
 
 type ServiceMapNode struct {
@@ -124,7 +127,7 @@ func Open(path string) (*DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{db: db}
+	d := &DB{db: db, path: path}
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -533,6 +536,11 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 	}
 	if err := row.Scan(&s.LogCount); err != nil {
 		return nil, err
+	}
+	if d.path != "" && d.path != ":memory:" {
+		if fi, err := os.Stat(d.path); err == nil {
+			s.DBSize = fi.Size()
+		}
 	}
 	return s, nil
 }

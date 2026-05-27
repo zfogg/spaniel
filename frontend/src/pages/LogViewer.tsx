@@ -304,6 +304,7 @@ export default function LogViewer() {
           placeholder="search logs…"
           value={search}
           onChange={e => setSearch(e.target.value)}
+          data-shortcut="search"
           style={{
             width: 260,
             height: 28,

@@ -1,19 +1,16 @@
 import type { Span, LintWarning } from '@/lib/api'
 
 // ── palette & svc color ───────────────────────────────────────────────────────
+// Re-exported from the canonical Drift palette in `tokens.ts`. Service color
+// is hash-based so a name maps to the same slot across sessions/screens.
 
-export const SPAN_PALETTE = [
-  '#7aa3c4', '#88b29a', '#d6b46a', '#a08cc8',
-  '#6a98b8', '#8ab8a0', '#c8a870', '#7898c0',
-  '#d69882', '#98a8c0',
-]
+import { SPAN_PALETTE as DRIFT_PALETTE, svcHex } from '@/lib/tokens'
 
-export const SPAN_ACCENT = '#7aa3c4'
+export const SPAN_PALETTE = DRIFT_PALETTE
+export const SPAN_ACCENT = DRIFT_PALETTE[0]
 
 export function svcColor(name: string): { fg: string; bg: string } {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0
-  const fg = SPAN_PALETTE[Math.abs(h) % SPAN_PALETTE.length]
+  const fg = svcHex(name)
   return { fg, bg: fg + '28' }
 }
 
