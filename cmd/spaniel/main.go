@@ -143,6 +143,7 @@ Examples:
 
 	// config subcommand
 	root.AddCommand(configSubcommand(v))
+	root.AddCommand(ciSubcommand())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

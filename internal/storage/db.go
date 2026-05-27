@@ -471,7 +471,7 @@ func (d *DB) ListSessions() ([]*Session, error) {
 }
 
 func (d *DB) GetSession(id string) (*Session, error) {
-	row := d.db.QueryRow(`SELECT id, label, created_at, is_baseline, is_imported, span_count, services FROM sessions WHERE id = ?`, id)
+	row := d.db.QueryRow(`SELECT id, label, created_at, is_baseline, is_imported, span_count, services::VARCHAR FROM sessions WHERE id = ?`, id)
 	s := &Session{}
 	err := row.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.IsImported, &s.SpanCount, &s.Services)
 	if err == sql.ErrNoRows {
@@ -703,6 +703,29 @@ func (d *DB) GetSpansBySession(sessionID string) ([]*Span, error) {
 			return nil, err
 		}
 		result = append(result, s)
+	}
+	return result, rows.Err()
+}
+
+// ListTraceIssuesBySession returns every detector finding for a session.
+func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
+	rows, err := d.db.Query(`
+		SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
+		       parent_span_id, example_span_id, created_at
+		FROM trace_issues WHERE session_id = ? ORDER BY wasted_ns DESC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []*TraceIssue
+	for rows.Next() {
+		issue := &TraceIssue{}
+		if err := rows.Scan(&issue.ID, &issue.TraceID, &issue.SessionID, &issue.Kind,
+			&issue.Fingerprint, &issue.Count, &issue.WastedNs,
+			&issue.ParentSpanID, &issue.ExampleSpanID, &issue.CreatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, issue)
 	}
 	return result, rows.Err()
 }
