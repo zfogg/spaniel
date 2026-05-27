@@ -87,7 +87,7 @@ jobs:
       matrix:
         include:
           - { name: linux-amd64,   os: ubuntu-latest,  goos: linux,   goarch: amd64, ext: "" }
-          - { name: linux-arm64,   os: ubuntu-latest,  goos: linux,   goarch: arm64, ext: "", cc: aarch64-linux-gnu-gcc, apt: gcc-aarch64-linux-gnu }
+          - { name: linux-arm64,   os: ubuntu-latest,  goos: linux,   goarch: arm64, ext: "", cc: aarch64-linux-gnu-gcc, cxx: aarch64-linux-gnu-g++, apt: "gcc-aarch64-linux-gnu g++-aarch64-linux-gnu" }
           - { name: darwin-amd64,  os: macos-latest,   goos: darwin,  goarch: amd64, ext: "" }
           - { name: darwin-arm64,  os: macos-latest,   goos: darwin,  goarch: arm64, ext: "" }
           - { name: windows-amd64, os: windows-latest, goos: windows, goarch: amd64, ext: ".exe" }
@@ -122,6 +122,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
         run: |
           mkdir -p dist
           go build -trimpath \
