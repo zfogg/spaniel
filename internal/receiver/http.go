@@ -10,15 +10,21 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
+	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/ingestion"
 )
 
 type HTTPReceiver struct {
-	pipeline *ingestion.Pipeline
+	pipeline  *ingestion.Pipeline
+	forwarder *forwarder.Forwarder // nil when no upstream configured
 }
 
 func NewHTTPReceiver(pipeline *ingestion.Pipeline) *HTTPReceiver {
 	return &HTTPReceiver{pipeline: pipeline}
+}
+
+func (h *HTTPReceiver) SetForwarder(f *forwarder.Forwarder) {
+	h.forwarder = f
 }
 
 func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +46,9 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 	if err := h.pipeline.IngestTraces(context.Background(), req.Traces()); err != nil {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if h.forwarder != nil {
+		h.forwarder.Forward("/v1/traces", r.Header.Get("Content-Type"), body)
 	}
 	writeOTLPResponse(w, ptraceotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
 }
@@ -64,6 +73,9 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if h.forwarder != nil {
+		h.forwarder.Forward("/v1/logs", r.Header.Get("Content-Type"), body)
+	}
 	writeOTLPResponse(w, plogotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
 }
 
@@ -86,6 +98,9 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	if err := h.pipeline.IngestMetrics(context.Background(), req.Metrics()); err != nil {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if h.forwarder != nil {
+		h.forwarder.Forward("/v1/metrics", r.Header.Get("Content-Type"), body)
 	}
 	writeOTLPResponse(w, pmetricotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
 }

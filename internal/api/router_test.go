@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 
@@ -22,7 +23,7 @@ func setupRouter(t *testing.T) (http.Handler, *storage.DB) {
 	}
 	t.Cleanup(func() { store.Close() })
 	hub := ws.NewHub()
-	handler := NewRouter(store, hub)
+	handler := NewRouter(store, hub, nil)
 	return handler, store
 }
 
@@ -64,7 +65,7 @@ func TestListTracesEmpty(t *testing.T) {
 		t.Fatalf("response missing 'data' field")
 	}
 
-	var data []interface{}
+	var data []any
 	if err := json.Unmarshal(dataRaw, &data); err != nil {
 		t.Fatalf("expected data to be an array: %v", err)
 	}
@@ -106,7 +107,7 @@ func TestGetIssuesEmpty(t *testing.T) {
 		t.Fatalf("response missing 'data' field")
 	}
 
-	var data []interface{}
+	var data []any
 	if err := json.Unmarshal(dataRaw, &data); err != nil {
 		t.Fatalf("expected data to be an array: %v", err)
 	}
@@ -153,7 +154,7 @@ func TestGetIssuesReturnsResults(t *testing.T) {
 		t.Fatalf("response missing 'data' field")
 	}
 
-	var data []map[string]interface{}
+	var data []map[string]any
 	if err := json.Unmarshal(dataRaw, &data); err != nil {
 		t.Fatalf("expected data to be an array of objects: %v", err)
 	}
@@ -165,6 +166,83 @@ func TestGetIssuesReturnsResults(t *testing.T) {
 	}
 	if kind, _ := data[0]["kind"].(string); kind != "n_plus_one" {
 		t.Errorf("expected issue kind=n_plus_one, got %q", kind)
+	}
+}
+
+func TestListForwardersEmpty(t *testing.T) {
+	handler, _ := setupRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/forwarders", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	var data []any
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("parse data: %v", err)
+	}
+	if len(data) != 0 {
+		t.Errorf("expected empty forwarders list, got %d", len(data))
+	}
+}
+
+func TestListForwardersWithUpstreams(t *testing.T) {
+	store, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatalf("storage.Open: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	hub := ws.NewHub()
+
+	// Stand up a fake upstream that always succeeds.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	fwd := forwarder.New([]string{upstream.URL})
+	// Send one payload so the sent counter is non-zero.
+	fwd.Forward("/v1/traces", "application/json", []byte("{}"))
+
+	// Wait for the async send to complete.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) && fwd.Status()[0].Sent == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	handler := NewRouter(store, hub, fwd)
+	req := httptest.NewRequest(http.MethodGet, "/api/forwarders", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	var data []map[string]any
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("parse data: %v", err)
+	}
+	if len(data) != 1 {
+		t.Fatalf("expected 1 forwarder, got %d", len(data))
+	}
+	if sent, _ := data[0]["sent"].(float64); sent != 1 {
+		t.Errorf("expected sent=1, got %v", data[0]["sent"])
+	}
+	if data[0]["url"] != upstream.URL {
+		t.Errorf("expected url=%q, got %q", upstream.URL, data[0]["url"])
 	}
 }
 
@@ -189,7 +267,7 @@ func TestListLintEmpty(t *testing.T) {
 		t.Fatalf("response missing 'data' field")
 	}
 
-	var data []interface{}
+	var data []any
 	if err := json.Unmarshal(dataRaw, &data); err != nil {
 		t.Fatalf("expected data to be an array: %v", err)
 	}

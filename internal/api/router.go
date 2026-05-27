@@ -8,17 +8,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
 type Router struct {
-	store *storage.DB
-	hub   *ws.Hub
+	store     *storage.DB
+	hub       *ws.Hub
+	forwarder *forwarder.Forwarder // nil when no upstream configured
 }
 
-func NewRouter(store *storage.DB, hub *ws.Hub) http.Handler {
-	r := &Router{store: store, hub: hub}
+func NewRouter(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder) http.Handler {
+	r := &Router{store: store, hub: hub, forwarder: fwd}
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
@@ -43,6 +45,7 @@ func NewRouter(store *storage.DB, hub *ws.Hub) http.Handler {
 	mux.Get("/api/service-map", r.getServiceMap)
 	mux.Get("/api/issues", r.getIssues)
 	mux.Get("/api/diff", r.getDiff)
+	mux.Get("/api/forwarders", r.listForwarders)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux
@@ -302,4 +305,13 @@ func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	respond(w, issues, len(issues), 1)
+}
+
+func (r *Router) listForwarders(w http.ResponseWriter, _ *http.Request) {
+	if r.forwarder == nil {
+		respond(w, []forwarder.Status{}, 0, 1)
+		return
+	}
+	statuses := r.forwarder.Status()
+	respond(w, statuses, len(statuses), 1)
 }

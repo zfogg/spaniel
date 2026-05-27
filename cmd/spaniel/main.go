@@ -21,11 +21,15 @@ import (
 
 	"github.com/zfogg/spaniel/frontend"
 	"github.com/zfogg/spaniel/internal/api"
+	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/ingestion"
 	"github.com/zfogg/spaniel/internal/receiver"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
+
+// version is overridden at release-build time via -ldflags "-X main.version=...".
+var version = "dev"
 
 func main() {
 	v := viper.New()
@@ -40,18 +44,20 @@ func main() {
 		retentionDays int
 		maxSessions   int
 		maxDBSizeMB   int
+		forwardURLs   []string
 	)
 
 	root := &cobra.Command{
-		Use:   "spaniel",
-		Short: "Local OpenTelemetry collector and viewer",
+		Use:     "spaniel",
+		Version: version,
+		Short:   "Local OpenTelemetry collector and viewer",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			initViper(v)
 			bindRootFlags(v, cmd)
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB)
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs)
 			return run(cfg)
 		},
 	}
@@ -63,6 +69,7 @@ func main() {
 	root.Flags().IntVar(&port, "port", 0, "HTTP server port (default 8080)")
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
+	root.Flags().StringArrayVar(&forwardURLs, "forward", nil, "Forward OTLP to this URL (repeatable, e.g. http://tempo:4318)")
 
 	// session subcommand
 	sessionCmd := &cobra.Command{
@@ -112,7 +119,7 @@ Examples:
 		Use:   "prune",
 		Short: "Apply the retention policy now and exit",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB)
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs)
 			return prune(cfg.DBPath, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB))
 		},
 	}
@@ -127,7 +134,7 @@ Examples:
 			if !resetYes {
 				return fmt.Errorf("refusing to wipe data without --yes")
 			}
-			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB)
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs)
 			return reset(cfg.DBPath)
 		},
 	}
@@ -151,11 +158,12 @@ type runConfig struct {
 	RetentionDays int
 	MaxSessions   int
 	MaxDBSizeMB   int
+	ForwardURLs   []string
 }
 
 // resolveConfig merges viper config with any explicitly-set CLI flags.
 // CLI flags win if they were actually changed from their zero-value sentinel.
-func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPath string, noBrowser bool, retentionDays, maxSessions, maxDBSizeMB int) runConfig {
+func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPath string, noBrowser bool, retentionDays, maxSessions, maxDBSizeMB int, forwardURLs []string) runConfig {
 	cfg := runConfig{
 		Port:          v.GetInt("port"),
 		Dev:           dev,
@@ -164,6 +172,7 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		RetentionDays: v.GetInt("retention_days"),
 		MaxSessions:   v.GetInt("max_sessions"),
 		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
+		ForwardURLs:   v.GetStringSlice("forward"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -183,6 +192,9 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	}
 	if f := cmd.PersistentFlags().Lookup("max-db-size"); f != nil && f.Changed {
 		cfg.MaxDBSizeMB = maxDBSizeMB
+	}
+	if f := cmd.Flags().Lookup("forward"); f != nil && f.Changed {
+		cfg.ForwardURLs = forwardURLs
 	}
 	if cfg.Port == 0 {
 		cfg.Port = 8080
@@ -223,6 +235,11 @@ func run(cfg runConfig) error {
 	hub := ws.NewHub()
 	pipeline := ingestion.NewPipeline(store, hub)
 
+	var fwd *forwarder.Forwarder
+	if len(cfg.ForwardURLs) > 0 {
+		fwd = forwarder.New(cfg.ForwardURLs)
+	}
+
 	grpcRcv := receiver.NewGRPCReceiver(pipeline)
 	go func() {
 		if err := grpcRcv.ListenAndServe(":4317"); err != nil {
@@ -231,6 +248,7 @@ func run(cfg runConfig) error {
 	}()
 
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
+	httpRcv.SetForwarder(fwd)
 	otlpMux := http.NewServeMux()
 	otlpMux.HandleFunc("/v1/traces", httpRcv.HandleTraces)
 	otlpMux.HandleFunc("/v1/logs", httpRcv.HandleLogs)
@@ -241,7 +259,7 @@ func run(cfg runConfig) error {
 		}
 	}()
 
-	apiRouter := api.NewRouter(store, hub)
+	apiRouter := api.NewRouter(store, hub, fwd)
 
 	var uiHandler http.Handler
 	if cfg.Dev {
@@ -260,7 +278,7 @@ func run(cfg runConfig) error {
 	mainMux.Handle("/ws", apiRouter)
 	mainMux.Handle("/", uiHandler)
 
-	printBanner(cfg.Port, cfg.DBPath)
+	printBanner(cfg)
 
 	if !cfg.NoBrowser {
 		go func() {
@@ -273,12 +291,16 @@ func run(cfg runConfig) error {
 	return http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), mainMux)
 }
 
-func printBanner(port int, dbPath string) {
+func printBanner(cfg runConfig) {
 	fmt.Printf("\nspaniel 🐕\n")
-	fmt.Printf("  UI        →  http://localhost:%d\n", port)
+	fmt.Printf("  UI        →  http://localhost:%d\n", cfg.Port)
 	fmt.Printf("  OTLP/gRPC →  localhost:4317\n")
 	fmt.Printf("  OTLP/HTTP →  localhost:4318\n")
-	fmt.Printf("  DB        →  %s\n\n", dbPath)
+	fmt.Printf("  DB        →  %s\n", cfg.DBPath)
+	for _, u := range cfg.ForwardURLs {
+		fmt.Printf("  Forward   →  %s\n", u)
+	}
+	fmt.Println()
 }
 
 func defaultDBPath() string {

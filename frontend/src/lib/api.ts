@@ -95,6 +95,13 @@ export interface ImportResult {
   trace_count: number
 }
 
+export interface ForwarderStatus {
+  url: string
+  sent: number
+  errors: number
+  last_error?: string
+}
+
 export interface LintWarning {
   span_id: string
   trace_id: string
@@ -188,5 +195,8 @@ export const api = {
   issues: {
     get: (traceId: string) =>
       get<TraceIssue[]>(`/api/issues?traceId=${traceId}`),
+  },
+  forwarders: {
+    list: () => get<ForwarderStatus[]>('/api/forwarders'),
   },
 }

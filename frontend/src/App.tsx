@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { Moon, Sun } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import TraceList from './pages/TraceList'
 import TraceDetail from './pages/TraceDetail'
@@ -11,6 +12,7 @@ import LintPage from './pages/LintPage'
 import DiffPage from './pages/DiffPage'
 import BottomBar from './components/BottomBar'
 import { useGlobalShortcuts } from './lib/shortcuts'
+import { api, type ForwarderStatus } from './lib/api'
 
 // ── Spaniel logo SVG ──────────────────────────────────────────────────────────
 
@@ -95,6 +97,70 @@ function ThemeToggle() {
   )
 }
 
+// ── Forwarding status pills ───────────────────────────────────────────────────
+
+function ForwardingPills() {
+  const [statuses, setStatuses] = useState<ForwarderStatus[]>([])
+
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      try {
+        const { data } = await api.forwarders.list()
+        if (alive) setStatuses(data)
+      } catch {
+        // server may not be up yet; silently retry
+      }
+    }
+    poll()
+    const id = setInterval(poll, 5000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+
+  if (statuses.length === 0) return null
+
+  return (
+    <>
+      <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {statuses.map(s => {
+          const hasError = s.errors > 0
+          const label = new URL(s.url).host
+          return (
+            <span
+              key={s.url}
+              title={hasError ? `${s.errors} error(s) — last: ${s.last_error}` : `→ ${s.url}  sent: ${s.sent}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 7px',
+                borderRadius: 5,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 500,
+                color: hasError ? 'var(--destructive-foreground, #fff)' : 'var(--muted-foreground)',
+                background: hasError ? 'var(--destructive, #c0392b)' : 'var(--muted)',
+                border: '1px solid var(--border)',
+                whiteSpace: 'nowrap',
+                cursor: 'default',
+                userSelect: 'none',
+              }}
+            >
+              <span style={{ opacity: 0.6 }}>→</span>
+              {label}
+              {hasError
+                ? <span style={{ opacity: 0.85 }}>✗</span>
+                : <span style={{ opacity: 0.55 }}>✓</span>
+              }
+            </span>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
 // ── Chrome navbar ─────────────────────────────────────────────────────────────
 
 function Chrome() {
@@ -145,6 +211,9 @@ function Chrome() {
       </nav>
 
       <div style={{ flex: 1 }} />
+
+      {/* forwarding status */}
+      <ForwardingPills />
 
       {/* theme toggle */}
       <ThemeToggle />

@@ -80,7 +80,7 @@ export default function BottomBar() {
           }}
         />
         <span style={{ color: 'var(--ink2)' }}>
-          {connected ? 'forwarding' : 'disconnected'}
+          {connected ? 'live' : 'disconnected'}
         </span>
       </div>
     </footer>

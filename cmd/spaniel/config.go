@@ -32,10 +32,10 @@ max_db_size_mb: 500
 # Do not open a browser tab on startup
 no_browser: false
 
-# OTLP forwarding targets (uncomment and fill in as needed)
+# OTLP forwarding: forward received spans/logs/metrics to upstream backends
 # forward:
-#   - url: http://tempo:4318
-#     protocol: http
+#   - http://tempo:4318
+#   - http://otelcollector:4318
 `
 
 // globalConfigPath returns the path to ~/.spaniel/config.yaml.
