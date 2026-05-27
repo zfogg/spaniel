@@ -41,6 +41,7 @@ func NewRouter(store *storage.DB, hub *ws.Hub) http.Handler {
 	mux.Get("/api/stats", r.getStats)
 	mux.Get("/api/service-map", r.getServiceMap)
 	mux.Get("/api/issues", r.getIssues)
+	mux.Get("/api/diff", r.getDiff)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux

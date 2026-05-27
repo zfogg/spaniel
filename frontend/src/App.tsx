@@ -8,6 +8,7 @@ import LogViewer from './pages/LogViewer'
 import Sessions from './pages/Sessions'
 import ServiceMap from './pages/ServiceMap'
 import LintPage from './pages/LintPage'
+import DiffPage from './pages/DiffPage'
 
 // ── Spaniel logo SVG ──────────────────────────────────────────────────────────
 
@@ -171,6 +172,7 @@ export default function App() {
               <Route path="/services"          element={<ServiceMap />}  />
               <Route path="/lint"              element={<LintPage />}    />
               <Route path="/sessions"          element={<Sessions />}    />
+              <Route path="/diff"              element={<DiffPage />}    />
             </Routes>
           </main>
         </div>

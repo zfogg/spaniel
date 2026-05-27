@@ -647,6 +647,32 @@ func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
 	return result, nil
 }
 
+// GetSpansBySession returns all spans for a session, ordered by start time.
+func (d *DB) GetSpansBySession(sessionID string) ([]*Span, error) {
+	rows, err := d.db.Query(`
+		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
+		       start_ns, end_ns, duration_ns, status_code, status_message,
+		       attributes::VARCHAR, resource::VARCHAR, session_id, session_label, received_at
+		FROM spans WHERE session_id = ? ORDER BY start_ns ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []*Span
+	for rows.Next() {
+		s := &Span{}
+		if err := rows.Scan(
+			&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name, &s.Kind,
+			&s.StartNs, &s.EndNs, &s.DurationNs, &s.StatusCode, &s.StatusMessage,
+			&s.Attributes, &s.Resource, &s.SessionID, &s.SessionLabel, &s.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, s)
+	}
+	return result, rows.Err()
+}
+
 func (d *DB) Close() error {
 	return d.db.Close()
 }

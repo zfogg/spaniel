@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api, Session } from '@/lib/api'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -326,7 +327,14 @@ function DiffSelectionMini({ baseline, compare }: { baseline?: Session; compare?
 // ── compare bar ───────────────────────────────────────────────────────────────
 
 function CompareBar({ baseline, compare }: { baseline?: Session; compare?: Session }) {
+  const navigate = useNavigate()
   const canDiff = baseline && compare && baseline.id !== compare.id
+
+  function handleCompare() {
+    if (!canDiff) return
+    navigate(`/diff?baseline=${baseline.id}&compare=${compare.id}`)
+  }
+
   return (
     <div style={{
       borderTop: '1px solid var(--line)',
@@ -368,7 +376,7 @@ function CompareBar({ baseline, compare }: { baseline?: Session; compare?: Sessi
           spaniel diff --baseline {baseline ? (baseline.label || 'main') : 'main'}
         </span>
       </span>
-      <Btn tone="primary" disabled={!canDiff}>
+      <Btn tone="primary" disabled={!canDiff} onClick={handleCompare}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ display: 'block' }}>
           <path d="M2.5 4h5M5 2l-2.5 2L5 6" stroke="currentColor" strokeWidth="1.4"
             strokeLinecap="round" strokeLinejoin="round" />
