@@ -553,7 +553,7 @@ func (d *DB) ListServices() ([]string, error) {
 
 func (d *DB) ListSessions() ([]*Session, error) {
 	rows, err := d.db.Query(`
-		SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services,
+		SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services::VARCHAR,
 		       COUNT(DISTINCT sp.trace_id) AS trace_count
 		FROM sessions s
 		LEFT JOIN spans sp ON sp.session_id = s.id
