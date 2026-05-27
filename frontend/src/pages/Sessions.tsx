@@ -1,6 +1,26 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, Session } from '@/lib/api'
+import { api, Session, LintWarning } from '@/lib/api'
+import { readDiffHistory, pushDiffHistory, type DiffHistoryEntry } from '@/lib/diff-history'
+
+// ── types ─────────────────────────────────────────────────────────────────────
+
+type SessionFilter = 'all' | 'branches' | 'adhoc' | 'hot'
+
+function isBranch(label: string) { return label.includes('/') }
+
+function fmtDeltaMs(ns: number): string {
+  const ms = Math.round(ns / 1_000_000)
+  return (ms > 0 ? '+' : '') + ms + 'ms'
+}
+
+function fmtRelativeMs(atMs: number): string {
+  const diff = Date.now() - atMs
+  if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`
+  return `${Math.round(diff / 86_400_000)}d ago`
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -520,6 +540,13 @@ function CompareBar({ baseline, compare }: { baseline?: Session; compare?: Sessi
 
   function handleCompare() {
     if (!canDiff) return
+    pushDiffHistory({
+      baselineId: baseline.id,
+      baselineLabel: baseline.label || baseline.id.slice(0, 8),
+      compareId: compare.id,
+      compareLabel: compare.label || compare.id.slice(0, 8),
+      at: Date.now(),
+    })
     navigate(`/diff?baseline=${baseline.id}&compare=${compare.id}`)
   }
 
@@ -587,17 +614,24 @@ export default function Sessions() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [filter, setFilter] = useState<SessionFilter>('all')
+  const [warningSids, setWarningSids] = useState<Set<string>>(new Set())
+  const [diffHistory, setDiffHistory] = useState<DiffHistoryEntry[]>([])
 
   const load = useCallback(async () => {
-    const [sessRes, activeRes] = await Promise.all([
+    const [sessRes, activeRes, lintRes] = await Promise.all([
       api.sessions.list(),
       api.sessions.getActive(),
+      api.lint.list(),
     ])
     const list = sessRes.data ?? []
     setSessions(list)
     setActiveId(activeRes.data?.id ?? '')
     const bl = list.find(s => s.is_baseline)
     if (bl) setBaselineId(bl.id)
+    const sids = new Set((lintRes.data ?? []).map((w: LintWarning) => w.session_id))
+    setWarningSids(sids)
+    setDiffHistory(readDiffHistory())
     setLoading(false)
   }, [])
 
@@ -647,6 +681,17 @@ export default function Sessions() {
     setCompareId(id)
   }
 
+  const filteredSessions = sessions.filter(s => {
+    if (filter === 'branches') return isBranch(s.label)
+    if (filter === 'adhoc') return !isBranch(s.label)
+    if (filter === 'hot') return warningSids.has(s.id)
+    return true
+  })
+
+  const branchCount = sessions.filter(s => isBranch(s.label)).length
+  const adhocCount = sessions.filter(s => !isBranch(s.label)).length
+  const hotCount = sessions.filter(s => warningSids.has(s.id)).length
+
   const baseline = sessions.find(s => s.id === baselineId)
   const compare = sessions.find(s => s.id === compareId)
 
@@ -665,6 +710,46 @@ export default function Sessions() {
           display: 'flex', flexDirection: 'column', gap: 18,
           fontFamily: 'var(--font-sans)', flexShrink: 0,
         }}>
+          {/* filter tabs */}
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
+              letterSpacing: '0.14em', color: 'var(--ink3)', marginBottom: 8,
+            }}>
+              filter
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {([
+                { key: 'all', label: 'all sessions', dot: 'var(--ink3)', count: sessions.length },
+                { key: 'branches', label: 'branches', dot: 'var(--accent)', count: branchCount },
+                { key: 'adhoc', label: 'scratch / ad-hoc', dot: 'var(--warn, #d97706)', count: adhocCount },
+                { key: 'hot', label: 'with warnings', dot: 'var(--destructive, #c0392b)', count: hotCount },
+              ] as const).map(item => (
+                <button
+                  key={item.key}
+                  type="button"
+                  data-testid={`filter-${item.key}`}
+                  onClick={() => setFilter(item.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    width: '100%', textAlign: 'left',
+                    padding: '5px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    background: filter === item.key ? 'var(--surface)' : 'transparent',
+                    fontFamily: 'var(--font-mono)', fontSize: 11,
+                    color: filter === item.key ? 'var(--ink)' : 'var(--ink2)',
+                    fontWeight: filter === item.key ? 600 : 400,
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: 7, background: item.dot, flexShrink: 0 }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.label}
+                  </span>
+                  <span style={{ color: 'var(--ink3)', fontSize: 10 }}>{item.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <div style={{
               fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
@@ -776,7 +861,7 @@ export default function Sessions() {
               }}>
                 loading…
               </div>
-            ) : sessions.length === 0 ? (
+            ) : filteredSessions.length === 0 ? (
               <div style={{
                 padding: '32px 16px', textAlign: 'center',
                 fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
@@ -784,15 +869,18 @@ export default function Sessions() {
                 border: '1px solid var(--line)', borderTop: 'none',
                 borderRadius: '0 0 10px 10px',
               }}>
-                no sessions yet
+                {sessions.length === 0 ? 'no sessions yet' : 'no sessions match this filter'}
               </div>
             ) : (
-              <div style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--line)', borderTop: 'none',
-                borderRadius: '0 0 10px 10px', overflow: 'hidden',
-              }}>
-                {sessions.map(s => (
+              <div
+                data-testid="sessions-table-body"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--line)', borderTop: 'none',
+                  borderRadius: '0 0 10px 10px', overflow: 'hidden',
+                }}
+              >
+                {filteredSessions.map(s => (
                   <SessionRow
                     key={s.id}
                     s={s}
@@ -808,6 +896,68 @@ export default function Sessions() {
               </div>
             )}
           </div>
+
+          {/* recent diffs */}
+          {diffHistory.length > 0 && (
+            <div style={{ padding: '18px 24px 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+                <h2 style={{
+                  margin: 0, fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 600, color: 'var(--ink)',
+                }}>Recent diffs</h2>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--ink2)' }}>
+                  cached locally · re-open any to compare again
+                </span>
+              </div>
+              <div style={{
+                background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10,
+                overflow: 'hidden',
+              }}>
+                {diffHistory.map((d, i) => (
+                  <div key={i} style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0,1fr) 80px 80px 80px',
+                    gap: 12, padding: '10px 16px', alignItems: 'center',
+                    borderBottom: i < diffHistory.length - 1 ? '1px solid var(--line2)' : 'none',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink2)' }}>
+                        {d.baselineLabel}
+                      </span>
+                      <span style={{ color: 'var(--ink3)' }}>→</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, fontWeight: 600, color: 'var(--ink)' }}>
+                        {d.compareLabel}
+                      </span>
+                      <a
+                        href={`/diff?baseline=${d.baselineId}&compare=${d.compareId}`}
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent-ink)', marginLeft: 4 }}
+                      >
+                        re-open
+                      </a>
+                    </div>
+                    {d.deltaMs !== undefined ? (
+                      <span style={{
+                        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
+                        color: d.deltaMs < 0 ? '#3e6a3e' : d.deltaMs > 0 ? 'var(--danger-ink)' : 'var(--ink3)',
+                      }}>
+                        {fmtDeltaMs(d.deltaMs * 1_000_000)}
+                      </span>
+                    ) : <span />}
+                    {d.deltaSpans !== undefined ? (
+                      <span style={{
+                        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
+                        color: d.deltaSpans < 0 ? '#3e6a3e' : d.deltaSpans > 0 ? 'var(--danger-ink)' : 'var(--ink3)',
+                      }}>
+                        {(d.deltaSpans > 0 ? '+' : '') + d.deltaSpans} spans
+                      </span>
+                    ) : <span />}
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--ink3)' }}>
+                      {fmtRelativeMs(d.at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ height: 80 }} />
         </div>

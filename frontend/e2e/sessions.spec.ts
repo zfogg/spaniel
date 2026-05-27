@@ -33,9 +33,20 @@ function makeSession(overrides: Partial<SessionFixture> & { id: string; label: s
   }
 }
 
+interface LintFixture {
+  span_id: string
+  trace_id: string
+  session_id: string
+  rule_id: string
+  message: string
+  severity: string
+  created_at: number
+}
+
 interface StubOptions {
   sessions: SessionFixture[]
   activeId?: string
+  lint?: LintFixture[]
 }
 
 /**
@@ -58,17 +69,22 @@ async function stubBackend(
   const deletedIds = new Set<string>()
 
   await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/forwarders', r => jsonResponse(r, []))
 
   const activeId = opts.activeId ?? (opts.sessions[0]?.id ?? '')
 
-  // Single predicate handler for everything under /api/sessions*.
-  // Playwright LIFO means this must be registered AFTER the forwarders stub
-  // but since we use a function predicate it won't collide with the glob.
-  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/sessions'), r => {
-    const urlObj = new URL(r.request().url())
-    const pathname = urlObj.pathname          // e.g. /api/sessions, /api/sessions/active, /api/sessions/id/activate
+  // Register all API routes with function predicates in a single handler to
+  // avoid LIFO ordering surprises. Checked in order: lint → forwarders → sessions.
+  await page.route(url => {
+    const p = new URL(url.toString()).pathname
+    return p === '/api/forwarders' || p.startsWith('/api/lint') || p.startsWith('/api/sessions')
+  }, r => {
+    const pathname = new URL(r.request().url()).pathname
     const method = r.request().method()
+
+    if (pathname === '/api/forwarders') return jsonResponse(r, [])
+    if (pathname.startsWith('/api/lint')) return jsonResponse(r, opts.lint ?? [])
+
+    // /api/sessions* — parse segments
     const segments = pathname.split('/').filter(Boolean) // ['api', 'sessions', id?, action?]
     const id = segments[2]
     const action = segments[3]
@@ -84,7 +100,6 @@ async function stubBackend(
       if (method === 'POST') {
         return jsonResponse(r, makeSession({ id: 'new-id', label: 'new session' }))
       }
-      // GET — return list minus deleted
       return jsonResponse(r, opts.sessions.filter(s => !deletedIds.has(s.id)))
     }
 
@@ -307,5 +322,131 @@ test.describe('Sessions page', () => {
     // Modal shows "Import trace" heading — scope to the modal span to avoid sidebar collision.
     await expect(page.locator('span', { hasText: 'Import trace' })).toBeVisible()
     await expect(page.getByText(/Drop OTLP JSON or Jaeger JSON here/i)).toBeVisible()
+  })
+
+  // ── sidebar filter tabs ──────────────────────────────────────────────────────
+
+  test('sidebar shows all four filter tabs', async ({ page }) => {
+    await stubBackend(page, { sessions: [], activeId: '' })
+    await page.goto('/sessions')
+
+    await expect(page.getByTestId('filter-all')).toBeVisible()
+    await expect(page.getByTestId('filter-branches')).toBeVisible()
+    await expect(page.getByTestId('filter-adhoc')).toBeVisible()
+    await expect(page.getByTestId('filter-hot')).toBeVisible()
+  })
+
+  test('branches filter shows only sessions with / in their label', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 's1', label: 'feat/checkout', trace_count: 5, span_count: 10 }),
+      makeSession({ id: 's2', label: 'no-slash', trace_count: 2, span_count: 4 }),
+      makeSession({ id: 's3', label: 'main/hotfix', trace_count: 1, span_count: 2 }),
+    ]
+    await stubBackend(page, { sessions, activeId: 's1' })
+    await page.goto('/sessions')
+
+    await page.getByTestId('filter-branches').click()
+
+    await expect(page.getByText('feat/checkout').first()).toBeVisible()
+    await expect(page.getByText('main/hotfix').first()).toBeVisible()
+    // the table should NOT show the adhoc session row (scoped to the session table area)
+    await expect(page.getByText('no-slash')).not.toBeVisible()
+  })
+
+  test('scratch filter shows only sessions without / in label', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 's1', label: 'feat/checkout', trace_count: 5, span_count: 10 }),
+      makeSession({ id: 's2', label: 'no-slash-adhoc', trace_count: 2, span_count: 4 }),
+    ]
+    await stubBackend(page, { sessions, activeId: 's1' })
+    await page.goto('/sessions')
+
+    await page.getByTestId('filter-adhoc').click()
+
+    await expect(page.getByText('no-slash-adhoc').first()).toBeVisible()
+    // BottomBar always shows the active session label; scope to the table body only
+    await expect(page.getByTestId('sessions-table-body').getByText('feat/checkout')).not.toBeVisible()
+  })
+
+  test('with-warnings filter shows only sessions that have lint warnings', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 's1', label: 'warn-session-xyz', trace_count: 5, span_count: 10 }),
+      makeSession({ id: 's2', label: 'clean-session-xyz', trace_count: 2, span_count: 4 }),
+    ]
+    const lint = [
+      { span_id: 'sp1', trace_id: 't1', session_id: 's1', rule_id: 'SEMCONV', message: 'missing attr', severity: 'warning', created_at: Date.now() },
+    ]
+    await stubBackend(page, { sessions, activeId: 's2', lint })
+    await page.goto('/sessions')
+
+    await page.getByTestId('filter-hot').click()
+
+    await expect(page.getByText('warn-session-xyz').first()).toBeVisible()
+    // BottomBar always shows the active session label; scope to the table body only
+    await expect(page.getByTestId('sessions-table-body').getByText('clean-session-xyz')).not.toBeVisible()
+  })
+
+  test('no-match filter shows "no sessions match this filter"', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 's1', label: 'scratch', trace_count: 2, span_count: 4 }),
+    ]
+    await stubBackend(page, { sessions, activeId: 's1' })
+    await page.goto('/sessions')
+
+    // Filter to branches — scratch has no /
+    await page.getByTestId('filter-branches').click()
+    await expect(page.getByText('no sessions match this filter')).toBeVisible()
+  })
+
+  // ── recent diffs ─────────────────────────────────────────────────────────────
+
+  test('recent diffs section appears after compare navigation writes to localStorage', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 's-base', label: 'base-session', is_baseline: true, trace_count: 5, span_count: 10 }),
+      makeSession({ id: 's-cmp', label: 'cmp-session', trace_count: 2, span_count: 4 }),
+    ]
+    await stubBackend(page, { sessions, activeId: 's-cmp' })
+    await page.goto('/sessions')
+
+    // Seed localStorage directly (simulates having navigated to diff before)
+    await page.evaluate(() => {
+      localStorage.setItem('spaniel:diff-history', JSON.stringify([
+        {
+          baselineId: 's-base',
+          baselineLabel: 'base-session',
+          compareId: 's-cmp',
+          compareLabel: 'cmp-session',
+          at: Date.now() - 5 * 60_000,
+        },
+      ]))
+    })
+
+    // Re-navigate so the component re-reads localStorage on mount
+    await page.reload()
+
+    await expect(page.getByText('Recent diffs')).toBeVisible()
+    await expect(page.getByText('base-session').first()).toBeVisible()
+    await expect(page.getByText('cmp-session').first()).toBeVisible()
+    await expect(page.getByRole('link', { name: 're-open' })).toBeVisible()
+  })
+
+  test('"Compare sessions" click writes an entry to localStorage diff history', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 's-base', label: 'baseline-w', is_baseline: true, trace_count: 5, span_count: 10 }),
+      makeSession({ id: 's-cmp', label: 'compare-w', trace_count: 2, span_count: 4 }),
+    ]
+    await stubBackend(page, { sessions, activeId: 's-cmp' })
+    await page.goto('/sessions')
+
+    await page.getByRole('button', { name: /^\+ compare$/ }).click()
+    await expect(page.getByRole('button', { name: /compare sessions/i })).toBeEnabled()
+    await page.getByRole('button', { name: /compare sessions/i }).click()
+
+    // After navigation, check localStorage was written
+    const stored = await page.evaluate(() => localStorage.getItem('spaniel:diff-history'))
+    const history = JSON.parse(stored ?? '[]')
+    expect(history.length).toBeGreaterThan(0)
+    expect(history[0].baselineId).toBe('s-base')
+    expect(history[0].compareId).toBe('s-cmp')
   })
 })

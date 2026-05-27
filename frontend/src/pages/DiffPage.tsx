@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { api, Span, Session } from '@/lib/api'
 import { fmtNs, svcColor } from '@/lib/span-utils'
+import { updateDiffHistoryDeltas } from '@/lib/diff-history'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -304,7 +305,15 @@ export default function DiffPage() {
     try {
       const res = await fetch(`/api/diff?baseline=${bId}&compare=${cId}`)
       const json = await res.json()
-      setDiff(json.data)
+      const result = json.data
+      setDiff(result)
+      if (result?.summary) {
+        updateDiffHistoryDeltas(
+          bId, cId,
+          Math.round(result.summary.duration_delta_ns / 1_000_000),
+          (result.summary.spans_added ?? 0) - (result.summary.spans_removed ?? 0),
+        )
+      }
     } finally {
       setLoading(false)
     }
