@@ -30,6 +30,8 @@
 <script type="text/babel" src="screen-settings.jsx"></script>
 <script type="text/babel" src="screen-sessions.jsx"></script>
 <script type="text/babel" src="screen-spans.jsx"></script>
+<script type="text/babel" src="screen-coverage.jsx"></script>
+<script type="text/babel" src="screen-metrics.jsx"></script>
 
 <script type="text/babel" data-presets="env,react">
 const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
@@ -189,7 +191,21 @@ function App() {
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="settings" title="10 · Settings"
+      <DCSection id="coverage" title="10 · Coverage"
+        subtitle="Instrumentation heatmap — which routes have zero traces · nyc/istanbul for OTel">
+        <DCArtboard id="coverage-drift" label="Drift · coverage — openapi import · dark routes · heatmap" width={1380} height={1080}>
+          <Themed themeKey="drift"><window.Coverage theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="metrics" title="11 · Metrics"
+        subtitle="Time-series view · gauge / counter / histogram · correlated with the traces that produced them">
+        <DCArtboard id="metrics-drift" label="Drift · metrics — list + chart + trace correlation" width={1380} height={880}>
+          <Themed themeKey="drift"><window.Metrics theme={THEMES.drift} /></Themed>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="settings" title="12 · Settings"
         subtitle="Network · storage · cloud sync · about — interactive (toggles, ports, retention, paths all live)">
         <DCArtboard id="settings-drift" label="Drift · settings (interactive)" width={1180} height={840}>
           <Themed themeKey="drift"><window.Settings theme={THEMES.drift} /></Themed>

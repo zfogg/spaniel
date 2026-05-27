@@ -88,7 +88,7 @@ function Badge({ tone = 'neutral', children, size = 'sm' }) {
 
 // ── Top chrome — logo, nav, session, status ─────────────────────────────
 function Chrome({ active = 'traces', theme }) {
-  const navs = ['traces','spans','services','lints','sessions','settings'];
+  const navs = ['traces','spans','metrics','services','coverage','lints','sessions','settings'];
   return (
     <div style={{
       height:46, padding:'0 16px',
