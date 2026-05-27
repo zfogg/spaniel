@@ -2,17 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, MetricCatalogEntry, MetricSeries } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { bucketPoints, type BucketedSeries, type MetricType } from '@/lib/metrics-bucket'
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-function fmtVal(v: number, unit: string): string {
-  if (unit === '%') return `${Math.round(v * 100)}%`
-  if (unit === '$') return `$${Math.round(v).toLocaleString()}`
-  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}k`
-  if (Math.abs(v) >= 100) return v.toFixed(0)
-  if (Math.abs(v) >= 10) return v.toFixed(1)
-  return v.toFixed(2)
-}
+import { fmtVal, statsFor, type Stat } from '@/lib/metrics-format'
 
 // ── icons ────────────────────────────────────────────────────────────────────
 
@@ -201,43 +191,6 @@ function Chart({ metric, bucketed }: { metric: MetricSeries; bucketed: BucketedS
 }
 
 // ── stat strip ───────────────────────────────────────────────────────────────
-
-interface Stat { label: string; value: string; sub?: string; tone?: 'ok' | 'danger' }
-
-function statsFor(m: MetricSeries, b: BucketedSeries): Stat[] {
-  if (m.type === 'gauge') {
-    const s = b.values
-    const last = s[s.length - 1] ?? 0
-    const prev = s[Math.max(0, s.length - 6)] ?? 0
-    return [
-      { label: 'now', value: fmtVal(last, m.unit), sub: 'latest sample' },
-      { label: '5m ago', value: fmtVal(prev, m.unit), sub: `${(last - prev >= 0 ? '+' : '')}${fmtVal(last - prev, m.unit)} vs now`, tone: last - prev < 0 ? 'danger' : 'ok' },
-      { label: 'min', value: fmtVal(Math.min(...s), m.unit), sub: 'window' },
-      { label: 'max', value: fmtVal(Math.max(...s), m.unit), sub: 'window' },
-    ]
-  }
-  if (m.type === 'counter') {
-    const s = b.values
-    const total = s.reduce((a, c) => a + c, 0)
-    const rate = s[s.length - 1] ?? 0
-    const peakIdx = s.indexOf(Math.max(...s))
-    return [
-      { label: 'rate / min', value: fmtVal(rate, m.unit), sub: 'last sample' },
-      { label: 'total', value: fmtVal(total, m.unit), sub: 'window' },
-      { label: 'peak', value: fmtVal(s[peakIdx] ?? 0, m.unit), sub: `idx ${peakIdx}` },
-      { label: 'unit', value: m.unit || '—', sub: 'cumulative' },
-    ]
-  }
-  const p50 = b.p50 ?? [], p95 = b.p95 ?? [], p99 = b.p99 ?? []
-  return [
-    { label: 'p50', value: fmtVal(p50[p50.length - 1] ?? 0, m.unit), sub: 'latest' },
-    { label: 'p95', value: fmtVal(p95[p95.length - 1] ?? 0, m.unit), sub: 'latest',
-      tone: (p95[p95.length - 1] ?? 0) > 300 ? 'danger' : undefined },
-    { label: 'p99', value: fmtVal(p99[p99.length - 1] ?? 0, m.unit), sub: 'latest',
-      tone: (p99[p99.length - 1] ?? 0) > 600 ? 'danger' : undefined },
-    { label: 'max p99', value: fmtVal(p99.length ? Math.max(...p99) : 0, m.unit), sub: 'window' },
-  ]
-}
 
 function StatBox({ s }: { s: Stat }) {
   return (

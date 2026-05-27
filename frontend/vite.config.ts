@@ -11,8 +11,10 @@ export default defineConfig({
     },
   },
   test: {
+    // Node by default; tsx component tests opt into jsdom via the file-level
+    // // @vitest-environment jsdom pragma.
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
   server: {
     port: 5173,
