@@ -1,4 +1,4 @@
-.PHONY: dev build run test
+.PHONY: dev build run test setup
 
 dev:
 	cd frontend && npm run dev &
@@ -13,3 +13,6 @@ run:
 
 test:
 	go test ./...
+
+setup:
+	git config core.hooksPath git-hooks

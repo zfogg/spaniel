@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [[ -z "$STAGED" ]]; then
+  exit 0
+fi
+
+FAIL=0
+
+# ── Go vet ────────────────────────────────────────────────────────────────────
+
+GO_FILES=$(echo "$STAGED" | grep '\.go$' || true)
+if [[ -n "$GO_FILES" ]]; then
+  # Collect unique packages for changed .go files.
+  PKGS=$(echo "$GO_FILES" | xargs -I{} dirname "$REPO_ROOT/{}" | sort -u | \
+    xargs -I{} sh -c 'go list -e "github.com/zfogg/spaniel/$(realpath --relative-to='"$REPO_ROOT"' {})" 2>/dev/null || true' | \
+    grep -v '^$' | sort -u)
+
+  if [[ -n "$PKGS" ]]; then
+    echo "→ go vet $(echo "$PKGS" | wc -l | tr -d ' ') package(s)…"
+    if ! go vet $PKGS 2>&1; then
+      FAIL=1
+    fi
+  fi
+fi
+
+# ── TypeScript ────────────────────────────────────────────────────────────────
+
+TS_FILES=$(echo "$STAGED" | grep -E '^frontend/src/.*\.(ts|tsx)$' || true)
+if [[ -n "$TS_FILES" ]]; then
+  echo "→ tsc --noEmit…"
+  if ! (cd "$REPO_ROOT/frontend" && pnpm tsc -b --noEmit 2>&1); then
+    FAIL=1
+  fi
+fi
+
+exit $FAIL
