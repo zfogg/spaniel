@@ -15,6 +15,7 @@ import LintPage from './pages/LintPage'
 import DiffPage from './pages/DiffPage'
 import Metrics from './pages/Metrics'
 import Coverage from './pages/Coverage'
+import Settings from './pages/Settings'
 import BottomBar from './components/BottomBar'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { api, type ForwarderStatus } from './lib/api'
@@ -216,6 +217,7 @@ function Chrome() {
         <NavPill to="/coverage"       label="Coverage" />
         <NavPill to="/lint"           label="Lint"     />
         <NavPill to="/sessions"       label="Sessions" />
+        <NavPill to="/settings"       label="Settings" />
       </nav>
 
       <div style={{ flex: 1 }} />
@@ -270,6 +272,7 @@ function AppShell() {
           <Route path="/logs"              element={<LogViewer />}   />
           <Route path="/metrics"           element={<Metrics />}     />
           <Route path="/coverage"          element={<Coverage />}    />
+          <Route path="/settings"          element={<Settings />}    />
           <Route path="/services"          element={<ServiceMap />}  />
           <Route path="/lint"              element={<LintPage />}    />
           <Route path="/sessions"          element={<Sessions />}    />
