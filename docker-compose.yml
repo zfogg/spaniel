@@ -1,0 +1,20 @@
+services:
+  spaniel:
+    image: ghcr.io/zfogg/spaniel:latest
+    container_name: spaniel
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - spaniel-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  spaniel-data:

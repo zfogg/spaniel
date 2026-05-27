@@ -1,0 +1,17 @@
+.git
+.github
+.idea
+.vscode
+*.log
+*.test
+dist
+coverage*
+frontend/node_modules
+frontend/dist
+**/node_modules
+**/.DS_Store
+docker-compose.yml
+Dockerfile
+.dockerignore
+README.md
+LICENSE
