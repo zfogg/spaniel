@@ -32,6 +32,9 @@ frontend/dist/*
 !frontend/dist/.placeholder
 frontend/node_modules/
 frontend/package-lock.json
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
 /spaniel
 *.duckdb
 
