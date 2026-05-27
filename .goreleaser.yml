@@ -71,21 +71,16 @@ release:
   prerelease: auto
   name_template: "v{{ .Version }}"
 
-brews:
+homebrew_casks:
   - name: spaniel
     repository:
       owner: zfogg
       name: homebrew-tap
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: https://github.com/zfogg/spaniel
     description: Local OpenTelemetry collector and viewer
-    license: MIT
     commit_author:
       name: zfogg-bot
       email: zach.fogg@gmail.com
-    test: |
-      system "#{bin}/spaniel", "--version"
-    install: |
-      bin.install "spaniel"
