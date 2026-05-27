@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, LintWarning, TraceIssue, Log, api } from '@/lib/api'
 import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, FlatSpan } from '@/lib/span-utils'
+import TraceGraph from '@/components/TraceGraph'
 
 // ── layout constants ──────────────────────────────────────────────────────────
 
@@ -857,8 +858,8 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
   serviceCount: number
   errorCount: number
   lintCount: number
-  view: 'waterfall' | 'flame'
-  onView: (v: 'waterfall' | 'flame') => void
+  view: 'waterfall' | 'flame' | 'graph'
+  onView: (v: 'waterfall' | 'flame' | 'graph') => void
   zoom: [number, number]
   traceStartNs: number
   traceEndNs: number
@@ -918,7 +919,7 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
         background: 'var(--muted)', borderRadius: 8,
         padding: 3, border: '1px solid var(--border)', gap: 2,
       }}>
-        {(['waterfall', 'flame'] as const).map(v => {
+        {(['waterfall', 'flame', 'graph'] as const).map(v => {
           const active = view === v
           return (
             <button key={v} type="button" onClick={() => onView(v)} style={{
@@ -930,7 +931,7 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
               fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
               cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
             }}>
-              {v === 'waterfall' ? <WaterfallIcon /> : <FlameIcon />}
+              {v === 'waterfall' ? <WaterfallIcon /> : v === 'flame' ? <FlameIcon /> : <GraphIcon />}
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
           )
@@ -981,6 +982,18 @@ function WaterfallIcon() {
       <rect x="1"   y="1.5" width="9" height="1.6" fill="currentColor" opacity="0.85" />
       <rect x="2.5" y="4.5" width="6" height="1.6" fill="currentColor" opacity="0.85" />
       <rect x="4"   y="7.5" width="4" height="1.6" fill="currentColor" opacity="0.85" />
+    </svg>
+  )
+}
+
+function GraphIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <circle cx="6"   cy="2"  r="1.4" fill="currentColor" opacity="0.85" />
+      <circle cx="2.5" cy="9"  r="1.4" fill="currentColor" opacity="0.85" />
+      <circle cx="9.5" cy="9"  r="1.4" fill="currentColor" opacity="0.85" />
+      <line x1="6" y1="3.4" x2="2.7" y2="7.8" stroke="currentColor" strokeWidth="1" opacity="0.6" />
+      <line x1="6" y1="3.4" x2="9.3" y2="7.8" stroke="currentColor" strokeWidth="1" opacity="0.6" />
     </svg>
   )
 }
@@ -1046,7 +1059,7 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
   const traceEndNs   = spans.reduce((m, s) => Math.max(m, s.end_ns), 0)
   const traceDurNs   = traceEndNs - traceStartNs
 
-  const [view,       setView]       = useState<'waterfall' | 'flame'>('waterfall')
+  const [view,       setView]       = useState<'waterfall' | 'flame' | 'graph'>('waterfall')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [hoveredId,  setHoveredId]  = useState<string | null>(null)
   const [zoom,       setZoom]       = useState<[number, number]>([traceStartNs, traceEndNs])
@@ -1206,7 +1219,7 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
                 </div>
               </div>
             </>
-          ) : (
+          ) : view === 'flame' ? (
             <FlameView
               flatSpans={flatSpans}
               traceStartNs={traceStartNs}
@@ -1218,6 +1231,12 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
               onHover={setHoveredId}
               zoom={zoom}
               onZoom={setZoom}
+            />
+          ) : (
+            <TraceGraph
+              spans={spans}
+              selectedId={selectedId}
+              onSelect={handleSelect}
             />
           )}
         </div>
