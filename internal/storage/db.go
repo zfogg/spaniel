@@ -47,12 +47,13 @@ type Log struct {
 }
 
 type Session struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	CreatedAt  int64  `json:"created_at"`
-	IsBaseline bool   `json:"is_baseline"`
-	SpanCount  int    `json:"span_count"`
-	Services   string `json:"services"`
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	CreatedAt   int64  `json:"created_at"`
+	IsBaseline  bool   `json:"is_baseline"`
+	SpanCount   int    `json:"span_count"`
+	TraceCount  int    `json:"trace_count"`
+	Services    string `json:"services"`
 }
 
 type LintWarning struct {
@@ -424,7 +425,13 @@ func (d *DB) ListServices() ([]string, error) {
 }
 
 func (d *DB) ListSessions() ([]*Session, error) {
-	rows, err := d.db.Query(`SELECT id, label, created_at, is_baseline, span_count, services FROM sessions ORDER BY created_at DESC`)
+	rows, err := d.db.Query(`
+		SELECT s.id, s.label, s.created_at, s.is_baseline, s.span_count, s.services,
+		       COUNT(DISTINCT sp.trace_id) AS trace_count
+		FROM sessions s
+		LEFT JOIN spans sp ON sp.session_id = s.id
+		GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.span_count, s.services
+		ORDER BY s.created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -432,7 +439,7 @@ func (d *DB) ListSessions() ([]*Session, error) {
 	var result []*Session
 	for rows.Next() {
 		s := &Session{}
-		if err := rows.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.SpanCount, &s.Services); err != nil {
+		if err := rows.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.SpanCount, &s.Services, &s.TraceCount); err != nil {
 			return nil, err
 		}
 		result = append(result, s)
@@ -448,6 +455,27 @@ func (d *DB) GetSession(id string) (*Session, error) {
 		return nil, nil
 	}
 	return s, err
+}
+
+func (d *DB) SetBaseline(id string, isBaseline bool) error {
+	if isBaseline {
+		// clear any previous baseline first
+		if _, err := d.db.Exec(`UPDATE sessions SET is_baseline = FALSE WHERE is_baseline = TRUE`); err != nil {
+			return err
+		}
+	}
+	_, err := d.db.Exec(`UPDATE sessions SET is_baseline = ? WHERE id = ?`, isBaseline, id)
+	return err
+}
+
+func (d *DB) DeleteSession(id string) error {
+	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "spans"} {
+		if _, err := d.db.Exec(`DELETE FROM `+tbl+` WHERE session_id = ?`, id); err != nil {
+			return err
+		}
+	}
+	_, err := d.db.Exec(`DELETE FROM sessions WHERE id = ?`, id)
+	return err
 }
 
 func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {

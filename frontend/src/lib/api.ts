@@ -16,6 +16,12 @@ async function post<T>(path: string, body: unknown): Promise<{ data: T; meta: { 
   return res.json()
 }
 
+async function del<T>(path: string): Promise<{ data: T; meta: { total: number } }> {
+  const res = await fetch(BASE + path, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json()
+}
+
 export interface TraceRow {
   trace_id: string
   service_name: string
@@ -78,6 +84,7 @@ export interface Session {
   created_at: number
   is_baseline: boolean
   span_count: number
+  trace_count: number
   services: string
 }
 
@@ -140,7 +147,12 @@ export const api = {
   sessions: {
     list: () => get<Session[]>('/api/sessions'),
     get: (id: string) => get<Session>(`/api/sessions/${id}`),
+    getActive: () => get<{ id: string; label: string }>('/api/sessions/active'),
     create: (label?: string) => post<Session>('/api/sessions', { label }),
+    activate: (id: string) => post<Session>(`/api/sessions/${id}/activate`, {}),
+    baseline: (id: string, isBaseline: boolean) =>
+      post<{ ok: boolean }>(`/api/sessions/${id}/baseline`, { is_baseline: isBaseline }),
+    delete: (id: string) => del<{ ok: boolean }>(`/api/sessions/${id}`),
   },
   lint: {
     list: (sessionId?: string) =>

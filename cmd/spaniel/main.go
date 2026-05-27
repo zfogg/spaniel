@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -29,6 +31,7 @@ func main() {
 		dev       bool
 		dbPath    string
 		noBrowser bool
+		apiBase   string
 	)
 
 	root := &cobra.Command{
@@ -43,6 +46,29 @@ func main() {
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
 	root.Flags().StringVar(&dbPath, "db-path", defaultDBPath(), "Path to DuckDB file")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
+
+	// session subcommand
+	sessionCmd := &cobra.Command{
+		Use:   "session",
+		Short: "Manage spaniel sessions",
+	}
+	sessionCmd.PersistentFlags().StringVar(&apiBase, "api", "http://localhost:8080", "Spaniel API base URL")
+
+	sessionNewCmd := &cobra.Command{
+		Use:   "new [label]",
+		Short: "Create a new session and activate it",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			label := time.Now().Format("session_2006-01-02_15:04")
+			if len(args) > 0 && args[0] != "" {
+				label = args[0]
+			}
+			return sessionNew(apiBase, label)
+		},
+	}
+
+	sessionCmd.AddCommand(sessionNewCmd)
+	root.AddCommand(sessionCmd)
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -60,7 +86,7 @@ func run(port int, dev bool, dbPath string, noBrowser bool) error {
 	}
 	defer store.Close()
 
-	sess, err := store.CreateSession("", false)
+	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
@@ -135,6 +161,35 @@ func printBanner(port int, dbPath string) {
 func defaultDBPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".spaniel", "spaniel.duckdb")
+}
+
+func sessionNew(apiBase, label string) error {
+	body, _ := json.Marshal(map[string]string{"label": label})
+	resp, err := http.Post(apiBase+"/api/sessions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("connect to spaniel at %s: %w", apiBase, err)
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result) //nolint:errcheck
+
+	sessID := result.Data.ID
+	if sessID == "" {
+		return fmt.Errorf("no session ID in response")
+	}
+
+	actResp, err := http.Post(apiBase+"/api/sessions/"+sessID+"/activate", "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("activate session: %w", err)
+	}
+	actResp.Body.Close()
+
+	fmt.Printf("session created and activated: %s (%s)\n", label, sessID[:8])
+	return nil
 }
 
 func openBrowser(url string) {

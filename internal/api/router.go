@@ -32,7 +32,11 @@ func NewRouter(store *storage.DB, hub *ws.Hub) http.Handler {
 	mux.Get("/api/services", r.listServices)
 	mux.Get("/api/sessions", r.listSessions)
 	mux.Post("/api/sessions", r.createSession)
+	mux.Get("/api/sessions/active", r.getActiveSession)
 	mux.Get("/api/sessions/{sessionId}", r.getSession)
+	mux.Post("/api/sessions/{sessionId}/activate", r.activateSession)
+	mux.Post("/api/sessions/{sessionId}/baseline", r.baselineSession)
+	mux.Delete("/api/sessions/{sessionId}", r.deleteSession)
 	mux.Get("/api/lint", r.listLint)
 	mux.Get("/api/stats", r.getStats)
 	mux.Get("/api/service-map", r.getServiceMap)
@@ -201,6 +205,54 @@ func (r *Router) getSession(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	respond(w, sess, 1, 1)
+}
+
+func (r *Router) getActiveSession(w http.ResponseWriter, _ *http.Request) {
+	respond(w, map[string]string{
+		"id":    r.store.ActiveSessionID(),
+		"label": r.store.ActiveSessionLabel(),
+	}, 1, 1)
+}
+
+func (r *Router) activateSession(w http.ResponseWriter, req *http.Request) {
+	sessionID := chi.URLParam(req, "sessionId")
+	sess, err := r.store.GetSession(sessionID)
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	if sess == nil {
+		respondErr(w, 404, "session not found")
+		return
+	}
+	r.store.SetActiveSession(sess.ID, sess.Label)
+	respond(w, sess, 1, 1)
+}
+
+func (r *Router) baselineSession(w http.ResponseWriter, req *http.Request) {
+	sessionID := chi.URLParam(req, "sessionId")
+	var body struct {
+		IsBaseline bool `json:"is_baseline"`
+	}
+	json.NewDecoder(req.Body).Decode(&body) //nolint:errcheck
+	if err := r.store.SetBaseline(sessionID, body.IsBaseline); err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, 1, 1)
+}
+
+func (r *Router) deleteSession(w http.ResponseWriter, req *http.Request) {
+	sessionID := chi.URLParam(req, "sessionId")
+	if sessionID == r.store.ActiveSessionID() {
+		respondErr(w, 400, "cannot delete the active session")
+		return
+	}
+	if err := r.store.DeleteSession(sessionID); err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 
 func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {

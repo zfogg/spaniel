@@ -1,70 +1,607 @@
-import { useEffect, useState } from 'react'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { api, Session } from '../lib/api'
+import { useEffect, useState, useCallback } from 'react'
+import { api, Session } from '@/lib/api'
 
-function fmtDate(ns: number) {
-  return new Date(ns / 1_000_000).toLocaleString()
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function fmtRelative(ns: number): string {
+  const diffMs = Date.now() - ns / 1_000_000
+  if (diffMs < 5_000) return 'just now'
+  if (diffMs < 60_000) return `${Math.round(diffMs / 1000)}s ago`
+  if (diffMs < 3_600_000) return `${Math.round(diffMs / 60_000)}m ago`
+  if (diffMs < 86_400_000) return `${Math.round(diffMs / 3_600_000)}h ago`
+  return `${Math.round(diffMs / 86_400_000)}d ago`
 }
+
+function fmtAbsolute(ns: number): string {
+  return new Date(ns / 1_000_000).toLocaleString(undefined, { hour12: false })
+}
+
+// ── atom components ───────────────────────────────────────────────────────────
+
+function StarButton({ on, onClick, title }: { on: boolean; onClick: () => void; title: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 28, height: 28, borderRadius: 6, padding: 0,
+        background: on ? 'color-mix(in oklch, var(--warn) 30%, var(--surface))' : 'transparent',
+        border: on ? '1px solid var(--warn)' : '1px solid var(--line)',
+        cursor: 'pointer', outline: 'none',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14">
+        <path
+          d="M7 1.5l1.7 3.5 3.8.5-2.8 2.7.7 3.8L7 10.2 3.6 12l.7-3.8L1.5 5.5l3.8-.5L7 1.5z"
+          fill={on ? 'var(--warn)' : 'none'}
+          stroke={on ? 'var(--warn-ink)' : 'var(--ink3)'}
+          strokeWidth="1"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  )
+}
+
+function DotPill({
+  tone = 'neutral',
+  children,
+}: {
+  tone?: 'neutral' | 'ok' | 'accent' | 'warn' | 'danger'
+  children: React.ReactNode
+}) {
+  const tones: Record<string, { bg: string; fg: string; bd: string }> = {
+    neutral: { bg: 'var(--surface2)', fg: 'var(--ink2)', bd: 'var(--line)' },
+    ok: {
+      bg: 'color-mix(in oklch, var(--ok) 22%, var(--surface))',
+      fg: 'var(--ok-ink)', bd: 'color-mix(in oklch, var(--ok) 40%, transparent)',
+    },
+    accent: {
+      bg: 'color-mix(in oklch, var(--accent) 18%, var(--surface))',
+      fg: 'var(--accent-ink)', bd: 'color-mix(in oklch, var(--accent) 40%, transparent)',
+    },
+    warn: {
+      bg: 'color-mix(in oklch, var(--warn) 28%, var(--surface))',
+      fg: 'var(--warn-ink)', bd: 'color-mix(in oklch, var(--warn) 50%, transparent)',
+    },
+    danger: {
+      bg: 'color-mix(in oklch, var(--danger) 28%, var(--surface))',
+      fg: 'var(--danger-ink)', bd: 'color-mix(in oklch, var(--danger) 50%, transparent)',
+    },
+  }
+  const t = tones[tone]
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '1px 6px', borderRadius: 10,
+      fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 600,
+      background: t.bg, color: t.fg, border: `1px solid ${t.bd}`,
+      whiteSpace: 'nowrap', lineHeight: 1.4,
+    }}>
+      {children}
+    </span>
+  )
+}
+
+function Btn({
+  tone = 'default',
+  disabled,
+  onClick,
+  children,
+  small,
+}: {
+  tone?: 'default' | 'primary' | 'ghost' | 'danger'
+  disabled?: boolean
+  onClick?: () => void
+  children: React.ReactNode
+  small?: boolean
+}) {
+  const tones: Record<string, { bg: string; fg: string; bd: string }> = {
+    default: { bg: 'var(--surface)', fg: 'var(--ink)', bd: 'var(--line)' },
+    primary: { bg: 'var(--accent)', fg: 'var(--surface)', bd: 'var(--accent)' },
+    ghost: { bg: 'transparent', fg: 'var(--ink2)', bd: 'var(--line)' },
+    danger: { bg: 'transparent', fg: 'var(--danger-ink)', bd: 'var(--danger)' },
+  }
+  const t = tones[tone]
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: small ? '0 10px' : '0 14px',
+        height: small ? 26 : 30,
+        borderRadius: 6,
+        background: disabled ? 'var(--surface2)' : t.bg,
+        color: disabled ? 'var(--ink3)' : t.fg,
+        border: `1px solid ${disabled ? 'var(--line)' : t.bd}`,
+        fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600,
+        cursor: disabled ? 'not-allowed' : 'pointer', outline: 'none',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function NumCell({ label, value, hot }: { label: string; value: string | number; hot?: boolean }) {
+  return (
+    <div>
+      <div style={{
+        fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600,
+        color: hot ? 'var(--danger-ink)' : 'var(--ink)', lineHeight: 1.1,
+      }}>
+        {value}
+      </div>
+      <div style={{
+        fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink3)',
+        textTransform: 'uppercase', letterSpacing: '0.14em', marginTop: 2,
+      }}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+// ── how-to-diff explainer ─────────────────────────────────────────────────────
+
+function HowToDiff() {
+  const steps = [
+    {
+      n: '1', title: 'Mark a baseline',
+      body: 'Click ★ on the session you trust — usually main. That run becomes your reference.',
+    },
+    {
+      n: '2', title: 'Switch and re-run',
+      body: 'Activate a new session, hit the same endpoint after editing. Spans land here.',
+    },
+    {
+      n: '3', title: 'Open the diff',
+      body: 'Select a session ↔ baseline pair and click Compare. Span shapes and N+1s side-by-side.',
+    },
+  ]
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+      {steps.map(s => (
+        <div key={s.n} style={{
+          background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10,
+          padding: '14px 16px',
+        }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 24, height: 24, borderRadius: 24,
+            background: 'var(--accent)', color: 'var(--surface)',
+            fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, marginBottom: 8,
+          }}>
+            {s.n}
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
+            color: 'var(--ink)', marginBottom: 4,
+          }}>
+            {s.title}
+          </div>
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5 }}>
+            {s.body}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── session row ───────────────────────────────────────────────────────────────
+
+function SessionRow({
+  s, isActive, isBaseline, isCompare,
+  onBaseline, onCompare, onActivate, onDelete,
+}: {
+  s: Session
+  isActive: boolean
+  isBaseline: boolean
+  isCompare: boolean
+  onBaseline: (id: string) => void
+  onCompare: (id: string | null) => void
+  onActivate: (id: string) => void
+  onDelete: (id: string) => void
+}) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '34px minmax(0,1fr) 100px 64px 64px 168px',
+      gap: 10, alignItems: 'center', padding: '12px 14px',
+      borderBottom: '1px solid var(--line2)',
+      background:
+        isBaseline ? 'color-mix(in oklch, var(--warn) 8%, var(--surface))'
+          : isCompare ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
+          : isActive ? 'var(--surface)'
+          : 'transparent',
+      borderLeft:
+        isBaseline ? '2px solid var(--warn)'
+          : isCompare ? '2px solid var(--accent)'
+          : isActive ? '2px solid var(--ok)'
+          : '2px solid transparent',
+    }}>
+      {/* star / baseline */}
+      <StarButton
+        on={isBaseline}
+        onClick={() => onBaseline(s.id)}
+        title={isBaseline ? 'Baseline (click to unpin)' : 'Mark as baseline'}
+      />
+
+      {/* name + pills */}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{
+            fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--ink)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {s.label || s.id.slice(0, 8)}
+          </span>
+          {isActive && <DotPill tone="ok">● active</DotPill>}
+          {isBaseline && <DotPill tone="warn">★ baseline</DotPill>}
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)', marginTop: 3,
+        }} title={fmtAbsolute(s.created_at)}>
+          created {fmtRelative(s.created_at)}
+        </div>
+      </div>
+
+      {/* stats */}
+      <NumCell label="traces" value={s.trace_count} />
+      <NumCell label="spans" value={s.span_count} />
+
+      {/* actions col */}
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        {isCompare ? (
+          <Btn small tone="ghost" onClick={() => onCompare(null)}>− deselect</Btn>
+        ) : isBaseline ? (
+          <Btn small disabled>baseline</Btn>
+        ) : (
+          <Btn small onClick={() => onCompare(s.id)}>+ compare</Btn>
+        )}
+        {!isActive ? (
+          <Btn small tone="ghost" onClick={() => onActivate(s.id)}>switch</Btn>
+        ) : null}
+        {!isActive ? (
+          <Btn small tone="danger" onClick={() => {
+            if (confirm(`Delete session "${s.label || s.id.slice(0, 8)}"?`)) onDelete(s.id)
+          }}>
+            ×
+          </Btn>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+// ── diff selection mini (sidebar) ─────────────────────────────────────────────
+
+function DiffSelectionMini({ baseline, compare }: { baseline?: Session; compare?: Session }) {
+  return (
+    <div style={{
+      padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)',
+      background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{
+          width: 16, height: 16, borderRadius: 4, display: 'inline-flex',
+          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          background: 'color-mix(in oklch, var(--warn) 30%, var(--surface))',
+          color: 'var(--warn-ink)', fontSize: 10, fontWeight: 700,
+        }}>★</span>
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 11,
+          color: baseline ? 'var(--ink)' : 'var(--ink3)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+        }}>
+          {baseline ? (baseline.label || baseline.id.slice(0, 8)) : 'no baseline pinned'}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{
+          width: 16, height: 16, borderRadius: 4, display: 'inline-flex',
+          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          background: 'color-mix(in oklch, var(--accent) 30%, var(--surface))',
+          color: 'var(--accent-ink)', fontSize: 10, fontWeight: 700,
+        }}>+</span>
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 11,
+          color: compare ? 'var(--ink)' : 'var(--ink3)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+        }}>
+          {compare ? (compare.label || compare.id.slice(0, 8)) : 'pick a session'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ── compare bar ───────────────────────────────────────────────────────────────
+
+function CompareBar({ baseline, compare }: { baseline?: Session; compare?: Session }) {
+  const canDiff = baseline && compare && baseline.id !== compare.id
+  return (
+    <div style={{
+      borderTop: '1px solid var(--line)',
+      background: 'var(--surface)',
+      padding: '10px 18px',
+      display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0,
+    }}>
+      <div style={{
+        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)',
+        textTransform: 'uppercase', letterSpacing: '0.14em',
+      }}>
+        diff
+      </div>
+      <span style={{
+        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
+        padding: '4px 10px', borderRadius: 6,
+        background: 'color-mix(in oklch, var(--warn) 18%, var(--surface))',
+        color: 'var(--warn-ink)',
+        border: '1px solid color-mix(in oklch, var(--warn) 35%, transparent)',
+      }}>
+        ★ {baseline ? (baseline.label || baseline.id.slice(0, 8)) : '— pick baseline —'}
+      </span>
+      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--ink3)' }}>→</span>
+      <span style={{
+        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
+        padding: '4px 10px', borderRadius: 6,
+        background: 'color-mix(in oklch, var(--accent) 16%, var(--surface))',
+        color: 'var(--accent-ink)',
+        border: '1px solid color-mix(in oklch, var(--accent) 35%, transparent)',
+      }}>
+        + {compare ? (compare.label || compare.id.slice(0, 8)) : '— pick comparison —'}
+      </span>
+      <div style={{ flex: 1 }} />
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)' }}>
+        or run{' '}
+        <span style={{
+          background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4, color: 'var(--ink2)',
+        }}>
+          spaniel diff --baseline {baseline ? (baseline.label || 'main') : 'main'}
+        </span>
+      </span>
+      <Btn tone="primary" disabled={!canDiff}>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ display: 'block' }}>
+          <path d="M2.5 4h5M5 2l-2.5 2L5 6" stroke="currentColor" strokeWidth="1.4"
+            strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M11.5 10h-5M9 8l2.5 2L9 12" stroke="currentColor" strokeWidth="1.4"
+            strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Compare sessions
+      </Btn>
+    </div>
+  )
+}
+
+// ── main page ─────────────────────────────────────────────────────────────────
 
 export default function Sessions() {
   const [sessions, setSessions] = useState<Session[]>([])
+  const [activeId, setActiveId] = useState<string>('')
+  const [baselineId, setBaselineId] = useState<string | null>(null)
+  const [compareId, setCompareId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
 
-  function load() {
-    api.sessions.list().then(r => {
-      setSessions(r.data ?? [])
-      setLoading(false)
-    })
+  const load = useCallback(async () => {
+    const [sessRes, activeRes] = await Promise.all([
+      api.sessions.list(),
+      api.sessions.getActive(),
+    ])
+    const list = sessRes.data ?? []
+    setSessions(list)
+    setActiveId(activeRes.data?.id ?? '')
+    const bl = list.find(s => s.is_baseline)
+    if (bl) setBaselineId(bl.id)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function handleNew() {
+    setCreating(true)
+    try {
+      const label = prompt('Session label (leave blank for timestamp auto-name):')
+      const res = await api.sessions.create(label ?? undefined)
+      const newId = res.data.id
+      await api.sessions.activate(newId)
+      setActiveId(newId)
+      await load()
+    } finally {
+      setCreating(false)
+    }
   }
 
-  useEffect(() => { load() }, [])
-
-  async function createSession() {
-    await api.sessions.create()
-    load()
+  async function handleBaseline(id: string) {
+    const isNowBaseline = baselineId !== id
+    await api.sessions.baseline(id, isNowBaseline)
+    if (!isNowBaseline) {
+      setBaselineId(null)
+    } else {
+      if (compareId === id) setCompareId(null)
+      setBaselineId(id)
+    }
+    await load()
   }
+
+  async function handleActivate(id: string) {
+    await api.sessions.activate(id)
+    setActiveId(id)
+    await load()
+  }
+
+  async function handleDelete(id: string) {
+    await api.sessions.delete(id)
+    if (compareId === id) setCompareId(null)
+    if (baselineId === id) setBaselineId(null)
+    await load()
+  }
+
+  function handleCompare(id: string | null) {
+    if (id === baselineId) return
+    setCompareId(id)
+  }
+
+  const baseline = sessions.find(s => s.id === baselineId)
+  const compare = sessions.find(s => s.id === compareId)
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-        <h1 className="text-sm font-medium flex-1">Sessions</h1>
-        <Button size="sm" onClick={createSession}>New Session</Button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+
+        {/* sidebar */}
+        <aside style={{
+          width: 200, padding: '18px 14px',
+          borderRight: '1px solid var(--line)',
+          background: 'var(--surface2)',
+          display: 'flex', flexDirection: 'column', gap: 18,
+          fontFamily: 'var(--font-sans)', flexShrink: 0,
+        }}>
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
+              letterSpacing: '0.14em', color: 'var(--ink3)', marginBottom: 8,
+            }}>
+              actions
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div
+                role="button"
+                onClick={!creating ? handleNew : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 8px', borderRadius: 6,
+                  fontSize: 12, color: 'var(--accent-ink)',
+                  cursor: creating ? 'default' : 'pointer',
+                  userSelect: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: 7, background: 'var(--accent)' }} />
+                {creating ? 'creating…' : '+ new session'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
+              letterSpacing: '0.14em', color: 'var(--ink3)', marginBottom: 8,
+            }}>
+              diff selection
+            </div>
+            <DiffSelectionMini baseline={baseline} compare={compare} />
+          </div>
+        </aside>
+
+        {/* main */}
+        <div style={{ flex: 1, overflow: 'hidden auto', display: 'flex', flexDirection: 'column' }}>
+
+          {/* page header */}
+          <div style={{ padding: '22px 24px 0' }}>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)',
+              textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6,
+            }}>
+              spaniel sessions
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+              <h1 style={{
+                margin: 0, fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 600,
+                letterSpacing: '-0.02em', color: 'var(--ink)',
+              }}>
+                Sessions
+              </h1>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink2)' }}>
+                Named windows of telemetry. Each branch usually gets its own.
+              </span>
+            </div>
+          </div>
+
+          {/* diff workflow explainer */}
+          <div style={{ padding: '18px 24px 4px' }}>
+            <HowToDiff />
+          </div>
+
+          {/* sessions table */}
+          <div style={{ padding: '4px 24px' }}>
+            {/* column header */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '34px minmax(0,1fr) 100px 64px 64px 168px',
+              gap: 10, padding: '8px 14px',
+              fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink3)',
+              textTransform: 'uppercase', letterSpacing: '0.14em',
+              background: 'var(--surface2)',
+              borderRadius: '10px 10px 0 0',
+              border: '1px solid var(--line)',
+            }}>
+              <div title="Mark baseline">★</div>
+              <div>session · created</div>
+              <div>traces</div>
+              <div>spans</div>
+              <div style={{ gridColumn: 'span 2', textAlign: 'right' }}>actions</div>
+            </div>
+
+            {loading ? (
+              <div style={{
+                padding: '24px 16px',
+                fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
+                background: 'var(--surface)',
+                border: '1px solid var(--line)', borderTop: 'none',
+                borderRadius: '0 0 10px 10px',
+              }}>
+                loading…
+              </div>
+            ) : sessions.length === 0 ? (
+              <div style={{
+                padding: '32px 16px', textAlign: 'center',
+                fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
+                background: 'var(--surface)',
+                border: '1px solid var(--line)', borderTop: 'none',
+                borderRadius: '0 0 10px 10px',
+              }}>
+                no sessions yet
+              </div>
+            ) : (
+              <div style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--line)', borderTop: 'none',
+                borderRadius: '0 0 10px 10px', overflow: 'hidden',
+              }}>
+                {sessions.map(s => (
+                  <SessionRow
+                    key={s.id}
+                    s={s}
+                    isActive={s.id === activeId}
+                    isBaseline={s.id === baselineId}
+                    isCompare={s.id === compareId}
+                    onBaseline={handleBaseline}
+                    onCompare={handleCompare}
+                    onActivate={handleActivate}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ height: 80 }} />
+        </div>
       </div>
 
-      {loading ? (
-        <div className="p-8 text-muted-foreground text-sm">Loading…</div>
-      ) : sessions.length === 0 ? (
-        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No sessions</div>
-      ) : (
-        <div className="overflow-auto flex-1">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Label</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="w-24 text-right">Spans</TableHead>
-                <TableHead className="w-24">Flags</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.map(s => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-medium text-sm">{s.label}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{s.id}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{fmtDate(s.created_at)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{s.span_count}</TableCell>
-                  <TableCell>
-                    {s.is_baseline && <Badge variant="secondary" className="text-[10px]">baseline</Badge>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      {/* sticky compare bar */}
+      <CompareBar baseline={baseline} compare={compare} />
     </div>
   )
 }
