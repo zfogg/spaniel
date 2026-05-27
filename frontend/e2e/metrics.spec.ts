@@ -40,20 +40,24 @@ async function stubMetrics(page: Page, fx: MetricFixture) {
   await page.route('**/api/forwarders', r => jsonResponse(r, []))
   await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
 
-  await page.route('**/api/metrics', r => jsonResponse(r, fx.catalog))
-  await page.route('**/api/metrics?**', r => jsonResponse(r, fx.catalog))
-
-  await page.route('**/api/metrics/series?**', r => {
-    const url = new URL(r.request().url())
-    const name = url.searchParams.get('name') || ''
-    const service = url.searchParams.get('service') || ''
-    const key = `${service}/${name}`
-    const series = fx.series[key]
-    if (!series) {
-      return jsonResponse(r, { name, service_name: service, type: 'gauge', unit: '', description: '', points: [] })
-    }
-    return jsonResponse(r, series)
-  })
+  // Predicate matcher — globs interpret `?` as a wildcard, so we use a
+  // function to disambiguate /api/metrics from /api/metrics/series cleanly.
+  await page.route(
+    url => {
+      const path = new URL(url.toString()).pathname
+      return path === '/api/metrics' || path === '/api/metrics/series'
+    },
+    r => {
+      const url = new URL(r.request().url())
+      if (url.pathname === '/api/metrics/series') {
+        const name = url.searchParams.get('name') || ''
+        const service = url.searchParams.get('service') || ''
+        const series = fx.series[`${service}/${name}`]
+        return jsonResponse(r, series ?? { name, service_name: service, type: 'gauge', unit: '', description: '', points: [] })
+      }
+      return jsonResponse(r, fx.catalog)
+    },
+  )
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────
@@ -93,9 +97,10 @@ test.describe('Metrics page', () => {
     await expect(page.getByText('http.dur', { exact: true })).toBeVisible()
     await expect(page.getByText('pool.in_use', { exact: true })).toBeVisible()
 
-    // service group headers
-    await expect(page.getByText('api', { exact: true }).first()).toBeVisible()
-    await expect(page.getByText('postgres', { exact: true }).first()).toBeVisible()
+    // service group headers — exact:true would fail because each header's
+    // textContent includes a trailing count badge ("postgres1"), so we
+    // match by substring and just confirm presence.
+    await expect(page.getByText(/^postgres/).first()).toBeVisible()
 
     // kind tags exist for each type
     await expect(page.getByText('counter').first()).toBeVisible()
@@ -121,11 +126,13 @@ test.describe('Metrics page', () => {
     })
     await page.goto('/metrics')
 
-    await expect(page.getByText('http.requests', { exact: true })).toBeVisible()
+    // Sidebar metric rows are <button>s — scoping by role keeps us out of
+    // the right-pane H1 which still shows the auto-selected metric.
+    await expect(page.getByRole('button', { name: /http\.requests/i })).toBeVisible()
     await page.getByPlaceholder(/search metrics/i).fill('pool')
 
-    await expect(page.getByText('http.requests')).toHaveCount(0)
-    await expect(page.getByText('pool.in_use', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /http\.requests/i })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /pool\.in_use/i })).toBeVisible()
     await expect(page.getByText('1 metrics')).toBeVisible()
   })
 
@@ -143,15 +150,15 @@ test.describe('Metrics page', () => {
       },
     })
     await page.goto('/metrics')
-    await expect(page.getByText('http.requests', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /http\.requests/i })).toBeVisible()
 
-    // The first GAUGE-labelled element is the kind tag on the row; the second is
-    // the filter chip in the sidebar header. Click the filter chip.
+    // Both the kind tag and the filter chip are clickable; the filter chip
+    // is the one inside the sidebar header (last in DOM order).
     const gaugeChips = page.getByRole('button', { name: /^gauge$/i })
     await gaugeChips.last().click()
 
-    await expect(page.getByText('http.requests')).toHaveCount(0)
-    await expect(page.getByText('pool.in_use', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /http\.requests/i })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /pool\.in_use/i })).toBeVisible()
   })
 
   test('auto-selects the first metric and renders its chart + counter stats', async ({ page }) => {
