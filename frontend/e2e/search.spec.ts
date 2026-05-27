@@ -37,7 +37,7 @@ test.describe('Command palette', () => {
     await stubBackend(page)
     await page.goto('/')
     await page.keyboard.press('Control+k')
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).toBeVisible()
   })
 
   test('opens with the / shortcut', async ({ page }) => {
@@ -46,14 +46,14 @@ test.describe('Command palette', () => {
     // Make sure focus is not in an input before pressing /.
     await page.locator('body').click()
     await page.keyboard.press('/')
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).toBeVisible()
   })
 
   test('opens via the Search button in the nav bar', async ({ page }) => {
     await stubBackend(page)
     await page.goto('/')
     await page.getByRole('button', { name: /search/i }).click()
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).toBeVisible()
   })
 
   // ── closing ─────────────────────────────────────────────────────────────────
@@ -62,19 +62,19 @@ test.describe('Command palette', () => {
     await stubBackend(page)
     await page.goto('/')
     await page.keyboard.press('Control+k')
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).not.toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).not.toBeVisible()
   })
 
   test('closes when clicking the backdrop overlay', async ({ page }) => {
     await stubBackend(page)
     await page.goto('/')
     await page.keyboard.press('Control+k')
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).toBeVisible()
     // Click outside the dialog (top-left corner of the overlay).
     await page.mouse.click(10, 10)
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).not.toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).not.toBeVisible()
   })
 
   // ── footer hints ─────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ test.describe('Command palette', () => {
     await page.goto('/')
     await page.keyboard.press('Control+k')
 
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('orders')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('orders')
 
     await expect(page.getByText('GET /api/orders')).toBeVisible()
     await expect(page.getByText('POST /api/checkout')).toBeVisible()
@@ -111,7 +111,7 @@ test.describe('Command palette', () => {
     ])
     await page.goto('/')
     await page.keyboard.press('Control+k')
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('timeout')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('timeout')
 
     await expect(page.getByText('database connection timed out')).toBeVisible()
     // Kind badge is a separate element with exact text "log".
@@ -122,7 +122,7 @@ test.describe('Command palette', () => {
     await stubBackend(page, [])
     await page.goto('/')
     await page.keyboard.press('Control+k')
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('xyzzy-nonexistent')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('xyzzy-nonexistent')
 
     await expect(page.getByText(/No results for/)).toBeVisible()
     await expect(page.getByText('xyzzy-nonexistent')).toBeVisible()
@@ -137,11 +137,11 @@ test.describe('Command palette', () => {
     await page.goto('/')
 
     await page.keyboard.press('Control+k')
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('orders')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('orders')
     await page.getByText('GET /orders').click()
 
     await expect(page).toHaveURL(/\/traces\/trace-nav$/)
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).not.toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).not.toBeVisible()
   })
 
   test('clicking a log result navigates to /logs', async ({ page }) => {
@@ -149,11 +149,11 @@ test.describe('Command palette', () => {
     await page.goto('/')
 
     await page.keyboard.press('Control+k')
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('payment')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('payment')
     await page.getByText('payment failed').click()
 
     await expect(page).toHaveURL(/\/logs$/)
-    await expect(page.getByPlaceholder('Search traces, spans, services, logs…')).not.toBeVisible()
+    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, logs…')).not.toBeVisible()
   })
 
   test('Enter on the selected result navigates', async ({ page }) => {
@@ -163,7 +163,7 @@ test.describe('Command palette', () => {
     await page.goto('/')
 
     await page.keyboard.press('Control+k')
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('resource')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('resource')
     await expect(page.getByText('PUT /resource')).toBeVisible()
     await page.keyboard.press('Enter')
 
@@ -182,7 +182,7 @@ test.describe('Command palette', () => {
     await page.goto('/')
 
     await page.keyboard.press('Control+k')
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('get')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('get')
     await expect(page.getByText('GET /first')).toBeVisible()
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('Enter')
@@ -200,7 +200,7 @@ test.describe('Command palette', () => {
 
     // Make a search and activate a result to save it to recents.
     await page.keyboard.press('Control+k')
-    await page.getByPlaceholder('Search traces, spans, services, logs…').fill('recent')
+    await page.getByPlaceholder('Search traces, spans, sessions, services, logs…').fill('recent')
     await expect(page.getByText('GET /recent')).toBeVisible()
     await page.getByText('GET /recent').click()
 

@@ -96,7 +96,7 @@ export interface ImportResult {
 }
 
 export interface SearchResult {
-  kind: 'trace' | 'log'
+  kind: 'trace' | 'span' | 'session' | 'service' | 'log'
   trace_id: string
   span_id?: string
   title: string
