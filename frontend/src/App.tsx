@@ -6,6 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPalette } from '@/components/CommandPalette'
 import { SEARCH_PALETTE_EVENT } from '@/lib/shortcuts'
 import TraceList from './pages/TraceList'
+import Spans from './pages/Spans'
 import TraceDetail from './pages/TraceDetail'
 import LogViewer from './pages/LogViewer'
 import Sessions from './pages/Sessions'
@@ -208,6 +209,7 @@ function Chrome() {
       {/* nav */}
       <nav style={{ display: 'flex', gap: 2 }}>
         <NavPill to="/"         end   label="Traces"   />
+        <NavPill to="/spans"          label="Spans"    />
         <NavPill to="/logs"           label="Logs"     />
         <NavPill to="/metrics"        label="Metrics"  />
         <NavPill to="/services"       label="Services" />
@@ -263,6 +265,7 @@ function AppShell() {
       <main style={{ flex: 1, overflow: 'hidden' }}>
         <Routes>
           <Route path="/"                  element={<TraceList />}   />
+          <Route path="/spans"             element={<Spans />}       />
           <Route path="/traces/:traceId"   element={<TraceDetail />} />
           <Route path="/logs"              element={<LogViewer />}   />
           <Route path="/metrics"           element={<Metrics />}     />

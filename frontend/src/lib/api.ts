@@ -66,6 +66,10 @@ export interface Span {
   received_at: number
 }
 
+export interface SpanRow extends Span {
+  tag?: string
+}
+
 export interface Log {
   timestamp_ns: number
   trace_id: string
@@ -156,6 +160,41 @@ export interface CoverageReport {
   }
 }
 
+export interface SettingsRuntime {
+  pid: number
+  uptime_ns: number
+  version: string
+  config_path: string
+  grpc_port: number
+  http_port: number
+  db_size_bytes: number
+}
+
+export interface Settings {
+  port: number
+  db_path: string
+  retention_days: number
+  max_sessions: number
+  max_db_size_mb: number
+  grpc_port: number
+  http_port: number
+  no_browser: boolean
+  forward: string[]
+  runtime: SettingsRuntime
+}
+
+export interface SettingsUpdate {
+  port?: number
+  db_path?: string
+  retention_days?: number
+  max_sessions?: number
+  max_db_size_mb?: number
+  grpc_port?: number
+  http_port?: number
+  no_browser?: boolean
+  forward?: string[]
+}
+
 export interface ForwarderStatus {
   url: string
   sent: number
@@ -205,6 +244,14 @@ export const api = {
     get: (traceId: string) => get<Span[]>(`/api/traces/${traceId}`),
   },
   spans: {
+    list: (params?: { sort?: string; sessionId?: string; limit?: number }) => {
+      const q = new URLSearchParams()
+      if (params?.sort) q.set('sort', params.sort)
+      if (params?.sessionId) q.set('sessionId', params.sessionId)
+      if (params?.limit) q.set('limit', String(params.limit))
+      const qs = q.toString()
+      return get<SpanRow[]>(`/api/spans${qs ? `?${qs}` : ''}`)
+    },
     get: (spanId: string) => get<Span>(`/api/spans/${spanId}`),
   },
   logs: {
@@ -259,6 +306,23 @@ export const api = {
   },
   forwarders: {
     list: () => get<ForwarderStatus[]>('/api/forwarders'),
+  },
+  settings: {
+    get: () => get<Settings>('/api/settings'),
+    update: (patch: SettingsUpdate) =>
+      fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }).then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error(t) })
+        return r.json() as Promise<{ data: Settings; meta: { total: number; page: number } }>
+      }),
+    dropAllData: () =>
+      fetch('/api/settings/data', { method: 'DELETE' }).then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error(t) })
+        return r.json()
+      }),
   },
   coverage: {
     get: (sessionId?: string) =>

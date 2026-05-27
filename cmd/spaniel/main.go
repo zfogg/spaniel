@@ -165,6 +165,9 @@ type runConfig struct {
 	MaxDBSizeMB   int
 	ForwardURLs   []string
 	RoutesFile    string
+	GRPCPort      int
+	HTTPPort      int
+	Viper         *viper.Viper
 }
 
 // resolveConfig merges viper config with any explicitly-set CLI flags.
@@ -179,6 +182,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		MaxSessions:   v.GetInt("max_sessions"),
 		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
 		ForwardURLs:   v.GetStringSlice("forward"),
+		GRPCPort:      v.GetInt("grpc_port"),
+		HTTPPort:      v.GetInt("http_port"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -208,6 +213,13 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	if cfg.DBPath == "" {
 		cfg.DBPath = defaultDBPath()
 	}
+	if cfg.GRPCPort == 0 {
+		cfg.GRPCPort = 4317
+	}
+	if cfg.HTTPPort == 0 {
+		cfg.HTTPPort = 4318
+	}
+	cfg.Viper = v
 	return cfg
 }
 
@@ -247,11 +259,14 @@ func run(cfg runConfig) error {
 	}
 
 	grpcRcv := receiver.NewGRPCReceiver(pipeline)
-	go func() {
-		if err := grpcRcv.ListenAndServe(":4317"); err != nil {
-			fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
-		}
-	}()
+	if cfg.GRPCPort > 0 {
+		grpcAddr := fmt.Sprintf(":%d", cfg.GRPCPort)
+		go func() {
+			if err := grpcRcv.ListenAndServe(grpcAddr); err != nil {
+				fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
+			}
+		}()
+	}
 
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
 	httpRcv.SetForwarder(fwd)
@@ -259,11 +274,14 @@ func run(cfg runConfig) error {
 	otlpMux.HandleFunc("/v1/traces", httpRcv.HandleTraces)
 	otlpMux.HandleFunc("/v1/logs", httpRcv.HandleLogs)
 	otlpMux.HandleFunc("/v1/metrics", httpRcv.HandleMetrics)
-	go func() {
-		if err := http.ListenAndServe(":4318", otlpMux); err != nil {
-			fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
-		}
-	}()
+	if cfg.HTTPPort > 0 {
+		httpAddr := fmt.Sprintf(":%d", cfg.HTTPPort)
+		go func() {
+			if err := http.ListenAndServe(httpAddr, otlpMux); err != nil {
+				fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
+			}
+		}()
+	}
 
 	var manifests *coverage.Manifests
 	if cfg.RoutesFile != "" {
@@ -279,7 +297,15 @@ func run(cfg runConfig) error {
 			fmt.Printf("  Routes    →  %s (%d declared)\n", cfg.RoutesFile, total)
 		}
 	}
-	apiRouter := api.NewRouterWithManifests(store, hub, fwd, manifests)
+	settingsSvc := &api.SettingsService{
+		Viper:      cfg.Viper,
+		ConfigPath: globalConfigPath(),
+		Version:    version,
+		StartedAt:  time.Now(),
+		GRPCPort:   cfg.GRPCPort,
+		HTTPPort:   cfg.HTTPPort,
+	}
+	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc)
 
 	var uiHandler http.Handler
 	if cfg.Dev {
@@ -314,8 +340,16 @@ func run(cfg runConfig) error {
 func printBanner(cfg runConfig) {
 	fmt.Printf("\nspaniel 🐕\n")
 	fmt.Printf("  UI        →  http://localhost:%d\n", cfg.Port)
-	fmt.Printf("  OTLP/gRPC →  localhost:4317\n")
-	fmt.Printf("  OTLP/HTTP →  localhost:4318\n")
+	if cfg.GRPCPort > 0 {
+		fmt.Printf("  OTLP/gRPC →  localhost:%d\n", cfg.GRPCPort)
+	} else {
+		fmt.Printf("  OTLP/gRPC →  disabled\n")
+	}
+	if cfg.HTTPPort > 0 {
+		fmt.Printf("  OTLP/HTTP →  localhost:%d\n", cfg.HTTPPort)
+	} else {
+		fmt.Printf("  OTLP/HTTP →  disabled\n")
+	}
 	fmt.Printf("  DB        →  %s\n", cfg.DBPath)
 	for _, u := range cfg.ForwardURLs {
 		fmt.Printf("  Forward   →  %s\n", u)

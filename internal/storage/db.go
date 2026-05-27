@@ -413,6 +413,73 @@ func (d *DB) GetSpan(spanID string) (*Span, error) {
 	return s, err
 }
 
+type SpanFilter struct {
+	SessionID string
+	Sort      string // "time" | "dur" | "name"
+	Limit     int
+}
+
+type SpanRow struct {
+	Span
+	Tag string `json:"tag,omitempty"`
+}
+
+// ListSpans returns a flat list of spans with computed tag (n+1/slow/lint/error).
+// Tags are derived from trace_issues (n+1), status_code (error), duration (slow),
+// and lint_warnings (lint). Priority: n+1 > error > slow > lint.
+func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
+	if f.Limit <= 0 || f.Limit > 1000 {
+		f.Limit = 500
+	}
+	orderBy := "s.start_ns DESC"
+	switch f.Sort {
+	case "dur":
+		orderBy = "s.duration_ns DESC"
+	case "name":
+		orderBy = "s.name ASC"
+	}
+	//nolint:gosec // orderBy is constrained to safe values above
+	query := `
+		SELECT
+			s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind,
+			s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message,
+			s.attributes::VARCHAR, s.resource::VARCHAR, s.session_id, s.session_label, s.received_at,
+			CASE
+				WHEN ni.trace_id IS NOT NULL  THEN 'n+1'
+				WHEN s.status_code = 2        THEN 'error'
+				WHEN s.duration_ns > 250000000 THEN 'slow'
+				WHEN lw.span_id IS NOT NULL   THEN 'lint'
+				ELSE ''
+			END AS tag
+		FROM spans s
+		LEFT JOIN (SELECT DISTINCT trace_id FROM trace_issues WHERE kind = 'n_plus_one') ni
+			ON s.trace_id = ni.trace_id
+		LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw
+			ON s.span_id = lw.span_id
+		WHERE (? = '' OR s.session_id = ?)
+		ORDER BY ` + orderBy + `
+		LIMIT ?`
+	rows, err := d.db.Query(query, f.SessionID, f.SessionID, f.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []*SpanRow
+	for rows.Next() {
+		r := &SpanRow{}
+		if err := rows.Scan(
+			&r.TraceID, &r.SpanID, &r.ParentSpanID, &r.ServiceName, &r.Name, &r.Kind,
+			&r.StartNs, &r.EndNs, &r.DurationNs, &r.StatusCode, &r.StatusMessage,
+			&r.Attributes, &r.Resource, &r.SessionID, &r.SessionLabel, &r.ReceivedAt,
+			&r.Tag,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
 type LogFilter struct {
 	SessionID string
 	TraceID   string

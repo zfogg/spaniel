@@ -19,16 +19,22 @@ type Router struct {
 	hub       *ws.Hub
 	forwarder *forwarder.Forwarder // nil when no upstream configured
 	manifests *coverage.Manifests  // nil when no spec file is loaded
+	settings  *SettingsService     // nil disables /api/settings
 }
 
 func NewRouter(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder) http.Handler {
-	return NewRouterWithManifests(store, hub, fwd, nil)
+	return NewRouterFull(store, hub, fwd, nil, nil)
 }
 
-// NewRouterWithManifests is the full constructor used when an OpenAPI/proto
-// spec has been imported via --routes-file. NewRouter forwards here with nil.
+// NewRouterWithManifests is a back-compat shim — prefer NewRouterFull.
 func NewRouterWithManifests(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs *coverage.Manifests) http.Handler {
-	r := &Router{store: store, hub: hub, forwarder: fwd, manifests: mfs}
+	return NewRouterFull(store, hub, fwd, mfs, nil)
+}
+
+// NewRouterFull is the canonical constructor. Pass nil for any optional
+// dependency (manifests, settings) to disable the corresponding endpoints.
+func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs *coverage.Manifests, settings *SettingsService) http.Handler {
+	r := &Router{store: store, hub: hub, forwarder: fwd, manifests: mfs, settings: settings}
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
@@ -37,6 +43,7 @@ func NewRouterWithManifests(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwa
 	mux.Get("/api/health", r.health)
 	mux.Get("/api/traces", r.listTraces)
 	mux.Get("/api/traces/{traceId}", r.getTrace)
+	mux.Get("/api/spans", r.listSpans)
 	mux.Get("/api/spans/{spanId}", r.getSpan)
 	mux.Get("/api/logs", r.listLogs)
 	mux.Get("/api/services", r.listServices)
@@ -59,6 +66,9 @@ func NewRouterWithManifests(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwa
 	mux.Get("/api/metrics", r.listMetrics)
 	mux.Get("/api/metrics/series", r.getMetricSeries)
 	mux.Get("/api/coverage", r.getCoverage)
+	mux.Get("/api/settings", r.getSettings)
+	mux.Put("/api/settings", r.putSettings)
+	mux.Delete("/api/settings/data", r.dropAllData)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux
@@ -132,6 +142,24 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 		spans = []*storage.Span{}
 	}
 	respond(w, spans, len(spans), 1)
+}
+
+func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
+	q := req.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	rows, err := r.store.ListSpans(storage.SpanFilter{
+		SessionID: q.Get("sessionId"),
+		Sort:      q.Get("sort"),
+		Limit:     limit,
+	})
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	if rows == nil {
+		rows = []*storage.SpanRow{}
+	}
+	respond(w, rows, len(rows), 1)
 }
 
 func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
