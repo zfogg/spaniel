@@ -1,0 +1,259 @@
+name: release
+
+# Tag-driven release. Native matrix builds (no zig cross-compile) because
+# DuckDB is a CGo C++ extension and cross-toolchains are fragile. Each
+# matrix entry builds on a native runner, archives, and uploads. The
+# `binaries` job then assembles the release and updates the Homebrew tap.
+#
+# Required secrets:
+#   HOMEBREW_TAP_TOKEN — PAT with `contents:write` on zfogg/homebrew-tap
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # ── docker image (multi-arch via QEMU; runs in parallel with binaries) ────
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/spaniel
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── frontend bundle (built once, reused by every native binary build) ─────
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+
+  # ── per-platform native binary builds ─────────────────────────────────────
+  build:
+    needs: frontend
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-amd64,   os: ubuntu-latest,  goos: linux,   goarch: amd64, ext: "" }
+          - { name: linux-arm64,   os: ubuntu-latest,  goos: linux,   goarch: arm64, ext: "", cc: aarch64-linux-gnu-gcc, apt: gcc-aarch64-linux-gnu }
+          - { name: darwin-amd64,  os: macos-latest,   goos: darwin,  goarch: amd64, ext: "" }
+          - { name: darwin-arm64,  os: macos-latest,   goos: darwin,  goarch: arm64, ext: "" }
+          - { name: windows-amd64, os: windows-latest, goos: windows, goarch: amd64, ext: ".exe" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Install cross toolchain
+        if: matrix.apt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.apt }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        shell: bash
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc }}
+        run: |
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${{ steps.ver.outputs.version }}" \
+            -o "dist/spaniel${{ matrix.ext }}" ./cmd/spaniel
+
+      - name: Archive (tar.gz)
+        if: matrix.goos != 'windows'
+        shell: bash
+        run: |
+          name="spaniel_${{ steps.ver.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "out/$name"
+          cp "dist/spaniel${{ matrix.ext }}" "out/$name/"
+          cp README.md LICENSE "out/$name/"
+          tar -C out -czf "out/$name.tar.gz" "$name"
+          rm -rf "out/$name"
+          (cd out && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+
+      - name: Archive (zip)
+        if: matrix.goos == 'windows'
+        shell: bash
+        run: |
+          name="spaniel_${{ steps.ver.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "out/$name"
+          cp "dist/spaniel${{ matrix.ext }}" "out/$name/"
+          cp README.md LICENSE "out/$name/"
+          (cd out && 7z a "$name.zip" "$name" > /dev/null)
+          rm -rf "out/$name"
+          (cd out && powershell -Command "(Get-FileHash -Algorithm SHA256 '$name.zip').Hash.ToLower() + '  $name.zip'" > "$name.zip.sha256")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  # ── publish GitHub release + update Homebrew tap ──────────────────────────
+  binaries:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: archive-*
+          merge-multiple: true
+
+      - name: Compose checksums
+        run: |
+          cd out
+          cat *.sha256 > checksums.txt
+          rm -f *.sha256
+
+      - name: Resolve version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "v${{ steps.ver.outputs.version }}" \
+            --generate-notes \
+            out/*
+
+      - name: Render Homebrew formula
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          cd out
+          sha_darwin_amd64=$(grep "spaniel_${VERSION}_darwin_amd64.tar.gz"  checksums.txt | awk '{print $1}')
+          sha_darwin_arm64=$(grep "spaniel_${VERSION}_darwin_arm64.tar.gz"  checksums.txt | awk '{print $1}')
+          sha_linux_amd64=$( grep "spaniel_${VERSION}_linux_amd64.tar.gz"   checksums.txt | awk '{print $1}')
+          sha_linux_arm64=$( grep "spaniel_${VERSION}_linux_arm64.tar.gz"   checksums.txt | awk '{print $1}')
+          base="https://github.com/zfogg/spaniel/releases/download/v${VERSION}"
+          cat > spaniel.rb <<RUBY
+          class Spaniel < Formula
+            desc "Local OpenTelemetry collector and viewer"
+            homepage "https://github.com/zfogg/spaniel"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${base}/spaniel_${VERSION}_darwin_arm64.tar.gz"
+                sha256 "${sha_darwin_arm64}"
+              end
+              on_intel do
+                url "${base}/spaniel_${VERSION}_darwin_amd64.tar.gz"
+                sha256 "${sha_darwin_amd64}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "${base}/spaniel_${VERSION}_linux_arm64.tar.gz"
+                sha256 "${sha_linux_arm64}"
+              end
+              on_intel do
+                url "${base}/spaniel_${VERSION}_linux_amd64.tar.gz"
+                sha256 "${sha_linux_amd64}"
+              end
+            end
+
+            def install
+              bin.install "spaniel"
+            end
+
+            test do
+              assert_match "spaniel", shell_output("#{bin}/spaniel --version")
+            end
+          end
+          RUBY
+
+      - name: Push formula to homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/zfogg/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp out/spaniel.rb tap/Formula/spaniel.rb
+          cd tap
+          git config user.name  "zfogg-bot"
+          git config user.email "zach.fogg@gmail.com"
+          git add Formula/spaniel.rb
+          if git diff --cached --quiet; then
+            echo "no formula changes"
+            exit 0
+          fi
+          git commit -m "spaniel ${VERSION}"
+          git push
