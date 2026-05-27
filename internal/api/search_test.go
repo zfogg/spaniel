@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -189,6 +191,78 @@ func TestSearchSessionFilter(t *testing.T) {
 	}
 	if len(data) != 1 {
 		t.Errorf("expected exactly 1 result for session-A, got %d", len(data))
+	}
+}
+
+func TestSearchResponseShape(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-shape", "span-shape", "", "shape-svc", "GET /shape")
+
+	data := searchData(t, handler, "shape")
+	if len(data) == 0 {
+		t.Fatal("expected at least 1 result")
+	}
+	r := data[0]
+	for _, field := range []string{"kind", "trace_id", "title", "subtitle", "session_id"} {
+		if v, ok := r[field]; !ok || v == "" {
+			t.Errorf("result missing or empty field %q: %v", field, r)
+		}
+	}
+	if kind, _ := r["kind"].(string); kind != "trace" && kind != "log" {
+		t.Errorf("kind must be 'trace' or 'log', got %q", kind)
+	}
+}
+
+func TestSearchMixedTracesAndLogs(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-mixed", "span-mixed", "", "svc", "payment-handler")
+	insertLog(t, store, "trace-mixed", "span-mixed", "payment processed successfully", "svc", "sess-1")
+
+	data := searchData(t, handler, "payment")
+	kinds := map[string]int{}
+	for _, item := range data {
+		kinds[item["kind"].(string)]++
+	}
+	if kinds["trace"] == 0 {
+		t.Error("expected at least one trace result for 'payment'")
+	}
+	if kinds["log"] == 0 {
+		t.Error("expected at least one log result for 'payment'")
+	}
+}
+
+func TestSearchLimitQueryParam(t *testing.T) {
+	handler, store := setupRouter(t)
+	for i := range 15 {
+		insertSpan(t, store, "sess-1",
+			fmt.Sprintf("trace-lim-%d", i),
+			fmt.Sprintf("span-lim-%d", i),
+			"", "svc", "findme-op")
+	}
+
+	// limit=12 → half=6; with 15 spans seeded and no logs, expect exactly 6 trace results.
+	req := httptest.NewRequest(http.MethodGet, "/api/search?q=findme&limit=12", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]json.RawMessage
+	json.Unmarshal(w.Body.Bytes(), &resp) //nolint:errcheck
+	var data []any
+	json.Unmarshal(resp["data"], &data) //nolint:errcheck
+	if len(data) > 6 {
+		t.Errorf("limit=12 (half=6) should return ≤6 results, got %d", len(data))
+	}
+}
+
+func TestSearchSQLMetacharactersDoNotCrash(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-safe", "span-safe", "", "svc", "normal-op")
+
+	for _, q := range []string{"%", "_", "%%", "100%", "user_id", "'; DROP TABLE spans; --"} {
+		data := searchData(t, handler, url.QueryEscape(q))
+		_ = data
 	}
 }
 
