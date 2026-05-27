@@ -51,5 +51,8 @@ VOLUME ["/data"]
 # UI / OTLP gRPC / OTLP HTTP
 EXPOSE 8080 4317 4318
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=2s --retries=3 \
+    CMD wget -qO- http://localhost:8080/api/health || exit 1
+
 ENTRYPOINT ["/usr/local/bin/spaniel"]
 CMD ["--db-path", "/data/spaniel.duckdb", "--no-browser"]
