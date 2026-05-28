@@ -27,15 +27,23 @@ interface ServiceMapFixture {
   }>
 }
 
+const DEFAULT_SESSIONS = [
+  { id: 'sess-1', label: 'session-1', created_at: 1, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
+  { id: 'sess-2', label: 'session-2', created_at: 2, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
+]
+
 async function stubServiceMap(page: Page, fx: ServiceMapFixture) {
   await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/forwarders',      r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/sessions',        r => jsonResponse(r, [
-    { id: 'sess-1', label: 'session-1', created_at: 1, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
-    { id: 'sess-2', label: 'session-2', created_at: 2, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
-  ]))
-  await page.route('**/api/service-map*',    r => jsonResponse(r, fx))
+  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+    const pathname = new URL(r.request().url()).pathname
+    if (pathname === '/api/stats')
+      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
+    if (pathname === '/api/forwarders') return jsonResponse(r, [])
+    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+    if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
+    if (pathname.startsWith('/api/service-map')) return jsonResponse(r, fx)
+    return r.continue()
+  })
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────
@@ -175,15 +183,18 @@ test.describe('ServiceMap page', () => {
   test('session filter dropdown lists available sessions and refetches with sessionId', async ({ page }) => {
     let lastUrl = ''
     await page.routeWebSocket('**/ws', ws => ws.close())
-    await page.route('**/api/forwarders',      r => jsonResponse(r, []))
-    await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-    await page.route('**/api/sessions',        r => jsonResponse(r, [
-      { id: 'sess-1', label: 'session-1', created_at: 1, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
-      { id: 'sess-2', label: 'session-2', created_at: 2, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
-    ]))
-    await page.route('**/api/service-map*', r => {
-      lastUrl = r.request().url()
-      return jsonResponse(r, { nodes: [], edges: [] })
+    await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+      const pathname = new URL(r.request().url()).pathname
+      if (pathname === '/api/stats')
+        return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
+      if (pathname === '/api/forwarders') return jsonResponse(r, [])
+      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+      if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
+      if (pathname.startsWith('/api/service-map')) {
+        lastUrl = r.request().url()
+        return jsonResponse(r, { nodes: [], edges: [] })
+      }
+      return r.continue()
     })
 
     await page.goto('/services')

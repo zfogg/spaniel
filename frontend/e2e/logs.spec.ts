@@ -39,10 +39,16 @@ function makeLog(overrides: Partial<Log> = {}): Log {
 
 async function stubLogs(page: Page, logs: Log[], services: string[] = []) {
   await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/forwarders',      r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/services',        r => jsonResponse(r, services))
-  await page.route('**/api/logs*',           r => jsonResponse(r, logs))
+  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+    const pathname = new URL(r.request().url()).pathname
+    if (pathname === '/api/stats')
+      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: logs.length, db_size: 0, session_count: 0, oldest_session_at: 0 })
+    if (pathname === '/api/forwarders') return jsonResponse(r, [])
+    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+    if (pathname === '/api/services') return jsonResponse(r, services)
+    if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
+    return r.continue()
+  })
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────

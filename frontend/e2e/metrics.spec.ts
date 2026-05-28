@@ -92,10 +92,11 @@ test.describe('Metrics page', () => {
 
     await page.goto('/metrics')
 
-    // metric names in the sidebar
-    await expect(page.getByText('http.requests', { exact: true })).toBeVisible()
-    await expect(page.getByText('http.dur', { exact: true })).toBeVisible()
-    await expect(page.getByText('pool.in_use', { exact: true })).toBeVisible()
+    // metric names in the sidebar — use .first() since the page may auto-select
+    // the first metric, causing its name to appear in both the list and heading
+    await expect(page.getByText('http.requests', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('http.dur', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('pool.in_use', { exact: true }).first()).toBeVisible()
 
     // service group headers — exact:true would fail because each header's
     // textContent includes a trailing count badge ("postgres1"), so we

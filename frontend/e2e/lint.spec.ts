@@ -22,9 +22,15 @@ interface LintWarning {
 
 async function stubLint(page: Page, warnings: LintWarning[]) {
   await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/forwarders',      r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/lint*',           r => jsonResponse(r, warnings))
+  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+    const pathname = new URL(r.request().url()).pathname
+    if (pathname === '/api/stats')
+      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
+    if (pathname === '/api/forwarders') return jsonResponse(r, [])
+    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+    if (pathname.startsWith('/api/lint')) return jsonResponse(r, warnings)
+    return r.continue()
+  })
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────
