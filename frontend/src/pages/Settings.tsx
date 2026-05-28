@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type ForwarderStatus, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown } from '@/lib/api'
+import { api, type ForwarderStatus, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown, type UpdateCheckResult } from '@/lib/api'
 
 // ── atoms ────────────────────────────────────────────────────────────────────
 
@@ -572,13 +572,52 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
 }
 
 function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+
+  const handleCheckUpdates = useCallback(async () => {
+    setCheckingUpdate(true)
+    try {
+      const { data } = await api.settings.checkUpdates()
+      setUpdateResult(data)
+    } catch {
+      setUpdateResult({ current: s.runtime.version, latest: '', channel: s.runtime.channel, is_outdated: false, release_notes_url: '', checked_at_ns: 0, error: "couldn't reach github" })
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }, [s.runtime.version, s.runtime.channel])
+
   return (
     <Card id="about" title="About" sub="Build, license, source" hidden={hidden}>
       <Row label="Version" hint="Current binary build." testid="row-version">
         <code className="font-mono text-xs text-foreground">
           spaniel {s.runtime.version}
         </code>
-        <Pill tone="accent">channel: stable</Pill>
+        <Pill tone="accent">channel: {s.runtime.channel}</Pill>
+        <button
+          type="button"
+          data-testid="check-updates-btn"
+          disabled={checkingUpdate}
+          onClick={handleCheckUpdates}
+          className={`px-3 h-[28px] rounded-md bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden ${checkingUpdate ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
+        >
+          {checkingUpdate ? 'checking…' : 'check for updates'}
+        </button>
+        {updateResult && (
+          <div data-testid="update-result" className="font-mono text-[11px]">
+            {updateResult.error
+              ? <span className="text-muted-foreground">couldn't reach github</span>
+              : updateResult.is_outdated
+              ? <a
+                  href={updateResult.release_notes_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent-d underline decoration-dotted"
+                >↑ {updateResult.latest} available</a>
+              : <span className="text-[#3e6a3e]">✓ on latest ({updateResult.latest})</span>
+            }
+          </div>
+        )}
       </Row>
       <Row label="License" hint="Spaniel is MIT-licensed." testid="row-license">
         <Pill>MIT</Pill>

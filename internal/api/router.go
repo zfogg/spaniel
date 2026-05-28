@@ -117,6 +117,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Delete("/api/settings/data", r.dropAllData)
 	mux.Post("/api/settings/compact", r.compact)
 	mux.Post("/api/settings/prune", r.prune)
+	mux.Post("/api/settings/check-updates", r.checkUpdates)
 	mux.Get("/api/storage", r.getStorageBreakdown)
 	mux.Get("/api/sources", r.listSources)
 	mux.Get("/ws", hub.ServeWS)

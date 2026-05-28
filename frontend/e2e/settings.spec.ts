@@ -317,4 +317,27 @@ test.describe('Settings page', () => {
     await expect(page.getByTestId('compact-msg')).toContainText('Done', { timeout: 5000 })
     expect(compactCalled).toBe(1)
   })
+
+  test('check-updates: shows available update when is_outdated', async ({ page }) => {
+    // stub POST /api/settings/check-updates
+    await page.route('**/api/settings/check-updates', r => r.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ data: {
+        current: '0.4.2', latest: '0.5.0', channel: 'stable',
+        is_outdated: true, release_notes_url: 'https://github.com/zfogg/spaniel/releases/tag/v0.5.0',
+        checked_at_ns: Date.now() * 1_000_000, error: '',
+      }, meta: { total: 1, page: 1 } }),
+    }))
+    await stubChrome(page)
+    await stubSettings(page, makeSettings())
+    await page.goto('/settings#about')
+
+    await page.getByRole('button', { name: 'About' }).click()
+    await page.getByTestId('check-updates-btn').click()
+    const result = page.getByTestId('update-result')
+    await expect(result).toBeVisible()
+    const link = result.getByRole('link')
+    await expect(link).toContainText('0.5.0 available')
+    await expect(link).toHaveAttribute('href', 'https://github.com/zfogg/spaniel/releases/tag/v0.5.0')
+  })
 })

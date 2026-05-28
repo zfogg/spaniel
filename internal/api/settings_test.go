@@ -349,3 +349,126 @@ func TestPrune_NoSettingsService404(t *testing.T) {
 		t.Errorf("want 404 when settings service is nil, got %d", w.Code)
 	}
 }
+
+// ── isNewer ──────────────────────────────────────────────────────────────────
+
+func TestIsNewer(t *testing.T) {
+	cases := []struct {
+		current string
+		latest  string
+		want    bool
+	}{
+		{"0.4.2", "0.5.0", true},
+		{"0.5.0", "0.5.0", false},
+		{"0.5.0", "0.4.9", false},
+		{"dev", "0.5.0", false},
+		{"0.4.2", "dev", false},
+		{"1.0.0", "1.0.1", true},
+	}
+	for _, tc := range cases {
+		got := isNewer(tc.current, tc.latest)
+		if got != tc.want {
+			t.Errorf("isNewer(%q, %q) = %v, want %v", tc.current, tc.latest, got, tc.want)
+		}
+	}
+}
+
+// ── POST /api/settings/check-updates ─────────────────────────────────────────
+
+func TestCheckUpdates_PrefersCache(t *testing.T) {
+	hitCount := 0
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"tag_name":"v0.5.0","html_url":"https://github.com/zfogg/spaniel/releases/tag/v0.5.0"}`)) //nolint:errcheck
+	}))
+	defer stub.Close()
+
+	router, svc, _ := newSettingsRouter(t)
+	// Override version so is_outdated can fire.
+	svc.Version = "0.4.2"
+	// Inject a client that redirects github.com calls to our stub.
+	svc.GithubClient = &http.Client{
+		Transport: &redirectTransport{base: stub.URL},
+	}
+
+	doPost := func() *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/settings/check-updates", nil))
+		return w
+	}
+
+	w1 := doPost()
+	if w1.Code != http.StatusOK {
+		t.Fatalf("first call: want 200, got %d (body=%s)", w1.Code, w1.Body.String())
+	}
+	var resp1 struct {
+		Data UpdateCheckResult `json:"data"`
+	}
+	if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
+		t.Fatalf("unmarshal first: %v", err)
+	}
+	if !resp1.Data.IsOutdated {
+		t.Errorf("is_outdated should be true for 0.4.2 vs 0.5.0")
+	}
+	if resp1.Data.Latest != "0.5.0" {
+		t.Errorf("latest = %q, want 0.5.0", resp1.Data.Latest)
+	}
+
+	// Second call — should use cache, not hit the stub again.
+	w2 := doPost()
+	if w2.Code != http.StatusOK {
+		t.Fatalf("second call: want 200, got %d (body=%s)", w2.Code, w2.Body.String())
+	}
+	if hitCount != 1 {
+		t.Errorf("stub hit count = %d, want 1 (second call should use cache)", hitCount)
+	}
+}
+
+func TestCheckUpdates_HandlesOffline(t *testing.T) {
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer stub.Close()
+
+	router, svc, _ := newSettingsRouter(t)
+	svc.Version = "0.4.2"
+	svc.GithubClient = &http.Client{
+		Transport: &redirectTransport{base: stub.URL},
+	}
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/settings/check-updates", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200 (graceful degrade), got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data UpdateCheckResult `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Data.Error == "" {
+		t.Errorf("expected non-empty error field on GitHub failure")
+	}
+}
+
+// redirectTransport rewrites requests to api.github.com so they hit base instead.
+type redirectTransport struct {
+	base string
+}
+
+func (rt *redirectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	newURL := rt.base + req.URL.Path
+	if req.URL.RawQuery != "" {
+		newURL += "?" + req.URL.RawQuery
+	}
+	newReq, err := http.NewRequestWithContext(req.Context(), req.Method, newURL, req.Body)
+	if err != nil {
+		return nil, err
+	}
+	newReq.Header = req.Header
+	return http.DefaultTransport.RoundTrip(newReq)
+}

@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -24,6 +26,26 @@ type SettingsService struct {
 	OTLPHTTPPort   int
 	TLSEnabled     bool
 	BearerTokenSet bool
+
+	// GithubClient is injected in tests to stub the GitHub API. nil = use
+	// http.DefaultClient.
+	GithubClient *http.Client
+
+	// update check cache
+	updateMu       sync.Mutex
+	updateCache    *UpdateCheckResult
+	updateCachedAt time.Time
+}
+
+// UpdateCheckResult is the JSON shape returned by POST /api/settings/check-updates.
+type UpdateCheckResult struct {
+	Current         string `json:"current"`
+	Latest          string `json:"latest"`
+	Channel         string `json:"channel"`
+	IsOutdated      bool   `json:"is_outdated"`
+	ReleaseNotesURL string `json:"release_notes_url"`
+	CheckedAtNs     int64  `json:"checked_at_ns"`
+	Error           string `json:"error,omitempty"`
 }
 
 // SettingsResponse is the JSON shape returned by GET /api/settings.
@@ -49,13 +71,14 @@ type SettingsResponse struct {
 
 // SettingsRuntime is everything the UI shows but never writes back.
 type SettingsRuntime struct {
-	PID         int    `json:"pid"`
-	UptimeNs    int64  `json:"uptime_ns"`
-	Version     string `json:"version"`
-	ConfigPath  string `json:"config_path"`
-	OTLPGRPCPort    int    `json:"otlp_grpc_port"`
-	OTLPHTTPPort    int    `json:"otlp_http_port"`
-	DBSizeBytes int64  `json:"db_size_bytes"`
+	PID          int    `json:"pid"`
+	UptimeNs     int64  `json:"uptime_ns"`
+	Version      string `json:"version"`
+	Channel      string `json:"channel"`
+	ConfigPath   string `json:"config_path"`
+	OTLPGRPCPort int    `json:"otlp_grpc_port"`
+	OTLPHTTPPort int    `json:"otlp_http_port"`
+	DBSizeBytes  int64  `json:"db_size_bytes"`
 }
 
 // SettingsUpdate is the writable subset accepted by PUT /api/settings.
@@ -137,12 +160,13 @@ func (r *Router) buildSettings() SettingsResponse {
 		TLSEnabled:     s.TLSEnabled,
 		BearerTokenSet: s.BearerTokenSet,
 		Runtime: SettingsRuntime{
-			PID:        os.Getpid(),
-			UptimeNs:   time.Since(s.StartedAt).Nanoseconds(),
-			Version:    s.Version,
-			ConfigPath: s.ConfigPath,
-			OTLPGRPCPort:   s.OTLPGRPCPort,
-			OTLPHTTPPort:   s.OTLPHTTPPort,
+			PID:          os.Getpid(),
+			UptimeNs:     time.Since(s.StartedAt).Nanoseconds(),
+			Version:      s.Version,
+			Channel:      versionChannel(s.Version),
+			ConfigPath:   s.ConfigPath,
+			OTLPGRPCPort: s.OTLPGRPCPort,
+			OTLPHTTPPort: s.OTLPHTTPPort,
 		},
 	}
 	// DB size lives on the storage layer.
@@ -275,6 +299,115 @@ func parentDir(p string) string {
 		}
 	}
 	return "."
+}
+
+// checkUpdates hits the GitHub releases API and returns the latest version.
+// Results are cached for 1 hour. Network failures degrade gracefully.
+func (r *Router) checkUpdates(w http.ResponseWriter, req *http.Request) {
+	if r.settings == nil {
+		respondErr(w, req, 404, "settings service not configured")
+		return
+	}
+	s := r.settings
+	channel := versionChannel(s.Version)
+
+	// Check cache under lock.
+	s.updateMu.Lock()
+	if s.updateCache != nil && time.Since(s.updateCachedAt) < time.Hour {
+		cached := *s.updateCache
+		s.updateMu.Unlock()
+		respond(w, cached, 1, 1)
+		return
+	}
+	s.updateMu.Unlock()
+
+	client := s.GithubClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	result := UpdateCheckResult{
+		Current:     s.Version,
+		Channel:     channel,
+		CheckedAtNs: time.Now().UnixNano(),
+	}
+
+	resp, err := client.Get("https://api.github.com/repos/zfogg/spaniel/releases/latest")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		result.Error = "could not reach github"
+		respond(w, result, 1, 1)
+		return
+	}
+	defer resp.Body.Close()
+
+	var ghResp struct {
+		TagName string `json:"tag_name"`
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&ghResp); err != nil {
+		result.Error = "could not reach github"
+		respond(w, result, 1, 1)
+		return
+	}
+
+	latest := strings.TrimPrefix(ghResp.TagName, "v")
+	result.Latest = latest
+	result.ReleaseNotesURL = ghResp.HTMLURL
+	result.IsOutdated = isNewer(s.Version, latest)
+
+	s.updateMu.Lock()
+	s.updateCache = &result
+	s.updateCachedAt = time.Now()
+	s.updateMu.Unlock()
+
+	respond(w, result, 1, 1)
+}
+
+// versionChannel returns "dev" when version == "dev", "stable" otherwise.
+func versionChannel(version string) string {
+	if version == "dev" {
+		return "dev"
+	}
+	return "stable"
+}
+
+// isNewer reports whether latest is a higher semver than current.
+// Returns false if either version is not valid semver or if current == "dev".
+func isNewer(current, latest string) bool {
+	if current == "dev" || latest == "dev" {
+		return false
+	}
+	cp := parseSemver(current)
+	lp := parseSemver(latest)
+	if cp == nil || lp == nil {
+		return false
+	}
+	for i := range cp {
+		if lp[i] > cp[i] {
+			return true
+		}
+		if lp[i] < cp[i] {
+			return false
+		}
+	}
+	return false
+}
+
+// parseSemver splits "major.minor.patch" into [3]int. Returns nil on failure.
+func parseSemver(v string) *[3]int {
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) != 3 {
+		return nil
+	}
+	var out [3]int
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return nil
+		}
+		out[i] = n
+	}
+	return &out
 }
 
 // nonNilStrings ensures the slice is never nil so the JSON encoder emits

@@ -216,10 +216,21 @@ export interface SettingsRuntime {
   pid: number
   uptime_ns: number
   version: string
+  channel: string
   config_path: string
   otlp_grpc_port: number
   otlp_http_port: number
   db_size_bytes: number
+}
+
+export interface UpdateCheckResult {
+  current: string
+  latest: string
+  channel: string
+  is_outdated: boolean
+  release_notes_url: string
+  checked_at_ns: number
+  error?: string
 }
 
 export interface Settings {
@@ -469,6 +480,7 @@ export const api = {
         if (!r.ok) return r.text().then(t => { throw new Error(t) })
         return r.json() as Promise<{ data: PruneResult; meta: { total: number; page: number } }>
       }),
+    checkUpdates: () => post<UpdateCheckResult>('/api/settings/check-updates', {}),
   },
   storage: {
     get: () => get<StorageBreakdown>('/api/storage'),
