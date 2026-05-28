@@ -74,15 +74,16 @@ func TestListTracesEmpty(t *testing.T) {
 	}
 }
 
-func TestGetIssuesRequiresTraceId(t *testing.T) {
+func TestGetIssuesNoTraceId_ReturnsSessionIssues(t *testing.T) {
+	// Without traceId, /api/issues falls back to the active session — should return 200.
 	handler, _ := setupRouter(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/issues", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 when traceId is missing, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for session-level issues, got %d", w.Code)
 	}
 }
 

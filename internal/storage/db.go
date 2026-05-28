@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/alifiroozi80/duckdb"
@@ -91,17 +92,19 @@ type LintWarning struct {
 func (LintWarning) TableName() string { return "lint_warnings" }
 
 type TraceRow struct {
-	TraceID      string `json:"trace_id"`
-	ServiceName  string `json:"service_name"`
-	Name         string `json:"name"`
-	StatusCode   int    `json:"status_code"`
-	StartNs      int64  `json:"start_ns"`
-	EndNs        int64  `json:"end_ns"`
-	DurationNs   int64  `json:"duration_ns"`
-	SessionID    string `json:"session_id"`
-	SessionLabel string `json:"session_label"`
-	HasN1        bool   `json:"has_n1"`
-	SpanCount    int    `json:"span_count"`
+	TraceID         string   `json:"trace_id"`
+	ServiceName     string   `json:"service_name"`
+	Name            string   `json:"name"`
+	StatusCode      int      `json:"status_code"`
+	StartNs         int64    `json:"start_ns"`
+	EndNs           int64    `json:"end_ns"`
+	DurationNs      int64    `json:"duration_ns"`
+	SessionID       string   `json:"session_id"`
+	SessionLabel    string   `json:"session_label"`
+	HasN1           bool     `json:"has_n1"`
+	SpanCount       int      `json:"span_count"`
+	IssueKinds      []string `json:"issue_kinds" gorm:"-"`
+	IssueKindsRaw   string   `json:"-"           gorm:"column:issue_kinds_raw"`
 }
 
 type TraceIssue struct {
@@ -404,11 +407,14 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	query := `
 		SELECT s.trace_id, s.service_name, s.name, s.status_code, s.start_ns, s.end_ns, s.duration_ns, s.session_id, s.session_label,
 		       COALESCE(ti.has_n1, FALSE) AS has_n1,
+		       COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw,
 		       COALESCE(sc.span_count, 1) AS span_count
 		FROM spans s
 		LEFT JOIN (
-			SELECT trace_id, TRUE AS has_n1
-			FROM trace_issues WHERE kind = 'n_plus_one'
+			SELECT trace_id,
+			       BOOL_OR(kind = 'n_plus_one') AS has_n1,
+			       string_agg(DISTINCT kind, ',') AS issue_kinds_raw
+			FROM trace_issues
 			GROUP BY trace_id
 		) ti ON s.trace_id = ti.trace_id
 		LEFT JOIN (
@@ -432,7 +438,51 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	if err := d.gorm.Raw(query, args...).Scan(&result).Error; err != nil {
 		return nil, err
 	}
+	for _, row := range result {
+		row.IssueKinds = parseKinds(row.IssueKindsRaw)
+	}
 	return result, nil
+}
+
+// parseKinds splits a comma-separated list of issue kind strings into a
+// deduplicated, sorted slice.
+func parseKinds(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	seen := map[string]bool{}
+	for _, k := range splitTrim(raw, ',') {
+		if k != "" {
+			seen[k] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sortStrings(out)
+	return out
+}
+
+func splitTrim(s string, sep byte) []string {
+	var out []string
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == sep {
+			part := strings.TrimSpace(s[start:i])
+			out = append(out, part)
+			start = i + 1
+		}
+	}
+	return out
+}
+
+func sortStrings(ss []string) {
+	for i := 1; i < len(ss); i++ {
+		for j := i; j > 0 && ss[j] < ss[j-1]; j-- {
+			ss[j], ss[j-1] = ss[j-1], ss[j]
+		}
+	}
 }
 
 // TraceOverlayFilter scopes the "traces during this window" query used by

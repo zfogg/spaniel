@@ -44,6 +44,7 @@ export interface TraceRow {
   session_label: string
   has_n1: boolean
   span_count: number
+  issue_kinds: string[]
 }
 
 export interface TraceIssue {
@@ -445,6 +446,8 @@ export const api = {
   issues: {
     get: (traceId: string) =>
       get<TraceIssue[]>(`/api/issues?traceId=${traceId}`),
+    list: (sessionId?: string) =>
+      get<TraceIssue[]>(`/api/issues${sessionId ? `?sessionId=${sessionId}` : ''}`),
   },
   health: {
     get: () => get<{ ok: boolean }>('/api/health'),

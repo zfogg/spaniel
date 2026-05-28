@@ -230,6 +230,108 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 		return err
 	}
 
+	// Seed one trace per new detector kind so every view has something to render.
+	detectorTraces := []struct {
+		kind  string
+		build func(traceID, sessID, sessLbl string, startNs int64) []*storage.Span
+		issue func(traceID string, spans []*storage.Span) *storage.TraceIssue
+	}{
+		{
+			kind:  "slow_db",
+			build: buildSlowDBTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "slow_db", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "slow_db", Fingerprint: "SELECT reports", Count: 1,
+					WastedNs: 130 * int64(time.Millisecond),
+					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
+		{
+			kind:  "chatty_http",
+			build: buildChattyHTTPTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "chatty_http", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "chatty_http", Fingerprint: "pricing.internal", Count: 6,
+					WastedNs: 180 * int64(time.Millisecond),
+					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
+		{
+			kind:  "tracing_gap",
+			build: buildTracingGapTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "tracing_gap", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "tracing_gap", Fingerprint: "POST /api/charge", Count: 1,
+					WastedNs: 350 * int64(time.Millisecond),
+					ParentSpanID: "", ExampleSpanID: spans[0].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
+		{
+			kind:  "error_chain",
+			build: buildErrorChainTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "error_chain", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "error_chain", Fingerprint: "charge card", Count: 1,
+					WastedNs: 0,
+					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
+		{
+			kind:  "serial_promise",
+			build: buildSerialPromiseTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "serial_promise", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "serial_promise", Fingerprint: "GET /api/dashboard (4 serial calls)", Count: 4,
+					WastedNs: 300 * int64(time.Millisecond),
+					ParentSpanID: "", ExampleSpanID: spans[0].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
+		{
+			kind:  "synchronous_io",
+			build: buildSynchronousIOTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "synchronous_io", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "synchronous_io", Fingerprint: "GET /api/cart/summary (4 db calls)", Count: 4,
+					WastedNs: 200 * int64(time.Millisecond),
+					ParentSpanID: "", ExampleSpanID: spans[0].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
+	}
+	detectorStart := startNs + int64(traceCount+2)*int64(2*time.Minute)
+	for i, dt := range detectorTraces {
+		tid := deterministicID(sessionID+"-"+dt.kind, "trace", 0, 32)
+		tStart := detectorStart + int64(i)*int64(3*time.Minute)
+		spans := dt.build(tid, sessionID, sessionLabel, tStart)
+		for _, sp := range spans {
+			if err := store.InsertSpan(sp); err != nil {
+				return err
+			}
+			stats.spans++
+		}
+		if err := store.UpsertTraceIssue(dt.issue(tid, spans)); err != nil {
+			return err
+		}
+		stats.traces++
+	}
+
 	// A cross-trace link: trace[1] follows-from trace[0].
 	if len(traceIDs) >= 2 {
 		if err := store.InsertSpanLinks([]*storage.SpanLink{{
@@ -408,7 +510,156 @@ func buildN1TraceSpans(traceID, sessionID, sessionLabel string, startNs int64) [
 		}
 		out = append(out, child)
 	}
-	return out
+
+// buildSlowDBTrace returns a parent span containing a deliberately slow DB call.
+func buildSlowDBTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	dbID := flipHex(rootID)
+	dbAttrs := `{"db.system":"postgresql","db.statement":"SELECT * FROM reports WHERE date BETWEEN $1 AND $2","db.operation":"SELECT"}`
+	resource := `{"service.name":"checkout-api","deployment.environment":"seed"}`
+	return []*storage.Span{
+		{TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+			ServiceName: "checkout-api", Name: "GET /api/reports", Kind: 2,
+			StartNs: startNs, EndNs: startNs + int64(450*time.Millisecond),
+			StatusCode: 1, Attributes: `{"http.method":"GET","http.route":"/api/reports"}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+		{TraceID: traceID, SpanID: dbID, ParentSpanID: rootID,
+			ServiceName: "postgres", Name: "SELECT reports", Kind: 3,
+			StartNs: startNs + int64(10*time.Millisecond), EndNs: startNs + int64(380*time.Millisecond),
+			StatusCode: 1, Attributes: dbAttrs,
+			Resource: `{"service.name":"postgres"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+	}
+}
+
+// buildChattyHTTPTrace returns a trace with 6 calls to the same external host.
+func buildChattyHTTPTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	resource := `{"service.name":"cart-svc","deployment.environment":"seed"}`
+	spans := []*storage.Span{{
+		TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+		ServiceName: "cart-svc", Name: "GET /api/items", Kind: 2,
+		StartNs: startNs, EndNs: startNs + int64(300*time.Millisecond),
+		StatusCode: 1, Attributes: `{"http.method":"GET","http.route":"/api/items"}`,
+		Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+	}}
+	for i := 0; i < 6; i++ {
+		cid := deterministicID(traceID+"-chatty", "call", i, 16)
+		spans = append(spans, &storage.Span{
+			TraceID: traceID, SpanID: cid, ParentSpanID: rootID,
+			ServiceName: "cart-svc", Name: "GET /v1/price", Kind: 3,
+			StartNs: startNs + int64(i)*int64(40*time.Millisecond), EndNs: startNs + int64(i)*int64(40*time.Millisecond) + int64(30*time.Millisecond),
+			StatusCode: 1,
+			Attributes: `{"url.full":"https://pricing.internal/v1/price","http.method":"GET","server.address":"pricing.internal"}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+		})
+	}
+	return spans
+}
+
+// buildTracingGapTrace returns a 500ms parent with children covering only 150ms,
+// leaving a 350ms tracing gap.
+func buildTracingGapTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	c1ID := flipHex(rootID)
+	c2ID := flipHex(c1ID)
+	resource := `{"service.name":"payments-svc","deployment.environment":"seed"}`
+	return []*storage.Span{
+		{TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+			ServiceName: "payments-svc", Name: "POST /api/charge", Kind: 2,
+			StartNs: startNs, EndNs: startNs + int64(500*time.Millisecond),
+			StatusCode: 1, Attributes: `{"http.method":"POST","http.route":"/api/charge"}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+		{TraceID: traceID, SpanID: c1ID, ParentSpanID: rootID,
+			ServiceName: "payments-svc", Name: "validate card",
+			StartNs: startNs + int64(10*time.Millisecond), EndNs: startNs + int64(80*time.Millisecond),
+			StatusCode: 1, Attributes: `{}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+		{TraceID: traceID, SpanID: c2ID, ParentSpanID: rootID,
+			ServiceName: "payments-svc", Name: "write audit log",
+			StartNs: startNs + int64(430*time.Millisecond), EndNs: startNs + int64(490*time.Millisecond),
+			StatusCode: 1, Attributes: `{}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+	}
+}
+
+// buildErrorChainTrace returns a trace where a child errors but the parent doesn't.
+func buildErrorChainTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	childID := flipHex(rootID)
+	resource := `{"service.name":"checkout-api","deployment.environment":"seed"}`
+	return []*storage.Span{
+		{TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+			ServiceName: "checkout-api", Name: "POST /api/checkout", Kind: 2,
+			StartNs: startNs, EndNs: startNs + int64(200*time.Millisecond),
+			StatusCode: 1, Attributes: `{"http.method":"POST","http.response.status_code":200}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+		{TraceID: traceID, SpanID: childID, ParentSpanID: rootID,
+			ServiceName: "payments-svc", Name: "charge card",
+			StartNs: startNs + int64(50*time.Millisecond), EndNs: startNs + int64(150*time.Millisecond),
+			StatusCode: 2, StatusMessage: "card declined",
+			Attributes: `{"rpc.system":"grpc","rpc.grpc.status_code":13}`,
+			Resource: `{"service.name":"payments-svc"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+	}
+}
+
+// buildSerialPromiseTrace returns a parent with 4 sequential client calls
+// that could be issued in parallel.
+func buildSerialPromiseTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	resource := `{"service.name":"checkout-api","deployment.environment":"seed"}`
+	spans := []*storage.Span{{
+		TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+		ServiceName: "checkout-api", Name: "GET /api/dashboard", Kind: 2,
+		StartNs: startNs, EndNs: startNs + int64(600*time.Millisecond),
+		StatusCode: 1, Attributes: `{"http.method":"GET","http.route":"/api/dashboard"}`,
+		Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+	}}
+	services := []string{"users-svc", "orders-svc", "inventory-svc", "analytics-svc"}
+	for i, svc := range services {
+		cid := deterministicID(traceID+"-serial", "call", i, 16)
+		offset := int64(i) * int64(120*time.Millisecond)
+		spans = append(spans, &storage.Span{
+			TraceID: traceID, SpanID: cid, ParentSpanID: rootID,
+			ServiceName: "checkout-api", Name: "GET /" + svc, Kind: 3,
+			StartNs: startNs + offset, EndNs: startNs + offset + int64(100*time.Millisecond),
+			StatusCode: 1,
+			Attributes: `{"http.method":"GET","server.address":"` + svc + `.internal"}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+		})
+	}
+	return spans
+}
+
+// buildSynchronousIOTrace returns a GET handler that makes 4 DB calls inline.
+func buildSynchronousIOTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	resource := `{"service.name":"cart-svc","deployment.environment":"seed"}`
+	spans := []*storage.Span{{
+		TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+		ServiceName: "cart-svc", Name: "GET /api/cart/summary", Kind: 2,
+		StartNs: startNs, EndNs: startNs + int64(350*time.Millisecond),
+		StatusCode: 1, Attributes: `{"http.method":"GET","http.route":"/api/cart/summary"}`,
+		Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+	}}
+	queries := []string{
+		"SELECT * FROM cart WHERE session_id = $1",
+		"SELECT * FROM items WHERE id = ANY($1)",
+		"SELECT * FROM prices WHERE item_id = ANY($1)",
+		"SELECT * FROM promotions WHERE active = true",
+	}
+	for i, q := range queries {
+		cid := deterministicID(traceID+"-syncio", "db", i, 16)
+		offset := int64(i) * int64(60*time.Millisecond)
+		spans = append(spans, &storage.Span{
+			TraceID: traceID, SpanID: cid, ParentSpanID: rootID,
+			ServiceName: "postgres", Name: "SELECT", Kind: 3,
+			StartNs: startNs + offset, EndNs: startNs + offset + int64(50*time.Millisecond),
+			StatusCode: 1,
+			Attributes: `{"db.system":"postgresql","db.statement":"` + q + `"}`,
+			Resource: `{"service.name":"postgres"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+		})
+	}
+	return spans
 }
 
 // logsForSpan emits n logs whose trace_id AND span_id match the given span,

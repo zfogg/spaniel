@@ -20,7 +20,15 @@ interface LintWarning {
   created_at: number
 }
 
-async function stubLint(page: Page, warnings: LintWarning[]) {
+interface TraceIssue {
+  id: string; trace_id: string; session_id: string
+  kind: string; fingerprint: string
+  count: number; wasted_ns: number
+  parent_span_id: string; example_span_id: string
+  created_at: number
+}
+
+async function stubLint(page: Page, warnings: LintWarning[], issues: TraceIssue[] = []) {
   await page.routeWebSocket('**/ws', ws => ws.close())
   await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
     const pathname = new URL(r.request().url()).pathname
@@ -29,6 +37,7 @@ async function stubLint(page: Page, warnings: LintWarning[]) {
     if (pathname === '/api/forwarders') return jsonResponse(r, [])
     if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
     if (pathname.startsWith('/api/lint')) return jsonResponse(r, warnings)
+    if (pathname === '/api/issues') return jsonResponse(r, issues)
     return r.continue()
   })
 }
@@ -115,5 +124,33 @@ test.describe('LintPage', () => {
     // LintRow renders "trace → <truncated id>" as a link when trace_id is present
     await expect(page.getByText(/trace →/)).toBeVisible()
     await expect(page.locator('a[href*="/traces/trace-deadbeef-cafebabe"]')).toBeVisible()
+  })
+
+  test('summary strip shows one card per detector kind from /api/issues', async ({ page }) => {
+    const issues: TraceIssue[] = [
+      { id: 'i1', trace_id: 't1', session_id: 's1', kind: 'slow_db',     fingerprint: 'SELECT reports', count: 1, wasted_ns: 100_000_000, parent_span_id: '', example_span_id: 'ex1', created_at: 0 },
+      { id: 'i2', trace_id: 't2', session_id: 's1', kind: 'chatty_http', fingerprint: 'api.example.com', count: 7, wasted_ns: 0,           parent_span_id: '', example_span_id: 'ex2', created_at: 0 },
+      { id: 'i3', trace_id: 't3', session_id: 's1', kind: 'tracing_gap', fingerprint: 'POST /charge',   count: 1, wasted_ns: 300_000_000, parent_span_id: '', example_span_id: 'ex3', created_at: 0 },
+    ]
+    await stubLint(page, [], issues)
+    await page.goto('/lint')
+
+    await expect(page.getByText('slow DB')).toBeVisible()
+    await expect(page.getByText('chatty HTTP')).toBeVisible()
+    await expect(page.getByText('tracing gap')).toBeVisible()
+  })
+
+  test('summary strip shows one card per distinct kind, collapsing duplicates', async ({ page }) => {
+    const issues: TraceIssue[] = [
+      { id: 'a1', trace_id: 'ta', session_id: 's1', kind: 'error_chain',    fingerprint: 'payment', count: 2, wasted_ns: 0, parent_span_id: '', example_span_id: 'ea', created_at: 0 },
+      { id: 'b1', trace_id: 'tb', session_id: 's1', kind: 'error_chain',    fingerprint: 'auth',    count: 1, wasted_ns: 0, parent_span_id: '', example_span_id: 'eb', created_at: 0 },
+      { id: 'c1', trace_id: 'tc', session_id: 's1', kind: 'serial_promise', fingerprint: 'dashboard', count: 4, wasted_ns: 200_000_000, parent_span_id: '', example_span_id: 'ec', created_at: 0 },
+    ]
+    await stubLint(page, [], issues)
+    await page.goto('/lint')
+
+    await expect(page.getByText('error chain')).toBeVisible()
+    await expect(page.getByText('serial promises')).toBeVisible()
+    await expect(page.getByText('error chain')).toHaveCount(1)
   })
 })
