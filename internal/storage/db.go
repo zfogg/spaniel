@@ -1158,19 +1158,35 @@ type SessionSize struct {
 func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	out := &StorageBreakdown{}
 
-	// duckdb_tables().estimated_size is row count not bytes, and this DuckDB
-	// version's duckdb_columns() lacks avg_width. Measure actual payload sizes by
-	// summing serialized variable-length columns per table.
+	// DuckDB does not expose per-table compressed sizes through its catalog in
+	// this version (duckdb_tables().estimated_size is row count; pragma_storage_info
+	// lacks a size field). The strategy: checkpoint the database so WAL is flushed
+	// and the main file reflects current data, read the actual file size, then
+	// distribute it proportionally using uncompressed payload lengths (SUM(LENGTH))
+	// as weights. This ensures per-table values are proportional to real content
+	// and sum to the actual on-disk file size.
+	if d.path != "" && d.path != ":memory:" {
+		_ = d.gorm.Exec("CHECKPOINT").Error
+	}
+
+	// Actual on-disk file size after checkpoint.
+	var fileBytes int64
+	if d.path != "" && d.path != ":memory:" {
+		if fi, err := os.Stat(d.path); err == nil {
+			fileBytes = fi.Size()
+		}
+	}
+
 	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
 	type tblSize struct {
 		Name        string
 		RowCount    int64
-		ApproxBytes int64
+		PayloadBytes int64 // uncompressed payload weight; used only for proportioning
 	}
 	var sizes []tblSize
 	_ = d.gorm.Raw(`
 		SELECT 'spans' AS name, COUNT(*) AS row_count,
-		  CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300), 0) AS BIGINT) AS approx_bytes
+		  CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300), 0) AS BIGINT) AS payload_bytes
 		FROM spans
 		UNION ALL
 		SELECT 'logs', COUNT(*),
@@ -1199,16 +1215,29 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 		  CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT)
 		FROM lint_warnings
 	`).Scan(&sizes)
+
+	// Sum total payload to use as denominator for proportioning.
+	var totalPayload int64
+	for _, s := range sizes {
+		totalPayload += s.PayloadBytes
+	}
+
 	byTable := make(map[string]tblSize, len(sizes))
 	for _, s := range sizes {
 		byTable[s.Name] = s
 	}
 	for _, name := range tableNames {
 		s := byTable[name]
+		approxBytes := s.PayloadBytes
+		// If we have a real file size, scale proportionally so values reflect
+		// actual on-disk bytes rather than uncompressed payload lengths.
+		if fileBytes > 0 && totalPayload > 0 {
+			approxBytes = fileBytes * s.PayloadBytes / totalPayload
+		}
 		out.Tables = append(out.Tables, TableStat{
 			Name:        name,
 			RowCount:    s.RowCount,
-			ApproxBytes: s.ApproxBytes,
+			ApproxBytes: approxBytes,
 		})
 	}
 
@@ -1225,11 +1254,9 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	`).Scan(&sessSizes).Error
 	out.Sessions = sessSizes
 
-	// File sizes: main DB file and WAL (if present).
+	// File sizes: MainBytes comes from fileBytes computed above (post-checkpoint).
+	out.MainBytes = fileBytes
 	if d.path != "" && d.path != ":memory:" {
-		if fi, err := os.Stat(d.path); err == nil {
-			out.MainBytes = fi.Size()
-		}
 		if fi, err := os.Stat(d.path + ".wal"); err == nil {
 			out.WALBytes = fi.Size()
 		}
