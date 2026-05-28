@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DurBar } from '@/components/DurBar'
-import { api, TraceRow } from '../lib/api'
+import { api, TraceRow, Session } from '../lib/api'
 import { createWS } from '../lib/ws'
 import { traceTag } from '../lib/trace-tag'
 import { fmtRelative } from '../lib/fmt-relative'
+import { SEARCH_PALETTE_EVENT } from '../lib/shortcuts'
+
+const GRID_COLS = 'minmax(0,1fr) 90px 80px 280px 70px'
+const SLOW_NS = 250_000_000
+const MAX_SESSIONS = 7
+const MAX_SERVICES = 15
 
 function fmtDuration(ns: number): string {
   if (ns < 1_000) return `${ns}ns`
@@ -207,7 +212,7 @@ function TraceRowItem({
       onClick={onClick}
       className="grid cursor-pointer items-center gap-0 px-[18px] py-[10px] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] border-b border-b-[var(--line2)]"
       style={{
-        gridTemplateColumns: 'minmax(0,1fr) 90px 60px minmax(120px,280px) 70px',
+        gridTemplateColumns: GRID_COLS,
         background: isFirst
           ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
           : undefined,
@@ -238,7 +243,7 @@ function TraceRowItem({
       </div>
 
       {/* shape bar */}
-      <div className="px-2">
+      <div className="pl-3">
         <DurBar durNs={trace.duration_ns} maxNs={maxNs} hot={hot} />
       </div>
 
@@ -250,15 +255,74 @@ function TraceRowItem({
   )
 }
 
+// ── Sidebar (filter rail) ───────────────────────────────────────────────────────
+
+function SbGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--ink3)]">
+        {title}
+      </div>
+      <div className="flex flex-col gap-0.5">{children}</div>
+    </div>
+  )
+}
+
+function SbItem({
+  children,
+  active,
+  count,
+  dot,
+  onClick,
+}: {
+  children: React.ReactNode
+  active?: boolean
+  count?: number | string
+  dot?: string
+  onClick?: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      className={[
+        'flex select-none items-center gap-2 rounded-md px-2 py-[5px] text-xs',
+        onClick ? 'cursor-pointer' : 'cursor-default',
+        active
+          ? 'bg-[var(--surface)] font-semibold text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)]'
+          : 'bg-transparent font-medium text-[var(--ink2)]',
+      ].join(' ')}
+    >
+      {dot && <span className="size-[7px] shrink-0 rounded-full" style={{ background: dot }} />}
+      <span className="flex-1 truncate">{children}</span>
+      {count != null && <span className="font-mono text-[10px] text-[var(--ink3)]">{count}</span>}
+    </div>
+  )
+}
+
+function SbMore({ count }: { count: number }) {
+  return (
+    <div className="flex select-none items-center gap-2 px-2 py-[5px] font-mono text-[11px] text-[var(--ink3)]">
+      <span className="tracking-[0.25em]">…</span>
+      <span className="flex-1">+{count} more</span>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+type QuickFilter = 'lint' | 'slow' | 'errors'
 
 export default function TraceList() {
   const [traces, setTraces] = useState<TraceRow[]>([])
-  const [services, setServices] = useState<string[]>([])
+  const [sessions, setSessions] = useState<Session[]>([])
   const [searchParams] = useSearchParams()
   const [filterService, setFilterService] = useState(searchParams.get('service') ?? 'all')
+  const [filterSession, setFilterSession] = useState<string | null>(null)
+  const [quickFilter, setQuickFilter] = useState<QuickFilter | null>(null)
   const [loading, setLoading] = useState(true)
-  const [baselineSessionId] = useState<string | null>(null)
+  const [baselineSessionId, setBaselineSessionId] = useState<string | null>(null)
   const navigate = useNavigate()
   const tracesRef = useRef(traces)
   tracesRef.current = traces
@@ -269,7 +333,12 @@ export default function TraceList() {
       setLoading(false)
     }).catch(() => setLoading(false))
 
-    api.services.list().then(r => setServices(r.data ?? []))
+    api.sessions.list().then(r => {
+      const list = r.data ?? []
+      setSessions(list)
+      const baseline = list.find(s => s.is_baseline)
+      if (baseline) setBaselineSessionId(baseline.id)
+    })
 
     const disconnect = createWS((ev) => {
       if (ev.type !== 'span') return
@@ -295,63 +364,171 @@ export default function TraceList() {
     return disconnect
   }, [])
 
-  const filtered = filterService === 'all'
-    ? traces
-    : traces.filter(t => t.service_name === filterService)
+  // Per-service trace counts + most-recent timestamp, derived from the
+  // loaded traces. Services are ordered by recency (newest trace first).
+  const serviceCounts: Record<string, number> = {}
+  const serviceLatest: Record<string, number> = {}
+  for (const t of traces) {
+    serviceCounts[t.service_name] = (serviceCounts[t.service_name] ?? 0) + 1
+    serviceLatest[t.service_name] = Math.max(serviceLatest[t.service_name] ?? 0, t.start_ns)
+  }
+  const serviceNames = Object.keys(serviceCounts).sort((a, b) => serviceLatest[b] - serviceLatest[a])
+  const sessionsByRecent = [...sessions].sort((a, b) => b.created_at - a.created_at)
+
+  const lintCount = traces.filter(t => t.has_n1).length
+  const slowCount = traces.filter(t => t.duration_ns > SLOW_NS).length
+  const errorCount = traces.filter(t => t.status_code === 2).length
+
+  const matchesQuick = (t: TraceRow) =>
+    quickFilter === 'lint' ? t.has_n1
+    : quickFilter === 'slow' ? t.duration_ns > SLOW_NS
+    : quickFilter === 'errors' ? t.status_code === 2
+    : true
+
+  const filtered = traces.filter(t =>
+    (filterService === 'all' || t.service_name === filterService) &&
+    (filterSession === null || t.session_id === filterSession) &&
+    matchesQuick(t),
+  )
 
   const maxNs = filtered.reduce((m, t) => Math.max(m, t.duration_ns), 0)
+
+  const toggle = <T,>(cur: T, val: T, set: (v: T) => void, reset: T) =>
+    set(cur === val ? reset : val)
 
   if (loading) {
     return <div className="p-8 text-muted-foreground text-sm">Loading…</div>
   }
 
+  if (traces.length === 0) {
+    return (
+      <div className="flex h-full flex-col">
+        <EmptyState />
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-        <h1 className="text-sm font-medium flex-1 text-foreground">Traces</h1>
-        {services.length > 0 && (
-          <Select value={filterService} onValueChange={v => setFilterService(v ?? 'all')}>
-            <SelectTrigger className="w-40 h-8 text-xs">
-              <SelectValue placeholder="All services" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All services</SelectItem>
-              {services.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
+    <div className="flex h-full min-h-0">
+      {/* filter rail */}
+      <aside className="flex w-[200px] shrink-0 flex-col gap-[18px] overflow-y-auto border-r border-[var(--line)] bg-[var(--surface2)] px-[14px] py-[18px] font-sans">
+        {sessionsByRecent.length > 0 && (
+          <SbGroup title="sessions">
+            {sessionsByRecent.slice(0, MAX_SESSIONS).map(s => (
+              <SbItem
+                key={s.id}
+                active={filterSession === s.id}
+                dot={s.is_baseline ? 'var(--ink3)' : 'var(--accent)'}
+                count={s.trace_count}
+                onClick={() => toggle(filterSession, s.id, setFilterSession, null)}
+              >
+                {s.label}{s.is_baseline ? ' · baseline' : ''}
+              </SbItem>
+            ))}
+            {sessionsByRecent.length > MAX_SESSIONS && (
+              <SbMore count={sessionsByRecent.length - MAX_SESSIONS} />
+            )}
+          </SbGroup>
+        )}
+
+        {serviceNames.length > 0 && (
+          <SbGroup title="services">
+            {serviceNames.slice(0, MAX_SERVICES).map(name => (
+              <SbItem
+                key={name}
+                active={filterService === name}
+                count={serviceCounts[name]}
+                onClick={() => toggle(filterService, name, setFilterService, 'all')}
+              >
+                {name}
+              </SbItem>
+            ))}
+            {serviceNames.length > MAX_SERVICES && (
+              <SbMore count={serviceNames.length - MAX_SERVICES} />
+            )}
+          </SbGroup>
+        )}
+
+        <SbGroup title="filters">
+          <SbItem
+            active={quickFilter === 'lint'}
+            dot="var(--danger)"
+            count={lintCount}
+            onClick={() => toggle(quickFilter, 'lint', setQuickFilter, null)}
+          >
+            has lint warnings
+          </SbItem>
+          <SbItem
+            active={quickFilter === 'slow'}
+            dot="var(--warn)"
+            count={slowCount}
+            onClick={() => toggle(quickFilter, 'slow', setQuickFilter, null)}
+          >
+            {'> 250ms'}
+          </SbItem>
+          <SbItem
+            active={quickFilter === 'errors'}
+            dot="var(--accent)"
+            count={errorCount}
+            onClick={() => toggle(quickFilter, 'errors', setQuickFilter, null)}
+          >
+            errors
+          </SbItem>
+        </SbGroup>
+      </aside>
+
+      {/* main panel */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* panel head */}
+        <div className="flex items-center gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+          <div className="flex-1">
+            <div className="font-sans text-[13px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
+              Recent traces
+            </div>
+            <div className="mt-0.5 font-mono text-[10px] tracking-[0.02em] text-[var(--ink3)]">
+              live · {filtered.length} of {traces.length} traces
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent(SEARCH_PALETTE_EVENT))}
+            className="rounded-md border border-[var(--line)] bg-[var(--surface2)] px-2.5 py-[5px] font-mono text-[11px] text-[var(--ink2)]"
+          >
+            ⌘K
+          </button>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center p-8 text-sm text-[var(--ink3)]">
+            No traces match the current filters.
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto">
+            {/* column header */}
+            <div
+              className="grid border-b border-[var(--line)] bg-[var(--surface2)] px-[18px] py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--ink3)]"
+              style={{ gridTemplateColumns: GRID_COLS }}
+            >
+              <div>operation</div>
+              <div className="text-right">dur</div>
+              <div className="text-right">spans</div>
+              <div className="pl-3">shape</div>
+              <div className="text-right">ago</div>
+            </div>
+
+            {filtered.map((t, i) => (
+              <TraceRowItem
+                key={t.trace_id}
+                trace={t}
+                maxNs={maxNs}
+                isFirst={i === 0}
+                baselineSessionId={baselineSessionId}
+                onClick={() => navigate(`/traces/${t.trace_id}`)}
+              />
+            ))}
+          </div>
         )}
       </div>
-
-      {filtered.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="flex-1 overflow-auto">
-          {/* column header */}
-          <div
-            className="grid border-b border-line bg-surface2 px-[18px] py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-ink3"
-            style={{
-              gridTemplateColumns: 'minmax(0,1fr) 90px 60px minmax(120px,280px) 70px',
-            }}
-          >
-            <div>operation</div>
-            <div className="text-right">dur</div>
-            <div className="text-right">spans</div>
-            <div className="pl-2">shape</div>
-            <div className="text-right">ago</div>
-          </div>
-
-          {filtered.map((t, i) => (
-            <TraceRowItem
-              key={t.trace_id}
-              trace={t}
-              maxNs={maxNs}
-              isFirst={i === 0}
-              baselineSessionId={baselineSessionId}
-              onClick={() => navigate(`/traces/${t.trace_id}`)}
-            />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
