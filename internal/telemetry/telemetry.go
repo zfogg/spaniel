@@ -21,8 +21,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // goruntimeOnce ensures goruntime.Start is called exactly once per process.
@@ -46,11 +44,6 @@ type Config struct {
 func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) error, err error) {
 	if cfg.ServiceName == "" {
 		cfg.ServiceName = "spaniel"
-	}
-
-	dialOpts := []grpc.DialOption{}
-	if cfg.Insecure {
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	// Resource: always build, partial errors are non-fatal.
@@ -80,10 +73,11 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	// Traces: always real SDK. Add exporter only if endpoint is configured.
 	traceOpts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
 	if cfg.Endpoint != "" {
-		exp, err := otlptracegrpc.New(ctx,
-			otlptracegrpc.WithEndpoint(cfg.Endpoint),
-			otlptracegrpc.WithDialOption(dialOpts...),
-		)
+		traceExpOpts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.Endpoint)}
+		if cfg.Insecure {
+			traceExpOpts = append(traceExpOpts, otlptracegrpc.WithInsecure())
+		}
+		exp, err := otlptracegrpc.New(ctx, traceExpOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -99,10 +93,11 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		sdkmetric.WithExemplarFilter(exemplar.AlwaysOnFilter),
 	}
 	if cfg.Endpoint != "" {
-		exp, err := otlpmetricgrpc.New(ctx,
-			otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
-			otlpmetricgrpc.WithDialOption(dialOpts...),
-		)
+		metExpOpts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint)}
+		if cfg.Insecure {
+			metExpOpts = append(metExpOpts, otlpmetricgrpc.WithInsecure())
+		}
+		exp, err := otlpmetricgrpc.New(ctx, metExpOpts...)
 		if err != nil {
 			_ = tp.Shutdown(ctx)
 			return nil, err
@@ -125,10 +120,11 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	// Logs: always real SDK. Add exporter only if endpoint is configured.
 	logOpts := []sdklog.LoggerProviderOption{sdklog.WithResource(res)}
 	if cfg.Endpoint != "" {
-		exp, err := otlploggrpc.New(ctx,
-			otlploggrpc.WithEndpoint(cfg.Endpoint),
-			otlploggrpc.WithDialOption(dialOpts...),
-		)
+		logExpOpts := []otlploggrpc.Option{otlploggrpc.WithEndpoint(cfg.Endpoint)}
+		if cfg.Insecure {
+			logExpOpts = append(logExpOpts, otlploggrpc.WithInsecure())
+		}
+		exp, err := otlploggrpc.New(ctx, logExpOpts...)
 		if err != nil {
 			_ = tp.Shutdown(ctx)
 			_ = mp.Shutdown(ctx)
