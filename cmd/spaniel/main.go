@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -532,18 +533,49 @@ func run(cfg runConfig) error {
 	}
 
 	grpcRcv := receiver.NewGRPCReceiver(pipeline, grpcOpts...)
-	if cfg.OTLPGRPCPort > 0 {
-		lns, err := listenAll(hosts, cfg.OTLPGRPCPort)
-		if err != nil {
-			slog.Error("grpc receiver listen failed", "err", err)
+	// otlpLs tracks the currently-bound OTLP listeners so the settings
+	// endpoint can hot-swap ports without a process restart.
+	type otlpLs struct {
+		mu   sync.Mutex
+		lns  []net.Listener
+		port int
+	}
+	closeOTLP := func(ls *otlpLs) {
+		ls.mu.Lock()
+		defer ls.mu.Unlock()
+		for _, ln := range ls.lns {
+			ln.Close()
 		}
+		ls.lns = nil
+		ls.port = 0
+	}
+
+	grpcLS := &otlpLs{}
+	startGRPC := func(port int) error {
+		closeOTLP(grpcLS)
+		if port == 0 {
+			return nil
+		}
+		lns, err := listenAll(hosts, port)
+		if err != nil {
+			return err
+		}
+		grpcLS.mu.Lock()
+		grpcLS.lns = lns
+		grpcLS.port = port
+		grpcLS.mu.Unlock()
 		for _, ln := range lns {
-			go func(ln net.Listener) {
+			ln := ln
+			go func() {
 				if err := grpcRcv.Serve(ln); err != nil {
 					slog.Error("grpc receiver stopped", "err", err)
 				}
-			}(ln)
+			}()
 		}
+		return nil
+	}
+	if err := startGRPC(cfg.OTLPGRPCPort); err != nil {
+		slog.Error("grpc receiver listen failed", "err", err)
 	}
 
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
@@ -552,23 +584,35 @@ func run(cfg runConfig) error {
 	otlpMux.HandleFunc("/v1/traces", httpRcv.HandleTraces)
 	otlpMux.HandleFunc("/v1/logs", httpRcv.HandleLogs)
 	otlpMux.HandleFunc("/v1/metrics", httpRcv.HandleMetrics)
-	if cfg.OTLPHTTPPort > 0 {
-		lns, err := listenAll(hosts, cfg.OTLPHTTPPort)
+	var otlpHandler http.Handler = otlpMux
+	if cfg.BearerToken != "" {
+		otlpHandler = receiver.BearerMiddleware(cfg.BearerToken)(otlpHandler)
+	}
+
+	httpLS := &otlpLs{}
+	startOTLPHTTP := func(port int) error {
+		closeOTLP(httpLS)
+		if port == 0 {
+			return nil
+		}
+		lns, err := listenAll(hosts, port)
 		if err != nil {
-			slog.Error("otlp http receiver listen failed", "err", err)
+			return err
 		}
-		if len(lns) > 0 {
-			var otlpHandler http.Handler = otlpMux
-			if cfg.BearerToken != "" {
-				otlpHandler = receiver.BearerMiddleware(cfg.BearerToken)(otlpHandler)
+		lns = wrapTLS(lns, tlsCfg)
+		httpLS.mu.Lock()
+		httpLS.lns = lns
+		httpLS.port = port
+		httpLS.mu.Unlock()
+		go func() {
+			if err := serveHTTP(lns, otlpHandler); err != nil {
+				slog.Error("otlp http receiver stopped", "err", err)
 			}
-			lns = wrapTLS(lns, tlsCfg)
-			go func() {
-				if err := serveHTTP(lns, otlpHandler); err != nil {
-					slog.Error("otlp http receiver stopped", "err", err)
-				}
-			}()
-		}
+		}()
+		return nil
+	}
+	if err := startOTLPHTTP(cfg.OTLPHTTPPort); err != nil {
+		slog.Error("otlp http receiver listen failed", "err", err)
 	}
 
 	var manifests *coverage.Manifests
@@ -594,6 +638,18 @@ func run(cfg runConfig) error {
 		OTLPHTTPPort:   cfg.OTLPHTTPPort,
 		TLSEnabled:     tlsCfg != nil,
 		BearerTokenSet: cfg.BearerToken != "",
+		LiveGRPCPort: func() int {
+			grpcLS.mu.Lock()
+			defer grpcLS.mu.Unlock()
+			return grpcLS.port
+		},
+		LiveHTTPPort: func() int {
+			httpLS.mu.Lock()
+			defer httpLS.mu.Unlock()
+			return httpLS.port
+		},
+		SetLiveGRPCPort: startGRPC,
+		SetLiveHTTPPort: startOTLPHTTP,
 	}
 	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters(), pipeline)
 

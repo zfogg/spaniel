@@ -27,6 +27,16 @@ type SettingsService struct {
 	TLSEnabled     bool
 	BearerTokenSet bool
 
+	// LiveGRPCPort / LiveHTTPPort return the port currently bound (0 = stopped).
+	// When nil the startup values above are used (tests / minimal configs).
+	LiveGRPCPort func() int
+	LiveHTTPPort func() int
+
+	// SetLiveGRPCPort / SetLiveHTTPPort hot-swap the running OTLP listener.
+	// Called by applySettings when the port config changes; nil = no-op.
+	SetLiveGRPCPort func(int) error
+	SetLiveHTTPPort func(int) error
+
 	// GithubClient is injected in tests to stub the GitHub API. nil = use
 	// http.DefaultClient.
 	GithubClient *http.Client
@@ -171,8 +181,8 @@ func (r *Router) buildSettings() SettingsResponse {
 			Version:      s.Version,
 			Channel:      versionChannel(s.Version),
 			ConfigPath:   s.ConfigPath,
-			OTLPGRPCPort: s.OTLPGRPCPort,
-			OTLPHTTPPort: s.OTLPHTTPPort,
+			OTLPGRPCPort: livePort(s.LiveGRPCPort, s.OTLPGRPCPort),
+			OTLPHTTPPort: livePort(s.LiveHTTPPort, s.OTLPHTTPPort),
 		},
 	}
 	// DB size lives on the storage layer.
@@ -267,9 +277,19 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 		s.Viper.Set("max_db_size_mb", *u.MaxDBSizeMB)
 	}
 	if u.OTLPGRPCPort != nil {
+		if s.SetLiveGRPCPort != nil {
+			if err := s.SetLiveGRPCPort(*u.OTLPGRPCPort); err != nil {
+				return fmt.Errorf("set grpc port %d: %w", *u.OTLPGRPCPort, err)
+			}
+		}
 		s.Viper.Set("otlp_grpc_port", *u.OTLPGRPCPort)
 	}
 	if u.OTLPHTTPPort != nil {
+		if s.SetLiveHTTPPort != nil {
+			if err := s.SetLiveHTTPPort(*u.OTLPHTTPPort); err != nil {
+				return fmt.Errorf("set http port %d: %w", *u.OTLPHTTPPort, err)
+			}
+		}
 		s.Viper.Set("otlp_http_port", *u.OTLPHTTPPort)
 	}
 	if u.NoBrowser != nil {
@@ -436,4 +456,13 @@ func nonNilStrings(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// livePort returns the currently active port from the live function if set,
+// otherwise falls back to the startup value.
+func livePort(live func() int, fallback int) int {
+	if live != nil {
+		return live()
+	}
+	return fallback
 }

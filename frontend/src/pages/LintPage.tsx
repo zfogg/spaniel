@@ -202,7 +202,7 @@ export default function LintPage() {
             tone="warn"
             big={count}
             label={kindLabel(kind)}
-            sub={first?.example_span_id?.slice(0, 10) + '…' ?? 'trace'}
+            sub={first?.example_span_id ? first.example_span_id.slice(0, 10) + '…' : 'trace'}
           />
         ))}
         <SummaryStat

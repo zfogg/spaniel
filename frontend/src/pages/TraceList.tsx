@@ -373,6 +373,7 @@ export default function TraceList() {
         session_label: '',
         has_n1: false,
         span_count: 1,
+        issue_kinds: [],
       }
       setTraces(prev => {
         if (prev.some(t => t.trace_id === p.traceId)) return prev

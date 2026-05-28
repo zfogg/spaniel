@@ -44,7 +44,7 @@ export interface TraceRow {
   session_label: string
   has_n1: boolean
   span_count: number
-  issue_kinds: string[]
+  issue_kinds?: string[]
 }
 
 export interface TraceIssue {
