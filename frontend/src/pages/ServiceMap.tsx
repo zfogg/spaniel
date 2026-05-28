@@ -27,16 +27,20 @@ const NODE_H = 48
 const GAP_X  = 168 // wide enough to fit the "N calls · Xms avg" edge label between layers
 const GAP_Y  = 34
 const PAD    = 40
+const LANE   = 9  // vertical offset for one half of a bidirectional pair
 
 function computeLayout(
   nodeIds: string[],
   edges: { from: string; to: string }[],
 ): Map<string, { x: number; y: number }> {
   const outgoing = new Map<string, string[]>()
+  const incoming = new Map<string, string[]>()
   const inDegree  = new Map<string, number>()
-  for (const n of nodeIds) { outgoing.set(n, []); inDegree.set(n, 0) }
+  for (const n of nodeIds) { outgoing.set(n, []); incoming.set(n, []); inDegree.set(n, 0) }
   for (const e of edges) {
+    if (e.from === e.to) continue
     outgoing.get(e.from)?.push(e.to)
+    incoming.get(e.to)?.push(e.from)
     inDegree.set(e.to, (inDegree.get(e.to) ?? 0) + 1)
   }
 
@@ -59,21 +63,105 @@ function computeLayout(
   }
   for (const n of nodeIds) if (!layer.has(n)) layer.set(n, 0)
 
-  // group by layer
-  const byLayer = new Map<number, string[]>()
-  for (const [n, l] of layer) {
-    if (!byLayer.has(l)) byLayer.set(l, [])
-    byLayer.get(l)!.push(n)
+  // group into ordered layers (sorted by layer index)
+  const maxLayer = Math.max(0, ...[...layer.values()])
+  const layers: string[][] = Array.from({ length: maxLayer + 1 }, () => [])
+  for (const [n, l] of layer) layers[l].push(n)
+
+  // ── crossing reduction (barycenter / Sugiyama) ──────────────────────────────
+  // Repeatedly reorder each layer so a node sits near the average position of its
+  // neighbours in the adjacent layer; this is what stops edges from overlapping.
+  const order = new Map<string, number>()
+  layers.forEach(l => l.forEach((n, i) => order.set(n, i)))
+
+  const barycenter = (n: string, neighbors: Map<string, string[]>): number => {
+    const idx = (neighbors.get(n) ?? []).map(m => order.get(m)).filter((v): v is number => v != null)
+    return idx.length ? idx.reduce((a, b) => a + b, 0) / idx.length : (order.get(n) ?? 0)
+  }
+
+  for (let sweep = 0; sweep < 12; sweep++) {
+    const downward = sweep % 2 === 0
+    const indices = downward
+      ? layers.map((_, i) => i)
+      : layers.map((_, i) => i).reverse()
+    for (const li of indices) {
+      const neighbors = downward ? incoming : outgoing
+      // layer 0 (downward) / last layer (upward) has no reference neighbours
+      if ((downward && li === 0) || (!downward && li === layers.length - 1)) continue
+      const ranked = layers[li]
+        .map(n => ({ n, b: barycenter(n, neighbors) }))
+        .sort((a, b) => a.b - b.b)
+      layers[li] = ranked.map(r => r.n)
+      layers[li].forEach((n, i) => order.set(n, i))
+    }
   }
 
   const positions = new Map<string, { x: number; y: number }>()
-  for (const [l, nodes] of byLayer) {
+  layers.forEach((nodes, l) => {
     const x = PAD + l * (NODE_W + GAP_X)
     nodes.forEach((n, i) => {
       positions.set(n, { x, y: PAD + i * (NODE_H + GAP_Y) })
     })
-  }
+  })
   return positions
+}
+
+// Endpoints + bezier midpoint for an edge. Connects the facing sides of the two
+// nodes (right→left going forward, left→right going back) and applies a vertical
+// `lane` offset so the two halves of a bidirectional pair don't overlap.
+function edgeGeom(
+  A: { x: number; y: number },
+  B: { x: number; y: number },
+  srcOff = 0,
+  dstOff = 0,
+) {
+  const ltr = B.x >= A.x
+  const x1 = ltr ? A.x + NODE_W : A.x
+  const x2 = ltr ? B.x : B.x + NODE_W
+  const y1 = A.y + NODE_H / 2 + srcOff
+  const y2 = B.y + NODE_H / 2 + dstOff
+  return { x1, y1, x2, y2, mx: (x1 + x2) / 2, dir: ltr ? 1 : -1 }
+}
+
+type EdgePorts = { src: number[]; dst: number[] }
+
+// Spread the edges that share a node face across that face instead of letting
+// them all leave/enter at the node centre. Edges on a face are ordered by the
+// vertical position of their opposite endpoint so the fan-out doesn't cross
+// itself. This stops two same-direction edges from lying on top of each other,
+// and also separates the two halves of a bidirectional pair.
+function computePorts(
+  edges: ServiceMapEdge[],
+  pos: Map<string, { x: number; y: number }>,
+): EdgePorts {
+  type Slot = { i: number; role: 'src' | 'dst'; otherY: number }
+  const buckets = new Map<string, Slot[]>()
+  const add = (k: string, s: Slot) => {
+    const b = buckets.get(k)
+    if (b) b.push(s); else buckets.set(k, [s])
+  }
+
+  edges.forEach((e, i) => {
+    const A = pos.get(e.from), B = pos.get(e.to)
+    if (!A || !B) return
+    const ltr = B.x >= A.x
+    add(`${e.from}|${ltr ? 'R' : 'L'}`, { i, role: 'src', otherY: B.y })
+    add(`${e.to}|${ltr ? 'L' : 'R'}`,   { i, role: 'dst', otherY: A.y })
+  })
+
+  const src = new Array(edges.length).fill(0)
+  const dst = new Array(edges.length).fill(0)
+  for (const slots of buckets.values()) {
+    if (slots.length < 2) continue
+    slots.sort((a, b) => a.otherY - b.otherY)
+    const span = Math.min(NODE_H - 14, (slots.length - 1) * (LANE + 2))
+    slots.forEach((s, k) => {
+      const off = -span / 2 + (span / (slots.length - 1)) * k
+      if (s.role === 'src') src[s.i] = off
+      else dst[s.i] = off
+    })
+  }
+  return { src, dst }
 }
 
 function canvasSize(positions: Map<string, { x: number; y: number }>) {
@@ -93,11 +181,61 @@ function fmtNs(ns: number): string {
   return `${(ns / 1_000_000_000).toFixed(2)}s`
 }
 
+// ── edge label placement ───────────────────────────────────────────────────────
+
+type EdgeLabel = { x: number; y: number; w: number; text: string }
+
+// Place each edge label in the empty inter-layer gap just past its source node
+// (so it never sits under an intermediate node, which renders above edges), then
+// push apart labels that share a gap so they don't stack on top of each other.
+function computeEdgeLabels(
+  edges: ServiceMapEdge[],
+  pos: Map<string, { x: number; y: number }>,
+  ports: EdgePorts,
+): Map<number, EdgeLabel> {
+  const ROW = 14
+  const list: (EdgeLabel & { i: number })[] = []
+
+  edges.forEach((edge, i) => {
+    const A = pos.get(edge.from), B = pos.get(edge.to)
+    if (!A || !B) return
+    const { x1, y1, x2, y2, dir } = edgeGeom(A, B, ports.src[i], ports.dst[i])
+    const x = x1 + dir * (GAP_X / 2)
+    const t = x2 !== x1 ? Math.min(0.5, (GAP_X / 2) / Math.abs(x2 - x1)) : 0.5
+    const y = y1 + (y2 - y1) * t - 4
+    const text =
+      `${dir === 1 ? '→' : '←'} ${edge.call_count} calls · ${fmtNs(edge.avg_duration_ns)} avg` +
+      (edge.error_count > 0 ? ` · ${edge.error_count} err` : '')
+    list.push({ i, x, y, w: text.length * 5.0 + 10, text })
+  })
+
+  // declutter vertically within each gap column
+  const groups = new Map<number, (EdgeLabel & { i: number })[]>()
+  for (const l of list) {
+    const key = Math.round(l.x)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(l)
+  }
+  for (const g of groups.values()) {
+    g.sort((a, b) => a.y - b.y)
+    for (let k = 1; k < g.length; k++) {
+      if (g[k].y - g[k - 1].y < ROW) g[k].y = g[k - 1].y + ROW
+    }
+  }
+
+  const out = new Map<number, EdgeLabel>()
+  for (const l of list) out.set(l.i, { x: l.x, y: l.y, w: l.w, text: l.text })
+  return out
+}
+
 // ── SVG pieces ────────────────────────────────────────────────────────────────
 
-function SvgEdge({ edge, pos, hot, dim, onHover }: {
+function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
   edge: ServiceMapEdge
   pos: Map<string, { x: number; y: number }>
+  label?: EdgeLabel
+  srcOff: number
+  dstOff: number
   hot: boolean
   dim: boolean
   onHover: (e: ServiceMapEdge | null) => void
@@ -105,15 +243,7 @@ function SvgEdge({ edge, pos, hot, dim, onHover }: {
   const A = pos.get(edge.from), B = pos.get(edge.to)
   if (!A || !B) return null
 
-  const x1 = A.x + NODE_W, y1 = A.y + NODE_H / 2
-  const x2 = B.x,          y2 = B.y + NODE_H / 2
-  // Anchor the label in the empty inter-layer gap just past the source node so
-  // it never lands on top of an intermediate node (which renders above edges).
-  const dir = Math.sign(x2 - x1) || 1
-  const lx  = x1 + dir * (GAP_X / 2)
-  const t   = x2 !== x1 ? Math.min(0.5, (GAP_X / 2) / Math.abs(x2 - x1)) : 0.5
-  const my  = y1 + (y2 - y1) * t - 4
-  const mx  = (x1 + x2) / 2
+  const { x1, y1, x2, y2, mx } = edgeGeom(A, B, srcOff, dstOff)
   const hasError = edge.error_count > 0
   const stroke = hasError ? '#ef4444' : hot ? '#f59e0b' : 'var(--muted-foreground)'
   const sw = Math.min(4, 0.8 + edge.call_count * 0.6)
@@ -153,34 +283,28 @@ function SvgEdge({ edge, pos, hot, dim, onHover }: {
         opacity={opacity}
         markerEnd={`url(#${markerId})`}
       />
-      {(() => {
-        const label =
-          `${edge.call_count} calls · ${fmtNs(edge.avg_duration_ns)} avg` +
-          (hasError ? ` · ${edge.error_count} err` : '')
-        const labelW = label.length * 5.0 + 10 // approx mono-9px width + padding
-        return (
-          <>
-            <rect
-              x={lx - labelW / 2} y={my - 9}
-              width={labelW} height={13}
-              rx="3" ry="3"
-              fill="var(--background)"
-              opacity={dim ? 0.4 : 0.92}
-              pointerEvents="none"
-            />
-            <text
-              x={lx} y={my}
-              textAnchor="middle"
-              fontFamily="var(--font-mono)" fontSize="9"
-              fill={hasError ? '#ef4444' : 'var(--muted-foreground)'}
-              opacity={dim ? 0.4 : 1}
-              pointerEvents="none"
-            >
-              {label}
-            </text>
-          </>
-        )
-      })()}
+      {label && (
+        <>
+          <rect
+            x={label.x - label.w / 2} y={label.y - 9}
+            width={label.w} height={13}
+            rx="3" ry="3"
+            fill="var(--background)"
+            opacity={dim ? 0.4 : 0.92}
+            pointerEvents="none"
+          />
+          <text
+            x={label.x} y={label.y}
+            textAnchor="middle"
+            fontFamily="var(--font-mono)" fontSize="9"
+            fill={hasError ? '#ef4444' : 'var(--muted-foreground)'}
+            opacity={dim ? 0.4 : 1}
+            pointerEvents="none"
+          >
+            {label.text}
+          </text>
+        </>
+      )}
     </g>
   )
 }
@@ -383,6 +507,8 @@ export default function ServiceMap() {
 
   const nodeIds  = nodes.map(n => n.id)
   const positions = computeLayout(nodeIds, edges)
+  const ports = computePorts(edges, positions)
+  const edgeLabels = computeEdgeLabels(edges, positions, ports)
   const { w, h } = canvasSize(positions)
 
   const totalSpans  = nodes.reduce((s, n) => s + n.span_count, 0)
@@ -480,6 +606,9 @@ export default function ServiceMap() {
                     key={i}
                     edge={e}
                     pos={positions}
+                    label={edgeLabels.get(i)}
+                    srcOff={ports.src[i]}
+                    dstOff={ports.dst[i]}
                     hot={e.avg_duration_ns > 200_000_000}
                     dim={dim}
                     onHover={setHoverEdge}
