@@ -485,7 +485,8 @@ func run(cfg runConfig) error {
 		otelMu.Unlock()
 		return nil
 	}
-	if err := setupOTel(cfg.SelfTelemetryEndpoint); err != nil {
+	// Initialize with empty endpoint; will set up real telemetry after OTLP receivers are running
+	if err := setupOTel(""); err != nil {
 		return fmt.Errorf("self-telemetry setup: %w", err)
 	}
 	defer func() {
@@ -611,6 +612,11 @@ func run(cfg runConfig) error {
 	}
 	if err := startGRPC(cfg.OTLPGRPCPort); err != nil {
 		slog.Error("grpc receiver listen failed", "err", err)
+	}
+
+	// Now that gRPC receiver is running, set up real telemetry if needed
+	if err := setupOTel(cfg.SelfTelemetryEndpoint); err != nil {
+		slog.Warn("self-telemetry setup failed", "err", err)
 	}
 
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
