@@ -52,6 +52,52 @@ func TestListLint_WithWarnings(t *testing.T) {
 	}
 }
 
+func TestListLint_IncludesN1Issues(t *testing.T) {
+	handler, store := setupRouter(t)
+
+	// A semantic-convention lint warning.
+	insertLintWarning(t, store, "sess-1", "http.missing_method", "no http method", "warning")
+
+	// An N+1 detector finding stored in trace_issues — must also appear in /api/lint.
+	if err := store.UpsertTraceIssue(&storage.TraceIssue{
+		ID:            "issue-n1",
+		TraceID:       "trace-abc",
+		SessionID:     "sess-1",
+		Kind:          "n_plus_one",
+		Fingerprint:   "SELECT * FROM orders WHERE id = ?",
+		Count:         8,
+		WastedNs:      4_000_000,
+		ExampleSpanID: "span-db-1",
+		CreatedAt:     time.Now().UnixNano(),
+	}); err != nil {
+		t.Fatalf("UpsertTraceIssue: %v", err)
+	}
+
+	w := do(t, handler, http.MethodGet, "/api/lint?sessionId=sess-1", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	items := decodeData[[]storage.LintWarning](t, w.Body.Bytes())
+
+	ruleIDs := map[string]bool{}
+	for _, item := range items {
+		ruleIDs[item.RuleID] = true
+	}
+	if !ruleIDs["http.missing_method"] {
+		t.Errorf("lint warning missing from /api/lint: %+v", ruleIDs)
+	}
+	if !ruleIDs["n_plus_one"] {
+		t.Errorf("N+1 trace issue missing from /api/lint: %+v", ruleIDs)
+	}
+
+	// The N+1 row must have the session scoped correctly.
+	for _, item := range items {
+		if item.RuleID == "n_plus_one" && item.SessionID != "sess-1" {
+			t.Errorf("N+1 row has wrong session_id: %q", item.SessionID)
+		}
+	}
+}
+
 func TestListLint_SessionFilter(t *testing.T) {
 	handler, store := setupRouter(t)
 	insertLintWarning(t, store, "sess-A", "rule-1", "msg-a", "warning")

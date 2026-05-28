@@ -712,15 +712,45 @@ func (d *DB) DeleteSession(id string) error {
 }
 
 func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
-	q := d.gorm.Table("lint_warnings").
-		Select(`span_id, trace_id, session_id, rule_id, message, severity, created_at`)
+	// UNION lint_warnings with trace_issues projected as lint warnings so that
+	// detector findings (N+1, etc.) appear in the lint view alongside
+	// semantic-convention warnings.
+	sessionFilter := ""
+	args := []any{}
 	if sessionID != "" {
-		q = q.Where("session_id = ?", sessionID).Order("created_at DESC")
-	} else {
-		q = q.Order("created_at DESC").Limit(500)
+		sessionFilter = "WHERE session_id = ?"
+		args = append(args, sessionID)
 	}
+	//nolint:gosec // sessionFilter is constructed from a controlled literal, not user input
+	query := `
+		SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at
+		FROM lint_warnings
+		` + sessionFilter + `
+		UNION ALL
+		SELECT
+			example_span_id AS span_id,
+			trace_id,
+			session_id,
+			kind AS rule_id,
+			CASE kind
+				WHEN 'n_plus_one'
+				THEN 'N+1 query: ' || CAST(count AS VARCHAR) || ' repeated executions wasting ' || CAST(ROUND(wasted_ns / 1e6, 1) AS VARCHAR) || 'ms — ' || fingerprint
+				ELSE kind || ': ' || CAST(count AS VARCHAR) || ' occurrences — ' || fingerprint
+			END AS message,
+			'warning' AS severity,
+			created_at
+		FROM trace_issues
+		` + sessionFilter + `
+		ORDER BY created_at DESC
+		LIMIT 500`
+
+	// sessionFilter appears twice in the query (once per table), so duplicate args.
+	if sessionID != "" {
+		args = append(args, sessionID)
+	}
+
 	var result []*LintWarning
-	err := q.Find(&result).Error
+	err := d.gorm.Raw(query, args...).Scan(&result).Error
 	return result, err
 }
 
