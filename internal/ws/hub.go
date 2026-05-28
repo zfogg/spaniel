@@ -1,12 +1,15 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 )
 
 var upgrader = websocket.Upgrader{

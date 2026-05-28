@@ -314,6 +314,32 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				}
 			},
 		},
+		{
+			kind:  "large_payload",
+			build: buildLargePayloadTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "large_payload", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "large_payload", Fingerprint: "3145728 bytes", Count: 1,
+					WastedNs: 3_145_728,
+					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
+		{
+			kind:  "cache_miss_storm",
+			build: buildCacheMissStormTrace,
+			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
+				return &storage.TraceIssue{
+					ID: deterministicID(sessionID, "cache_miss_storm", 0, 16), TraceID: tid, SessionID: sessionID,
+					Kind: "cache_miss_storm", Fingerprint: "cache miss storm", Count: 12,
+					WastedNs: 12 * int64(2*time.Millisecond),
+					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
+					CreatedAt: time.Now().UnixNano(),
+				}
+			},
+		},
 	}
 	detectorStart := startNs + int64(traceCount+2)*int64(2*time.Minute)
 	for i, dt := range detectorTraces {
@@ -657,6 +683,54 @@ func buildSynchronousIOTrace(traceID, sessionID, sessionLabel string, startNs in
 			StatusCode: 1,
 			Attributes: `{"db.system":"postgresql","db.statement":"` + q + `"}`,
 			Resource: `{"service.name":"postgres"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+		})
+	}
+	return spans
+}
+
+// buildLargePayloadTrace returns a span with a 3 MB response body attribute.
+func buildLargePayloadTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	childID := flipHex(rootID)
+	resource := `{"service.name":"checkout-api","deployment.environment":"seed"}`
+	return []*storage.Span{
+		{TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+			ServiceName: "checkout-api", Name: "GET /api/export", Kind: 2,
+			StartNs: startNs, EndNs: startNs + int64(1200*time.Millisecond),
+			StatusCode: 1, Attributes: `{"http.method":"GET","http.route":"/api/export","http.response.status_code":200}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+		{TraceID: traceID, SpanID: childID, ParentSpanID: rootID,
+			ServiceName: "checkout-api", Name: "serialize response",
+			StartNs: startNs + int64(100*time.Millisecond), EndNs: startNs + int64(1100*time.Millisecond),
+			StatusCode: 1,
+			Attributes: `{"http.response_content_length":3145728,"http.response.body.size":3145728}`,
+			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+	}
+}
+
+// buildCacheMissStormTrace returns a parent with 12 Redis cache-miss spans
+// clustered in a 25ms window.
+func buildCacheMissStormTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
+	rootID := traceID[:16]
+	resource := `{"service.name":"cart-svc","deployment.environment":"seed"}`
+	spans := []*storage.Span{{
+		TraceID: traceID, SpanID: rootID, ParentSpanID: "",
+		ServiceName: "cart-svc", Name: "GET /api/recommendations", Kind: 2,
+		StartNs: startNs, EndNs: startNs + int64(200*time.Millisecond),
+		StatusCode: 1, Attributes: `{"http.method":"GET","http.route":"/api/recommendations"}`,
+		Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+	}}
+	for i := 0; i < 12; i++ {
+		cid := deterministicID(traceID+"-cache", "miss", i, 16)
+		offset := int64(i) * int64(2*time.Millisecond)
+		spans = append(spans, &storage.Span{
+			TraceID: traceID, SpanID: cid, ParentSpanID: rootID,
+			ServiceName: "redis", Name: fmt.Sprintf("GET recommendation:%d", 1000+i),
+			StartNs: startNs + int64(10*time.Millisecond) + offset,
+			EndNs:   startNs + int64(10*time.Millisecond) + offset + int64(2*time.Millisecond),
+			StatusCode: 1,
+			Attributes: `{"db.system":"redis","cache.hit":false}`,
+			Resource: `{"service.name":"redis"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
 		})
 	}
 	return spans
