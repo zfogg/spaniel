@@ -35,6 +35,8 @@ type SettingsResponse struct {
 	OTLPHTTPPort      int      `json:"otlp_http_port"`
 	NoBrowser     bool     `json:"no_browser"`
 	Forward       []string `json:"forward"`
+	BindAddress   string   `json:"bind_address"`
+	ForwardSample float64  `json:"forward_sample"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -62,6 +64,8 @@ type SettingsUpdate struct {
 	OTLPHTTPPort      *int      `json:"otlp_http_port,omitempty"`
 	NoBrowser     *bool     `json:"no_browser,omitempty"`
 	Forward       *[]string `json:"forward,omitempty"`
+	BindAddress   *string   `json:"bind_address,omitempty"`
+	ForwardSample *float64  `json:"forward_sample,omitempty"`
 }
 
 func (r *Router) getSettings(w http.ResponseWriter, _ *http.Request) {
@@ -120,6 +124,8 @@ func (r *Router) buildSettings() SettingsResponse {
 		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
 		NoBrowser:     v.GetBool("no_browser"),
 		Forward:       v.GetStringSlice("forward"),
+		BindAddress:   v.GetString("bind_address"),
+		ForwardSample: v.GetFloat64("forward_sample"),
 		Runtime: SettingsRuntime{
 			PID:        os.Getpid(),
 			UptimeNs:   time.Since(s.StartedAt).Nanoseconds(),
@@ -173,6 +179,16 @@ func validateSettings(u *SettingsUpdate) error {
 			}
 		}
 	}
+	if u.BindAddress != nil {
+		switch *u.BindAddress {
+		case "127.0.0.1", "0.0.0.0", "::1":
+		default:
+			return fmt.Errorf("bind_address must be 127.0.0.1, 0.0.0.0, or ::1, got %q", *u.BindAddress)
+		}
+	}
+	if u.ForwardSample != nil && (*u.ForwardSample < 0 || *u.ForwardSample > 1) {
+		return fmt.Errorf("forward_sample must be between 0 and 1, got %v", *u.ForwardSample)
+	}
 	return nil
 }
 
@@ -207,6 +223,12 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if u.Forward != nil {
 		s.Viper.Set("forward", *u.Forward)
 	}
+	if u.BindAddress != nil {
+		s.Viper.Set("bind_address", *u.BindAddress)
+	}
+	if u.ForwardSample != nil {
+		s.Viper.Set("forward_sample", *u.ForwardSample)
+	}
 
 	if s.ConfigPath == "" {
 		// In-memory only (tests). Nothing to persist.
@@ -215,7 +237,7 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward"} {
+	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address", "forward_sample"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {

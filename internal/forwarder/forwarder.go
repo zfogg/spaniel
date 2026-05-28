@@ -3,6 +3,7 @@ package forwarder
 import (
 	"bytes"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -12,6 +13,7 @@ type upstream struct {
 	url     string
 	sent    atomic.Int64
 	errors  atomic.Int64
+	skipped atomic.Int64
 	lastErr atomic.Value // stores string
 }
 
@@ -20,6 +22,7 @@ type Status struct {
 	URL     string `json:"url"`
 	Sent    int64  `json:"sent"`
 	Errors  int64  `json:"errors"`
+	Skipped int64  `json:"skipped"`
 	LastErr string `json:"last_error,omitempty"`
 }
 
@@ -27,11 +30,21 @@ type Status struct {
 type Forwarder struct {
 	upstreams []*upstream
 	client    *http.Client
+	sample    float64
+	rand      func() float64
 }
 
 // New returns a Forwarder that will POST to each of the given base URLs.
 // urls should be bare base URLs, e.g. "http://tempo:4318".
-func New(urls []string) *Forwarder {
+// sample is the per-payload forwarding probability in [0, 1]; values outside
+// the range are clamped (NaN → 1.0).
+func New(urls []string, sample float64) *Forwarder {
+	if !(sample >= 0) { // catches NaN
+		sample = 1.0
+	}
+	if sample > 1 {
+		sample = 1
+	}
 	ups := make([]*upstream, len(urls))
 	for i, u := range urls {
 		ups[i] = &upstream{url: u}
@@ -39,14 +52,21 @@ func New(urls []string) *Forwarder {
 	return &Forwarder{
 		upstreams: ups,
 		client:    &http.Client{Timeout: 5 * time.Second},
+		sample:    sample,
+		rand:      rand.Float64,
 	}
 }
 
 // Forward asynchronously POSTs body to each upstream at <base>/path.
-// It is non-blocking: each upstream gets its own goroutine.
+// It is non-blocking: each upstream gets its own goroutine. Per-upstream
+// sampling is applied: a draw >= sample increments Skipped and skips the send.
 func (f *Forwarder) Forward(path, contentType string, body []byte) {
 	for _, up := range f.upstreams {
 		up := up
+		if f.sample < 1 && f.rand() >= f.sample {
+			up.skipped.Add(1)
+			continue
+		}
 		go f.send(up, path, contentType, body)
 	}
 }
@@ -83,9 +103,10 @@ func (f *Forwarder) Status() []Status {
 	out := make([]Status, len(f.upstreams))
 	for i, up := range f.upstreams {
 		s := Status{
-			URL:    up.url,
-			Sent:   up.sent.Load(),
-			Errors: up.errors.Load(),
+			URL:     up.url,
+			Sent:    up.sent.Load(),
+			Errors:  up.errors.Load(),
+			Skipped: up.skipped.Load(),
 		}
 		if v, ok := up.lastErr.Load().(string); ok {
 			s.LastErr = v

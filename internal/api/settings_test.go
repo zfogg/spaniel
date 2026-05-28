@@ -194,6 +194,52 @@ func TestPutSettings_PartialUpdatesLeaveOthersAlone(t *testing.T) {
 	}
 }
 
+func TestPutSettings_RejectsInvalidBind(t *testing.T) {
+	router, _, _ := newSettingsRouter(t)
+	for _, bad := range []string{"localhost", "1.2.3.4", "", "0.0.0.0:80"} {
+		w := putSettings(t, router, map[string]any{"bind_address": bad})
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("bind_address=%q should be rejected, got %d (body=%s)", bad, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestPutSettings_AcceptsBindOptions(t *testing.T) {
+	for _, ok := range []string{"127.0.0.1", "0.0.0.0", "::1"} {
+		router, svc, _ := newSettingsRouter(t)
+		w := putSettings(t, router, map[string]any{"bind_address": ok})
+		if w.Code != http.StatusOK {
+			t.Errorf("bind_address=%q should be accepted, got %d (body=%s)", ok, w.Code, w.Body.String())
+		}
+		if got := svc.Viper.GetString("bind_address"); got != ok {
+			t.Errorf("viper not mutated for bind_address=%q: got %q", ok, got)
+		}
+	}
+}
+
+func TestPutSettings_RejectsOutOfRangeSample(t *testing.T) {
+	router, _, _ := newSettingsRouter(t)
+	for _, bad := range []float64{-0.1, 1.5, 2, -1} {
+		w := putSettings(t, router, map[string]any{"forward_sample": bad})
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("forward_sample=%v should be rejected, got %d (body=%s)", bad, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestPutSettings_AcceptsSampleInRange(t *testing.T) {
+	for _, ok := range []float64{0, 0.1, 0.5, 1.0} {
+		router, svc, _ := newSettingsRouter(t)
+		w := putSettings(t, router, map[string]any{"forward_sample": ok})
+		if w.Code != http.StatusOK {
+			t.Errorf("forward_sample=%v should be accepted, got %d (body=%s)", ok, w.Code, w.Body.String())
+		}
+		if got := svc.Viper.GetFloat64("forward_sample"); got != ok {
+			t.Errorf("viper not mutated for forward_sample=%v: got %v", ok, got)
+		}
+	}
+}
+
 // ── DELETE /api/settings/data ────────────────────────────────────────────────
 
 func TestDropAllData_WipesStore(t *testing.T) {

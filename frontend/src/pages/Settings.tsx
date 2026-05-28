@@ -31,9 +31,9 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
   )
 }
 
-function NumberBox({ value, onChange, min, max, w = 110, suffix, ariaLabel }: {
+function NumberBox({ value, onChange, min, max, step, w = 110, suffix, ariaLabel }: {
   value: number; onChange: (v: number) => void
-  min?: number; max?: number; w?: number; suffix?: string; ariaLabel: string
+  min?: number; max?: number; step?: number; w?: number; suffix?: string; ariaLabel: string
 }) {
   return (
     <span style={{
@@ -45,7 +45,7 @@ function NumberBox({ value, onChange, min, max, w = 110, suffix, ariaLabel }: {
         type="number"
         aria-label={ariaLabel}
         value={value}
-        min={min} max={max}
+        min={min} max={max} step={step}
         onChange={e => onChange(Number(e.target.value))}
         style={{
           flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
@@ -263,6 +263,34 @@ function NetworkSection({ s, mutate, hidden }: {
         {s.otlp_http_port > 0
           ? <Pill tone="ok">● listening :{s.runtime.otlp_http_port}</Pill>
           : <Pill>stopped</Pill>}
+      </Row>
+      <Row label="Bind address"
+        hint="Network interface the UI and OTLP receivers listen on. Use 0.0.0.0 to accept traffic from docker / LAN."
+        testid="row-bind">
+        <SelectBox<'127.0.0.1' | '0.0.0.0' | '::1'>
+          value={(s.bind_address as '127.0.0.1' | '0.0.0.0' | '::1') ?? '127.0.0.1'}
+          onChange={v => mutate({ bind_address: v })}
+          options={['127.0.0.1', '0.0.0.0', '::1'] as const}
+          w={140} ariaLabel="bind address"
+        />
+        <Pill>{s.bind_address === '0.0.0.0' ? 'all interfaces' : 'localhost only'}</Pill>
+      </Row>
+      <Row label="Forward sampling"
+        hint="Fraction of received payloads to forward upstream (1.0 = everything, 0.1 = 10%)."
+        testid="row-forward-sample">
+        <input
+          type="range"
+          min={0} max={1} step={0.01}
+          value={s.forward_sample}
+          onChange={e => mutate({ forward_sample: parseFloat(e.target.value) })}
+          aria-label="forward sample"
+          style={{ width: 180 }}
+        />
+        <NumberBox value={s.forward_sample} onChange={v => mutate({ forward_sample: v })}
+          min={0} max={1} step={0.01} w={90} ariaLabel="forward sample number" />
+        <Pill tone="accent">
+          {s.forward_sample >= 1 ? 'everything' : `${Math.round(s.forward_sample * 100)}% of spans`}
+        </Pill>
       </Row>
       <Row label="UI / API port"
         hint="HTTP port the spaniel UI and JSON API are served on. Restart required."

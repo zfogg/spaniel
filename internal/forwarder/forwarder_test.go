@@ -23,7 +23,7 @@ func waitFor(t *testing.T, cond func() bool) {
 }
 
 func TestNewEmpty(t *testing.T) {
-	f := New(nil)
+	f := New(nil, 1.0)
 	if f == nil {
 		t.Fatal("New returned nil")
 	}
@@ -49,7 +49,7 @@ func TestForwardSingleUpstream(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := New([]string{srv.URL})
+	f := New([]string{srv.URL}, 1.0)
 	f.Forward("/v1/traces", "application/json", []byte(`{"hello":"world"}`))
 
 	waitFor(t, func() bool { return calls.Load() == 1 })
@@ -94,7 +94,7 @@ func TestForwardMultipleUpstreams(t *testing.T) {
 	srv1 := make(1)
 	defer srv1.Close()
 
-	f := New([]string{srv0.URL, srv1.URL})
+	f := New([]string{srv0.URL, srv1.URL}, 1.0)
 	f.Forward("/v1/logs", "application/x-protobuf", []byte("binary"))
 
 	waitFor(t, func() bool { return calls[0].Load() == 1 && calls[1].Load() == 1 })
@@ -119,7 +119,7 @@ func TestForwardUpstreamError_4xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := New([]string{srv.URL})
+	f := New([]string{srv.URL}, 1.0)
 	f.Forward("/v1/traces", "application/json", []byte("{}"))
 
 	waitFor(t, func() bool { return f.Status()[0].Errors == 1 })
@@ -138,7 +138,7 @@ func TestForwardUpstreamError_4xx(t *testing.T) {
 
 func TestForwardUpstreamUnreachable(t *testing.T) {
 	// Port 1 is reserved/unrouteable — connection refused quickly.
-	f := New([]string{"http://127.0.0.1:1"})
+	f := New([]string{"http://127.0.0.1:1"}, 1.0)
 	f.Forward("/v1/traces", "application/json", []byte("{}"))
 
 	waitFor(t, func() bool { return f.Status()[0].Errors == 1 })
@@ -161,7 +161,7 @@ func TestForwardCountersAccumulate(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := New([]string{srv.URL})
+	f := New([]string{srv.URL}, 1.0)
 	const n = 5
 	for range n {
 		f.Forward("/v1/metrics", "application/json", []byte("{}"))
@@ -175,9 +175,67 @@ func TestForwardCountersAccumulate(t *testing.T) {
 	}
 }
 
+func TestForwardSamplesAtRate(t *testing.T) {
+	var received atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	const sample = 0.1
+	const n = 1000
+
+	f := New([]string{srv.URL}, sample)
+	// Deterministic pseudo-random: 10/100 == sample exactly.
+	var i int
+	f.rand = func() float64 {
+		i++
+		return float64(i%100) / 100.0
+	}
+
+	for range n {
+		f.Forward("/v1/traces", "application/json", []byte("{}"))
+	}
+
+	// All decisions are synchronous; only successful sends spawn goroutines.
+	waitFor(t, func() bool { return f.Status()[0].Sent+f.Status()[0].Skipped == n })
+
+	st := f.Status()[0]
+	expected := int64(n * sample)
+	// Deterministic generator → exact counts.
+	if st.Sent != expected {
+		t.Errorf("sent = %d, want %d", st.Sent, expected)
+	}
+	if st.Skipped != int64(n)-expected {
+		t.Errorf("skipped = %d, want %d", st.Skipped, int64(n)-expected)
+	}
+	if int64(received.Load()) != st.Sent {
+		t.Errorf("upstream got %d requests, status says sent=%d", received.Load(), st.Sent)
+	}
+}
+
+func TestForwardSampleZeroSkipsAll(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("upstream should not be called when sample=0")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	f := New([]string{srv.URL}, 0)
+	for range 50 {
+		f.Forward("/v1/traces", "application/json", []byte("{}"))
+	}
+
+	st := f.Status()[0]
+	if st.Sent != 0 || st.Skipped != 50 {
+		t.Errorf("expected sent=0 skipped=50, got sent=%d skipped=%d", st.Sent, st.Skipped)
+	}
+}
+
 func TestStatusURLsPreserved(t *testing.T) {
 	urls := []string{"http://a:4318", "http://b:4318", "http://c:4318"}
-	f := New(urls)
+	f := New(urls, 1.0)
 	st := f.Status()
 	if len(st) != len(urls) {
 		t.Fatalf("expected %d statuses, got %d", len(urls), len(st))

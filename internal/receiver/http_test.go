@@ -109,7 +109,7 @@ func TestHandleTracesCallsForwarder(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	rcv.SetForwarder(forwarder.New([]string{upstream.URL}))
+	rcv.SetForwarder(forwarder.New([]string{upstream.URL}, 1.0))
 
 	post(rcv.HandleTraces, "application/json", []byte(tracesJSON))
 
@@ -135,7 +135,7 @@ func TestHandleLogsCallsForwarder(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	rcv.SetForwarder(forwarder.New([]string{upstream.URL}))
+	rcv.SetForwarder(forwarder.New([]string{upstream.URL}, 1.0))
 
 	post(rcv.HandleLogs, "application/json", []byte(logsJSON))
 

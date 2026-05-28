@@ -208,7 +208,7 @@ func TestListForwardersWithUpstreams(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	fwd := forwarder.New([]string{upstream.URL})
+	fwd := forwarder.New([]string{upstream.URL}, 1.0)
 	// Send one payload so the sent counter is non-zero.
 	fwd.Forward("/v1/traces", "application/json", []byte("{}"))
 

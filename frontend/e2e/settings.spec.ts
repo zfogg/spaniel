@@ -20,6 +20,8 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     otlp_http_port: 4318,
     no_browser: false,
     forward: [],
+    bind_address: '127.0.0.1',
+    forward_sample: 1.0,
     runtime: {
       pid: 32118,
       uptime_ns: (4 * 3600 + 12 * 60) * 1_000_000_000, // 4h 12m
@@ -191,6 +193,33 @@ test.describe('Settings page', () => {
     page.once('dialog', d => d.accept())
     await page.getByRole('button', { name: /drop & recreate/i }).click()
     await expect.poll(() => h.dropCount()).toBe(1)
+  })
+
+  test('changing the bind address PUTs bind_address', async ({ page }) => {
+    await stubChrome(page)
+    const h = await stubSettings(page, makeSettings())
+    await page.goto('/settings')
+
+    await page.getByLabel('bind address').selectOption('0.0.0.0')
+
+    await expect.poll(() => h.lastPut()).toMatchObject({ bind_address: '0.0.0.0' })
+    await expect(page.getByTestId('row-bind').getByText('all interfaces')).toBeVisible()
+  })
+
+  test('moving the forward-sampling slider updates the percentage pill and PUTs forward_sample', async ({ page }) => {
+    await stubChrome(page)
+    const h = await stubSettings(page, makeSettings())
+    await page.goto('/settings')
+
+    const slider = page.getByLabel('forward sample', { exact: true })
+    await slider.evaluate((el: HTMLInputElement) => {
+      el.value = '0.5'
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    await expect(page.getByTestId('row-forward-sample').getByText('50% of spans')).toBeVisible()
+    await expect.poll(() => h.lastPut()).toMatchObject({ forward_sample: 0.5 })
   })
 
   test('About section shows version + config path', async ({ page }) => {

@@ -223,9 +223,11 @@ type runConfig struct {
 	MaxSessions   int
 	MaxDBSizeMB   int
 	ForwardURLs   []string
+	ForwardSample float64
 	RoutesFile    string
-	OTLPGRPCPort      int
-	OTLPHTTPPort      int
+	OTLPGRPCPort  int
+	OTLPHTTPPort  int
+	BindAddress   string
 	Viper         *viper.Viper
 }
 
@@ -241,8 +243,10 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		MaxSessions:   v.GetInt("max_sessions"),
 		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
 		ForwardURLs:   v.GetStringSlice("forward"),
-		OTLPGRPCPort:      v.GetInt("otlp_grpc_port"),
-		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
+		ForwardSample: v.GetFloat64("forward_sample"),
+		OTLPGRPCPort:  v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:  v.GetInt("otlp_http_port"),
+		BindAddress:   v.GetString("bind_address"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -277,6 +281,12 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	}
 	if cfg.OTLPHTTPPort == 0 {
 		cfg.OTLPHTTPPort = 4318
+	}
+	if cfg.BindAddress == "" {
+		cfg.BindAddress = "127.0.0.1"
+	}
+	if cfg.ForwardSample <= 0 || cfg.ForwardSample > 1 {
+		cfg.ForwardSample = 1.0
 	}
 	cfg.Viper = v
 	return cfg
@@ -314,12 +324,12 @@ func run(cfg runConfig) error {
 
 	var fwd *forwarder.Forwarder
 	if len(cfg.ForwardURLs) > 0 {
-		fwd = forwarder.New(cfg.ForwardURLs)
+		fwd = forwarder.New(cfg.ForwardURLs, cfg.ForwardSample)
 	}
 
 	grpcRcv := receiver.NewGRPCReceiver(pipeline)
 	if cfg.OTLPGRPCPort > 0 {
-		grpcAddr := fmt.Sprintf(":%d", cfg.OTLPGRPCPort)
+		grpcAddr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.OTLPGRPCPort)
 		go func() {
 			if err := grpcRcv.ListenAndServe(grpcAddr); err != nil {
 				fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
@@ -334,7 +344,7 @@ func run(cfg runConfig) error {
 	otlpMux.HandleFunc("/v1/logs", httpRcv.HandleLogs)
 	otlpMux.HandleFunc("/v1/metrics", httpRcv.HandleMetrics)
 	if cfg.OTLPHTTPPort > 0 {
-		httpAddr := fmt.Sprintf(":%d", cfg.OTLPHTTPPort)
+		httpAddr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.OTLPHTTPPort)
 		go func() {
 			if err := http.ListenAndServe(httpAddr, otlpMux); err != nil {
 				fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
@@ -429,7 +439,7 @@ func run(cfg runConfig) error {
 	}()
 
 	_ = context.Background()
-	return http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), mainMux)
+	return http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port), mainMux)
 }
 
 func printBanner(cfg runConfig) {

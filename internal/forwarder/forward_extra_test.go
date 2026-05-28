@@ -15,7 +15,7 @@ func TestLastErrMessagePreserved(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := New([]string{srv.URL})
+	f := New([]string{srv.URL}, 1.0)
 	f.Forward("/v1/traces", "application/json", []byte("{}"))
 
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -41,7 +41,7 @@ func TestForward5xxError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := New([]string{srv.URL})
+	f := New([]string{srv.URL}, 1.0)
 	f.Forward("/v1/traces", "application/json", []byte("{}"))
 
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -75,7 +75,7 @@ func TestConcurrentForward(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := New([]string{srv.URL})
+	f := New([]string{srv.URL}, 1.0)
 
 	const n = 20
 	var wg sync.WaitGroup
@@ -122,7 +122,7 @@ func TestForwardEmptyBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := New([]string{srv.URL})
+	f := New([]string{srv.URL}, 1.0)
 	f.Forward("/v1/logs", "application/json", []byte(""))
 
 	deadline := time.Now().Add(500 * time.Millisecond)

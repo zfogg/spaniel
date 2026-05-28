@@ -38,10 +38,16 @@ otlp_http_port: 4318
 # Do not open a browser tab on startup
 no_browser: false
 
+# Network bind address for the UI and OTLP receivers.
+# 127.0.0.1 = localhost only; 0.0.0.0 = all interfaces (LAN / docker); ::1 = IPv6 localhost.
+bind_address: 127.0.0.1
+
 # OTLP forwarding: forward received spans/logs/metrics to upstream backends
 # forward:
 #   - http://tempo:4318
 #   - http://otelcollector:4318
+# Fraction of payloads to forward upstream (0.0–1.0). 1.0 forwards everything.
+forward_sample: 1.0
 `
 
 // globalConfigPath returns the path to ~/.spaniel/config.yaml.
@@ -65,6 +71,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("otlp_grpc_port", 4317)
 	v.SetDefault("otlp_http_port", 4318)
 	v.SetDefault("no_browser", false)
+	v.SetDefault("bind_address", "127.0.0.1")
+	v.SetDefault("forward_sample", 1.0)
 
 	// ENV: SPANIEL_PORT, SPANIEL_DB_PATH, etc.
 	v.SetEnvPrefix("SPANIEL")
