@@ -112,26 +112,6 @@ type TraceIssue struct {
 
 func (TraceIssue) TableName() string { return "trace_issues" }
 
-// AsLintWarning renders a detector finding as a lint warning so the lint view
-// can show detector issues (e.g. N+1) alongside semantic-convention warnings.
-func (i *TraceIssue) AsLintWarning() *LintWarning {
-	msg := fmt.Sprintf("%s: %d repeated executions wasting %.1fms — %s",
-		i.Kind, i.Count, float64(i.WastedNs)/1e6, i.Fingerprint)
-	if i.Kind == "n_plus_one" {
-		msg = fmt.Sprintf("N+1 query: %d repeated executions wasting %.1fms — %s",
-			i.Count, float64(i.WastedNs)/1e6, i.Fingerprint)
-	}
-	return &LintWarning{
-		SpanID:    i.ExampleSpanID,
-		TraceID:   i.TraceID,
-		SessionID: i.SessionID,
-		RuleID:    i.Kind,
-		Message:   msg,
-		Severity:  "warning",
-		CreatedAt: i.CreatedAt,
-	}
-}
-
 type SpanEvent struct {
 	SpanID     string `json:"span_id"`
 	TraceID    string `json:"trace_id"`
@@ -886,20 +866,6 @@ func (d *DB) GetMetricSeries(f MetricSeriesFilter) ([]*Metric, error) {
 func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
 	var result []*TraceIssue
 	err := d.gorm.Where("session_id = ?", sessionID).Order("wasted_ns DESC").Find(&result).Error
-	return result, err
-}
-
-// ListTraceIssues returns detector findings; scoped to a session when given,
-// otherwise the 500 most-wasteful findings across all sessions.
-func (d *DB) ListTraceIssues(sessionID string) ([]*TraceIssue, error) {
-	q := d.gorm.Model(&TraceIssue{}).Order("wasted_ns DESC")
-	if sessionID != "" {
-		q = q.Where("session_id = ?", sessionID)
-	} else {
-		q = q.Limit(500)
-	}
-	var result []*TraceIssue
-	err := q.Find(&result).Error
 	return result, err
 }
 
