@@ -1,5 +1,10 @@
 package storage
 
+import (
+	"fmt"
+	"strings"
+)
+
 // SearchResult is one item returned by the global search.
 type SearchResult struct {
 	Kind      string `json:"kind"`              // "trace" | "span" | "session" | "service" | "log"
@@ -10,11 +15,37 @@ type SearchResult struct {
 	SessionID string `json:"session_id"`
 }
 
+// parseFilters splits a query into field:value filters and the remaining
+// free-text terms. e.g. "lint:n+1 orders" -> {"lint":"n+1"}, "orders".
+func parseFilters(query string) (map[string]string, string) {
+	filters := map[string]string{}
+	var rest []string
+	for _, tok := range strings.Fields(query) {
+		if k, v, ok := strings.Cut(tok, ":"); ok && k != "" && v != "" {
+			filters[strings.ToLower(k)] = v
+			continue
+		}
+		rest = append(rest, tok)
+	}
+	return filters, strings.Join(rest, " ")
+}
+
 // Search runs a cross-table search against spans, logs, sessions, and services.
+// It also supports field:value filters; currently lint:<rule> (with the alias
+// n+1 == n_plus_one) which returns traces flagged by the linter or detectors.
 func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error) {
 	if limit <= 0 || limit > 50 {
 		limit = 20
 	}
+
+	filters, freeText := parseFilters(query)
+	if rule, ok := filters["lint"]; ok {
+		return d.searchLint(rule, sessionID, limit)
+	}
+	if freeText != "" {
+		query = freeText
+	}
+
 	pat := "%" + query + "%"
 	tracePrefix := query + "%"
 	quarter := limit / 4
@@ -170,5 +201,71 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 		results = append(results, &r)
 	}
 
+	return results, nil
+}
+
+// searchLint returns traces flagged by the linter or detectors for the given
+// rule. The rule "n+1" (and "n1") is aliased to the detector kind "n_plus_one";
+// any other value is matched against lint_warnings.rule_id.
+func (d *DB) searchLint(rule, sessionID string, limit int) ([]*SearchResult, error) {
+	norm := strings.ToLower(strings.TrimSpace(rule))
+	var results []*SearchResult
+
+	if norm == "n+1" || norm == "n1" || norm == "n_plus_one" {
+		rows, err := d.db.Query(`
+			SELECT ti.trace_id,
+			       COALESCE(s.name, '(trace)') AS title,
+			       ti.count,
+			       ti.session_id
+			FROM trace_issues ti
+			LEFT JOIN spans s ON s.span_id = ti.example_span_id
+			WHERE ti.kind = 'n_plus_one'
+			  AND (? = '' OR ti.session_id = ?)
+			ORDER BY ti.wasted_ns DESC
+			LIMIT ?`, sessionID, sessionID, limit)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var r SearchResult
+			var count int
+			if err := rows.Scan(&r.TraceID, &r.Title, &count, &r.SessionID); err != nil {
+				continue
+			}
+			r.Kind = "trace"
+			r.Subtitle = fmt.Sprintf("N+1 · %d queries", count)
+			results = append(results, &r)
+		}
+		return results, nil
+	}
+
+	// Other lint rules: match lint_warnings.rule_id, grouped by trace.
+	rows, err := d.db.Query(`
+		SELECT lw.trace_id,
+		       COALESCE(MIN(s.name), '(trace)') AS title,
+		       MIN(lw.rule_id) AS rule_id,
+		       MIN(lw.session_id) AS session_id
+		FROM lint_warnings lw
+		LEFT JOIN spans s ON s.span_id = lw.span_id
+		WHERE lw.rule_id ILIKE ?
+		  AND (? = '' OR lw.session_id = ?)
+		  AND lw.trace_id != ''
+		GROUP BY lw.trace_id
+		LIMIT ?`, "%"+rule+"%", sessionID, sessionID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r SearchResult
+		var ruleID string
+		if err := rows.Scan(&r.TraceID, &r.Title, &ruleID, &r.SessionID); err != nil {
+			continue
+		}
+		r.Kind = "trace"
+		r.Subtitle = "lint · " + ruleID
+		results = append(results, &r)
+	}
 	return results, nil
 }

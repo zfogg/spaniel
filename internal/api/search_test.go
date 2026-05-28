@@ -69,6 +69,63 @@ func searchData(t *testing.T, handler http.Handler, query string) []map[string]a
 	return data
 }
 
+// searchDataQ runs a search with a properly URL-encoded query, so filter
+// values containing reserved characters (e.g. the "+" in "lint:n+1") survive.
+func searchDataQ(t *testing.T, handler http.Handler, query, sessionID string) []map[string]any {
+	t.Helper()
+	v := url.Values{}
+	v.Set("q", query)
+	if sessionID != "" {
+		v.Set("sessionId", sessionID)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/search?"+v.Encode(), nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	var data []map[string]any
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("parse data: %v", err)
+	}
+	return data
+}
+
+func TestSearchLintN1Filter(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-n1", "span-loop", "", "user-svc", "SELECT users")
+	if err := store.UpsertTraceIssue(&storage.TraceIssue{
+		ID:            "trace-n1-1",
+		TraceID:       "trace-n1",
+		SessionID:     "sess-1",
+		Kind:          "n_plus_one",
+		Fingerprint:   "SELECT * FROM users WHERE id = ?",
+		Count:         30,
+		WastedNs:      9_000_000,
+		ExampleSpanID: "span-loop",
+		CreatedAt:     time.Now().UnixNano(),
+	}); err != nil {
+		t.Fatalf("UpsertTraceIssue: %v", err)
+	}
+
+	for _, q := range []string{"lint:n+1", "lint:n_plus_one"} {
+		data := searchDataQ(t, handler, q, "")
+		if len(data) != 1 {
+			t.Fatalf("%q: expected 1 result, got %d: %+v", q, len(data), data)
+		}
+		if tid, _ := data[0]["trace_id"].(string); tid != "trace-n1" {
+			t.Errorf("%q: expected trace-n1, got %q", q, tid)
+		}
+		if kind, _ := data[0]["kind"].(string); kind != "trace" {
+			t.Errorf("%q: expected kind=trace, got %q", q, kind)
+		}
+	}
+}
+
 func TestSearchEmptyQuery(t *testing.T) {
 	handler, _ := setupRouter(t)
 

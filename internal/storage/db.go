@@ -99,6 +99,26 @@ type TraceIssue struct {
 	CreatedAt     int64  `json:"created_at"`
 }
 
+// AsLintWarning renders a detector finding as a lint warning so the lint view
+// can show detector issues (e.g. N+1) alongside semantic-convention warnings.
+func (i *TraceIssue) AsLintWarning() *LintWarning {
+	msg := fmt.Sprintf("%s: %d repeated executions wasting %.1fms — %s",
+		i.Kind, i.Count, float64(i.WastedNs)/1e6, i.Fingerprint)
+	if i.Kind == "n_plus_one" {
+		msg = fmt.Sprintf("N+1 query: %d repeated executions wasting %.1fms — %s",
+			i.Count, float64(i.WastedNs)/1e6, i.Fingerprint)
+	}
+	return &LintWarning{
+		SpanID:    i.ExampleSpanID,
+		TraceID:   i.TraceID,
+		SessionID: i.SessionID,
+		RuleID:    i.Kind,
+		Message:   msg,
+		Severity:  "warning",
+		CreatedAt: i.CreatedAt,
+	}
+}
+
 type SpanEvent struct {
 	SpanID     string `json:"span_id"`
 	TraceID    string `json:"trace_id"`
@@ -333,6 +353,11 @@ func (d *DB) SetActiveSession(id, label string) {
 	d.activeSessionID = id
 	d.activeSessionLabel = label
 }
+
+// SQL exposes the underlying *sql.DB for callers that need to run statements
+// outside the curated API (seed fixtures, ad-hoc migrations). Prefer the
+// typed methods above for anything in the hot path.
+func (d *DB) SQL() *sql.DB { return d.db }
 
 func (d *DB) ActiveSessionID() string    { return d.activeSessionID }
 func (d *DB) ActiveSessionLabel() string { return d.activeSessionLabel }
@@ -1209,6 +1234,34 @@ func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
 	if err != nil {
 		return nil, err
 	}
+	return scanTraceIssues(rows)
+}
+
+// ListTraceIssues returns detector findings. An empty sessionID returns
+// findings across all sessions (capped), mirroring ListLintWarnings.
+func (d *DB) ListTraceIssues(sessionID string) ([]*TraceIssue, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if sessionID != "" {
+		rows, err = d.db.Query(`
+			SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
+			       parent_span_id, example_span_id, created_at
+			FROM trace_issues WHERE session_id = ? ORDER BY wasted_ns DESC`, sessionID)
+	} else {
+		rows, err = d.db.Query(`
+			SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
+			       parent_span_id, example_span_id, created_at
+			FROM trace_issues ORDER BY wasted_ns DESC LIMIT 500`)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return scanTraceIssues(rows)
+}
+
+func scanTraceIssues(rows *sql.Rows) ([]*TraceIssue, error) {
 	defer rows.Close()
 	var result []*TraceIssue
 	for rows.Next() {

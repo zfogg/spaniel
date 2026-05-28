@@ -359,10 +359,19 @@ func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, 500, err.Error())
 		return
 	}
-	if warnings == nil {
-		warnings = []*storage.LintWarning{}
+	// Detector findings (N+1, etc.) live in trace_issues, not lint_warnings.
+	// Surface them as warnings so the lint view shows them too.
+	issues, err := r.store.ListTraceIssues(sessionID)
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
 	}
-	respond(w, warnings, len(warnings), 1)
+	merged := make([]*storage.LintWarning, 0, len(issues)+len(warnings))
+	for _, iss := range issues {
+		merged = append(merged, iss.AsLintWarning())
+	}
+	merged = append(merged, warnings...)
+	respond(w, merged, len(merged), 1)
 }
 
 func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
