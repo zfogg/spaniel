@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Metrics from './Metrics'
+import { bucketPoints } from '@/lib/metrics-bucket'
 
 // Metrics uses useNavigate() (in the correlated-traces panel) which needs
 // a Router context. Wrap once so the existing test cases stay unchanged.
@@ -185,5 +186,36 @@ describe('<Metrics />', () => {
     expect(screen.getByText('peak')).toBeTruthy()
     // Chart SVG exists.
     expect(document.querySelector('svg')).toBeTruthy()
+  })
+
+  it('buckets histogram points by percentile attribute', () => {
+    // This test verifies that histograms with percentile attributes are bucketed correctly,
+    // catching the bug where histograms without percentile data show as flat y=0.
+    const histogramPoints = [
+      { timestamp_ns: 1000, value: 10, percentile: 'p50' as const },
+      { timestamp_ns: 1000, value: 50, percentile: 'p95' as const },
+      { timestamp_ns: 1000, value: 100, percentile: 'p99' as const },
+      { timestamp_ns: 2000, value: 20, percentile: 'p50' as const },
+      { timestamp_ns: 2000, value: 60, percentile: 'p95' as const },
+      { timestamp_ns: 2000, value: 120, percentile: 'p99' as const },
+    ]
+
+    const result = bucketPoints(histogramPoints, 'histogram', 60)
+
+    // All three percentiles should be present
+    expect(result.p50).toBeDefined()
+    expect(result.p95).toBeDefined()
+    expect(result.p99).toBeDefined()
+
+    // Data should not be flat zeros (this is the bug being tested)
+    const allP50 = result.p50!.every(v => v === 0)
+    const allP95 = result.p95!.every(v => v === 0)
+    const allP99 = result.p99!.every(v => v === 0)
+    expect(allP50 || allP95 || allP99).toBeFalsy()
+
+    // Should have actual values, not just zeros
+    expect(result.p50!.some(v => v > 0)).toBeTruthy()
+    expect(result.p95!.some(v => v > 0)).toBeTruthy()
+    expect(result.p99!.some(v => v > 0)).toBeTruthy()
   })
 })
