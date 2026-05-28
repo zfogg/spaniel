@@ -1097,7 +1097,7 @@ type MetricSeriesFilter struct {
 // split them apart by attributes.percentile.
 func (d *DB) GetMetricSeries(f MetricSeriesFilter) ([]*Metric, error) {
 	q := d.gorm.Table("metrics").
-		Select(`name, description, unit, type, timestamp_ns, value, attributes::VARCHAR AS attributes, service_name, session_id`)
+		Select(`name, description, unit, type, timestamp_ns, value, attributes::VARCHAR AS attributes, exemplars::VARCHAR AS exemplars, service_name, session_id`)
 	if f.Name != "" {
 		q = q.Where("name = ?", f.Name)
 	}

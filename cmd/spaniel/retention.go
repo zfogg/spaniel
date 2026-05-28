@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -15,20 +16,33 @@ import (
 )
 
 var (
-	retentionDeletedCounter metric.Int64Counter
-	retentionDurationHist   metric.Float64Histogram
+	retentionDeletedCounterOnce sync.Once
+	retentionDeletedCounter     metric.Int64Counter
+
+	retentionDurationHistOnce sync.Once
+	retentionDurationHist     metric.Float64Histogram
 )
 
-func init() {
-	meter := otel.Meter("spaniel/retention")
-	retentionDeletedCounter, _ = meter.Int64Counter("spaniel.retention.deleted_sessions",
-		metric.WithDescription("Sessions deleted by the retention policy"),
-		metric.WithUnit("{session}"),
-	)
-	retentionDurationHist, _ = meter.Float64Histogram("spaniel.retention.duration",
-		metric.WithDescription("Time taken to run a retention policy pass"),
-		metric.WithUnit("ms"),
-	)
+func getRetentionDeletedCounter() metric.Int64Counter {
+	retentionDeletedCounterOnce.Do(func() {
+		meter := otel.Meter("spaniel/retention")
+		retentionDeletedCounter, _ = meter.Int64Counter("spaniel.retention.deleted_sessions",
+			metric.WithDescription("Sessions deleted by the retention policy"),
+			metric.WithUnit("{session}"),
+		)
+	})
+	return retentionDeletedCounter
+}
+
+func getRetentionDurationHist() metric.Float64Histogram {
+	retentionDurationHistOnce.Do(func() {
+		meter := otel.Meter("spaniel/retention")
+		retentionDurationHist, _ = meter.Float64Histogram("spaniel.retention.duration",
+			metric.WithDescription("Time taken to run a retention policy pass"),
+			metric.WithUnit("ms"),
+		)
+	})
+	return retentionDurationHist
 }
 
 func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig {
@@ -51,7 +65,7 @@ func runRetention(store *storage.DB, cfg storage.RetentionConfig, activeID strin
 		ctx, span := otel.Tracer("spaniel/retention").Start(context.Background(), "retention.prune")
 		t0 := time.Now()
 		res, err := store.Prune(cfg, activeID)
-		retentionDurationHist.Record(ctx, float64(time.Since(t0).Milliseconds()))
+		getRetentionDurationHist().Record(ctx, float64(time.Since(t0).Milliseconds()))
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -69,11 +83,11 @@ func runRetention(store *storage.DB, cfg storage.RetentionConfig, activeID strin
 		)
 		span.End()
 		if deleted > 0 {
-			retentionDeletedCounter.Add(ctx, int64(res.DeletedByAge),
+			getRetentionDeletedCounter().Add(ctx, int64(res.DeletedByAge),
 				metric.WithAttributes(attribute.String("reason", "age")))
-			retentionDeletedCounter.Add(ctx, int64(res.DeletedByCount),
+			getRetentionDeletedCounter().Add(ctx, int64(res.DeletedByCount),
 				metric.WithAttributes(attribute.String("reason", "count")))
-			retentionDeletedCounter.Add(ctx, int64(res.DeletedBySize),
+			getRetentionDeletedCounter().Add(ctx, int64(res.DeletedBySize),
 				metric.WithAttributes(attribute.String("reason", "size")))
 			slog.Info("retention pruned sessions",
 				"deleted", deleted,

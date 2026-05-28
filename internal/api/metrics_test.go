@@ -108,6 +108,73 @@ func TestGetMetricSeries_HistogramSplitsByPercentile(t *testing.T) {
 	}
 }
 
+func TestGetMetricSeries_ExemplarsReturned(t *testing.T) {
+	handler, db := setupRouter(t)
+	// Insert a counter with exemplars linking to a trace
+	err := db.InsertMetric(&storage.Metric{
+		Name: "http.requests", Type: "counter", Unit: "req",
+		TimestampNs: 1000, Value: 42,
+		Attributes:  `{}`,
+		Exemplars:   `[{"trace_id":"abc123def456789","span_id":"span0123"}]`,
+		ServiceName: "api", SessionID: "s1",
+	})
+	if err != nil {
+		t.Fatalf("insert metric: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=http.requests&service=api&sessionId=s1", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Data.Points) != 1 {
+		t.Fatalf("expected 1 point, got %d", len(resp.Data.Points))
+	}
+	point := resp.Data.Points[0]
+	if len(point.Exemplars) != 1 {
+		t.Errorf("expected 1 exemplar, got %d", len(point.Exemplars))
+	}
+	if point.Exemplars[0].TraceID != "abc123def456789" || point.Exemplars[0].SpanID != "span0123" {
+		t.Errorf("exemplar mismatch: got=%+v", point.Exemplars[0])
+	}
+}
+
+func TestGetMetricSeries_NoExemplars(t *testing.T) {
+	handler, db := setupRouter(t)
+	// Insert a counter without exemplars
+	_ = db.InsertMetric(&storage.Metric{
+		Name: "http.requests", Type: "counter", Unit: "req",
+		TimestampNs: 1000, Value: 42,
+		Attributes: `{}`,
+		Exemplars:  "",
+		ServiceName: "api", SessionID: "s1",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=http.requests&service=api&sessionId=s1", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	var resp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Data.Points) == 0 {
+		t.Fatalf("expected points, got 0")
+	}
+	point := resp.Data.Points[0]
+	if len(point.Exemplars) > 0 {
+		t.Errorf("expected no exemplars, got %d", len(point.Exemplars))
+	}
+}
+
 func TestGetMetricSeries_WithTracesOverlay(t *testing.T) {
 	handler, db := setupRouter(t)
 	// One metric data point at t=2000 anchors the window.

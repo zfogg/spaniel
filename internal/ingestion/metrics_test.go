@@ -68,3 +68,4 @@ func TestHistogramPercentile_MonotonicAcrossPercentiles(t *testing.T) {
 		t.Errorf("percentile ordering violated: p50=%v p95=%v p99=%v", p50, p95, p99)
 	}
 }
+

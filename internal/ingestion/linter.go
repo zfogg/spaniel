@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -12,14 +13,20 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
-var lintWarningsCounter metric.Int64Counter
+var (
+	lintWarningsCounter     metric.Int64Counter
+	lintWarningsCounterOnce sync.Once
+)
 
-func init() {
-	lintWarningsCounter, _ = otel.Meter("spaniel/ingestion").Int64Counter(
-		"spaniel.lint.warnings",
-		metric.WithDescription("Lint warnings fired during span analysis"),
-		metric.WithUnit("{warning}"),
-	)
+func getLintWarningsCounter() metric.Int64Counter {
+	lintWarningsCounterOnce.Do(func() {
+		lintWarningsCounter, _ = otel.Meter("spaniel/ingestion").Int64Counter(
+			"spaniel.lint.warnings",
+			metric.WithDescription("Lint warnings fired during span analysis"),
+			metric.WithUnit("{warning}"),
+		)
+	})
+	return lintWarningsCounter
 }
 
 type LintRule struct {
@@ -154,7 +161,7 @@ func lintSpan(s *storage.Span, sessionID string, store *storage.DB) {
 		if !fired {
 			continue
 		}
-		lintWarningsCounter.Add(context.Background(), 1,
+		getLintWarningsCounter().Add(context.Background(), 1,
 			metric.WithAttributes(
 				attribute.String("rule_id", rule.ID),
 				attribute.String("severity", rule.Severity),

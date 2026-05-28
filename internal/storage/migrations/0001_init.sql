@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     timestamp_ns BIGINT,
     value        DOUBLE,
     attributes   JSON,
+    exemplars    TEXT,
     service_name TEXT,
     session_id   TEXT
 );

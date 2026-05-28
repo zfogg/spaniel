@@ -828,7 +828,7 @@ func freeFloatingLog(rng *rand.Rand, sessionID string, startNs int64, i int) *st
 func seedMetrics(store *storage.DB, sessionID string, startNs int64) (int, error) {
 	const points = 20
 	count := 0
-	for _, svc := range seedServices {
+	for svcIdx, svc := range seedServices {
 		baseAttrs, _ := json.Marshal(map[string]any{"deployment.environment": "seed"})
 		for i := 0; i < points; i++ {
 			ts := startNs + int64(i)*int64(3*time.Minute)
@@ -850,10 +850,20 @@ func seedMetrics(store *storage.DB, sessionID string, startNs int64) (int, error
 				}
 				count++
 			}
-			// requests counter (cumulative)
+			// requests counter (cumulative) — some with exemplars, some without
+			exemplars := ""
+			if i%2 == 0 { // even points get exemplars
+				traceID := deterministicID(sessionID, "metric-trace", svcIdx*100+i, 16)
+				spanID := deterministicID(sessionID, "metric-span", svcIdx*100+i, 16)
+				exemplarData, _ := json.Marshal([]map[string]string{
+					{"trace_id": traceID, "span_id": spanID},
+				})
+				exemplars = string(exemplarData)
+			}
 			if err := store.InsertMetric(&storage.Metric{
 				Name: "http.server.requests", Type: "counter", Unit: "1",
 				TimestampNs: ts, Value: float64(100 + i*7), Attributes: string(baseAttrs),
+				Exemplars: exemplars,
 				ServiceName: svc, SessionID: sessionID,
 			}); err != nil {
 				return count, err
