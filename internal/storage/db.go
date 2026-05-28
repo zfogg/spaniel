@@ -766,6 +766,58 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 	return s, nil
 }
 
+// GetSourceStats returns per-service ingest stats for the given session
+// (or all sessions when sessionID is ""). Rates are derived from received_at.
+func (d *DB) GetSourceStats(sessionID string) ([]SourceStats, error) {
+	type row struct {
+		ServiceName string
+		SpanCount   int64
+		ErrorCount  int64
+		BytesTotal  int64
+		FirstSeen   int64
+		LastSeen    int64
+	}
+
+	q := d.gorm.Model(&Span{}).
+		Select(`service_name,
+			COUNT(*) AS span_count,
+			COUNT(*) FILTER (WHERE status_code = 2) AS error_count,
+			SUM(LENGTH(attributes) + LENGTH(resource)) AS bytes_total,
+			MIN(received_at) AS first_seen,
+			MAX(received_at) AS last_seen`).
+		Group("service_name").
+		Order("span_count DESC")
+	if sessionID != "" {
+		q = q.Where("session_id = ?", sessionID)
+	}
+
+	var rows []row
+	if err := q.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	out := make([]SourceStats, 0, len(rows))
+	for _, r := range rows {
+		durSec := float64(r.LastSeen-r.FirstSeen) / 1e9
+		if durSec < 1 {
+			durSec = 1
+		}
+		var errRate float64
+		if r.SpanCount > 0 {
+			errRate = float64(r.ErrorCount) / float64(r.SpanCount)
+		}
+		out = append(out, SourceStats{
+			Service:        r.ServiceName,
+			AcceptedPerSec: float64(r.SpanCount) / durSec,
+			RejectedPerSec: 0,
+			ErrorRate:      errRate,
+			BytesPerSec:    float64(r.BytesTotal) / durSec,
+			LastSeenNs:     r.LastSeen,
+		})
+	}
+	return out, nil
+}
+
 func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	// Nodes — span_count, error_count, p95(duration_ns).
 	nodeQuery := `

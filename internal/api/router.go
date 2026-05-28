@@ -590,11 +590,12 @@ func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listSources(w http.ResponseWriter, req *http.Request) {
-	if r.sp == nil {
-		respond(w, []storage.SourceStats{}, 0, 1)
+	sessionID := req.URL.Query().Get("sessionId")
+	sources, err := r.store.GetSourceStats(sessionID)
+	if err != nil {
+		respondErr(w, req, 500, err.Error())
 		return
 	}
-	sources := r.sp.Sources()
 	if sources == nil {
 		sources = []storage.SourceStats{}
 	}
