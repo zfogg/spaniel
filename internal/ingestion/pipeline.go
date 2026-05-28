@@ -12,9 +12,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
@@ -24,6 +26,7 @@ type Pipeline struct {
 	hub     *ws.Hub
 	tp      *throughputCounter
 	sampler *Sampler
+	limiter *SourceLimiter
 
 	debounce     map[string]*time.Timer
 	debounceMu   sync.Mutex
@@ -31,6 +34,7 @@ type Pipeline struct {
 
 	tracer        trace.Tracer
 	ingestCounter metric.Int64Counter
+	dbLatency     metric.Float64Histogram
 }
 
 func NewPipeline(store *storage.DB, hub *ws.Hub) *Pipeline {
@@ -38,21 +42,34 @@ func NewPipeline(store *storage.DB, hub *ws.Hub) *Pipeline {
 }
 
 func NewPipelineWithSampler(store *storage.DB, hub *ws.Hub, s *Sampler) *Pipeline {
+	return NewPipelineFull(store, hub, s, NewSourceLimiter(0, 0))
+}
+
+func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimiter) *Pipeline {
 	meter := otel.Meter("spaniel/ingestion")
 	counter, _ := meter.Int64Counter("spaniel.ingest.signals",
 		metric.WithDescription("Total signals (spans, logs, metric points) ingested"),
 		metric.WithUnit("{signal}"),
+	)
+	dbHist, _ := meter.Float64Histogram("spaniel.db.latency",
+		metric.WithDescription("Database write operation latency"),
+		metric.WithUnit("ms"),
 	)
 	return &Pipeline{
 		store:         store,
 		hub:           hub,
 		tp:            newThroughputCounter(),
 		sampler:       s,
+		limiter:       lim,
 		debounce:      make(map[string]*time.Timer),
 		tracer:        otel.Tracer("spaniel/ingestion"),
 		ingestCounter: counter,
+		dbLatency:     dbHist,
 	}
 }
+
+// Sources returns a per-second stats snapshot for every source seen.
+func (p *Pipeline) Sources() []storage.SourceStats { return p.limiter.Snapshot() }
 
 // Throughput returns the current rolling per-second ingest rates.
 func (p *Pipeline) Throughput() storage.Throughput {
@@ -63,9 +80,9 @@ func (p *Pipeline) Throughput() storage.Throughput {
 func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
-	ctx, span := p.tracer.Start(ctx, "IngestTraces",
+	ctx, ingestSpan := p.tracer.Start(ctx, "IngestTraces",
 		trace.WithAttributes(attribute.Int("otel.span_count", traces.SpanCount())))
-	defer span.End()
+	defer ingestSpan.End()
 
 	sessionID := p.store.ActiveSessionID()
 
@@ -136,6 +153,13 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					}
 				}
 
+				// Per-source rate limit (tracks stats regardless of RPS setting).
+				spanBytes := int64(len(s.Attributes) + len(s.Resource) + len(s.Name))
+				if !p.limiter.Allow(svcName, s.StatusCode == 2, spanBytes) {
+					p.sampler.Counters.bumpSpans(1)
+					continue
+				}
+
 				if p.sampler.NeedsBuffer() {
 					p.bufferSpan(s.TraceID, s, events, links)
 					p.scheduleDetectors(s.TraceID)
@@ -148,21 +172,36 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					continue
 				}
 
+				t0 := time.Now()
 				if err := p.store.InsertSpan(s); err != nil {
+					ingestSpan.RecordError(err)
+					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
 				}
+				p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
+					metric.WithAttributes(attribute.String("op", "insert_span")))
 				spansSeen++
 				if len(events) > 0 {
+					t1 := time.Now()
 					if err := p.store.InsertSpanEvents(events); err != nil {
+						ingestSpan.RecordError(err)
+						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
 					}
+					p.dbLatency.Record(ctx, float64(time.Since(t1).Milliseconds()),
+						metric.WithAttributes(attribute.String("op", "insert_span_events")))
 				}
 				if len(links) > 0 {
+					t1 := time.Now()
 					if err := p.store.InsertSpanLinks(links); err != nil {
+						ingestSpan.RecordError(err)
+						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
 					}
+					p.dbLatency.Record(ctx, float64(time.Since(t1).Milliseconds()),
+						metric.WithAttributes(attribute.String("op", "insert_span_links")))
 				}
-				go lintSpan(s, sessionID, p.store)
+				goroutine.Go(func() { lintSpan(s, sessionID, p.store) }, "subsystem", "linter")
 				p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 					TraceID:     s.TraceID,
 					SpanID:      s.SpanID,
@@ -338,7 +377,8 @@ func (p *Pipeline) flushBuffer(traceID string) {
 		if len(e.links) > 0 {
 			_ = p.store.InsertSpanLinks(e.links)
 		}
-		go lintSpan(e.span, e.span.SessionID, p.store)
+		sp := e.span // capture for goroutine closure
+		goroutine.Go(func() { lintSpan(sp, sp.SessionID, p.store) }, "subsystem", "linter")
 		p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 			TraceID:     e.span.TraceID,
 			SpanID:      e.span.SpanID,

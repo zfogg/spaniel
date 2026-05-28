@@ -15,22 +15,22 @@ func (r *Router) exportBaseline(w http.ResponseWriter, req *http.Request) {
 	sessionID := chi.URLParam(req, "sessionId")
 	sess, err := r.store.GetSession(sessionID)
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	if sess == nil {
-		respondErr(w, 404, "session not found")
+		respondErr(w, req, 404, "session not found")
 		return
 	}
 
 	spans, err := r.store.GetSpansBySession(sessionID)
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	issues, err := r.store.ListTraceIssuesBySession(sessionID)
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 

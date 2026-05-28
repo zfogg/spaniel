@@ -48,7 +48,7 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 		OTLPHTTPPort:   4318,
 	}
 
-	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, svc, nil, nil)
+	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, svc, nil, nil, nil)
 	return router, svc, store
 }
 
@@ -341,7 +341,7 @@ func TestPrune_NoSettingsService404(t *testing.T) {
 	}
 	t.Cleanup(func() { store.Close() })
 	// Router with nil settings service.
-	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, nil, nil, nil)
+	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, nil, nil, nil, nil)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/settings/prune", nil))

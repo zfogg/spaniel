@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"time"
+
+	"github.com/zfogg/spaniel/internal/goroutine"
 )
 
 // SpoolConfig controls the disk-backed retry buffer.  Zero values cause
@@ -104,7 +106,8 @@ func NewWithSpool(urls []string, sample float64, sc SpoolConfig) *Forwarder {
 	}
 	for _, up := range ups {
 		if up.sp != nil {
-			go f.runLoop(up, sc.RetryMax)
+			up := up // capture
+			goroutine.Go(func() { f.runLoop(up, sc.RetryMax) }, "subsystem", "forwarder", "upstream", up.url)
 		}
 	}
 	return f
@@ -123,7 +126,8 @@ func (f *Forwarder) Forward(path, contentType string, body []byte) {
 		if up.sp != nil {
 			up.sp.write(path, contentType, body)
 		} else {
-			go f.send(up, path, contentType, body)
+			up, path, contentType, body := up, path, contentType, body // capture
+			goroutine.Go(func() { f.send(up, path, contentType, body) }, "subsystem", "forwarder")
 		}
 	}
 }

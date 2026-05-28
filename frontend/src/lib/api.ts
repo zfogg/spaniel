@@ -255,6 +255,15 @@ export interface SettingsUpdate {
   forward_sample?: number
 }
 
+export interface SourceStats {
+  service: string
+  accepted_per_sec: number
+  rejected_per_sec: number
+  error_rate: number
+  bytes_per_sec: number
+  last_seen_ns: number
+}
+
 export interface ForwarderStatus {
   url: string
   sent: number
@@ -357,6 +366,7 @@ export const api = {
     list: (sessionId?: string) =>
       get<TraceRow[]>(`/api/traces${sessionId ? `?sessionId=${sessionId}` : ''}`),
     get: (traceId: string) => get<Span[]>(`/api/traces/${traceId}`),
+    exportUrl: (traceId: string) => `/api/traces/${traceId}/export`,
   },
   spans: {
     list: (params?: { sort?: string; sessionId?: string; limit?: number }) => {
@@ -426,6 +436,9 @@ export const api = {
     // Presents the bearer token to /api/health so the server sets the auth cookie.
     seed: (token: string): Promise<void> =>
       fetch('/api/health', { headers: { Authorization: `Bearer ${token}` } }).then(() => undefined),
+  },
+  sources: {
+    list: () => get<SourceStats[]>('/api/sources'),
   },
   forwarders: {
     list: () => get<ForwarderStatus[]>('/api/forwarders'),

@@ -1027,12 +1027,14 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
   const traceEndNs   = spans.reduce((m, s) => Math.max(m, s.end_ns), 0)
   const traceDurNs   = traceEndNs - traceStartNs
 
-  // Deep-link: ?spanId=X pre-selects and (below) scrolls to that span.
-  const initialSelected = typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('spanId')
-    : null
+  // Deep-link: ?span=X (or legacy ?spanId=X) pre-selects a span; ?view= seeds the view.
+  const urlParams = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search) : new URLSearchParams()
+  const initialSelected = urlParams.get('span') ?? urlParams.get('spanId')
+  const initialView = (['waterfall', 'flame', 'graph'] as const)
+    .find(v => v === urlParams.get('view')) ?? 'waterfall'
 
-  const [view,       setView]       = useState<'waterfall' | 'flame' | 'graph'>('waterfall')
+  const [view,       setView]       = useState<'waterfall' | 'flame' | 'graph'>(initialView)
   const [selectedId, setSelectedId] = useState<string | null>(initialSelected)
   const [hoveredId,  setHoveredId]  = useState<string | null>(null)
   const [zoom,       setZoom]       = useState<[number, number]>([traceStartNs, traceEndNs])
@@ -1065,6 +1067,17 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
   const handleSelect = useCallback((spanId: string) => {
     setSelectedId(prev => prev === spanId ? null : spanId)
   }, [])
+
+  // Keep ?span= and ?view= in sync so the back button is not polluted.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (selectedId) { params.set('span', selectedId) } else { params.delete('span') }
+    params.set('view', view)
+    const newSearch = params.toString()
+    if (newSearch !== window.location.search.replace(/^\?/, '')) {
+      history.replaceState(null, '', `${window.location.pathname}?${newSearch}`)
+    }
+  }, [selectedId, view])
 
   const parentRef = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({

@@ -53,29 +53,29 @@ func (r *Router) getDiff(w http.ResponseWriter, req *http.Request) {
 	compareID := q.Get("compare")
 
 	if baselineID == "" || compareID == "" {
-		respondErr(w, 400, "baseline and compare query params required")
+		respondErr(w, req, 400, "baseline and compare query params required")
 		return
 	}
 
 	baseSess, err := r.store.GetSession(baselineID)
 	if err != nil || baseSess == nil {
-		respondErr(w, 404, "baseline session not found")
+		respondErr(w, req, 404, "baseline session not found")
 		return
 	}
 	cmpSess, err := r.store.GetSession(compareID)
 	if err != nil || cmpSess == nil {
-		respondErr(w, 404, "compare session not found")
+		respondErr(w, req, 404, "compare session not found")
 		return
 	}
 
 	baseSpans, err := r.store.GetSpansBySession(baselineID)
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	cmpSpans, err := r.store.GetSpansBySession(compareID)
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 

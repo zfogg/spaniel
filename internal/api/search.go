@@ -19,7 +19,7 @@ func (r *Router) search(w http.ResponseWriter, req *http.Request) {
 
 	results, err := r.store.Search(query, sessionID, limit)
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	if results == nil {

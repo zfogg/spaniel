@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, Stats } from '@/lib/api'
 import { useWSStatus } from '@/lib/ws'
+import SourcesPanel from './SourcesPanel'
 
 function fmtBytes(n: number): string {
   if (!n) return '0 B'
@@ -29,7 +30,21 @@ interface ActiveSession { id: string; label: string }
 export default function BottomBar() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [active, setActive] = useState<ActiveSession | null>(null)
+  const [showSources, setShowSources] = useState(false)
+  const footerRef = useRef<HTMLElement>(null)
   const connected = useWSStatus()
+
+  // Close sources panel on outside click.
+  useEffect(() => {
+    if (!showSources) return
+    function onPointerDown(e: PointerEvent) {
+      if (footerRef.current && !footerRef.current.contains(e.target as Node)) {
+        setShowSources(false)
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [showSources])
 
   useEffect(() => {
     let cancel = false
@@ -48,7 +63,8 @@ export default function BottomBar() {
   const live = spansPerSec > 0
 
   return (
-    <footer className="h-6 shrink-0 flex items-center gap-[14px] px-3 border-t border-border bg-surface font-mono text-[10px] text-ink2 tracking-[0.02em] select-none">
+    <footer ref={footerRef} className="relative h-6 shrink-0 flex items-center gap-[14px] px-3 border-t border-border bg-surface font-mono text-[10px] text-ink2 tracking-[0.02em] select-none">
+      {showSources && <SourcesPanel onClose={() => setShowSources(false)} />}
       <Stat label="db"     value={stats ? fmtBytes(stats.db_size) : '—'} />
       <Stat label="spans"  value={stats ? fmtCount(stats.span_count) : '—'} />
       <Stat label="traces" value={stats ? fmtCount(stats.trace_count) : '—'} />
@@ -63,7 +79,15 @@ export default function BottomBar() {
       <div className="flex-1" />
 
       {active?.id && (
-        <Stat label="session" value={active.label || active.id.slice(0, 8)} />
+        <button
+          onClick={() => setShowSources(v => !v)}
+          className="inline-flex items-baseline gap-[5px] hover:text-ink focus:outline-none"
+          aria-label="Toggle sources panel"
+          title="Sources — click to inspect per-service ingest rates"
+        >
+          <span className="text-ink3">session</span>
+          <span className="text-ink">{active.label || active.id.slice(0, 8)}</span>
+        </button>
       )}
 
       <div className="inline-flex items-center gap-[5px]">

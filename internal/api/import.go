@@ -17,17 +17,17 @@ func (r *Router) importSession(w http.ResponseWriter, req *http.Request) {
 
 	data, err := io.ReadAll(io.LimitReader(req.Body, 64<<20)) // 64 MB max
 	if err != nil {
-		respondErr(w, 400, "read body: "+err.Error())
+		respondErr(w, req, 400, "read body: "+err.Error())
 		return
 	}
 	if len(data) == 0 {
-		respondErr(w, 400, "empty body")
+		respondErr(w, req, 400, "empty body")
 		return
 	}
 
 	result, err := importer.Import(r.store, label, format, data)
 	if err != nil {
-		respondErr(w, 400, err.Error())
+		respondErr(w, req, 400, err.Error())
 		return
 	}
 

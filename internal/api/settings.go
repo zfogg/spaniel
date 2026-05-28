@@ -75,9 +75,9 @@ type SettingsUpdate struct {
 	ForwardSample *float64  `json:"forward_sample,omitempty"`
 }
 
-func (r *Router) getSettings(w http.ResponseWriter, _ *http.Request) {
+func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
 	if r.settings == nil {
-		respondErr(w, 404, "settings service not configured")
+		respondErr(w, req, 404, "settings service not configured")
 		return
 	}
 	resp := r.buildSettings()
@@ -86,20 +86,20 @@ func (r *Router) getSettings(w http.ResponseWriter, _ *http.Request) {
 
 func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 	if r.settings == nil {
-		respondErr(w, 404, "settings service not configured")
+		respondErr(w, req, 404, "settings service not configured")
 		return
 	}
 	var body SettingsUpdate
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-		respondErr(w, 400, "invalid JSON: "+err.Error())
+		respondErr(w, req, 400, "invalid JSON: "+err.Error())
 		return
 	}
 	if err := validateSettings(&body); err != nil {
-		respondErr(w, 400, err.Error())
+		respondErr(w, req, 400, err.Error())
 		return
 	}
 	if err := applySettings(r.settings, &body); err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	respond(w, r.buildSettings(), 1, 1)
@@ -107,9 +107,9 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 
 // dropAllData wipes the database (DELETE /api/settings/data). Distinct from
 // the existing /api/sessions endpoints which are per-session.
-func (r *Router) dropAllData(w http.ResponseWriter, _ *http.Request) {
+func (r *Router) dropAllData(w http.ResponseWriter, req *http.Request) {
 	if err := r.store.Reset(); err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	respond(w, map[string]bool{"ok": true}, 1, 1)

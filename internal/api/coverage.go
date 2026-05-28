@@ -20,7 +20,7 @@ func (r *Router) getCoverage(w http.ResponseWriter, req *http.Request) {
 		spans, err = r.store.GetSpansBySession(r.store.ActiveSessionID())
 	}
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	report := coverage.Compute(spans, r.manifests)

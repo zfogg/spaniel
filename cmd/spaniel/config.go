@@ -67,6 +67,12 @@ forward_sample: 1.0
 
 # Signals that always bypass the rate limit (comma-separated: error, n_plus_one, slow, none)
 # sample_always_keep: error,n_plus_one,slow
+
+# Per-source (service.name) rate limit: max spans/sec from any one service (0 = unlimited)
+# source_rps: 0
+
+# Per-source burst capacity (0 = source_rps * 5)
+# source_burst: 0
 `
 
 // globalConfigPath returns the path to ~/.spaniel/config.yaml.
@@ -101,6 +107,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("bearer_token", "")
 	v.SetDefault("sample_rate", 0)
 	v.SetDefault("sample_always_keep", "error,n_plus_one,slow")
+	v.SetDefault("source_rps", 0)
+	v.SetDefault("source_burst", 0)
 	v.SetDefault("self_telemetry_endpoint", "")
 	v.SetDefault("self_telemetry_service", "spaniel")
 	v.SetDefault("self_telemetry_insecure", true)

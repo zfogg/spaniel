@@ -146,6 +146,18 @@ type SpanLink struct {
 
 func (SpanLink) TableName() string { return "span_links" }
 
+// SourceStats is a rolling-window snapshot for one service.name source.
+// Defined here (not in ingestion) so api and ingestion can both reference it
+// without a circular import.
+type SourceStats struct {
+	Service        string  `json:"service"`
+	AcceptedPerSec float64 `json:"accepted_per_sec"`
+	RejectedPerSec float64 `json:"rejected_per_sec"`
+	ErrorRate      float64 `json:"error_rate"`
+	BytesPerSec    float64 `json:"bytes_per_sec"`
+	LastSeenNs     int64   `json:"last_seen_ns"`
+}
+
 type Stats struct {
 	SpanCount           int   `json:"span_count"`
 	TraceCount          int   `json:"trace_count"`

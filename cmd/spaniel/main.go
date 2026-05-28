@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/http/pprof"
 	"net/url"
 	"os"
 	"os/exec"
@@ -97,9 +98,12 @@ func main() {
 		bearerToken       string
 		sampleRate        int
 		sampleAlwaysKeep  string
+		sourceRPS         float64
+		sourceBurst       int
 		forwardSpoolDir   string
 		forwardMaxSpoolMB int
 		forwardRetryMax   time.Duration
+		debugMode         bool
 	)
 
 	root := &cobra.Command{
@@ -119,6 +123,15 @@ func main() {
 			}
 			if f := cmd.Flags().Lookup("sample-always-keep"); f != nil && f.Changed {
 				cfg.SampleAlwaysKeep = sampleAlwaysKeep
+			}
+			if f := cmd.Flags().Lookup("source-rps"); f != nil && f.Changed {
+				cfg.SourceRPS = sourceRPS
+			}
+			if f := cmd.Flags().Lookup("source-burst"); f != nil && f.Changed {
+				cfg.SourceBurst = sourceBurst
+			}
+			if f := cmd.Flags().Lookup("debug"); f != nil && f.Changed {
+				cfg.Debug = debugMode
 			}
 			return run(cfg)
 		},
@@ -141,6 +154,9 @@ func main() {
 	root.Flags().StringVar(&bearerToken, "bearer-token", "", "Require this bearer token on all requests (env: SPANIEL_BEARER_TOKEN)")
 	root.Flags().IntVar(&sampleRate, "sample-rate", 0, "Max uninteresting spans/sec to store (0 = unlimited)")
 	root.Flags().StringVar(&sampleAlwaysKeep, "sample-always-keep", "error,n_plus_one,slow", "Signals that bypass the rate limit: error,n_plus_one,slow,none")
+	root.Flags().Float64Var(&sourceRPS, "source-rps", 0, "Max spans/sec per service.name source (0 = unlimited)")
+	root.Flags().IntVar(&sourceBurst, "source-burst", 0, "Per-source burst capacity (0 = source-rps * 5)")
+	root.Flags().BoolVar(&debugMode, "debug", false, "Mount /debug/pprof profiling endpoints")
 
 	// session subcommand
 	sessionCmd := &cobra.Command{
@@ -283,6 +299,8 @@ Examples:
 	root.AddCommand(tuiSubcommand())
 	root.AddCommand(compactSubcommand())
 	root.AddCommand(seedSubcommand(v))
+	root.AddCommand(runSubcommand())
+	root.AddCommand(recordSubcommand())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -308,14 +326,17 @@ type runConfig struct {
 	TLSCert           string
 	TLSKey            string
 	BearerToken       string
-	SampleRate        int    // 0 = unlimited
-	SampleAlwaysKeep  string // comma list: error,n_plus_one,slow
+	SampleRate        int     // 0 = unlimited
+	SampleAlwaysKeep  string  // comma list: error,n_plus_one,slow
+	SourceRPS         float64 // per-source rate limit; 0 = unlimited
+	SourceBurst       int     // per-source burst; 0 = RPS*5
 	ForwardSpoolDir        string
 	ForwardMaxSpoolMB      int
 	ForwardRetryMax        time.Duration
 	SelfTelemetryEndpoint  string
 	SelfTelemetryService   string
 	SelfTelemetryInsecure  bool
+	Debug                  bool
 	Viper                  *viper.Viper
 }
 
@@ -344,6 +365,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		BearerToken:      v.GetString("bearer_token"),
 		SampleRate:            v.GetInt("sample_rate"),
 		SampleAlwaysKeep:      v.GetString("sample_always_keep"),
+		SourceRPS:             v.GetFloat64("source_rps"),
+		SourceBurst:           v.GetInt("source_burst"),
 		SelfTelemetryEndpoint: v.GetString("self_telemetry_endpoint"),
 		SelfTelemetryService:  v.GetString("self_telemetry_service"),
 		SelfTelemetryInsecure: v.GetBool("self_telemetry_insecure"),
@@ -456,7 +479,8 @@ func run(cfg runConfig) error {
 
 	hub := ws.NewHub()
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
-	pipeline := ingestion.NewPipelineWithSampler(store, hub, sampler)
+	limiter := ingestion.NewSourceLimiter(cfg.SourceRPS, cfg.SourceBurst)
+	pipeline := ingestion.NewPipelineFull(store, hub, sampler, limiter)
 
 	// Seed drop counters from last run.
 	if dSpans, dLogs, dMetrics, err := store.LoadDropCounters(); err == nil {
@@ -570,7 +594,7 @@ func run(cfg runConfig) error {
 		TLSEnabled:     tlsCfg != nil,
 		BearerTokenSet: cfg.BearerToken != "",
 	}
-	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters())
+	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters(), pipeline)
 
 	var uiHandler http.Handler
 	if cfg.Dev {
@@ -598,6 +622,13 @@ func run(cfg runConfig) error {
 	mainMux := http.NewServeMux()
 	mainMux.Handle("/api/", apiRouter)
 	mainMux.Handle("/ws", apiRouter)
+	if cfg.Debug {
+		mainMux.HandleFunc("/debug/pprof/", pprof.Index)
+		mainMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mainMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mainMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mainMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
 	mainMux.Handle("/", uiHandler)
 
 	var mainHandler http.Handler = mainMux
@@ -664,17 +695,23 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("ui/api listen: %w", err)
 	}
 
-	// Close listeners when the OS signal fires, unblocking serveHTTP.
+	srv := &http.Server{Handler: mainHandler}
+
+	// On signal: trigger graceful HTTP drain, then run shutdown tasks.
 	go func() {
 		<-ctx.Done()
-		for _, ln := range lns {
-			ln.Close()
-		}
+		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutCtx)
 	}()
 
-	serveErr := serveHTTP(wrapTLS(lns, tlsCfg), mainHandler)
+	serveErr := serveAll(wrapTLS(lns, tlsCfg), srv)
 
-	// Final drop-counter flush on shutdown.
+	// Shutdown tasks: run a final retention pass, flush drop counters, close DB.
+	retCfg := retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB)
+	if _, err := store.Prune(retCfg, store.ActiveSessionID()); err != nil {
+		fmt.Fprintf(os.Stderr, "shutdown retention: %v\n", err)
+	}
 	dc := pipeline.DropCounters()
 	_ = store.SaveDropCounters(dc.DroppedSpansTotal(), dc.DroppedLogsTotal(), dc.DroppedMetricPointsTotal())
 
@@ -741,6 +778,24 @@ func serveHTTP(lns []net.Listener, h http.Handler) error {
 		go func(ln net.Listener) { errc <- http.Serve(ln, h) }(ln)
 	}
 	return <-errc
+}
+
+// serveAll serves srv on every listener, blocking until all return.  This is
+// the graceful-shutdown variant: callers drive shutdown via srv.Shutdown(ctx)
+// rather than closing listeners directly.
+func serveAll(lns []net.Listener, srv *http.Server) error {
+	errc := make(chan error, len(lns))
+	for _, ln := range lns {
+		ln := ln
+		go func() { errc <- srv.Serve(ln) }()
+	}
+	var first error
+	for range lns {
+		if err := <-errc; err != nil && err != http.ErrServerClosed && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 func printBanner(cfg runConfig) {

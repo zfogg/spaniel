@@ -14,7 +14,7 @@ func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 	sessionID := req.URL.Query().Get("sessionId")
 	entries, err := r.store.ListMetricCatalog(sessionID)
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 	if entries == nil {
@@ -51,7 +51,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	name := q.Get("name")
 	if name == "" {
-		respondErr(w, 400, "name query param required")
+		respondErr(w, req, 400, "name query param required")
 		return
 	}
 
@@ -66,7 +66,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 		ToNs:      to,
 	})
 	if err != nil {
-		respondErr(w, 500, err.Error())
+		respondErr(w, req, 500, err.Error())
 		return
 	}
 

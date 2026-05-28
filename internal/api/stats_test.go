@@ -32,7 +32,7 @@ func setupRouterWithTP(t *testing.T, tp ThroughputProvider) (http.Handler, *stor
 	}
 	t.Cleanup(func() { store.Close() })
 	hub := ws.NewHub()
-	handler := NewRouterFull(store, hub, nil, nil, nil, tp, nil)
+	handler := NewRouterFull(store, hub, nil, nil, nil, tp, nil, nil)
 	return handler, store
 }
 
@@ -103,7 +103,7 @@ func TestGetStats_IncludesDropCounters(t *testing.T) {
 	}
 	t.Cleanup(func() { store.Close() })
 	hub := ws.NewHub()
-	handler := NewRouterFull(store, hub, nil, nil, nil, nil, dc)
+	handler := NewRouterFull(store, hub, nil, nil, nil, nil, dc, nil)
 
 	w := do(t, handler, http.MethodGet, "/api/stats", nil)
 	if w.Code != http.StatusOK {
