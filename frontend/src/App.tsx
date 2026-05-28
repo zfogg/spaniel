@@ -74,6 +74,14 @@ function ThemeToggle() {
   )
 }
 
+function fmtBytes(n: number): string {
+  if (!n) return '0 B'
+  const u = ['B', 'KB', 'MB', 'GB']
+  let i = 0, v = n
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
+}
+
 // ── Forwarding status pills ───────────────────────────────────────────────────
 
 function ForwardingPills() {
@@ -102,20 +110,30 @@ function ForwardingPills() {
       <div className="flex gap-1 items-center">
         {statuses.map(s => {
           const hasError = s.errors > 0
+          const hasDropped = (s.dropped_spool ?? 0) > 0
+          const pendingBytes = s.pending_bytes ?? 0
           const label = new URL(s.url).host
+          const tone = hasDropped ? 'text-white bg-warn' : hasError ? 'text-white bg-destructive' : 'text-muted-foreground bg-muted'
+          const titleParts = [`→ ${s.url}`, `sent: ${s.sent}`]
+          if (hasError) titleParts.push(`errors: ${s.errors} — last: ${s.last_error}`)
+          if (pendingBytes > 0) titleParts.push(`queued: ${fmtBytes(pendingBytes)}`)
+          if (hasDropped) titleParts.push(`dropped: ${s.dropped_spool}`)
           return (
             <span
               key={s.url}
-              title={hasError ? `${s.errors} error(s) — last: ${s.last_error}` : `→ ${s.url}  sent: ${s.sent}`}
-              className={`inline-flex items-center gap-1 px-[7px] py-[3px] rounded-[5px] font-mono text-[10px] font-medium border border-border whitespace-nowrap cursor-default select-none ${
-                hasError ? 'text-white bg-destructive' : 'text-muted-foreground bg-muted'
-              }`}
+              title={titleParts.join('  ')}
+              className={`inline-flex items-center gap-1 px-[7px] py-[3px] rounded-[5px] font-mono text-[10px] font-medium border border-border whitespace-nowrap cursor-default select-none ${tone}`}
             >
               <span className="opacity-60">→</span>
               {label}
-              {hasError
-                ? <span className="opacity-85">✗</span>
-                : <span className="opacity-55">✓</span>
+              {pendingBytes > 0 && (
+                <span className="opacity-85">{fmtBytes(pendingBytes)} queued</span>
+              )}
+              {hasDropped
+                ? <span className="opacity-85">⚠</span>
+                : hasError
+                  ? <span className="opacity-85">✗</span>
+                  : <span className="opacity-55">✓</span>
               }
             </span>
           )
@@ -185,6 +203,18 @@ function Chrome() {
 function AppShell() {
   useGlobalShortcuts()
   const [paletteOpen, setPaletteOpen] = useState(false)
+
+  // Seed the auth cookie when the user first visits with ?token=<value>.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    if (!token) return
+    api.health.seed(token).then(() => {
+      params.delete('token')
+      const qs = params.toString()
+      window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''))
+    }).catch(() => { /* server will reject API calls with 401 until token is correct */ })
+  }, [])
 
   useEffect(() => {
     const open = () => setPaletteOpen(true)

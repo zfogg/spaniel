@@ -4,7 +4,7 @@ export interface SpanPayload { traceId: string; spanId: string; serviceName: str
 export interface LogPayload { traceId: string; spanId: string; severity: number; body: string; serviceName: string; sessionId: string }
 export interface MetricPayload { name: string; serviceName: string; value: number; type: string }
 export interface IssuePayload { traceId: string; kind: string; fingerprint: string; count: number; wastedNs: number }
-export interface ForwarderPayload { url: string; sent: number; errors: number; lastError?: string }
+export interface ForwarderPayload { url: string; sent: number; errors: number; lastError?: string; pendingBytes?: number; droppedSpool?: number }
 export interface ThroughputPayload { spansPerSec: number; logsPerSec: number }
 
 export type WsEvent =

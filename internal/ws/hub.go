@@ -49,10 +49,12 @@ type IssuePayload struct {
 }
 
 type ForwarderPayload struct {
-	URL     string `json:"url"`
-	Sent    int64  `json:"sent"`
-	Errors  int64  `json:"errors"`
-	LastErr string `json:"lastError,omitempty"`
+	URL          string `json:"url"`
+	Sent         int64  `json:"sent"`
+	Errors       int64  `json:"errors"`
+	LastErr      string `json:"lastError,omitempty"`
+	PendingBytes int64  `json:"pendingBytes,omitempty"`
+	DroppedSpool int64  `json:"droppedSpool,omitempty"`
 }
 
 type ThroughputPayload struct {

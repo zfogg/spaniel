@@ -475,3 +475,89 @@ func TestPipeline_BroadcastsMetric(t *testing.T) {
 		return
 	}
 }
+
+func TestIngestTraces_DropsWhenOverBudget(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("drop-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	// budget=5, no always-keep — healthy spans over budget should be dropped
+	sampler := NewSampler(5, 0)
+	p := NewPipelineWithSampler(db, ws.NewHub(), sampler)
+
+	// Send 20 healthy spans (status_code=0)
+	td := makeTraces("svc", func(ss ptrace.ScopeSpans) {
+		for i := range 20 {
+			putSpan(ss, "d", string(rune('a'+i%26)), "", "GET /ok", ptrace.SpanKindServer, nil)
+		}
+	})
+	if err := p.IngestTraces(context.Background(), td); err != nil {
+		t.Fatalf("IngestTraces: %v", err)
+	}
+
+	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID().String()
+	spans, err := db.GetTrace(traceID)
+	if err != nil {
+		t.Fatalf("GetTrace: %v", err)
+	}
+	if len(spans) != 5 {
+		t.Fatalf("expected 5 stored spans (budget=5), got %d", len(spans))
+	}
+	if sampler.Counters.DroppedSpansTotal() != 15 {
+		t.Fatalf("expected 15 dropped spans, got %d", sampler.Counters.DroppedSpansTotal())
+	}
+}
+
+func TestIngestTraces_ErrorsBypassBudget(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("error-bypass-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	// budget=1 so the bucket empties after the first span
+	sampler := NewSampler(1, KeepErrors)
+	p := NewPipelineWithSampler(db, ws.NewHub(), sampler)
+
+	// Send 5 healthy spans then 1 error span; only the first healthy + the error should land
+	td := makeTraces("svc", func(ss ptrace.ScopeSpans) {
+		for i := range 5 {
+			putSpan(ss, "e", string(rune('a'+i)), "", "GET /ok", ptrace.SpanKindServer, nil)
+		}
+		// error span after budget is exhausted
+		err := ss.Spans().AppendEmpty()
+		var tid pcommon.TraceID
+		var sid pcommon.SpanID
+		copy(tid[:], []byte(strings.Repeat("e", 16))[:16])
+		copy(sid[:], []byte(strings.Repeat("Z", 8))[:8])
+		err.SetTraceID(tid)
+		err.SetSpanID(sid)
+		err.SetName("POST /fail")
+		err.SetKind(ptrace.SpanKindServer)
+		err.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+		err.SetEndTimestamp(pcommon.Timestamp(1_500_000_000))
+		err.Status().SetCode(ptrace.StatusCodeError)
+	})
+	if ingestErr := p.IngestTraces(context.Background(), td); ingestErr != nil {
+		t.Fatalf("IngestTraces: %v", ingestErr)
+	}
+
+	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID().String()
+	spans, err := db.GetTrace(traceID)
+	if err != nil {
+		t.Fatalf("GetTrace: %v", err)
+	}
+
+	// 1 healthy accepted + 1 error = 2 stored
+	if len(spans) != 2 {
+		t.Fatalf("expected 2 stored spans (1 healthy + 1 error), got %d", len(spans))
+	}
+	// error span must be present
+	hasError := false
+	for _, s := range spans {
+		if s.StatusCode == 2 {
+			hasError = true
+		}
+	}
+	if !hasError {
+		t.Fatal("error span was not stored despite KeepErrors policy")
+	}
+}

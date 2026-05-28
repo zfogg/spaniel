@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -136,5 +137,59 @@ func TestForwardEmptyBody(t *testing.T) {
 	st := f.Status()
 	if st[0].Sent != 1 {
 		t.Errorf("expected sent=1 for empty body, got %d", st[0].Sent)
+	}
+}
+
+func TestForwardSurvivesUpstreamDowntime(t *testing.T) {
+	var (
+		callCount atomic.Int32
+		failFirst atomic.Bool
+	)
+	failFirst.Store(true)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		if failFirst.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	sc := SpoolConfig{Dir: dir, MaxBytes: 100 << 20, RetryMax: 500 * time.Millisecond}
+	f := NewWithSpool([]string{srv.URL}, 1.0, sc)
+
+	f.Forward("/v1/traces", "application/json", []byte("{}"))
+
+	// Wait for first failure.
+	waitFor(t, func() bool { return f.Status()[0].Errors > 0 })
+
+	st := f.Status()[0]
+	if st.Errors == 0 {
+		t.Fatal("expected errors after upstream 503")
+	}
+	if st.PendingBytes == 0 {
+		t.Error("expected pending bytes while record awaits retry")
+	}
+
+	// Let upstream succeed.
+	failFirst.Store(false)
+
+	// Wait for successful delivery.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if f.Status()[0].Sent > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if f.Status()[0].Sent == 0 {
+		t.Fatal("expected sent>0 after upstream recovery")
+	}
+	if p := f.Status()[0].PendingBytes; p != 0 {
+		t.Errorf("expected 0 pending after delivery, got %d", p)
 	}
 }

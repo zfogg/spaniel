@@ -51,6 +51,16 @@ bind_address_v6: ::1
 #   - http://otelcollector:4318
 # Fraction of payloads to forward upstream (0.0–1.0). 1.0 forwards everything.
 forward_sample: 1.0
+
+# TLS: enable HTTPS/gRPC-TLS on the UI, API, and both OTLP receivers.
+# Both keys must be set together; leave both blank for plaintext (default).
+# tls_cert: /path/to/cert.pem
+# tls_key:  /path/to/key.pem
+
+# Bearer token: require this secret on all inbound OTLP and API requests.
+# The browser UI is seeded automatically via /api/health?token=<value> on
+# first visit. Set via env var SPANIEL_BEARER_TOKEN to avoid storing in config.
+# bearer_token: ""
 `
 
 // globalConfigPath returns the path to ~/.spaniel/config.yaml.
@@ -77,6 +87,15 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("bind_address_v4", "127.0.0.1")
 	v.SetDefault("bind_address_v6", "::1")
 	v.SetDefault("forward_sample", 1.0)
+	v.SetDefault("forward_spool_dir", "")
+	v.SetDefault("forward_max_spool_mb", 100)
+	v.SetDefault("forward_retry_max", "30s")
+	v.SetDefault("tls_cert", "")
+	v.SetDefault("tls_key", "")
+	v.SetDefault("bearer_token", "")
+	v.SetDefault("self_telemetry_endpoint", "")
+	v.SetDefault("self_telemetry_service", "spaniel")
+	v.SetDefault("self_telemetry_insecure", true)
 
 	// ENV: SPANIEL_PORT, SPANIEL_DB_PATH, etc.
 	v.SetEnvPrefix("SPANIEL")

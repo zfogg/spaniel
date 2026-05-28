@@ -10,31 +10,68 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
 type Pipeline struct {
-	store *storage.DB
-	hub   *ws.Hub
+	store   *storage.DB
+	hub     *ws.Hub
+	tp      *throughputCounter
+	sampler *Sampler
 
 	debounce   map[string]*time.Timer
 	debounceMu sync.Mutex
+
+	tracer        trace.Tracer
+	ingestCounter metric.Int64Counter
 }
 
 func NewPipeline(store *storage.DB, hub *ws.Hub) *Pipeline {
+	return NewPipelineWithSampler(store, hub, NewSampler(0, KeepErrors|KeepNPlusOne|KeepSlow))
+}
+
+func NewPipelineWithSampler(store *storage.DB, hub *ws.Hub, s *Sampler) *Pipeline {
+	meter := otel.Meter("spaniel/ingestion")
+	counter, _ := meter.Int64Counter("spaniel.ingest.signals",
+		metric.WithDescription("Total signals (spans, logs, metric points) ingested"),
+		metric.WithUnit("{signal}"),
+	)
 	return &Pipeline{
-		store:    store,
-		hub:      hub,
-		debounce: make(map[string]*time.Timer),
+		store:         store,
+		hub:           hub,
+		tp:            newThroughputCounter(),
+		sampler:       s,
+		debounce:      make(map[string]*time.Timer),
+		tracer:        otel.Tracer("spaniel/ingestion"),
+		ingestCounter: counter,
 	}
 }
 
+// Throughput returns the current rolling per-second ingest rates.
+func (p *Pipeline) Throughput() storage.Throughput {
+	return p.tp.Throughput()
+}
+
+// DropCounters returns the sampler's drop counters for surfacing in /api/stats.
+func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
+
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
+	ctx, span := p.tracer.Start(ctx, "IngestTraces",
+		trace.WithAttributes(attribute.Int("otel.span_count", traces.SpanCount())))
+	defer span.End()
+
 	sessionID := p.store.ActiveSessionID()
 
 	sessionLabel := p.store.ActiveSessionLabel()
+
+	spansSeen := 0
+	defer func() { p.tp.addSpans(spansSeen) }()
 
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
 		rs := traces.ResourceSpans().At(i)
@@ -62,11 +99,18 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					SessionID:     sessionID,
 					SessionLabel:  sessionLabel,
 					ReceivedAt:    time.Now().UnixNano(),
+					Sampled:       true,
+				}
+
+				if !p.sampler.DecideSpan(s) {
+					p.sampler.Counters.bumpSpans(1)
+					continue
 				}
 
 				if err := p.store.InsertSpan(s); err != nil {
 					return err
 				}
+				spansSeen++
 
 				// Persist span events. Exception events keep their canonical
 				// exception.* attributes (mapToJSON preserves the whole map),
@@ -125,11 +169,19 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 			}
 		}
 	}
+	p.ingestCounter.Add(ctx, int64(spansSeen), metric.WithAttributes(attribute.String("signal", "traces")))
 	return nil
 }
 
 func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
+	ctx, span := p.tracer.Start(ctx, "IngestLogs",
+		trace.WithAttributes(attribute.Int("otel.log_record_count", logs.LogRecordCount())))
+	defer span.End()
+
 	sessionID := p.store.ActiveSessionID()
+
+	logsSeen := 0
+	defer func() { p.tp.addLogs(logsSeen) }()
 
 	for i := 0; i < logs.ResourceLogs().Len(); i++ {
 		rl := logs.ResourceLogs().At(i)
@@ -139,6 +191,11 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 			sl := rl.ScopeLogs().At(j)
 			for k := 0; k < sl.LogRecords().Len(); k++ {
 				lr := sl.LogRecords().At(k)
+
+				if !p.sampler.DecideLog() {
+					p.sampler.Counters.bumpLogs(1)
+					continue
+				}
 
 				l := &storage.Log{
 					TimestampNs: int64(lr.Timestamp()),
@@ -155,6 +212,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 				if err := p.store.InsertLog(l); err != nil {
 					return err
 				}
+				logsSeen++
 				p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
 					TraceID:     l.TraceID,
 					SpanID:      l.SpanID,
@@ -166,11 +224,17 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 			}
 		}
 	}
+	p.ingestCounter.Add(ctx, int64(logsSeen), metric.WithAttributes(attribute.String("signal", "logs")))
 	return nil
 }
 
-func (p *Pipeline) IngestMetrics(_ context.Context, md pmetric.Metrics) error {
-	return p.ingestMetricsTree(md, p.store.ActiveSessionID())
+func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
+	ctx, span := p.tracer.Start(ctx, "IngestMetrics",
+		trace.WithAttributes(attribute.Int("otel.metric_point_count", md.DataPointCount())))
+	defer span.End()
+	err := p.ingestMetricsTree(md, p.store.ActiveSessionID())
+	p.ingestCounter.Add(ctx, int64(md.DataPointCount()), metric.WithAttributes(attribute.String("signal", "metrics")))
+	return err
 }
 
 func (p *Pipeline) scheduleDetectors(traceID string) {

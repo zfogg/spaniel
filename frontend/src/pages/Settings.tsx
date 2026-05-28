@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown } from '@/lib/api'
+import { api, type ForwarderStatus, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown } from '@/lib/api'
 
 // ── atoms ────────────────────────────────────────────────────────────────────
 
@@ -130,11 +130,12 @@ function SelectBox<T extends string>({ value, onChange, options, w = 130, ariaLa
   )
 }
 
-function Pill({ tone = 'neutral', children }: { tone?: 'neutral' | 'ok' | 'warn' | 'accent'; children: React.ReactNode }) {
+function Pill({ tone = 'neutral', children }: { tone?: 'neutral' | 'ok' | 'warn' | 'danger' | 'accent'; children: React.ReactNode }) {
   const tones = {
     neutral: { bg: 'var(--muted)', fg: 'var(--muted-foreground)', bd: 'var(--border)' },
     ok:      { bg: '#dff0e0', fg: '#3e6a3e', bd: '#9bc4a4' },
     warn:    { bg: '#fcefcf', fg: '#8a6118', bd: '#d9b878' },
+    danger:  { bg: '#fde8e8', fg: '#922020', bd: '#e0a0a0' },
     accent:  { bg: 'color-mix(in oklch, var(--accent, #6b7cff) 18%, var(--background))',
                fg: 'var(--accent, #4a5dc7)',
                bd: 'color-mix(in oklch, var(--accent, #6b7cff) 40%, transparent)' },
@@ -232,6 +233,55 @@ function humanRetention(n: number, unit: RetentionUnit): string {
 
 // ── sections ─────────────────────────────────────────────────────────────────
 
+function ForwarderStatusRows() {
+  const [statuses, setStatuses] = useState<ForwarderStatus[]>([])
+
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      try {
+        const { data } = await api.forwarders.list()
+        if (alive) setStatuses(data)
+      } catch {}
+    }
+    poll()
+    const id = setInterval(poll, 5000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+
+  const active = statuses.filter(s => (s.pending_bytes ?? 0) > 0 || (s.dropped_spool ?? 0) > 0)
+  if (active.length === 0) return null
+
+  return (
+    <>
+      {active.map(s => {
+        const host = (() => { try { return new URL(s.url).host } catch { return s.url } })()
+        const pending = s.pending_bytes ?? 0
+        const dropped = s.dropped_spool ?? 0
+        return (
+          <Row
+            key={s.url}
+            label={`→ ${host} spool`}
+            hint={`Disk-backed retry buffer for upstream ${s.url}.`}
+          >
+            {pending > 0 && <Pill tone="warn">{fmtSettingsBytes(pending)} queued</Pill>}
+            {dropped > 0 && <Pill tone="danger">{dropped} dropped</Pill>}
+            {pending === 0 && dropped === 0 && <Pill tone="ok">empty</Pill>}
+          </Row>
+        )
+      })}
+    </>
+  )
+}
+
+function fmtSettingsBytes(n: number): string {
+  if (!n) return '0 B'
+  const u = ['B', 'KB', 'MB', 'GB']
+  let i = 0, v = n
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
+}
+
 function NetworkSection({ s, mutate, hidden }: {
   s: SettingsT; mutate: (patch: SettingsUpdate) => void; hidden: boolean
 }) {
@@ -317,6 +367,7 @@ function NetworkSection({ s, mutate, hidden }: {
           ? <Pill tone="accent">forwarding to {s.forward.length} upstream{s.forward.length === 1 ? '' : 's'}</Pill>
           : <Pill>off</Pill>}
       </Row>
+      <ForwarderStatusRows />
       <Row label="Auto-open browser on startup"
         hint="When the daemon starts, open the spaniel UI in the default browser."
         testid="row-autoopen">

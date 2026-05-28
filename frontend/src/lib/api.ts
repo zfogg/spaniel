@@ -260,6 +260,8 @@ export interface ForwarderStatus {
   sent: number
   errors: number
   last_error?: string
+  pending_bytes?: number
+  dropped_spool?: number
 }
 
 export interface LintWarning {
@@ -281,6 +283,10 @@ export interface Stats {
   logs_per_sec: number
   metrics_per_sec: number
   peak_spans_per_sec: number
+  dropped_spans: number
+  dropped_logs: number
+  dropped_metric_points: number
+  last_drop_at: number
 }
 
 export interface ServiceMapOpStat {

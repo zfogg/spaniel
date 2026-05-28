@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog/plogotlp"
 	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 
 	"github.com/zfogg/spaniel/internal/ingestion"
@@ -18,8 +19,9 @@ type GRPCReceiver struct {
 	server   *grpc.Server
 }
 
-func NewGRPCReceiver(pipeline *ingestion.Pipeline) *GRPCReceiver {
-	srv := grpc.NewServer()
+func NewGRPCReceiver(pipeline *ingestion.Pipeline, opts ...grpc.ServerOption) *GRPCReceiver {
+	opts = append([]grpc.ServerOption{grpc.StatsHandler(otelgrpc.NewServerHandler())}, opts...)
+	srv := grpc.NewServer(opts...)
 	r := &GRPCReceiver{pipeline: pipeline, server: srv}
 	ptraceotlp.RegisterGRPCServer(srv, &traceServer{pipeline: pipeline})
 	plogotlp.RegisterGRPCServer(srv, &logServer{pipeline: pipeline})

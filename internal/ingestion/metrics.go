@@ -17,6 +17,9 @@ import (
 func (p *Pipeline) ingestMetricsTree(md pmetric.Metrics, sessionID string) error {
 	receivedAt := time.Now().UnixNano()
 
+	pointsSeen := 0
+	defer func() { p.tp.addMetrics(pointsSeen) }()
+
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
 		rm := md.ResourceMetrics().At(i)
 		svc := serviceNameFromAttrs(rm.Resource().Attributes())
@@ -25,6 +28,12 @@ func (p *Pipeline) ingestMetricsTree(md pmetric.Metrics, sessionID string) error
 			sm := rm.ScopeMetrics().At(j)
 			for k := 0; k < sm.Metrics().Len(); k++ {
 				m := sm.Metrics().At(k)
+				pts := metricDataPointCount(m)
+				if !p.sampler.DecideMetric() {
+					p.sampler.Counters.bumpMetrics(int64(pts))
+					continue
+				}
+				pointsSeen += pts
 				if err := p.storeMetric(m, svc, sessionID, receivedAt); err != nil {
 					return err
 				}
@@ -32,6 +41,21 @@ func (p *Pipeline) ingestMetricsTree(md pmetric.Metrics, sessionID string) error
 		}
 	}
 	return nil
+}
+
+// metricDataPointCount reports how many OTLP data points a metric carries,
+// counting one per histogram point (not the p50/p95/p99 rows we expand it into).
+func metricDataPointCount(m pmetric.Metric) int {
+	switch m.Type() {
+	case pmetric.MetricTypeGauge:
+		return m.Gauge().DataPoints().Len()
+	case pmetric.MetricTypeSum:
+		return m.Sum().DataPoints().Len()
+	case pmetric.MetricTypeHistogram:
+		return m.Histogram().DataPoints().Len()
+	default:
+		return 0
+	}
 }
 
 func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64) error {

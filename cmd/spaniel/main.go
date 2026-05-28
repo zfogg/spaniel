@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +22,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/zfogg/spaniel/frontend"
 	"github.com/zfogg/spaniel/internal/api"
@@ -29,6 +32,7 @@ import (
 	"github.com/zfogg/spaniel/internal/ingestion"
 	"github.com/zfogg/spaniel/internal/receiver"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
@@ -86,6 +90,14 @@ func main() {
 		maxDBSizeMB   int
 		forwardURLs   []string
 		routesFile    string
+		tlsCert           string
+		tlsKey            string
+		bearerToken       string
+		sampleRate        int
+		sampleAlwaysKeep  string
+		forwardSpoolDir   string
+		forwardMaxSpoolMB int
+		forwardRetryMax   time.Duration
 	)
 
 	root := &cobra.Command{
@@ -98,8 +110,14 @@ func main() {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs)
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, tlsCert, tlsKey, bearerToken)
 			cfg.RoutesFile = routesFile
+			if f := cmd.Flags().Lookup("sample-rate"); f != nil && f.Changed {
+				cfg.SampleRate = sampleRate
+			}
+			if f := cmd.Flags().Lookup("sample-always-keep"); f != nil && f.Changed {
+				cfg.SampleAlwaysKeep = sampleAlwaysKeep
+			}
 			return run(cfg)
 		},
 	}
@@ -112,7 +130,15 @@ func main() {
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
 	root.Flags().StringArrayVar(&forwardURLs, "forward", nil, "Forward OTLP to this URL (repeatable, e.g. http://tempo:4318)")
+	root.Flags().StringVar(&forwardSpoolDir, "forward-spool-dir", "", "Spool directory for forwarding retry buffer (default ~/.spaniel/forward)")
+	root.Flags().IntVar(&forwardMaxSpoolMB, "forward-max-spool-mb", 0, "Max spool size per upstream in MB, 0 = 100 MB default")
+	root.Flags().DurationVar(&forwardRetryMax, "forward-retry-max", 0, "Max retry backoff for forwarding, 0 = 30s default")
 	root.Flags().StringVar(&routesFile, "routes-file", "", "OpenAPI/proto spec file used as the coverage denominator")
+	root.Flags().StringVar(&tlsCert, "tls-cert", "", "TLS certificate file (PEM)")
+	root.Flags().StringVar(&tlsKey, "tls-key", "", "TLS key file (PEM)")
+	root.Flags().StringVar(&bearerToken, "bearer-token", "", "Require this bearer token on all requests (env: SPANIEL_BEARER_TOKEN)")
+	root.Flags().IntVar(&sampleRate, "sample-rate", 0, "Max uninteresting spans/sec to store (0 = unlimited)")
+	root.Flags().StringVar(&sampleAlwaysKeep, "sample-always-keep", "error,n_plus_one,slow", "Signals that bypass the rate limit: error,n_plus_one,slow,none")
 
 	// session subcommand
 	sessionCmd := &cobra.Command{
@@ -222,7 +248,7 @@ Examples:
 		Use:   "prune",
 		Short: "Apply the retention policy now and exit",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs)
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, "", "", "")
 			return prune(cfg.DBPath, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB))
 		},
 	}
@@ -237,7 +263,7 @@ Examples:
 			if !resetYes {
 				return fmt.Errorf("refusing to wipe data without --yes")
 			}
-			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs)
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, "", "", "")
 			return reset(cfg.DBPath)
 		},
 	}
@@ -277,12 +303,23 @@ type runConfig struct {
 	OTLPHTTPPort  int
 	BindAddressV4 string
 	BindAddressV6 string
-	Viper         *viper.Viper
+	TLSCert           string
+	TLSKey            string
+	BearerToken       string
+	SampleRate        int    // 0 = unlimited
+	SampleAlwaysKeep  string // comma list: error,n_plus_one,slow
+	ForwardSpoolDir        string
+	ForwardMaxSpoolMB      int
+	ForwardRetryMax        time.Duration
+	SelfTelemetryEndpoint  string
+	SelfTelemetryService   string
+	SelfTelemetryInsecure  bool
+	Viper                  *viper.Viper
 }
 
 // resolveConfig merges viper config with any explicitly-set CLI flags.
 // CLI flags win if they were actually changed from their zero-value sentinel.
-func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPath string, noBrowser bool, retentionDays, maxSessions, maxDBSizeMB int, forwardURLs []string) runConfig {
+func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPath string, noBrowser bool, retentionDays, maxSessions, maxDBSizeMB int, forwardURLs []string, tlsCert, tlsKey, bearerToken string) runConfig {
 	cfg := runConfig{
 		Port:          v.GetInt("port"),
 		Dev:           dev,
@@ -291,12 +328,23 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		RetentionDays: v.GetInt("retention_days"),
 		MaxSessions:   v.GetInt("max_sessions"),
 		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
-		ForwardURLs:   v.GetStringSlice("forward"),
-		ForwardSample: v.GetFloat64("forward_sample"),
+		ForwardURLs:       v.GetStringSlice("forward"),
+		ForwardSample:     v.GetFloat64("forward_sample"),
+		ForwardSpoolDir:   v.GetString("forward_spool_dir"),
+		ForwardMaxSpoolMB: v.GetInt("forward_max_spool_mb"),
+		ForwardRetryMax:   v.GetDuration("forward_retry_max"),
 		OTLPGRPCPort:  v.GetInt("otlp_grpc_port"),
 		OTLPHTTPPort:  v.GetInt("otlp_http_port"),
 		BindAddressV4: v.GetString("bind_address_v4"),
 		BindAddressV6: v.GetString("bind_address_v6"),
+		TLSCert:          v.GetString("tls_cert"),
+		TLSKey:           v.GetString("tls_key"),
+		BearerToken:      v.GetString("bearer_token"),
+		SampleRate:            v.GetInt("sample_rate"),
+		SampleAlwaysKeep:      v.GetString("sample_always_keep"),
+		SelfTelemetryEndpoint: v.GetString("self_telemetry_endpoint"),
+		SelfTelemetryService:  v.GetString("self_telemetry_service"),
+		SelfTelemetryInsecure: v.GetBool("self_telemetry_insecure"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -319,6 +367,28 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	}
 	if f := cmd.Flags().Lookup("forward"); f != nil && f.Changed {
 		cfg.ForwardURLs = forwardURLs
+	}
+	if f := cmd.Flags().Lookup("forward-spool-dir"); f != nil && f.Changed {
+		cfg.ForwardSpoolDir = f.Value.String()
+	}
+	if f := cmd.Flags().Lookup("forward-max-spool-mb"); f != nil && f.Changed {
+		if n, err := strconv.Atoi(f.Value.String()); err == nil {
+			cfg.ForwardMaxSpoolMB = n
+		}
+	}
+	if f := cmd.Flags().Lookup("forward-retry-max"); f != nil && f.Changed {
+		if d, err := time.ParseDuration(f.Value.String()); err == nil {
+			cfg.ForwardRetryMax = d
+		}
+	}
+	if f := cmd.Flags().Lookup("tls-cert"); f != nil && f.Changed {
+		cfg.TLSCert = tlsCert
+	}
+	if f := cmd.Flags().Lookup("tls-key"); f != nil && f.Changed {
+		cfg.TLSKey = tlsKey
+	}
+	if f := cmd.Flags().Lookup("bearer-token"); f != nil && f.Changed {
+		cfg.BearerToken = bearerToken
 	}
 	if cfg.Port == 0 {
 		cfg.Port = 8080
@@ -356,6 +426,17 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("create data dir: %w", err)
 	}
 
+	otelShutdown, err := telemetry.Setup(context.Background(), telemetry.Config{
+		Endpoint:    cfg.SelfTelemetryEndpoint,
+		ServiceName: cfg.SelfTelemetryService,
+		Version:     version,
+		Insecure:    cfg.SelfTelemetryInsecure,
+	})
+	if err != nil {
+		return fmt.Errorf("self-telemetry setup: %w", err)
+	}
+	defer otelShutdown(context.Background()) //nolint:errcheck
+
 	store, err := storage.Open(cfg.DBPath)
 	if err != nil {
 		return fmt.Errorf("open storage: %w", err)
@@ -372,16 +453,44 @@ func run(cfg runConfig) error {
 	go runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB), sess.ID)
 
 	hub := ws.NewHub()
-	pipeline := ingestion.NewPipeline(store, hub)
+	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
+	pipeline := ingestion.NewPipelineWithSampler(store, hub, sampler)
 
 	var fwd *forwarder.Forwarder
 	if len(cfg.ForwardURLs) > 0 {
-		fwd = forwarder.New(cfg.ForwardURLs, cfg.ForwardSample)
+		sc := forwarder.SpoolConfig{
+			Dir:      cfg.ForwardSpoolDir,
+			MaxBytes: int64(cfg.ForwardMaxSpoolMB) << 20,
+			RetryMax: cfg.ForwardRetryMax,
+		}
+		fwd = forwarder.NewWithSpool(cfg.ForwardURLs, cfg.ForwardSample, sc)
+	}
+
+	// Load TLS if both cert and key are configured.
+	var tlsCfg *tls.Config
+	if cfg.TLSCert != "" && cfg.TLSKey != "" {
+		cert, err := tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
+		if err != nil {
+			return fmt.Errorf("load TLS cert/key: %w", err)
+		}
+		tlsCfg = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS12,
+		}
 	}
 
 	hosts := bindHosts(cfg)
 
-	grpcRcv := receiver.NewGRPCReceiver(pipeline)
+	// Build gRPC server options (TLS and/or bearer auth).
+	var grpcOpts []grpc.ServerOption
+	if tlsCfg != nil {
+		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
+	}
+	if cfg.BearerToken != "" {
+		grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(receiver.UnaryBearerInterceptor(cfg.BearerToken)))
+	}
+
+	grpcRcv := receiver.NewGRPCReceiver(pipeline, grpcOpts...)
 	if cfg.OTLPGRPCPort > 0 {
 		lns, err := listenAll(hosts, cfg.OTLPGRPCPort)
 		if err != nil {
@@ -408,8 +517,13 @@ func run(cfg runConfig) error {
 			fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
 		}
 		if len(lns) > 0 {
+			var otlpHandler http.Handler = otlpMux
+			if cfg.BearerToken != "" {
+				otlpHandler = receiver.BearerMiddleware(cfg.BearerToken)(otlpHandler)
+			}
+			lns = wrapTLS(lns, tlsCfg)
 			go func() {
-				if err := serveHTTP(lns, otlpMux); err != nil {
+				if err := serveHTTP(lns, otlpHandler); err != nil {
 					fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
 				}
 			}()
@@ -431,14 +545,16 @@ func run(cfg runConfig) error {
 		}
 	}
 	settingsSvc := &api.SettingsService{
-		Viper:      cfg.Viper,
-		ConfigPath: globalConfigPath(),
-		Version:    version,
-		StartedAt:  time.Now(),
+		Viper:          cfg.Viper,
+		ConfigPath:     globalConfigPath(),
+		Version:        version,
+		StartedAt:      time.Now(),
 		OTLPGRPCPort:   cfg.OTLPGRPCPort,
 		OTLPHTTPPort:   cfg.OTLPHTTPPort,
+		TLSEnabled:     tlsCfg != nil,
+		BearerTokenSet: cfg.BearerToken != "",
 	}
-	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc)
+	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters())
 
 	var uiHandler http.Handler
 	if cfg.Dev {
@@ -468,12 +584,21 @@ func run(cfg runConfig) error {
 	mainMux.Handle("/ws", apiRouter)
 	mainMux.Handle("/", uiHandler)
 
+	var mainHandler http.Handler = mainMux
+	if cfg.BearerToken != "" {
+		mainHandler = receiver.APIBearerMiddleware(cfg.BearerToken)(mainHandler)
+	}
+
 	printBanner(cfg)
 
+	scheme := "http"
+	if tlsCfg != nil {
+		scheme = "https"
+	}
 	if !cfg.NoBrowser {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
-			openBrowser(fmt.Sprintf("http://localhost:%d", cfg.Port))
+			openBrowser(fmt.Sprintf("%s://localhost:%d", scheme, cfg.Port))
 		}()
 	}
 
@@ -503,10 +628,12 @@ func run(cfg runConfig) error {
 			if fwd != nil {
 				for _, s := range fwd.Status() {
 					hub.Broadcast(ws.NewForwarderEvent(&ws.ForwarderPayload{
-						URL:     s.URL,
-						Sent:    s.Sent,
-						Errors:  s.Errors,
-						LastErr: s.LastErr,
+						URL:          s.URL,
+						Sent:         s.Sent,
+						Errors:       s.Errors,
+						LastErr:      s.LastErr,
+						PendingBytes: s.PendingBytes,
+						DroppedSpool: s.DroppedSpool,
 					}))
 				}
 			}
@@ -518,7 +645,7 @@ func run(cfg runConfig) error {
 	if err != nil {
 		return fmt.Errorf("ui/api listen: %w", err)
 	}
-	return serveHTTP(lns, mainMux)
+	return serveHTTP(wrapTLS(lns, tlsCfg), mainHandler)
 }
 
 // bindHosts returns the configured bind addresses (IPv4 and/or IPv6). Blank
@@ -559,6 +686,17 @@ func listenAll(hosts []string, port int) ([]net.Listener, error) {
 	return lns, nil
 }
 
+func wrapTLS(lns []net.Listener, tlsCfg *tls.Config) []net.Listener {
+	if tlsCfg == nil {
+		return lns
+	}
+	wrapped := make([]net.Listener, len(lns))
+	for i, ln := range lns {
+		wrapped[i] = tls.NewListener(ln, tlsCfg)
+	}
+	return wrapped
+}
+
 // serveHTTP serves h on every listener, blocking until the first one returns.
 func serveHTTP(lns []net.Listener, h http.Handler) error {
 	errc := make(chan error, len(lns))
@@ -569,11 +707,15 @@ func serveHTTP(lns []net.Listener, h http.Handler) error {
 }
 
 func printBanner(cfg runConfig) {
+	scheme := "http"
+	if cfg.TLSCert != "" && cfg.TLSKey != "" {
+		scheme = "https"
+	}
 	fmt.Printf("\nspaniel 🐕\n")
 	if cfg.Dev {
-		fmt.Printf("  UI        →  http://localhost:%d  (DEV — proxying to vite at :5173)\n", cfg.Port)
+		fmt.Printf("  UI        →  %s://localhost:%d  (DEV — proxying to vite at :5173)\n", scheme, cfg.Port)
 	} else {
-		fmt.Printf("  UI        →  http://localhost:%d\n", cfg.Port)
+		fmt.Printf("  UI        →  %s://localhost:%d\n", scheme, cfg.Port)
 	}
 	if cfg.OTLPGRPCPort > 0 {
 		fmt.Printf("  OTLP/gRPC →  localhost:%d\n", cfg.OTLPGRPCPort)
@@ -584,6 +726,12 @@ func printBanner(cfg runConfig) {
 		fmt.Printf("  OTLP/HTTP →  localhost:%d\n", cfg.OTLPHTTPPort)
 	} else {
 		fmt.Printf("  OTLP/HTTP →  disabled\n")
+	}
+	if cfg.TLSCert != "" {
+		fmt.Printf("  TLS       →  enabled (%s)\n", cfg.TLSCert)
+	}
+	if cfg.BearerToken != "" {
+		fmt.Printf("  Auth      →  bearer token required\n")
 	}
 	fmt.Printf("  DB        →  %s\n", cfg.DBPath)
 	for _, u := range cfg.ForwardURLs {
