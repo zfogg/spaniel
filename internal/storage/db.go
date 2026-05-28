@@ -1158,42 +1158,58 @@ type SessionSize struct {
 func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	out := &StorageBreakdown{}
 
-	// Per-table: estimated_size in duckdb_tables() is row count, not bytes.
-	// Multiply by the sum of average column widths from duckdb_columns() to get
-	// a byte estimate that actually scales with data volume.
+	// duckdb_tables().estimated_size is row count not bytes, and this DuckDB
+	// version's duckdb_columns() lacks avg_width. Measure actual payload sizes by
+	// summing serialized variable-length columns per table.
+	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
 	type tblSize struct {
-		TableName   string
+		Name        string
 		RowCount    int64
 		ApproxBytes int64
 	}
-	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
 	var sizes []tblSize
-	if err := d.gorm.Raw(`
-		SELECT t.table_name,
-		       t.estimated_size AS row_count,
-		       CAST(COALESCE(SUM(c.avg_width), 0) * t.estimated_size AS BIGINT) AS approx_bytes
-		FROM duckdb_tables() t
-		JOIN duckdb_columns() c
-		  ON c.table_name = t.table_name AND c.schema_name = t.schema_name
-		WHERE t.schema_name = 'main'
-		GROUP BY t.table_name, t.estimated_size
-	`).Scan(&sizes).Error; err == nil {
-		byTable := make(map[string]tblSize, len(sizes))
-		for _, s := range sizes {
-			byTable[s.TableName] = s
-		}
-		for _, name := range tableNames {
-			s := byTable[name]
-			// Fall back to COUNT(*) for row_count in case estimated_size is stale.
-			if s.RowCount == 0 {
-				_ = d.gorm.Table(name).Count(&s.RowCount).Error
-			}
-			out.Tables = append(out.Tables, TableStat{
-				Name:        name,
-				RowCount:    s.RowCount,
-				ApproxBytes: s.ApproxBytes,
-			})
-		}
+	_ = d.gorm.Raw(`
+		SELECT 'spans' AS name, COUNT(*) AS row_count,
+		  CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300), 0) AS BIGINT) AS approx_bytes
+		FROM spans
+		UNION ALL
+		SELECT 'logs', COUNT(*),
+		  CAST(COALESCE(SUM(LENGTH(body) + LENGTH(attributes::VARCHAR) + 100), 0) AS BIGINT)
+		FROM logs
+		UNION ALL
+		SELECT 'metrics', COUNT(*),
+		  CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT)
+		FROM metrics
+		UNION ALL
+		SELECT 'span_events', COUNT(*),
+		  CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT)
+		FROM span_events
+		UNION ALL
+		SELECT 'span_links', COUNT(*),
+		  CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + 120), 0) AS BIGINT)
+		FROM span_links
+		UNION ALL
+		SELECT 'sessions', COUNT(*), CAST(COUNT(*) * 200 AS BIGINT) FROM sessions
+		UNION ALL
+		SELECT 'trace_issues', COUNT(*),
+		  CAST(COALESCE(SUM(LENGTH(fingerprint) + 150), 0) AS BIGINT)
+		FROM trace_issues
+		UNION ALL
+		SELECT 'lint_warnings', COUNT(*),
+		  CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT)
+		FROM lint_warnings
+	`).Scan(&sizes)
+	byTable := make(map[string]tblSize, len(sizes))
+	for _, s := range sizes {
+		byTable[s.Name] = s
+	}
+	for _, name := range tableNames {
+		s := byTable[name]
+		out.Tables = append(out.Tables, TableStat{
+			Name:        name,
+			RowCount:    s.RowCount,
+			ApproxBytes: s.ApproxBytes,
+		})
 	}
 
 	// Per-session: proxy size via span attribute payload length.
