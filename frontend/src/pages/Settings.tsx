@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type ForwarderStatus, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown, type UpdateCheckResult } from '@/lib/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
+import { api, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown, type UpdateCheckResult } from '@/lib/api'
 
 // ── atoms ────────────────────────────────────────────────────────────────────
 
@@ -234,20 +236,11 @@ function humanRetention(n: number, unit: RetentionUnit): string {
 // ── sections ─────────────────────────────────────────────────────────────────
 
 function ForwarderStatusRows() {
-  const [statuses, setStatuses] = useState<ForwarderStatus[]>([])
-
-  useEffect(() => {
-    let alive = true
-    const poll = async () => {
-      try {
-        const { data } = await api.forwarders.list()
-        if (alive) setStatuses(data)
-      } catch {}
-    }
-    poll()
-    const id = setInterval(poll, 5000)
-    return () => { alive = false; clearInterval(id) }
-  }, [])
+  const { data: statuses = [] } = useQuery({
+    queryKey: qk.forwarders(),
+    queryFn: () => api.forwarders.list().then(r => r.data),
+    refetchInterval: 5000,
+  })
 
   const active = statuses.filter(s => (s.pending_bytes ?? 0) > 0 || (s.dropped_spool ?? 0) > 0)
   if (active.length === 0) return null
@@ -682,47 +675,42 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
 type Section = 'network' | 'storage' | 'about'
 
 export default function Settings() {
-  const [data, setData] = useState<SettingsT | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const [localError, setLocalError] = useState<string | null>(null)
   const [section, setSection] = useState<Section>('network')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [breakdown, setBreakdown] = useState<StorageBreakdown | null>(null)
 
-  useEffect(() => {
-    let cancel = false
-    api.settings.get()
-      .then(r => { if (!cancel) setData(r.data) })
-      .catch(e => { if (!cancel) setError(String(e)) })
-    return () => { cancel = true }
-  }, [])
+  const settingsQuery = useQuery({
+    queryKey: qk.settings(),
+    queryFn: () => api.settings.get().then(r => r.data),
+  })
+  const data = settingsQuery.data ?? null
+  const error = localError ?? (settingsQuery.isError ? String(settingsQuery.error) : null)
 
-  useEffect(() => {
-    let cancel = false
-    api.storage.get()
-      .then(r => { if (!cancel) setBreakdown(r.data) })
-      .catch(() => {})
-    return () => { cancel = true }
-  }, [])
+  const { data: breakdown = null } = useQuery({
+    queryKey: qk.storage(),
+    queryFn: () => api.storage.get().then(r => r.data),
+  })
 
   const mutate = useCallback(async (patch: SettingsUpdate) => {
     if (!data) return
-    // Optimistic update so toggles & inputs feel snappy.
-    setData(prev => prev ? { ...prev, ...patch } : prev)
+    // Optimistic cache update so toggles & inputs feel snappy.
+    queryClient.setQueryData<SettingsT>(qk.settings(), prev => prev ? { ...prev, ...patch } : prev)
     setSaving(true)
-    setError(null)
+    setLocalError(null)
     try {
       const r = await api.settings.update(patch)
-      setData(r.data)
+      queryClient.setQueryData(qk.settings(), r.data)
       setSavedAt(Date.now())
     } catch (e) {
-      setError(String(e))
+      setLocalError(String(e))
       // Refetch to reconcile.
-      api.settings.get().then(r => setData(r.data)).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: qk.settings() })
     } finally {
       setSaving(false)
     }
-  }, [data])
+  }, [data, queryClient])
 
   const onPrune = useCallback(async () => {
     if (!confirm('Apply retention now? Drops old sessions according to your retention settings.')) return
@@ -731,8 +719,9 @@ export default function Settings() {
       const deleted = res.deleted_by_age + res.deleted_by_count + res.deleted_by_size
       // Refresh the settings card + storage breakdown so db size / counts
       // reflect the prune we just ran.
-      api.settings.get().then(r => setData(r.data)).catch(() => {})
-      api.storage.get().then(r => setBreakdown(r.data)).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: qk.settings() })
+      queryClient.invalidateQueries({ queryKey: qk.storage() })
+      queryClient.invalidateQueries({ queryKey: qk.sessions() })
       alert(deleted > 0
         ? `Pruned ${deleted} session${deleted === 1 ? '' : 's'} `
           + `(age ${res.deleted_by_age}, count ${res.deleted_by_count}, size ${res.deleted_by_size}). `
@@ -741,23 +730,25 @@ export default function Settings() {
     } catch (e) {
       alert(`Prune failed: ${e instanceof Error ? e.message : String(e)}`)
     }
-  }, [])
+  }, [queryClient])
 
   const onDrop = useCallback(async () => {
     if (!confirm('Drop ALL spans, logs, metrics, sessions, and lint warnings? This cannot be undone.')) return
     try {
       await api.settings.dropAllData()
       setSavedAt(Date.now())
+      // Everything was wiped — refresh all cached views.
+      queryClient.invalidateQueries()
     } catch (e) {
-      setError(String(e))
+      setLocalError(String(e))
     }
-  }, [])
+  }, [queryClient])
 
   const onCompact = useCallback(async () => {
     await api.settings.compact()
     // Refresh breakdown after compaction so sizes update.
-    api.storage.get().then(r => setBreakdown(r.data)).catch(() => {})
-  }, [])
+    queryClient.invalidateQueries({ queryKey: qk.storage() })
+  }, [queryClient])
 
   const sections = useMemo(() => ([
     { id: 'network' as const, label: 'Network' },

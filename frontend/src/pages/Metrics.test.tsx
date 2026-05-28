@@ -2,12 +2,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Metrics from './Metrics'
 import { bucketPoints } from '@/lib/metrics-bucket'
 
-// Metrics uses useNavigate() (in the correlated-traces panel) which needs
-// a Router context. Wrap once so the existing test cases stay unchanged.
-const renderMetrics = () => render(<MemoryRouter><Metrics /></MemoryRouter>)
+// Metrics uses useNavigate() (correlated-traces panel) and useQuery, so it
+// needs both a Router and a QueryClient context. A fresh client per render
+// (with retries off) keeps cases isolated while leaving them otherwise unchanged.
+const renderMetrics = () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter><Metrics /></MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
 import type { MetricCatalogEntry, MetricSeries } from '@/lib/api'
 
 // ── fetch mock ──────────────────────────────────────────────────────────────

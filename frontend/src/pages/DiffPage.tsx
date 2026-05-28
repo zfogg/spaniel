@@ -1,5 +1,7 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
 import { api, type Span, type Session } from '@/lib/api'
 import { fmtNs, svcColor, flatten } from '@/lib/span-utils'
 import { diffStatusFor, layoutSpan, columnWindow, sharedWindowNs, type DiffStatus } from '@/lib/diff-layout'
@@ -269,47 +271,33 @@ export default function DiffPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  const [sessions, setSessions] = useState<Session[]>([])
   const [baselineId, setBaselineId] = useState(searchParams.get('baseline') ?? '')
   const [compareId, setCompareId] = useState(searchParams.get('compare') ?? '')
-  const [diff, setDiff] = useState<DiffResult | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  // load sessions list for selectors
-  useEffect(() => {
-    api.sessions.list().then(res => setSessions(res.data ?? []))
-  }, [])
+  // sessions list for the selectors
+  const { data: sessions = [] } = useQuery({
+    queryKey: qk.sessions(),
+    queryFn: () => api.sessions.list().then(r => r.data ?? []),
+  })
 
-  // fetch diff when both ids present
-  const fetchDiff = useCallback(async (bId: string, cId: string) => {
-    if (!bId || !cId) { setDiff(null); return }
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/diff?baseline=${bId}&compare=${cId}`)
+  // diff refetches automatically whenever both ids are set (they're in the key)
+  const { data: diff = null, isFetching: loading } = useQuery({
+    queryKey: ['diff', baselineId, compareId],
+    enabled: !!baselineId && !!compareId,
+    queryFn: async () => {
+      const res = await fetch(`/api/diff?baseline=${baselineId}&compare=${compareId}`)
       const json = await res.json()
-      const result = json.data
-      setDiff(result)
+      const result = json.data as DiffResult | null
       if (result?.summary) {
         updateDiffHistoryDeltas(
-          bId, cId,
+          baselineId, compareId,
           Math.round(result.summary.duration_delta_ns / 1_000_000),
           (result.summary.spans_added ?? 0) - (result.summary.spans_removed ?? 0),
         )
       }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // sync URL params → state on mount
-  useEffect(() => {
-    const b = searchParams.get('baseline') ?? ''
-    const c = searchParams.get('compare') ?? ''
-    if (b !== baselineId) setBaselineId(b)
-    if (c !== compareId) setCompareId(c)
-    if (b && c) fetchDiff(b, c)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+      return result
+    },
+  })
 
   function updateIds(newBaseline: string, newCompare: string) {
     setBaselineId(newBaseline)
@@ -318,7 +306,6 @@ export default function DiffPage() {
     if (newBaseline) params.baseline = newBaseline
     if (newCompare) params.compare = newCompare
     setSearchParams(params)
-    fetchDiff(newBaseline, newCompare)
   }
 
   function handleSwap() {

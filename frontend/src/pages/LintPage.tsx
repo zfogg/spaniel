@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
 import { api, LintWarning, TraceIssue } from '@/lib/api'
-import { useWS } from '@/lib/ws'
 import EmptyState from '@/components/EmptyState'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
@@ -114,25 +114,15 @@ function kindLabel(kind: string): string {
 }
 
 export default function LintPage() {
-  const [warnings, setWarnings]         = useState<LintWarning[]>([])
-  const [traceIssues, setTraceIssues]   = useState<TraceIssue[]>([])
-  const [loading, setLoading]           = useState(true)
-
-  async function load() {
-    try {
-      const [lintRes, issueRes] = await Promise.all([
-        api.lint.list(),
-        api.issues.list(),
-      ])
-      setWarnings(lintRes.data ?? [])
-      setTraceIssues(issueRes.data ?? [])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
-  useWS(ev => { if (ev.type === 'span') load() })
+  const { data: warnings = [], isLoading: lintLoading } = useQuery({
+    queryKey: qk.lint(),
+    queryFn: () => api.lint.list().then(r => r.data ?? []),
+  })
+  const { data: traceIssues = [], isLoading: issuesLoading } = useQuery({
+    queryKey: qk.issues(),
+    queryFn: () => api.issues.list().then(r => r.data ?? []),
+  })
+  const loading = lintLoading || issuesLoading
 
   const errors   = warnings.filter(w => w.severity === 'error').length
   const warnCnt  = warnings.filter(w => w.severity === 'warning').length

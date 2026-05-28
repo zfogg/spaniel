@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
 import { api, type SpanRow } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
-import { useWS } from '@/lib/ws'
 import EmptyState from '@/components/EmptyState'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -228,8 +229,6 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
 // ── Spans page ────────────────────────────────────────────────────────────────
 
 export default function Spans() {
-  const [spans, setSpans] = useState<SpanRow[]>([])
-  const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState<'time' | 'dur' | 'name'>('time')
   const [query, setQuery] = useState('')
   const [svcSel, setSvcSel] = useState<string | null>(null)
@@ -237,18 +236,12 @@ export default function Spans() {
   const [tagSel, setTagSel] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  async function load(sort: 'time' | 'dur' | 'name') {
-    try {
-      const { data } = await api.spans.list({ sort })
-      setSpans(data)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load(sortBy) }, [sortBy])
-
-  useWS((_ev) => { load(sortBy) })
+  // sort is part of the server request, so it goes in the query key; live span
+  // events refresh this via useLiveInvalidation() in App.tsx.
+  const { data: spans = [], isLoading: loading } = useQuery({
+    queryKey: qk.spans({ sort: sortBy }),
+    queryFn: () => api.spans.list({ sort: sortBy }).then(r => r.data),
+  })
 
   // facet counts computed from the full dataset
   const svcFacets = useMemo(() => {

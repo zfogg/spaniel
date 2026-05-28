@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { api, CoverageReport, ServiceCoverage, CoverageRoute } from '@/lib/api'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
+import { api, ServiceCoverage, CoverageRoute } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 
@@ -262,19 +264,14 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
 // ── page ────────────────────────────────────────────────────────────────────
 
 export default function Coverage() {
-  const [report, setReport] = useState<CoverageReport | null>(null)
-  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<{ svc: string; route: CoverageRoute } | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
-  useEffect(() => {
-    let cancel = false
-    api.coverage.get()
-      .then(r => { if (!cancel) { setReport(r.data); setLoading(false) } })
-      .catch(() => { if (!cancel) setLoading(false) })
-    return () => { cancel = true }
-  }, [])
+  const { data: report = null, isLoading: loading } = useQuery({
+    queryKey: qk.coverage(),
+    queryFn: () => api.coverage.get().then(r => r.data),
+  })
 
   const totalDark = useMemo(() => report?.overall.dark_count ?? 0, [report])
 

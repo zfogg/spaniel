@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query";
 import { api, Session } from "@/lib/api";
 import {
   type DiffHistoryEntry,
@@ -733,33 +735,32 @@ function CompareBar(
 // ── main page ─────────────────────────────────────────────────────────────────
 
 export default function Sessions() {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
-  const [baselineId, setBaselineId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [compareId, setCompareId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [filter, setFilter] = useState<SessionFilter>("all");
-  const [diffHistory, setDiffHistory] = useState<DiffHistoryEntry[]>([]);
+  // diff history lives in localStorage (written by the Diff page); read once on
+  // mount — the route remounts on navigation, so revisiting re-reads it.
+  const [diffHistory] = useState<DiffHistoryEntry[]>(() => readDiffHistory());
 
-  const load = useCallback(async () => {
-    const [sessRes, activeRes] = await Promise.all([
-      api.sessions.list(),
-      api.sessions.getActive(),
-    ]);
-    const list = sessRes.data ?? [];
-    setSessions(list);
-    setActiveId(activeRes.data?.id ?? "");
-    const bl = list.find((s) => s.is_baseline);
-    if (bl) setBaselineId(bl.id);
-    setDiffHistory(readDiffHistory());
-    setLoading(false);
-  }, []);
+  const { data: sessions = [], isLoading: loading } = useQuery({
+    queryKey: qk.sessions(),
+    queryFn: () => api.sessions.list().then((r) => r.data ?? []),
+  });
+  const { data: activeData } = useQuery({
+    queryKey: qk.activeSession(),
+    queryFn: () => api.sessions.getActive().then((r) => r.data),
+  });
+  const activeId = activeData?.id ?? "";
+  const baselineId = sessions.find((s) => s.is_baseline)?.id ?? null;
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // After any write, refetch the list + active session (server is the source of
+  // truth for is_baseline / active flags).
+  function reload() {
+    queryClient.invalidateQueries({ queryKey: qk.sessions() });
+    queryClient.invalidateQueries({ queryKey: qk.activeSession() });
+  }
 
   async function handleNew() {
     setCreating(true);
@@ -768,10 +769,8 @@ export default function Sessions() {
         "Session label (leave blank for timestamp auto-name):",
       );
       const res = await api.sessions.create(label ?? undefined);
-      const newId = res.data.id;
-      await api.sessions.activate(newId);
-      setActiveId(newId);
-      await load();
+      await api.sessions.activate(res.data.id);
+      reload();
     } finally {
       setCreating(false);
     }
@@ -780,26 +779,19 @@ export default function Sessions() {
   async function handleBaseline(id: string) {
     const isNowBaseline = baselineId !== id;
     await api.sessions.baseline(id, isNowBaseline);
-    if (!isNowBaseline) {
-      setBaselineId(null);
-    } else {
-      if (compareId === id) setCompareId(null);
-      setBaselineId(id);
-    }
-    await load();
+    if (isNowBaseline && compareId === id) setCompareId(null);
+    reload();
   }
 
   async function handleActivate(id: string) {
     await api.sessions.activate(id);
-    setActiveId(id);
-    await load();
+    reload();
   }
 
   async function handleDelete(id: string) {
     await api.sessions.delete(id);
     if (compareId === id) setCompareId(null);
-    if (baselineId === id) setBaselineId(null);
-    await load();
+    reload();
   }
 
   function handleCompare(id: string | null) {
@@ -808,7 +800,9 @@ export default function Sessions() {
   }
 
   function handleNoteChange(id: string, note: string) {
-    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, note } : s));
+    queryClient.setQueryData<Session[]>(qk.sessions(), (prev) =>
+      (prev ?? []).map((s) => (s.id === id ? { ...s, note } : s)),
+    );
   }
 
   const filteredSessions = sessions.filter((s) => {
@@ -828,7 +822,7 @@ export default function Sessions() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {showImport && (
-        <ImportModal onClose={() => setShowImport(false)} onImported={load} />
+        <ImportModal onClose={() => setShowImport(false)} onImported={reload} />
       )}
       <div className="flex-1 flex min-h-0">
         {/* sidebar */}

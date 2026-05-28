@@ -19,7 +19,9 @@ import Settings from './pages/Settings'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
 import { useGlobalShortcuts } from './lib/shortcuts'
-import { api, type ForwarderStatus } from './lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { qk, useLiveInvalidation } from './lib/query'
+import { api } from './lib/api'
 
 // ── Spaniel logo SVG ──────────────────────────────────────────────────────────
 
@@ -85,22 +87,11 @@ function fmtBytes(n: number): string {
 // ── Forwarding status pills ───────────────────────────────────────────────────
 
 function ForwardingPills() {
-  const [statuses, setStatuses] = useState<ForwarderStatus[]>([])
-
-  useEffect(() => {
-    let alive = true
-    const poll = async () => {
-      try {
-        const { data } = await api.forwarders.list()
-        if (alive) setStatuses(data)
-      } catch {
-        // server may not be up yet; silently retry
-      }
-    }
-    poll()
-    const id = setInterval(poll, 5000)
-    return () => { alive = false; clearInterval(id) }
-  }, [])
+  const { data: statuses = [] } = useQuery({
+    queryKey: qk.forwarders(),
+    queryFn: () => api.forwarders.list().then(r => r.data),
+    refetchInterval: 5000,
+  })
 
   if (statuses.length === 0) return null
 
@@ -202,6 +193,7 @@ function Chrome() {
 
 function AppShell() {
   useGlobalShortcuts()
+  useLiveInvalidation()
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   // Seed the auth cookie when the user first visits with ?token=<value>.
