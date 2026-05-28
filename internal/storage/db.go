@@ -1108,30 +1108,40 @@ type SessionSize struct {
 func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	out := &StorageBreakdown{}
 
-	// Per-table: estimated_size from DuckDB's internal catalogue.
+	// Per-table: estimated_size in duckdb_tables() is row count, not bytes.
+	// Multiply by the sum of average column widths from duckdb_columns() to get
+	// a byte estimate that actually scales with data volume.
 	type tblSize struct {
-		TableName     string
-		EstimatedSize int64
+		TableName   string
+		RowCount    int64
+		ApproxBytes int64
 	}
+	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
 	var sizes []tblSize
 	if err := d.gorm.Raw(`
-		SELECT table_name, estimated_size
-		FROM duckdb_tables()
-		WHERE schema_name = 'main'
-		ORDER BY estimated_size DESC
+		SELECT t.table_name,
+		       t.estimated_size AS row_count,
+		       CAST(COALESCE(SUM(c.avg_width), 0) * t.estimated_size AS BIGINT) AS approx_bytes
+		FROM duckdb_tables() t
+		JOIN duckdb_columns() c
+		  ON c.table_name = t.table_name AND c.schema_name = t.schema_name
+		WHERE t.schema_name = 'main'
+		GROUP BY t.table_name, t.estimated_size
 	`).Scan(&sizes).Error; err == nil {
-		tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
-		approxByTable := make(map[string]int64, len(tableNames))
+		byTable := make(map[string]tblSize, len(sizes))
 		for _, s := range sizes {
-			approxByTable[s.TableName] = s.EstimatedSize
+			byTable[s.TableName] = s
 		}
 		for _, name := range tableNames {
-			var cnt int64
-			_ = d.gorm.Table(name).Count(&cnt).Error
+			s := byTable[name]
+			// Fall back to COUNT(*) for row_count in case estimated_size is stale.
+			if s.RowCount == 0 {
+				_ = d.gorm.Table(name).Count(&s.RowCount).Error
+			}
 			out.Tables = append(out.Tables, TableStat{
 				Name:        name,
-				RowCount:    cnt,
-				ApproxBytes: approxByTable[name],
+				RowCount:    s.RowCount,
+				ApproxBytes: s.ApproxBytes,
 			})
 		}
 	}
