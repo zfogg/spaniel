@@ -26,33 +26,24 @@ import (
 )
 
 // goruntimeOnce ensures goruntime.Start is called exactly once per process.
-// It registers observable callbacks on the global MeterProvider; after a
-// hot-swap those callbacks automatically target the new provider via
-// delegation, so re-registering them is both unnecessary and causes failures.
 var goruntimeOnce sync.Once
 
 // Config controls Spaniel's own OTLP self-telemetry.
 type Config struct {
 	// Endpoint is the OTLP gRPC target (e.g. "localhost:4317").
-	// Empty string disables self-telemetry entirely.
+	// Empty string disables exporting but still installs real SDK providers.
 	Endpoint    string
 	ServiceName string
 	Version     string
-	DBPath      string // included as spaniel.db_path resource attribute
+	DBPath      string
 	Insecure    bool
 }
 
-// Setup initialises the global TracerProvider, MeterProvider, and LoggerProvider,
-// installs Go runtime metrics (once), enables exemplar collection, and wires
-// slog to the OTel log bridge. Safe to call multiple times — on hot-swap the
-// previous providers are replaced and the caller must call the old shutdown.
-// If cfg.Endpoint is empty a no-op shutdown is returned and no providers are
-// changed.
+// Setup installs the global OTel providers. Always installs real SDK providers
+// (not no-op) so that third-party instrumentation (otelhttp, otelgrpc) can
+// cache them and work on hot-swap. If Endpoint is empty, no exporters are
+// configured but the providers still exist and work.
 func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) error, err error) {
-	if cfg.Endpoint == "" {
-		return func(context.Context) error { return nil }, nil
-	}
-
 	if cfg.ServiceName == "" {
 		cfg.ServiceName = "spaniel"
 	}
@@ -62,10 +53,7 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	// Build resource. Some detectors (process owner, OS description) can fail
-	// on certain systems; resource.New returns ErrPartialResource in that case
-	// but still gives us a valid partial resource. Treat partial failures as
-	// non-fatal — we proceed with whatever attributes were detected.
+	// Resource: always build, partial errors are non-fatal.
 	attrs := []attribute.KeyValue{
 		semconv.ServiceName(cfg.ServiceName),
 		semconv.ServiceVersion(cfg.Version),
@@ -89,63 +77,66 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 
 	var shutdownFuncs []func(context.Context) error
 
-	// Traces
-	traceExporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(cfg.Endpoint),
-		otlptracegrpc.WithDialOption(dialOpts...),
-	)
-	if err != nil {
-		return nil, err
+	// Traces: always real SDK. Add exporter only if endpoint is configured.
+	traceOpts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
+	if cfg.Endpoint != "" {
+		exp, err := otlptracegrpc.New(ctx,
+			otlptracegrpc.WithEndpoint(cfg.Endpoint),
+			otlptracegrpc.WithDialOption(dialOpts...),
+		)
+		if err != nil {
+			return nil, err
+		}
+		traceOpts = append(traceOpts, sdktrace.WithBatcher(exp))
 	}
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(traceExporter),
-		sdktrace.WithResource(res),
-	)
+	tp := sdktrace.NewTracerProvider(traceOpts...)
 	otel.SetTracerProvider(tp)
 	shutdownFuncs = append(shutdownFuncs, tp.Shutdown)
 
-	// Metrics — AlwaysOnFilter attaches trace exemplars to every histogram
-	// bucket, linking latency percentiles to the specific traces that caused them.
-	// Export every 10 s so data appears quickly in the UI.
-	metricExporter, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
-		otlpmetricgrpc.WithDialOption(dialOpts...),
-	)
-	if err != nil {
-		_ = tp.Shutdown(ctx)
-		return nil, err
-	}
-	mp := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter,
-			sdkmetric.WithInterval(10*time.Second))),
+	// Metrics: always real SDK. Add exporter/reader only if endpoint configured.
+	mpOpts := []sdkmetric.Option{
 		sdkmetric.WithResource(res),
 		sdkmetric.WithExemplarFilter(exemplar.AlwaysOnFilter),
-	)
+	}
+	if cfg.Endpoint != "" {
+		exp, err := otlpmetricgrpc.New(ctx,
+			otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
+			otlpmetricgrpc.WithDialOption(dialOpts...),
+		)
+		if err != nil {
+			_ = tp.Shutdown(ctx)
+			return nil, err
+		}
+		mpOpts = append(mpOpts, sdkmetric.WithReader(
+			sdkmetric.NewPeriodicReader(exp,
+				sdkmetric.WithInterval(10*time.Second))))
+	}
+	mp := sdkmetric.NewMeterProvider(mpOpts...)
 	otel.SetMeterProvider(mp)
 	shutdownFuncs = append(shutdownFuncs, mp.Shutdown)
 
-	// Go runtime metrics are started once; the goroutine/callback uses the
-	// global MeterProvider which delegates automatically after each hot-swap.
+	// Go runtime metrics: start once, uses delegating global meter.
 	goruntimeOnce.Do(func() {
 		if err := goruntime.Start(); err != nil {
 			slog.Warn("runtime metrics unavailable", "err", err)
 		}
 	})
 
-	// Logs
-	logExporter, err := otlploggrpc.New(ctx,
-		otlploggrpc.WithEndpoint(cfg.Endpoint),
-		otlploggrpc.WithDialOption(dialOpts...),
-	)
-	if err != nil {
-		_ = tp.Shutdown(ctx)
-		_ = mp.Shutdown(ctx)
-		return nil, err
+	// Logs: always real SDK. Add exporter only if endpoint is configured.
+	logOpts := []sdklog.LoggerProviderOption{sdklog.WithResource(res)}
+	if cfg.Endpoint != "" {
+		exp, err := otlploggrpc.New(ctx,
+			otlploggrpc.WithEndpoint(cfg.Endpoint),
+			otlploggrpc.WithDialOption(dialOpts...),
+		)
+		if err != nil {
+			_ = tp.Shutdown(ctx)
+			_ = mp.Shutdown(ctx)
+			return nil, err
+		}
+		logOpts = append(logOpts, sdklog.WithProcessor(sdklog.NewBatchProcessor(exp)))
 	}
-	lp := sdklog.NewLoggerProvider(
-		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
-		sdklog.WithResource(res),
-	)
+	lp := sdklog.NewLoggerProvider(logOpts...)
 	global.SetLoggerProvider(lp)
 	shutdownFuncs = append(shutdownFuncs, lp.Shutdown)
 
