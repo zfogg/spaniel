@@ -38,6 +38,7 @@ type Span struct {
 	SessionID     string       `json:"session_id"`
 	SessionLabel  string       `json:"session_label"`
 	ReceivedAt    int64        `json:"received_at"`
+	Sampled       bool         `json:"sampled"`
 	Events        []*SpanEvent `json:"events" gorm:"-"`
 	Links         []*SpanLink  `json:"links" gorm:"-"`
 }
@@ -59,14 +60,20 @@ type Log struct {
 func (Log) TableName() string { return "logs" }
 
 type Session struct {
-	ID         string `json:"id" gorm:"primaryKey"`
-	Label      string `json:"label"`
-	CreatedAt  int64  `json:"created_at"`
-	IsBaseline bool   `json:"is_baseline"`
-	IsImported bool   `json:"is_imported"`
-	SpanCount  int    `json:"span_count"`
-	TraceCount int    `json:"trace_count" gorm:"-"` // computed via join, not a column
-	Services   string `json:"services"`
+	ID             string `json:"id" gorm:"primaryKey"`
+	Label          string `json:"label"`
+	CreatedAt      int64  `json:"created_at"`
+	IsBaseline     bool   `json:"is_baseline"`
+	IsImported     bool   `json:"is_imported"`
+	SpanCount      int    `json:"span_count"`
+	TraceCount     int    `json:"trace_count" gorm:"-"`    // computed via join, not a column
+	Services       string `json:"services"`
+	Note           string `json:"note"`
+	LastActivityNs int64  `json:"last_activity_ns"`
+	P95Ns          int64  `json:"p95_ns" gorm:"-"`         // computed from spans
+	SizeBytes      int64  `json:"size_bytes" gorm:"-"`     // approx from attribute payload
+	N1Count        int    `json:"n1_count" gorm:"-"`       // trace_issues with kind='n_plus_one'
+	ErrorCount     int    `json:"error_count" gorm:"-"`    // spans with status_code=2
 }
 
 func (Session) TableName() string { return "sessions" }
@@ -140,12 +147,26 @@ type SpanLink struct {
 func (SpanLink) TableName() string { return "span_links" }
 
 type Stats struct {
-	SpanCount       int   `json:"span_count"`
-	TraceCount      int   `json:"trace_count"`
-	LogCount        int   `json:"log_count"`
-	DBSize          int64 `json:"db_size"`
-	SessionCount    int   `json:"session_count"`
-	OldestSessionAt int64 `json:"oldest_session_at"`
+	SpanCount           int   `json:"span_count"`
+	TraceCount          int   `json:"trace_count"`
+	LogCount            int   `json:"log_count"`
+	DBSize              int64 `json:"db_size"`
+	SessionCount        int   `json:"session_count"`
+	OldestSessionAt     int64 `json:"oldest_session_at"`
+	DroppedSpans        int64 `json:"dropped_spans"`
+	DroppedLogs         int64 `json:"dropped_logs"`
+	DroppedMetricPoints int64 `json:"dropped_metric_points"`
+	LastDropAt          int64 `json:"last_drop_at"`
+	Throughput                // live ingest rates, filled by the API layer
+}
+
+// Throughput is a rolling per-second count of ingested telemetry, averaged
+// over the last few seconds. Computed in-memory by the ingestion pipeline.
+type Throughput struct {
+	SpansPerSec     float64 `json:"spans_per_sec"`
+	LogsPerSec      float64 `json:"logs_per_sec"`
+	MetricsPerSec   float64 `json:"metrics_per_sec"`
+	PeakSpansPerSec float64 `json:"peak_spans_per_sec"`
 }
 
 // Metric is one data point of an OTLP metric (gauge, counter, or one
@@ -568,25 +589,43 @@ func (d *DB) ListServices() ([]string, error) {
 }
 
 func (d *DB) ListSessions() ([]*Session, error) {
-	// Joins spans to count distinct traces per session — not expressible as a
-	// plain Find because trace_count is a computed aggregate.
 	type sessionRow struct {
-		ID         string
-		Label      string
-		CreatedAt  int64
-		IsBaseline bool
-		IsImported bool
-		SpanCount  int
-		Services   string
-		TraceCount int
+		ID             string
+		Label          string
+		CreatedAt      int64
+		IsBaseline     bool
+		IsImported     bool
+		SpanCount      int
+		Services       string
+		Note           string
+		LastActivityNs int64
+		TraceCount     int
+		P95Ns          int64
+		SizeBytes      int64
+		N1Count        int
+		ErrorCount     int
 	}
 	var rows []sessionRow
 	err := d.gorm.Raw(`
-		SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services::VARCHAR AS services,
-		       COUNT(DISTINCT sp.trace_id) AS trace_count
+		SELECT
+			s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count,
+			s.services::VARCHAR AS services,
+			COALESCE(s.note, '') AS note,
+			COALESCE(s.last_activity_ns, 0) AS last_activity_ns,
+			COUNT(DISTINCT sp.trace_id) AS trace_count,
+			CAST(COALESCE(QUANTILE_CONT(sp.duration_ns, 0.95), 0) AS BIGINT) AS p95_ns,
+			COALESCE(SUM(LENGTH(sp.attributes::VARCHAR) + LENGTH(sp.resource::VARCHAR)), 0) AS size_bytes,
+			COALESCE(ni.n1_count, 0) AS n1_count,
+			COUNT(*) FILTER (WHERE sp.status_code = 2) AS error_count
 		FROM sessions s
 		LEFT JOIN spans sp ON sp.session_id = s.id
-		GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services
+		LEFT JOIN (
+			SELECT session_id, COUNT(*) AS n1_count
+			FROM trace_issues WHERE kind = 'n_plus_one'
+			GROUP BY session_id
+		) ni ON ni.session_id = s.id
+		GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count,
+		         s.services, s.note, s.last_activity_ns, ni.n1_count
 		ORDER BY s.created_at DESC`).Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -597,6 +636,8 @@ func (d *DB) ListSessions() ([]*Session, error) {
 			ID: r.ID, Label: r.Label, CreatedAt: r.CreatedAt,
 			IsBaseline: r.IsBaseline, IsImported: r.IsImported,
 			SpanCount: r.SpanCount, Services: r.Services, TraceCount: r.TraceCount,
+			Note: r.Note, LastActivityNs: r.LastActivityNs,
+			P95Ns: r.P95Ns, SizeBytes: r.SizeBytes, N1Count: r.N1Count, ErrorCount: r.ErrorCount,
 		})
 	}
 	return result, nil
@@ -605,7 +646,7 @@ func (d *DB) ListSessions() ([]*Session, error) {
 func (d *DB) GetSession(id string) (*Session, error) {
 	var sessions []*Session
 	err := d.gorm.Table("sessions").
-		Select(`id, label, created_at, is_baseline, is_imported, span_count, services::VARCHAR AS services`).
+		Select(`id, label, created_at, is_baseline, is_imported, span_count, services::VARCHAR AS services, COALESCE(note,'') AS note, COALESCE(last_activity_ns,0) AS last_activity_ns`).
 		Where("id = ?", id).Limit(1).Find(&sessions).Error
 	if err != nil {
 		return nil, err
@@ -626,6 +667,27 @@ func (d *DB) SetBaseline(id string, isBaseline bool) error {
 	}
 	return d.gorm.Model(&Session{}).Where("id = ?", id).
 		Update("is_baseline", isBaseline).Error
+}
+
+// SessionPatch holds the mutable user-facing fields that PATCH /api/sessions/{id} may change.
+// A nil pointer means "leave unchanged"; an empty string is a valid value.
+type SessionPatch struct {
+	Label *string
+	Note  *string
+}
+
+func (d *DB) UpdateSession(id string, p SessionPatch) error {
+	updates := map[string]any{}
+	if p.Label != nil {
+		updates["label"] = *p.Label
+	}
+	if p.Note != nil {
+		updates["note"] = *p.Note
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return d.gorm.Model(&Session{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func (d *DB) DeleteSession(id string) error {

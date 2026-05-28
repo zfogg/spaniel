@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
@@ -15,31 +16,60 @@ import (
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
+// ThroughputProvider returns live per-second ingest rates. Implemented by
+// *ingestion.Pipeline; nil means no live rates are available.
+type ThroughputProvider interface {
+	Throughput() storage.Throughput
+}
+
+// DropCounterProvider returns process-level drop counters. Implemented by
+// *ingestion.Pipeline via its Counters field; nil means sampling is disabled.
+type DropCounterProvider interface {
+	DroppedSpansTotal() int64
+	DroppedLogsTotal() int64
+	DroppedMetricPointsTotal() int64
+	LastDropAt() int64
+}
+
 type Router struct {
 	store     *storage.DB
 	hub       *ws.Hub
 	forwarder *forwarder.Forwarder // nil when no upstream configured
 	manifests *coverage.Manifests  // nil when no spec file is loaded
 	settings  *SettingsService     // nil disables /api/settings
+	tp        ThroughputProvider   // nil when no pipeline wired in
+	dc        DropCounterProvider  // nil when sampling disabled
 }
 
 func NewRouter(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder) http.Handler {
-	return NewRouterFull(store, hub, fwd, nil, nil)
+	return NewRouterFull(store, hub, fwd, nil, nil, nil, nil)
 }
 
 // NewRouterWithManifests is a back-compat shim — prefer NewRouterFull.
 func NewRouterWithManifests(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs *coverage.Manifests) http.Handler {
-	return NewRouterFull(store, hub, fwd, mfs, nil)
+	return NewRouterFull(store, hub, fwd, mfs, nil, nil, nil)
 }
 
 // NewRouterFull is the canonical constructor. Pass nil for any optional
-// dependency (manifests, settings) to disable the corresponding endpoints.
-func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs *coverage.Manifests, settings *SettingsService) http.Handler {
-	r := &Router{store: store, hub: hub, forwarder: fwd, manifests: mfs, settings: settings}
+// dependency (manifests, settings, tp, dc) to disable the corresponding feature.
+func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs *coverage.Manifests, settings *SettingsService, tp ThroughputProvider, dc DropCounterProvider) http.Handler {
+	r := &Router{store: store, hub: hub, forwarder: fwd, manifests: mfs, settings: settings, tp: tp, dc: dc}
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
 	mux.Use(corsMiddleware)
+	mux.Use(func(next http.Handler) http.Handler {
+		return otelhttp.NewHandler(next, "spaniel.api",
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				if rctx := chi.RouteContext(r.Context()); rctx != nil {
+					if p := rctx.RoutePattern(); p != "" {
+						return r.Method + " " + p
+					}
+				}
+				return r.Method + " " + r.URL.Path
+			}),
+		)
+	})
 
 	mux.Get("/api/health", r.health)
 	mux.Get("/api/traces", r.listTraces)
@@ -54,6 +84,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Post("/api/sessions/import", r.importSession)
 	mux.Get("/api/sessions/active", r.getActiveSession)
 	mux.Get("/api/sessions/{sessionId}", r.getSession)
+	mux.Patch("/api/sessions/{sessionId}", r.patchSession)
 	mux.Post("/api/sessions/{sessionId}/activate", r.activateSession)
 	mux.Post("/api/sessions/{sessionId}/baseline", r.baselineSession)
 	mux.Delete("/api/sessions/{sessionId}", r.deleteSession)
@@ -304,6 +335,35 @@ func (r *Router) getSession(w http.ResponseWriter, req *http.Request) {
 	respond(w, sess, 1, 1)
 }
 
+func (r *Router) patchSession(w http.ResponseWriter, req *http.Request) {
+	sessionID := chi.URLParam(req, "sessionId")
+	var body struct {
+		Label *string `json:"label"`
+		Note  *string `json:"note"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		respondErr(w, 400, "invalid JSON")
+		return
+	}
+	if err := r.store.UpdateSession(sessionID, storage.SessionPatch{
+		Label: body.Label,
+		Note:  body.Note,
+	}); err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	sess, err := r.store.GetSession(sessionID)
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	if sess == nil {
+		respondErr(w, 404, "session not found")
+		return
+	}
+	respond(w, sess, 1, 1)
+}
+
 func (r *Router) getActiveSession(w http.ResponseWriter, _ *http.Request) {
 	respond(w, map[string]string{
 		"id":    r.store.ActiveSessionID(),
@@ -371,6 +431,15 @@ func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		respondErr(w, 500, err.Error())
 		return
+	}
+	if r.tp != nil {
+		stats.Throughput = r.tp.Throughput()
+	}
+	if r.dc != nil {
+		stats.DroppedSpans = r.dc.DroppedSpansTotal()
+		stats.DroppedLogs = r.dc.DroppedLogsTotal()
+		stats.DroppedMetricPoints = r.dc.DroppedMetricPointsTotal()
+		stats.LastDropAt = r.dc.LastDropAt()
 	}
 	respond(w, stats, 1, 1)
 }

@@ -22,6 +22,16 @@ async function del<T>(path: string): Promise<{ data: T; meta: { total: number } 
   return res.json()
 }
 
+async function patch<T>(path: string, body: unknown): Promise<{ data: T; meta: { total: number } }> {
+  const res = await fetch(BASE + path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json()
+}
+
 export interface TraceRow {
   trace_id: string
   service_name: string
@@ -114,6 +124,12 @@ export interface Session {
   span_count: number
   trace_count: number
   services: string
+  note: string
+  last_activity_ns: number
+  p95_ns: number
+  size_bytes: number
+  n1_count: number
+  error_count: number
 }
 
 export interface ImportResult {
@@ -219,6 +235,8 @@ export interface Settings {
   bind_address_v4: string
   bind_address_v6: string
   forward_sample: number
+  tls_enabled: boolean
+  bearer_token_set: boolean
   runtime: SettingsRuntime
 }
 
@@ -259,6 +277,10 @@ export interface Stats {
   trace_count: number
   log_count: number
   db_size: number
+  spans_per_sec: number
+  logs_per_sec: number
+  metrics_per_sec: number
+  peak_spans_per_sec: number
 }
 
 export interface ServiceMapOpStat {
@@ -362,6 +384,8 @@ export const api = {
     activate: (id: string) => post<Session>(`/api/sessions/${id}/activate`, {}),
     baseline: (id: string, isBaseline: boolean) =>
       post<{ ok: boolean }>(`/api/sessions/${id}/baseline`, { is_baseline: isBaseline }),
+    patch: (id: string, body: { label?: string; note?: string }) =>
+      patch<Session>(`/api/sessions/${id}`, body),
     delete: (id: string) => del<{ ok: boolean }>(`/api/sessions/${id}`),
     import: (label: string, format: string, data: string) => {
       const q = new URLSearchParams({ label, format })
@@ -390,6 +414,12 @@ export const api = {
   issues: {
     get: (traceId: string) =>
       get<TraceIssue[]>(`/api/issues?traceId=${traceId}`),
+  },
+  health: {
+    get: () => get<{ ok: boolean }>('/api/health'),
+    // Presents the bearer token to /api/health so the server sets the auth cookie.
+    seed: (token: string): Promise<void> =>
+      fetch('/api/health', { headers: { Authorization: `Bearer ${token}` } }).then(() => undefined),
   },
   forwarders: {
     list: () => get<ForwarderStatus[]>('/api/forwarders'),

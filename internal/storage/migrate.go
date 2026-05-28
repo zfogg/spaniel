@@ -43,6 +43,18 @@ func migrations() []*gormigrate.Migration {
 				return execMigrationFile(tx, "0001_init.sql")
 			},
 		},
+		{
+			ID: "0002_session_note_activity",
+			Migrate: func(tx *gorm.DB) error {
+				return execMigrationFile(tx, "0002_session_note_activity.sql")
+			},
+		},
+		{
+			ID: "0003_sampled",
+			Migrate: func(tx *gorm.DB) error {
+				return execMigrationFile(tx, "0003_sampled.sql")
+			},
+		},
 	}
 }
 

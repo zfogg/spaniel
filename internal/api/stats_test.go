@@ -5,7 +5,24 @@ import (
 	"testing"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/ws"
 )
+
+type fakeThroughput struct{ tp storage.Throughput }
+
+func (f *fakeThroughput) Throughput() storage.Throughput { return f.tp }
+
+func setupRouterWithTP(t *testing.T, tp ThroughputProvider) (http.Handler, *storage.DB) {
+	t.Helper()
+	store, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatalf("storage.Open failed: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	hub := ws.NewHub()
+	handler := NewRouterFull(store, hub, nil, nil, nil, tp, nil)
+	return handler, store
+}
 
 func TestGetStats_ZeroWhenEmpty(t *testing.T) {
 	handler, _ := setupRouter(t)
@@ -40,6 +57,29 @@ func TestGetStats_AfterIngestion(t *testing.T) {
 	}
 	if s.LogCount != 2 {
 		t.Errorf("LogCount = %d, want 2", s.LogCount)
+	}
+}
+
+func TestGetStats_IncludesThroughput(t *testing.T) {
+	tp := &fakeThroughput{tp: storage.Throughput{
+		SpansPerSec:     12.5,
+		LogsPerSec:      3.0,
+		MetricsPerSec:   1.0,
+		PeakSpansPerSec: 40.0,
+	}}
+	handler, store := setupRouterWithTP(t, tp)
+	insertSpan(t, store, "sess", "trace-1", "span-1", "", "svc", "op")
+
+	w := do(t, handler, http.MethodGet, "/api/stats", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d", w.Code)
+	}
+	s := decodeData[storage.Stats](t, w.Body.Bytes())
+	if s.SpansPerSec != 12.5 {
+		t.Errorf("SpansPerSec = %v, want 12.5", s.SpansPerSec)
+	}
+	if s.PeakSpansPerSec != 40.0 {
+		t.Errorf("PeakSpansPerSec = %v, want 40.0", s.PeakSpansPerSec)
 	}
 }
 

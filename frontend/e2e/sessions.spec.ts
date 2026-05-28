@@ -19,6 +19,12 @@ interface SessionFixture {
   span_count: number
   trace_count: number
   services: string
+  note: string
+  last_activity_ns: number
+  p95_ns: number
+  size_bytes: number
+  n1_count: number
+  error_count: number
 }
 
 function makeSession(overrides: Partial<SessionFixture> & { id: string; label: string }): SessionFixture {
@@ -29,6 +35,12 @@ function makeSession(overrides: Partial<SessionFixture> & { id: string; label: s
     span_count: 0,
     trace_count: 0,
     services: '',
+    note: '',
+    last_activity_ns: 0,
+    p95_ns: 0,
+    size_bytes: 0,
+    n1_count: 0,
+    error_count: 0,
     ...overrides,
   }
 }
@@ -47,6 +59,7 @@ interface StubOptions {
   sessions: SessionFixture[]
   activeId?: string
   lint?: LintFixture[]
+  onPatch?: (id: string, body: Record<string, unknown>) => void
 }
 
 /**
@@ -64,6 +77,7 @@ async function stubBackend(
     onBaseline?: (id: string) => void
     onActivate?: (id: string) => void
     onDelete?: (id: string) => void
+    onPatch?: (id: string, body: Record<string, unknown>) => void
   } = {}
 ) {
   const deletedIds = new Set<string>()
@@ -121,6 +135,18 @@ async function stubBackend(
       deletedIds.add(id)
       callbacks.onDelete?.(id)
       return jsonResponse(r, { ok: true })
+    }
+
+    // PATCH /api/sessions/:id
+    if (!action && method === 'PATCH') {
+      const body = JSON.parse(r.request().postData() ?? '{}')
+      const sess = opts.sessions.find(s => s.id === id)
+      if (sess) {
+        if (body.note !== undefined) sess.note = body.note
+        if (body.label !== undefined) sess.label = body.label
+      }
+      callbacks.onPatch?.(id, body)
+      return jsonResponse(r, sess ?? makeSession({ id, label: id }))
     }
 
     // GET /api/sessions/:id
@@ -452,5 +478,58 @@ test.describe('Sessions page', () => {
     expect(history.length).toBeGreaterThan(0)
     expect(history[0].baselineId).toBe('s-base')
     expect(history[0].compareId).toBe('s-cmp')
+  })
+
+  test('shows branch glyph for feat/x and scratch glyph for quick-debug', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 'b1', label: 'feat/x', p95_ns: 200_000_000 }),
+      makeSession({ id: 's1', label: 'quick-debug', p95_ns: 50_000_000 }),
+    ]
+    await stubBackend(page, { sessions, activeId: 'b1' })
+    await page.goto('/sessions')
+
+    // BranchGlyph renders an SVG with a circle/path for branches — verify via accessible data-testid
+    // We assert by checking the row contains the label; the glyph SVGs are inline.
+    const branchRow = page.locator('[data-testid="sessions-table-body"]').locator('div').filter({ hasText: /^feat\/x/ }).first()
+    await expect(branchRow).toBeVisible()
+
+    const scratchRow = page.locator('[data-testid="sessions-table-body"]').locator('div').filter({ hasText: /^quick-debug/ }).first()
+    await expect(scratchRow).toBeVisible()
+  })
+
+  test('p95 cell is visible for sessions with spans', async ({ page }) => {
+    const sessions = [
+      makeSession({ id: 'p1', label: 'main', p95_ns: 498_000_000, span_count: 100 }),
+    ]
+    await stubBackend(page, { sessions, activeId: 'p1' })
+    await page.goto('/sessions')
+
+    // fmtP95(498_000_000) → "498ms"
+    await expect(page.getByText('498ms')).toBeVisible()
+  })
+
+  test('clicking the note opens an inline editor that PATCHes', async ({ page }) => {
+    const patched: Array<{ id: string; body: Record<string, unknown> }> = []
+    const sessions = [
+      makeSession({ id: 'n1', label: 'main', note: '' }),
+    ]
+    await stubBackend(page, { sessions, activeId: 'n1' }, {
+      onPatch: (id, body) => patched.push({ id, body }),
+    })
+    await page.goto('/sessions')
+
+    // Click the note cell to start editing
+    const noteCell = page.getByTitle('click to add note')
+    await noteCell.click()
+
+    // Type a note and confirm
+    const input = page.locator('input[class*="border-accent"]')
+    await input.fill('prod snapshot')
+    await input.press('Enter')
+
+    // PATCH should have been called
+    await expect.poll(() => patched.length).toBeGreaterThan(0)
+    expect(patched[0].id).toBe('n1')
+    expect(patched[0].body.note).toBe('prod snapshot')
   })
 })

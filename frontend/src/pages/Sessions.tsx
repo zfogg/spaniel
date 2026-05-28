@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, LintWarning, Session } from "@/lib/api";
+import { api, Session } from "@/lib/api";
 import {
   type DiffHistoryEntry,
   pushDiffHistory,
   readDiffHistory,
 } from "@/lib/diff-history";
 import EmptyState from "@/components/EmptyState";
+import { isBranchLabel, fmtSessionSize, fmtP95 } from "@/lib/session-utils";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
 type SessionFilter = "all" | "branches" | "adhoc" | "hot";
-
-function isBranch(label: string) {
-  return label.includes("/");
-}
 
 function fmtDeltaMs(ns: number): string {
   const ms = Math.round(ns / 1_000_000);
@@ -173,6 +170,31 @@ function NumCell(
         {label}
       </div>
     </div>
+  );
+}
+
+// ── kind glyphs ───────────────────────────────────────────────────────────────
+
+function BranchGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" style={{ flex: "0 0 auto" }}>
+      <circle cx="3" cy="3" r="1.6" fill="none" stroke="var(--ink2)" strokeWidth="1.2" />
+      <circle cx="3" cy="11" r="1.6" fill="none" stroke="var(--ink2)" strokeWidth="1.2" />
+      <circle cx="11" cy="7" r="1.6" fill="none" stroke="var(--ink2)" strokeWidth="1.2" />
+      <path d="M3 4.5v5M3.8 11c2.2-.2 6-.6 6.2-2.6M3.8 3c2.2.2 6 .6 6.2 2.6"
+        stroke="var(--ink2)" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ScratchGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" style={{ flex: "0 0 auto" }}>
+      <path d="M2 7c2-3 3.5-3 5 0s3 3 5 0" stroke="var(--ink2)" strokeWidth="1.2" fill="none"
+        strokeLinecap="round" />
+      <circle cx="2" cy="7" r="1" fill="var(--ink2)" />
+      <circle cx="12" cy="7" r="1" fill="var(--ink2)" />
+    </svg>
   );
 }
 
@@ -432,6 +454,48 @@ function HowToDiff() {
 
 // ── session row ───────────────────────────────────────────────────────────────
 
+function NoteCell({ s, onSaved }: { s: Session; onSaved: (note: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(s.note ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function startEdit() {
+    setVal(s.note ?? "");
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  async function commit() {
+    setEditing(false);
+    if (val === s.note) return;
+    await api.sessions.patch(s.id, { note: val });
+    onSaved(val);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        className="w-full font-sans text-[11px] text-ink bg-surface border border-accent rounded px-1.5 py-px outline-none mt-[3px]"
+      />
+    );
+  }
+
+  return (
+    <div
+      className="font-sans text-[11px] text-ink3 mt-[3px] cursor-text truncate"
+      title={s.note || "click to add note"}
+      onClick={startEdit}
+    >
+      {s.note || <span className="opacity-40">add note…</span>}
+    </div>
+  );
+}
+
 function SessionRow({
   s,
   isActive,
@@ -441,6 +505,7 @@ function SessionRow({
   onCompare,
   onActivate,
   onDelete,
+  onNoteChange,
 }: {
   s: Session;
   isActive: boolean;
@@ -450,12 +515,15 @@ function SessionRow({
   onCompare: (id: string | null) => void;
   onActivate: (id: string) => void;
   onDelete: (id: string) => void;
+  onNoteChange: (id: string, note: string) => void;
 }) {
+  const p95Ms = s.p95_ns > 0 ? Math.round(s.p95_ns / 1_000_000) : 0;
+
   return (
     <div
       className="grid gap-2.5 items-center px-3.5 py-3 border-b border-[var(--line2)]"
       style={{
-        gridTemplateColumns: "34px minmax(0,1fr) 100px 64px 64px 168px",
+        gridTemplateColumns: "34px minmax(0,1fr) 96px 64px 64px 64px 96px 152px",
         background: isBaseline
           ? "color-mix(in oklch, var(--warn) 8%, var(--surface))"
           : isCompare
@@ -479,37 +547,43 @@ function SessionRow({
         title={isBaseline ? "Baseline (click to unpin)" : "Mark as baseline"}
       />
 
-      {/* name + pills */}
+      {/* kind glyph + name + note + pills */}
       <div className="min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          {s.is_imported && (
-            <span
-              title="Imported trace"
-              className="inline-flex items-center justify-center w-4 h-4 rounded shrink-0 bg-[color-mix(in_oklch,var(--accent)_18%,var(--surface))] text-accent-ink"
-            >
-              <ImportIcon />
-            </span>
-          )}
+          {isBranchLabel(s.label) ? <BranchGlyph /> : <ScratchGlyph />}
           <span className="font-mono text-[13px] font-semibold text-ink overflow-hidden text-ellipsis whitespace-nowrap">
             {s.label || s.id.slice(0, 8)}
           </span>
           {isActive && <DotPill tone="ok">● active</DotPill>}
           {isBaseline && <DotPill tone="warn">★ baseline</DotPill>}
+          {s.n1_count > 0 && <DotPill tone="danger">{s.n1_count} n+1</DotPill>}
+          {s.error_count > 0 && s.n1_count === 0 && <DotPill tone="danger">{s.error_count} err</DotPill>}
         </div>
-        <div
-          className="font-mono text-[10px] text-ink3 mt-[3px]"
-          title={fmtAbsolute(s.created_at)}
-        >
+        <NoteCell s={s} onSaved={(note) => onNoteChange(s.id, note)} />
+      </div>
+
+      {/* activity: last + created */}
+      <div>
+        <div className="font-mono text-[11px] text-ink">
+          {s.last_activity_ns > 0 ? fmtRelative(s.last_activity_ns) : "—"}
+        </div>
+        <div className="font-mono text-[10px] text-ink3" title={fmtAbsolute(s.created_at)}>
           created {fmtRelative(s.created_at)}
         </div>
       </div>
 
-      {/* stats */}
       <NumCell label="traces" value={s.trace_count} />
       <NumCell label="spans" value={s.span_count} />
+      <NumCell label="p95" value={fmtP95(s.p95_ns)} hot={p95Ms > 500} />
 
-      {/* actions col */}
-      <div className="col-span-2 flex gap-1.5 justify-end flex-wrap">
+      {/* size */}
+      <div>
+        <div className="font-mono text-[11px] text-ink">{fmtSessionSize(s.size_bytes)}</div>
+        <div className="font-mono text-[10px] text-ink3">duckdb</div>
+      </div>
+
+      {/* actions */}
+      <div className="flex gap-1.5 justify-end flex-wrap">
         {isCompare
           ? (
             <Btn small tone="ghost" onClick={() => onCompare(null)}>
@@ -532,9 +606,7 @@ function SessionRow({
               small
               tone="danger"
               onClick={() => {
-                if (
-                  confirm(`Delete session "${s.label || s.id.slice(0, 8)}"?`)
-                ) onDelete(s.id);
+                if (confirm(`Delete session "${s.label || s.id.slice(0, 8)}"?`)) onDelete(s.id);
               }}
             >
               ×
@@ -669,24 +741,18 @@ export default function Sessions() {
   const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [filter, setFilter] = useState<SessionFilter>("all");
-  const [warningSids, setWarningSids] = useState<Set<string>>(new Set());
   const [diffHistory, setDiffHistory] = useState<DiffHistoryEntry[]>([]);
 
   const load = useCallback(async () => {
-    const [sessRes, activeRes, lintRes] = await Promise.all([
+    const [sessRes, activeRes] = await Promise.all([
       api.sessions.list(),
       api.sessions.getActive(),
-      api.lint.list(),
     ]);
     const list = sessRes.data ?? [];
     setSessions(list);
     setActiveId(activeRes.data?.id ?? "");
     const bl = list.find((s) => s.is_baseline);
     if (bl) setBaselineId(bl.id);
-    const sids = new Set(
-      (lintRes.data ?? []).map((w: LintWarning) => w.session_id),
-    );
-    setWarningSids(sids);
     setDiffHistory(readDiffHistory());
     setLoading(false);
   }, []);
@@ -741,16 +807,20 @@ export default function Sessions() {
     setCompareId(id);
   }
 
+  function handleNoteChange(id: string, note: string) {
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, note } : s));
+  }
+
   const filteredSessions = sessions.filter((s) => {
-    if (filter === "branches") return isBranch(s.label);
-    if (filter === "adhoc") return !isBranch(s.label);
-    if (filter === "hot") return warningSids.has(s.id);
+    if (filter === "branches") return isBranchLabel(s.label);
+    if (filter === "adhoc") return !isBranchLabel(s.label);
+    if (filter === "hot") return s.n1_count > 0 || s.error_count > 0;
     return true;
   });
 
-  const branchCount = sessions.filter((s) => isBranch(s.label)).length;
-  const adhocCount = sessions.filter((s) => !isBranch(s.label)).length;
-  const hotCount = sessions.filter((s) => warningSids.has(s.id)).length;
+  const branchCount = sessions.filter((s) => isBranchLabel(s.label)).length;
+  const adhocCount = sessions.filter((s) => !isBranchLabel(s.label)).length;
+  const hotCount = sessions.filter((s) => s.n1_count > 0 || s.error_count > 0).length;
 
   const baseline = sessions.find((s) => s.id === baselineId);
   const compare = sessions.find((s) => s.id === compareId);
@@ -885,14 +955,17 @@ export default function Sessions() {
             <div
               className="grid gap-2.5 px-3.5 py-2 font-mono text-[9px] text-ink3 uppercase tracking-[0.14em] bg-surface2 rounded-t-[10px] border border-line"
               style={{
-                gridTemplateColumns: "34px minmax(0,1fr) 100px 64px 64px 168px",
+                gridTemplateColumns: "34px minmax(0,1fr) 96px 64px 64px 64px 96px 152px",
               }}
             >
               <div title="Mark baseline">★</div>
-              <div>session · created</div>
+              <div>session · note</div>
+              <div>activity</div>
               <div>traces</div>
               <div>spans</div>
-              <div className="col-span-2 text-right">actions</div>
+              <div>p95</div>
+              <div>size</div>
+              <div className="text-right">actions</div>
             </div>
 
             {loading
@@ -987,6 +1060,7 @@ export default function Sessions() {
                       onCompare={handleCompare}
                       onActivate={handleActivate}
                       onDelete={handleDelete}
+                      onNoteChange={handleNoteChange}
                     />
                   ))}
                 </div>

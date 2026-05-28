@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS spans (
     resource        JSON,
     session_id      TEXT,
     session_label   TEXT,
-    received_at     BIGINT
+    received_at     BIGINT,
+    sampled         BOOLEAN DEFAULT TRUE
 );
 CREATE TABLE IF NOT EXISTS logs (
     timestamp_ns  BIGINT,
@@ -93,3 +94,5 @@ CREATE TABLE IF NOT EXISTS meta (
     meta_value TEXT
 );
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_activity_ns BIGINT DEFAULT 0;

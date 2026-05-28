@@ -215,5 +215,38 @@ func TestGetSession_NotFound(t *testing.T) {
 	}
 }
 
+// ── patch ─────────────────────────────────────────────────────────────────────
+
+func TestPatchSession_UpdatesNote(t *testing.T) {
+	handler, store := setupRouter(t)
+	s, _ := store.CreateSession("my-session", false)
+
+	note := "this is the note"
+	w := do(t, handler, http.MethodPatch, "/api/sessions/"+s.ID, map[string]any{"note": note})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	after, _ := store.GetSession(s.ID)
+	if after.Note != note {
+		t.Errorf("note = %q, want %q", after.Note, note)
+	}
+}
+
+func TestPatchSession_RenamesLabel(t *testing.T) {
+	handler, store := setupRouter(t)
+	s, _ := store.CreateSession("old-label", false)
+
+	w := do(t, handler, http.MethodPatch, "/api/sessions/"+s.ID, map[string]any{"label": "new-label"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	after, _ := store.GetSession(s.ID)
+	if after.Label != "new-label" {
+		t.Errorf("label = %q, want new-label", after.Label)
+	}
+}
+
 // Compile-time guard: helpers don't accidentally drop the storage import.
 var _ = storage.Session{}
