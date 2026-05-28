@@ -67,8 +67,8 @@ func doctorContextFromViper(v *viper.Viper, offline bool) doctorContext {
 		ConfigPath: globalConfigPath(),
 		DBPath:     expandHome(v.GetString("db_path")),
 		UIPort:     v.GetInt("port"),
-		GRPCPort:   v.GetInt("grpc_port"),
-		HTTPPort:   v.GetInt("http_port"),
+		OTLPGRPCPort:   v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:   v.GetInt("otlp_http_port"),
 		Forward:    v.GetStringSlice("forward"),
 		Offline:    offline,
 	}
@@ -78,11 +78,11 @@ func doctorContextFromViper(v *viper.Viper, offline bool) doctorContext {
 	if ctx.UIPort == 0 {
 		ctx.UIPort = 8080
 	}
-	if ctx.GRPCPort == 0 {
-		ctx.GRPCPort = 4317
+	if ctx.OTLPGRPCPort == 0 {
+		ctx.OTLPGRPCPort = 4317
 	}
-	if ctx.HTTPPort == 0 {
-		ctx.HTTPPort = 4318
+	if ctx.OTLPHTTPPort == 0 {
+		ctx.OTLPHTTPPort = 4318
 	}
 	return ctx
 }
@@ -93,8 +93,8 @@ type doctorContext struct {
 	ConfigPath string
 	DBPath     string
 	UIPort     int
-	GRPCPort   int
-	HTTPPort   int
+	OTLPGRPCPort   int
+	OTLPHTTPPort   int
 	Forward    []string
 	Offline    bool
 }
@@ -111,8 +111,8 @@ func runDoctor(override doctorContext) []checkResult {
 	return []checkResult{
 		checkConfigFile(ctx.ConfigPath),
 		checkDBWritable(ctx.DBPath),
-		checkPort("OTLP/gRPC port", ctx.GRPCPort),
-		checkPort("OTLP/HTTP port", ctx.HTTPPort),
+		checkPort("OTLP/gRPC port", ctx.OTLPGRPCPort),
+		checkPort("OTLP/HTTP port", ctx.OTLPHTTPPort),
 		checkPort("UI / API port", ctx.UIPort),
 		checkFrontendEmbed(),
 		checkForwardUpstreams(ctx.Forward, ctx.Offline),
@@ -131,11 +131,11 @@ func mergeDoctorDefaults(ctx doctorContext) doctorContext {
 	if ctx.UIPort == 0 {
 		ctx.UIPort = 8080
 	}
-	if ctx.GRPCPort == 0 {
-		ctx.GRPCPort = 4317
+	if ctx.OTLPGRPCPort == 0 {
+		ctx.OTLPGRPCPort = 4317
 	}
-	if ctx.HTTPPort == 0 {
-		ctx.HTTPPort = 4318
+	if ctx.OTLPHTTPPort == 0 {
+		ctx.OTLPHTTPPort = 4318
 	}
 	return ctx
 }

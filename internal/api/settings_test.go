@@ -34,8 +34,8 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 	v.Set("retention_days", 7)
 	v.Set("max_sessions", 50)
 	v.Set("max_db_size_mb", 500)
-	v.Set("grpc_port", 4317)
-	v.Set("http_port", 4318)
+	v.Set("otlp_grpc_port", 4317)
+	v.Set("otlp_http_port", 4318)
 	v.Set("no_browser", false)
 	v.Set("forward", []string{})
 
@@ -44,8 +44,8 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 		ConfigPath: filepath.Join(t.TempDir(), "config.yaml"),
 		Version:    "test-1.2.3",
 		StartedAt:  time.Now().Add(-90 * time.Second),
-		GRPCPort:   4317,
-		HTTPPort:   4318,
+		OTLPGRPCPort:   4317,
+		OTLPHTTPPort:   4318,
 	}
 
 	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, svc)
@@ -68,7 +68,7 @@ func TestGetSettings_HappyPath(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if resp.Data.Port != 8080 || resp.Data.GRPCPort != 4317 || resp.Data.HTTPPort != 4318 {
+	if resp.Data.Port != 8080 || resp.Data.OTLPGRPCPort != 4317 || resp.Data.OTLPHTTPPort != 4318 {
 		t.Errorf("ports wrong: %+v", resp.Data)
 	}
 	if resp.Data.Runtime.Version != "test-1.2.3" {
@@ -114,8 +114,8 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 	w := putSettings(t, router, map[string]any{
 		"port":           newPort,
 		"retention_days": newRet,
-		"grpc_port":      4321,
-		"http_port":      0,
+		"otlp_grpc_port":      4321,
+		"otlp_http_port":      0,
 	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
@@ -124,7 +124,7 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 		Data SettingsResponse `json:"data"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp.Data.Port != newPort || resp.Data.RetentionDays != newRet || resp.Data.GRPCPort != 4321 || resp.Data.HTTPPort != 0 {
+	if resp.Data.Port != newPort || resp.Data.RetentionDays != newRet || resp.Data.OTLPGRPCPort != 4321 || resp.Data.OTLPHTTPPort != 0 {
 		t.Errorf("response did not echo update: %+v", resp.Data)
 	}
 	if svc.Viper.GetInt("port") != newPort {
@@ -152,7 +152,7 @@ func TestPutSettings_RejectsInvalidPort(t *testing.T) {
 
 func TestPutSettings_AcceptsZeroForReceiverPorts(t *testing.T) {
 	router, _, _ := newSettingsRouter(t)
-	w := putSettings(t, router, map[string]any{"grpc_port": 0, "http_port": 0})
+	w := putSettings(t, router, map[string]any{"otlp_grpc_port": 0, "otlp_http_port": 0})
 	if w.Code != http.StatusOK {
 		t.Errorf("zero receiver ports should be valid (= disabled), got %d (body=%s)", w.Code, w.Body.String())
 	}

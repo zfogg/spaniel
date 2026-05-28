@@ -112,15 +112,14 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 
 				go lintSpan(s, sessionID, p.store)
 
-				p.hub.Broadcast(&ws.SpanEvent{
-					Type:        "span",
+				p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 					TraceID:     s.TraceID,
 					SpanID:      s.SpanID,
 					ServiceName: s.ServiceName,
 					Name:        s.Name,
 					DurationNs:  s.EndNs - s.StartNs,
 					StatusCode:  s.StatusCode,
-				})
+				}))
 
 				p.scheduleDetectors(s.TraceID)
 			}
@@ -156,6 +155,14 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 				if err := p.store.InsertLog(l); err != nil {
 					return err
 				}
+				p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
+					TraceID:     l.TraceID,
+					SpanID:      l.SpanID,
+					Severity:    l.Severity,
+					Body:        l.Body,
+					ServiceName: l.ServiceName,
+					SessionID:   l.SessionID,
+				}))
 			}
 		}
 	}
@@ -174,7 +181,7 @@ func (p *Pipeline) scheduleDetectors(traceID string) {
 		return
 	}
 	p.debounce[traceID] = time.AfterFunc(500*time.Millisecond, func() {
-		runDetectors(traceID, p.store)
+		runDetectors(traceID, p.store, p.hub)
 		p.debounceMu.Lock()
 		delete(p.debounce, traceID)
 		p.debounceMu.Unlock()

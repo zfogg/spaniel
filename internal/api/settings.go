@@ -19,8 +19,8 @@ type SettingsService struct {
 	ConfigPath string // path to the file Save() will write
 	Version    string
 	StartedAt  time.Time
-	GRPCPort   int
-	HTTPPort   int
+	OTLPGRPCPort   int
+	OTLPHTTPPort   int
 }
 
 // SettingsResponse is the JSON shape returned by GET /api/settings.
@@ -31,8 +31,8 @@ type SettingsResponse struct {
 	RetentionDays int      `json:"retention_days"`
 	MaxSessions   int      `json:"max_sessions"`
 	MaxDBSizeMB   int      `json:"max_db_size_mb"`
-	GRPCPort      int      `json:"grpc_port"`
-	HTTPPort      int      `json:"http_port"`
+	OTLPGRPCPort      int      `json:"otlp_grpc_port"`
+	OTLPHTTPPort      int      `json:"otlp_http_port"`
 	NoBrowser     bool     `json:"no_browser"`
 	Forward       []string `json:"forward"`
 
@@ -45,8 +45,8 @@ type SettingsRuntime struct {
 	UptimeNs    int64  `json:"uptime_ns"`
 	Version     string `json:"version"`
 	ConfigPath  string `json:"config_path"`
-	GRPCPort    int    `json:"grpc_port"`
-	HTTPPort    int    `json:"http_port"`
+	OTLPGRPCPort    int    `json:"otlp_grpc_port"`
+	OTLPHTTPPort    int    `json:"otlp_http_port"`
 	DBSizeBytes int64  `json:"db_size_bytes"`
 }
 
@@ -58,8 +58,8 @@ type SettingsUpdate struct {
 	RetentionDays *int      `json:"retention_days,omitempty"`
 	MaxSessions   *int      `json:"max_sessions,omitempty"`
 	MaxDBSizeMB   *int      `json:"max_db_size_mb,omitempty"`
-	GRPCPort      *int      `json:"grpc_port,omitempty"`
-	HTTPPort      *int      `json:"http_port,omitempty"`
+	OTLPGRPCPort      *int      `json:"otlp_grpc_port,omitempty"`
+	OTLPHTTPPort      *int      `json:"otlp_http_port,omitempty"`
 	NoBrowser     *bool     `json:"no_browser,omitempty"`
 	Forward       *[]string `json:"forward,omitempty"`
 }
@@ -116,8 +116,8 @@ func (r *Router) buildSettings() SettingsResponse {
 		RetentionDays: v.GetInt("retention_days"),
 		MaxSessions:   v.GetInt("max_sessions"),
 		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
-		GRPCPort:      v.GetInt("grpc_port"),
-		HTTPPort:      v.GetInt("http_port"),
+		OTLPGRPCPort:      v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
 		NoBrowser:     v.GetBool("no_browser"),
 		Forward:       v.GetStringSlice("forward"),
 		Runtime: SettingsRuntime{
@@ -125,8 +125,8 @@ func (r *Router) buildSettings() SettingsResponse {
 			UptimeNs:   time.Since(s.StartedAt).Nanoseconds(),
 			Version:    s.Version,
 			ConfigPath: s.ConfigPath,
-			GRPCPort:   s.GRPCPort,
-			HTTPPort:   s.HTTPPort,
+			OTLPGRPCPort:   s.OTLPGRPCPort,
+			OTLPHTTPPort:   s.OTLPHTTPPort,
 		},
 	}
 	// DB size lives on the storage layer.
@@ -141,7 +141,7 @@ func (r *Router) buildSettings() SettingsResponse {
 // We're strict about ports (1–65535) and non-negative integers; permissive
 // about everything else (the user's file is their file).
 func validateSettings(u *SettingsUpdate) error {
-	for label, p := range map[string]*int{"port": u.Port, "grpc_port": u.GRPCPort, "http_port": u.HTTPPort} {
+	for label, p := range map[string]*int{"port": u.Port, "otlp_grpc_port": u.OTLPGRPCPort, "otlp_http_port": u.OTLPHTTPPort} {
 		if p == nil {
 			continue
 		}
@@ -195,11 +195,11 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if u.MaxDBSizeMB != nil {
 		s.Viper.Set("max_db_size_mb", *u.MaxDBSizeMB)
 	}
-	if u.GRPCPort != nil {
-		s.Viper.Set("grpc_port", *u.GRPCPort)
+	if u.OTLPGRPCPort != nil {
+		s.Viper.Set("otlp_grpc_port", *u.OTLPGRPCPort)
 	}
-	if u.HTTPPort != nil {
-		s.Viper.Set("http_port", *u.HTTPPort)
+	if u.OTLPHTTPPort != nil {
+		s.Viper.Set("otlp_http_port", *u.OTLPHTTPPort)
 	}
 	if u.NoBrowser != nil {
 		s.Viper.Set("no_browser", *u.NoBrowser)
@@ -215,7 +215,7 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "grpc_port", "http_port", "no_browser", "forward"} {
+	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {

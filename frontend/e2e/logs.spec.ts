@@ -177,4 +177,45 @@ test.describe('LogViewer', () => {
     await expect(page.getByRole('button', { name: 'WARN',  exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'FATAL', exact: true })).toHaveCount(0)
   })
+
+  test('a log pushed via WebSocket appears without refresh', async ({ page }) => {
+    // Multiple WS connections are created per page (BottomBar × 2, LogViewer × 1),
+    // so collect all of them and broadcast to each.
+    const serverWsList: import('@playwright/test').WebSocketRoute[] = []
+    await page.routeWebSocket('**/ws', ws => {
+      serverWsList.push(ws)
+    })
+    await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+      const pathname = new URL(r.request().url()).pathname
+      if (pathname === '/api/stats')
+        return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
+      if (pathname === '/api/forwarders') return jsonResponse(r, [])
+      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+      if (pathname === '/api/services') return jsonResponse(r, [])
+      if (pathname.startsWith('/api/logs')) return jsonResponse(r, [])
+      return r.continue()
+    })
+
+    await page.goto('/logs')
+    await expect(page.getByText('no logs yet — send traces with OTel logging attached')).toBeVisible()
+
+    // Push a log event through all WS connections so LogViewer's hook receives it.
+    const logEvent = {
+      type: 'log',
+      timestamp_ns: Date.now() * 1_000_000,
+      payload: {
+        traceId: '0000000000000000',
+        spanId:  'span-ws-001',
+        severity: 9,
+        body: 'live log from websocket',
+        serviceName: 'ws-test-svc',
+        sessionId: 's1',
+      },
+    }
+    for (const ws of serverWsList) {
+      try { ws.send(JSON.stringify(logEvent)) } catch { /* connection may be closed */ }
+    }
+
+    await expect(page.getByText('live log from websocket')).toBeVisible()
+  })
 })

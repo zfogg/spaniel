@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react'
 
-export interface SpanEvent {
-  type: 'span'
-  traceId: string
-  spanId: string
-  serviceName: string
-  name: string
-  durationNs: number
-  statusCode: number
-}
+export interface SpanPayload { traceId: string; spanId: string; serviceName: string; name: string; durationNs: number; statusCode: number }
+export interface LogPayload { traceId: string; spanId: string; severity: number; body: string; serviceName: string; sessionId: string }
+export interface MetricPayload { name: string; serviceName: string; value: number; type: string }
+export interface IssuePayload { traceId: string; kind: string; fingerprint: string; count: number; wastedNs: number }
+export interface ForwarderPayload { url: string; sent: number; errors: number; lastError?: string }
+export interface ThroughputPayload { spansPerSec: number; logsPerSec: number }
 
-type Handler = (ev: SpanEvent) => void
+export type WsEvent =
+  | { type: 'span';       timestamp_ns: number; payload: SpanPayload }
+  | { type: 'log';        timestamp_ns: number; payload: LogPayload }
+  | { type: 'metric';     timestamp_ns: number; payload: MetricPayload }
+  | { type: 'issue';      timestamp_ns: number; payload: IssuePayload }
+  | { type: 'forwarder';  timestamp_ns: number; payload: ForwarderPayload }
+  | { type: 'throughput'; timestamp_ns: number; payload: ThroughputPayload }
+
+// Keep SpanEvent as a backward-compat alias:
+export type SpanEvent = Extract<WsEvent, { type: 'span' }>
+
+type Handler = (ev: WsEvent) => void
 type StatusHandler = (connected: boolean) => void
 
 const MIN_BACKOFF_MS = 500
@@ -34,8 +42,9 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
 
     ws.onmessage = (e) => {
       try {
-        const ev = JSON.parse(e.data) as SpanEvent
-        onEvent(ev)
+        const ev = JSON.parse(e.data)
+        if (typeof ev?.type !== 'string') return
+        onEvent(ev as WsEvent)
       } catch {}
     }
 

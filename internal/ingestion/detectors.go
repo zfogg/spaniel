@@ -7,6 +7,7 @@ import (
 	"vitess.io/vitess/go/vt/sqlparser"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/ws"
 )
 
 // fingerprintSQL normalizes a SQL statement by replacing all literal values
@@ -42,11 +43,11 @@ func fallbackFingerprint(stmt string) string {
 }
 
 // runDetectors runs all post-ingestion trace analysis after the 500ms quiet window.
-func runDetectors(traceID string, store *storage.DB) {
-	detectN1(traceID, store)
+func runDetectors(traceID string, store *storage.DB, hub *ws.Hub) {
+	detectN1(traceID, store, hub)
 }
 
-func detectN1(traceID string, store *storage.DB) {
+func detectN1(traceID string, store *storage.DB, hub *ws.Hub) {
 	spans, err := store.GetTrace(traceID)
 	if err != nil || len(spans) == 0 {
 		return
@@ -114,6 +115,14 @@ func detectN1(traceID string, store *storage.DB) {
 			ExampleSpanID: g.spans[0].SpanID,
 			CreatedAt:     now,
 		}
-		_ = store.UpsertTraceIssue(issue)
+		if err := store.UpsertTraceIssue(issue); err == nil {
+			hub.Broadcast(ws.NewIssueEvent(&ws.IssuePayload{
+				TraceID:     issue.TraceID,
+				Kind:        issue.Kind,
+				Fingerprint: issue.Fingerprint,
+				Count:       issue.Count,
+				WastedNs:    issue.WastedNs,
+			}))
+		}
 	}
 }

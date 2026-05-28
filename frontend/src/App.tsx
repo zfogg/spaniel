@@ -17,6 +17,7 @@ import Metrics from './pages/Metrics'
 import Coverage from './pages/Coverage'
 import Settings from './pages/Settings'
 import BottomBar from './components/BottomBar'
+import IssueToast from './components/IssueToast'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { api, type ForwarderStatus } from './lib/api'
 
@@ -280,6 +281,7 @@ function AppShell() {
         </Routes>
       </main>
       <BottomBar />
+      <IssueToast />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )

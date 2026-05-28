@@ -30,10 +30,10 @@ max_sessions: 50
 max_db_size_mb: 500
 
 # OTLP gRPC receiver port (default 4317; 0 = disabled)
-grpc_port: 4317
+otlp_grpc_port: 4317
 
 # OTLP HTTP receiver port (default 4318; 0 = disabled)
-http_port: 4318
+otlp_http_port: 4318
 
 # Do not open a browser tab on startup
 no_browser: false
@@ -62,8 +62,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("retention_days", 7)
 	v.SetDefault("max_sessions", 50)
 	v.SetDefault("max_db_size_mb", 500)
-	v.SetDefault("grpc_port", 4317)
-	v.SetDefault("http_port", 4318)
+	v.SetDefault("otlp_grpc_port", 4317)
+	v.SetDefault("otlp_http_port", 4318)
 	v.SetDefault("no_browser", false)
 
 	// ENV: SPANIEL_PORT, SPANIEL_DB_PATH, etc.

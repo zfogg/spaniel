@@ -247,21 +247,21 @@ function NetworkSection({ s, mutate, hidden }: {
       <Row label="OTLP gRPC receiver"
         hint="The :4317 listener that speaks protobuf over gRPC. Set port = 0 to disable."
         testid="row-grpc">
-        <Toggle on={s.grpc_port > 0} onChange={v => mutate({ grpc_port: v ? 4317 : 0 })} label="enable grpc receiver" />
-        <NumberBox value={s.grpc_port} onChange={v => mutate({ grpc_port: v })}
+        <Toggle on={s.otlp_grpc_port > 0} onChange={v => mutate({ otlp_grpc_port: v ? 4317 : 0 })} label="enable grpc receiver" />
+        <NumberBox value={s.otlp_grpc_port} onChange={v => mutate({ otlp_grpc_port: v })}
           min={0} max={65535} suffix=":port" ariaLabel="grpc port" />
-        {s.grpc_port > 0
-          ? <Pill tone="ok">● listening :{s.runtime.grpc_port}</Pill>
+        {s.otlp_grpc_port > 0
+          ? <Pill tone="ok">● listening :{s.runtime.otlp_grpc_port}</Pill>
           : <Pill>stopped</Pill>}
       </Row>
       <Row label="OTLP HTTP receiver"
         hint="The :4318 listener that speaks both protobuf and JSON. Set port = 0 to disable."
         testid="row-http">
-        <Toggle on={s.http_port > 0} onChange={v => mutate({ http_port: v ? 4318 : 0 })} label="enable http receiver" />
-        <NumberBox value={s.http_port} onChange={v => mutate({ http_port: v })}
+        <Toggle on={s.otlp_http_port > 0} onChange={v => mutate({ otlp_http_port: v ? 4318 : 0 })} label="enable http receiver" />
+        <NumberBox value={s.otlp_http_port} onChange={v => mutate({ otlp_http_port: v })}
           min={0} max={65535} suffix=":port" ariaLabel="http port" />
-        {s.http_port > 0
-          ? <Pill tone="ok">● listening :{s.runtime.http_port}</Pill>
+        {s.otlp_http_port > 0
+          ? <Pill tone="ok">● listening :{s.runtime.otlp_http_port}</Pill>
           : <Pill>stopped</Pill>}
       </Row>
       <Row label="UI / API port"

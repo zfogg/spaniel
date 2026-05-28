@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DurBar } from '@/components/DurBar'
 import { api, TraceRow } from '../lib/api'
-import { createWS, SpanEvent } from '../lib/ws'
+import { createWS } from '../lib/ws'
 import { traceTag } from '../lib/trace-tag'
 import { fmtRelative } from '../lib/fmt-relative'
 
@@ -258,23 +258,24 @@ export default function TraceList() {
 
     api.services.list().then(r => setServices(r.data ?? []))
 
-    const disconnect = createWS((ev: SpanEvent) => {
+    const disconnect = createWS((ev) => {
       if (ev.type !== 'span') return
+      const p = ev.payload
       const newRow: TraceRow = {
-        trace_id: ev.traceId,
-        service_name: ev.serviceName,
-        name: ev.name,
-        status_code: ev.statusCode,
+        trace_id: p.traceId,
+        service_name: p.serviceName,
+        name: p.name,
+        status_code: p.statusCode,
         start_ns: Date.now() * 1_000_000,
-        end_ns: (Date.now() * 1_000_000) + ev.durationNs,
-        duration_ns: ev.durationNs,
+        end_ns: (Date.now() * 1_000_000) + p.durationNs,
+        duration_ns: p.durationNs,
         session_id: '',
         session_label: '',
         has_n1: false,
         span_count: 1,
       }
       setTraces(prev => {
-        if (prev.some(t => t.trace_id === ev.traceId)) return prev
+        if (prev.some(t => t.trace_id === p.traceId)) return prev
         return [newRow, ...prev].slice(0, 200)
       })
     })

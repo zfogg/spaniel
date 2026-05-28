@@ -224,8 +224,8 @@ type runConfig struct {
 	MaxDBSizeMB   int
 	ForwardURLs   []string
 	RoutesFile    string
-	GRPCPort      int
-	HTTPPort      int
+	OTLPGRPCPort      int
+	OTLPHTTPPort      int
 	Viper         *viper.Viper
 }
 
@@ -241,8 +241,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		MaxSessions:   v.GetInt("max_sessions"),
 		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
 		ForwardURLs:   v.GetStringSlice("forward"),
-		GRPCPort:      v.GetInt("grpc_port"),
-		HTTPPort:      v.GetInt("http_port"),
+		OTLPGRPCPort:      v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -272,11 +272,11 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	if cfg.DBPath == "" {
 		cfg.DBPath = defaultDBPath()
 	}
-	if cfg.GRPCPort == 0 {
-		cfg.GRPCPort = 4317
+	if cfg.OTLPGRPCPort == 0 {
+		cfg.OTLPGRPCPort = 4317
 	}
-	if cfg.HTTPPort == 0 {
-		cfg.HTTPPort = 4318
+	if cfg.OTLPHTTPPort == 0 {
+		cfg.OTLPHTTPPort = 4318
 	}
 	cfg.Viper = v
 	return cfg
@@ -318,8 +318,8 @@ func run(cfg runConfig) error {
 	}
 
 	grpcRcv := receiver.NewGRPCReceiver(pipeline)
-	if cfg.GRPCPort > 0 {
-		grpcAddr := fmt.Sprintf(":%d", cfg.GRPCPort)
+	if cfg.OTLPGRPCPort > 0 {
+		grpcAddr := fmt.Sprintf(":%d", cfg.OTLPGRPCPort)
 		go func() {
 			if err := grpcRcv.ListenAndServe(grpcAddr); err != nil {
 				fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
@@ -333,8 +333,8 @@ func run(cfg runConfig) error {
 	otlpMux.HandleFunc("/v1/traces", httpRcv.HandleTraces)
 	otlpMux.HandleFunc("/v1/logs", httpRcv.HandleLogs)
 	otlpMux.HandleFunc("/v1/metrics", httpRcv.HandleMetrics)
-	if cfg.HTTPPort > 0 {
-		httpAddr := fmt.Sprintf(":%d", cfg.HTTPPort)
+	if cfg.OTLPHTTPPort > 0 {
+		httpAddr := fmt.Sprintf(":%d", cfg.OTLPHTTPPort)
 		go func() {
 			if err := http.ListenAndServe(httpAddr, otlpMux); err != nil {
 				fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
@@ -361,8 +361,8 @@ func run(cfg runConfig) error {
 		ConfigPath: globalConfigPath(),
 		Version:    version,
 		StartedAt:  time.Now(),
-		GRPCPort:   cfg.GRPCPort,
-		HTTPPort:   cfg.HTTPPort,
+		OTLPGRPCPort:   cfg.OTLPGRPCPort,
+		OTLPHTTPPort:   cfg.OTLPHTTPPort,
 	}
 	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc)
 
@@ -392,6 +392,42 @@ func run(cfg runConfig) error {
 		}()
 	}
 
+	// Throughput + forwarder status broadcaster (every 2s)
+	go func() {
+		var prevSpans, prevLogs int
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			stats, err := store.GetStats("")
+			if err == nil {
+				spansRate := float64(stats.SpanCount-prevSpans) / 2.0
+				logsRate := float64(stats.LogCount-prevLogs) / 2.0
+				if spansRate < 0 {
+					spansRate = 0
+				}
+				if logsRate < 0 {
+					logsRate = 0
+				}
+				prevSpans = stats.SpanCount
+				prevLogs = stats.LogCount
+				hub.Broadcast(ws.NewThroughputEvent(&ws.ThroughputPayload{
+					SpansPerSec: spansRate,
+					LogsPerSec:  logsRate,
+				}))
+			}
+			if fwd != nil {
+				for _, s := range fwd.Status() {
+					hub.Broadcast(ws.NewForwarderEvent(&ws.ForwarderPayload{
+						URL:     s.URL,
+						Sent:    s.Sent,
+						Errors:  s.Errors,
+						LastErr: s.LastErr,
+					}))
+				}
+			}
+		}
+	}()
+
 	_ = context.Background()
 	return http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), mainMux)
 }
@@ -399,13 +435,13 @@ func run(cfg runConfig) error {
 func printBanner(cfg runConfig) {
 	fmt.Printf("\nspaniel 🐕\n")
 	fmt.Printf("  UI        →  http://localhost:%d\n", cfg.Port)
-	if cfg.GRPCPort > 0 {
-		fmt.Printf("  OTLP/gRPC →  localhost:%d\n", cfg.GRPCPort)
+	if cfg.OTLPGRPCPort > 0 {
+		fmt.Printf("  OTLP/gRPC →  localhost:%d\n", cfg.OTLPGRPCPort)
 	} else {
 		fmt.Printf("  OTLP/gRPC →  disabled\n")
 	}
-	if cfg.HTTPPort > 0 {
-		fmt.Printf("  OTLP/HTTP →  localhost:%d\n", cfg.HTTPPort)
+	if cfg.OTLPHTTPPort > 0 {
+		fmt.Printf("  OTLP/HTTP →  localhost:%d\n", cfg.OTLPHTTPPort)
 	} else {
 		fmt.Printf("  OTLP/HTTP →  disabled\n")
 	}

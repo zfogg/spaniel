@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, Stats } from '@/lib/api'
-import { useWSStatus } from '@/lib/ws'
+import { useWSStatus, useWS } from '@/lib/ws'
 
 function fmtBytes(n: number): string {
   if (!n) return '0 B'
@@ -22,7 +22,13 @@ interface ActiveSession { id: string; label: string }
 export default function BottomBar() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [active, setActive] = useState<ActiveSession | null>(null)
+  const [spansPerSec, setSpansPerSec] = useState(0)
   const connected = useWSStatus()
+
+  useWS(ev => {
+    if (ev.type !== 'throughput') return
+    setSpansPerSec(ev.payload.spansPerSec)
+  })
 
   useEffect(() => {
     let cancel = false
@@ -59,6 +65,7 @@ export default function BottomBar() {
       <Stat label="spans"  value={stats ? fmtCount(stats.span_count) : '—'} />
       <Stat label="traces" value={stats ? fmtCount(stats.trace_count) : '—'} />
       <Stat label="logs"   value={stats ? fmtCount(stats.log_count) : '—'} />
+      {spansPerSec > 0 && <Stat label="rate" value={`${spansPerSec.toFixed(1)}/s`} />}
 
       <div style={{ flex: 1 }} />
 

@@ -2,16 +2,36 @@ package ingestion
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
+
+// dialPipelineHub dials the hub's WS endpoint and returns a client conn.
+func dialPipelineHub(t *testing.T, h *ws.Hub) (*websocket.Conn, *httptest.Server) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(h.ServeWS))
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		srv.Close()
+		t.Fatalf("dial ws: %v", err)
+	}
+	return conn, srv
+}
 
 func openTestDB(t *testing.T) *storage.DB {
 	t.Helper()
@@ -337,5 +357,121 @@ func TestPipelineIngestTraces_SpanLinksPersisted(t *testing.T) {
 	}
 	if len(rev) != 1 || rev[0].SpanID != spanIDStr {
 		t.Errorf("incoming-link reverse lookup wrong: %+v", rev)
+	}
+}
+
+func makeLogs(serviceName string, makeFn func(rl plog.ResourceLogs)) plog.Logs {
+	ld := plog.NewLogs()
+	rl := ld.ResourceLogs().AppendEmpty()
+	rl.Resource().Attributes().PutStr("service.name", serviceName)
+	makeFn(rl)
+	return ld
+}
+
+func makeMetrics(serviceName string, makeFn func(rm pmetric.ResourceMetrics)) pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("service.name", serviceName)
+	makeFn(rm)
+	return md
+}
+
+func TestPipeline_BroadcastsLog(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("log-ws-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	hub := ws.NewHub()
+	conn, srv := dialPipelineHub(t, hub)
+	defer srv.Close()
+	defer conn.Close()
+
+	p := NewPipeline(db, hub)
+
+	ld := makeLogs("log-svc", func(rl plog.ResourceLogs) {
+		sl := rl.ScopeLogs().AppendEmpty()
+		lr := sl.LogRecords().AppendEmpty()
+		lr.SetSeverityNumber(plog.SeverityNumberInfo)
+		lr.Body().SetStr("hello log")
+	})
+
+	if err := p.IngestLogs(context.Background(), ld); err != nil {
+		t.Fatalf("IngestLogs: %v", err)
+	}
+
+	// Read frames until we find a "log" event (span broadcasts may arrive first)
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read message: %v", err)
+		}
+		var ev struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Body string `json:"body"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(msg, &ev); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if ev.Type != "log" {
+			continue
+		}
+		if ev.Payload.Body != "hello log" {
+			t.Errorf("expected body=%q, got %q", "hello log", ev.Payload.Body)
+		}
+		return
+	}
+}
+
+func TestPipeline_BroadcastsMetric(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("metric-ws-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	hub := ws.NewHub()
+	conn, srv := dialPipelineHub(t, hub)
+	defer srv.Close()
+	defer conn.Close()
+
+	p := NewPipeline(db, hub)
+
+	md := makeMetrics("metric-svc", func(rm pmetric.ResourceMetrics) {
+		sm := rm.ScopeMetrics().AppendEmpty()
+		m := sm.Metrics().AppendEmpty()
+		m.SetName("http.requests")
+		g := m.SetEmptyGauge()
+		dp := g.DataPoints().AppendEmpty()
+		dp.SetDoubleValue(42.0)
+		dp.SetTimestamp(pcommon.Timestamp(time.Now().UnixNano()))
+	})
+
+	if err := p.IngestMetrics(context.Background(), md); err != nil {
+		t.Fatalf("IngestMetrics: %v", err)
+	}
+
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read message: %v", err)
+		}
+		var ev struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Name string `json:"name"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(msg, &ev); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if ev.Type != "metric" {
+			continue
+		}
+		if ev.Payload.Name != "http.requests" {
+			t.Errorf("expected name=%q, got %q", "http.requests", ev.Payload.Name)
+		}
+		return
 	}
 }

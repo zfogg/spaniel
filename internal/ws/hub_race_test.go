@@ -39,10 +39,9 @@ func TestConcurrentBroadcast(t *testing.T) {
 		idx := i
 		go func() {
 			defer wg.Done()
-			h.Broadcast(&SpanEvent{
-				Type:    "span",
+			h.Broadcast(NewSpanEvent(&SpanPayload{
 				TraceID: strings.Repeat("a", idx+1),
-			})
+			}))
 		}()
 	}
 	wg.Wait()
@@ -86,5 +85,5 @@ func TestBroadcastAfterAllClientsGone(t *testing.T) {
 		t.Fatalf("expected 0 clients after disconnect, got %d", n)
 	}
 
-	h.Broadcast(&SpanEvent{Type: "span", TraceID: "after-gone"})
+	h.Broadcast(NewSpanEvent(&SpanPayload{TraceID: "after-gone"}))
 }

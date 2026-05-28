@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, type SpanRow } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
-import { useWS, type SpanEvent } from '@/lib/ws'
+import { useWS } from '@/lib/ws'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -293,7 +293,7 @@ export default function Spans() {
 
   useEffect(() => { load(sortBy) }, [sortBy])
 
-  useWS((_ev: SpanEvent) => { load(sortBy) })
+  useWS((_ev) => { load(sortBy) })
 
   // facet counts computed from the full dataset
   const svcFacets = useMemo(() => {

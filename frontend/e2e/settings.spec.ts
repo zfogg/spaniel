@@ -16,8 +16,8 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     retention_days: 7,
     max_sessions: 50,
     max_db_size_mb: 500,
-    grpc_port: 4317,
-    http_port: 4318,
+    otlp_grpc_port: 4317,
+    otlp_http_port: 4318,
     no_browser: false,
     forward: [],
     runtime: {
@@ -25,8 +25,8 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
       uptime_ns: (4 * 3600 + 12 * 60) * 1_000_000_000, // 4h 12m
       version: '0.4.2',
       config_path: '/home/user/.spaniel/config.yaml',
-      grpc_port: 4317,
-      http_port: 4318,
+      otlp_grpc_port: 4317,
+      otlp_http_port: 4318,
       db_size_bytes: 612 * 1024 * 1024,
     },
     ...overrides,
@@ -118,7 +118,7 @@ test.describe('Settings page', () => {
     await expect(page.getByTestId('row-http').getByText(/listening :4318/)).toBeVisible()
   })
 
-  test('toggling gRPC off flips the pill to stopped and PUTs grpc_port=0', async ({ page }) => {
+  test('toggling gRPC off flips the pill to stopped and PUTs otlp_grpc_port=0', async ({ page }) => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
@@ -126,7 +126,7 @@ test.describe('Settings page', () => {
     await page.getByLabel('enable grpc receiver').click()
 
     await expect(page.getByTestId('row-grpc').getByText('stopped')).toBeVisible()
-    await expect.poll(() => h.lastPut()).toMatchObject({ grpc_port: 0 })
+    await expect.poll(() => h.lastPut()).toMatchObject({ otlp_grpc_port: 0 })
   })
 
   test('changing the retention unit updates the computed-label pill', async ({ page }) => {

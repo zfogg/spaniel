@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/ws"
 )
 
 // ingestMetrics walks an OTLP Metrics tree and emits storage.Metric rows.
@@ -40,7 +41,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 	case pmetric.MetricTypeGauge:
 		for i := 0; i < m.Gauge().DataPoints().Len(); i++ {
 			dp := m.Gauge().DataPoints().At(i)
-			if err := p.store.InsertMetric(&storage.Metric{
+			row := &storage.Metric{
 				Name:        name,
 				Description: desc,
 				Unit:        unit,
@@ -50,15 +51,22 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 				Attributes:  mapToJSON(dp.Attributes()),
 				ServiceName: svc,
 				SessionID:   sessionID,
-			}); err != nil {
+			}
+			if err := p.store.InsertMetric(row); err != nil {
 				return err
 			}
+			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
+				Name:        row.Name,
+				ServiceName: row.ServiceName,
+				Value:       row.Value,
+				Type:        row.Type,
+			}))
 		}
 
 	case pmetric.MetricTypeSum:
 		for i := 0; i < m.Sum().DataPoints().Len(); i++ {
 			dp := m.Sum().DataPoints().At(i)
-			if err := p.store.InsertMetric(&storage.Metric{
+			row := &storage.Metric{
 				Name:        name,
 				Description: desc,
 				Unit:        unit,
@@ -68,9 +76,16 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 				Attributes:  mapToJSON(dp.Attributes()),
 				ServiceName: svc,
 				SessionID:   sessionID,
-			}); err != nil {
+			}
+			if err := p.store.InsertMetric(row); err != nil {
 				return err
 			}
+			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
+				Name:        row.Name,
+				ServiceName: row.ServiceName,
+				Value:       row.Value,
+				Type:        row.Type,
+			}))
 		}
 
 	case pmetric.MetricTypeHistogram:
@@ -83,7 +98,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 					pct,
 				)
 				attrs := attrsWithPercentile(dp.Attributes(), pct)
-				if err := p.store.InsertMetric(&storage.Metric{
+				row := &storage.Metric{
 					Name:        name,
 					Description: desc,
 					Unit:        unit,
@@ -93,9 +108,16 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 					Attributes:  attrs,
 					ServiceName: svc,
 					SessionID:   sessionID,
-				}); err != nil {
+				}
+				if err := p.store.InsertMetric(row); err != nil {
 					return err
 				}
+				p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
+					Name:        row.Name,
+					ServiceName: row.ServiceName,
+					Value:       row.Value,
+					Type:        row.Type,
+				}))
 			}
 		}
 

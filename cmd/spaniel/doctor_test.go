@@ -250,8 +250,8 @@ func TestRunDoctor_SmokeOnTempDirs(t *testing.T) {
 		ConfigPath: cfg,
 		DBPath:     filepath.Join(dir, "spaniel.duckdb"),
 		UIPort:     free(),
-		GRPCPort:   free(),
-		HTTPPort:   free(),
+		OTLPGRPCPort: free(),
+		OTLPHTTPPort: free(),
 		Forward:    nil,
 		Offline:    true, // don't depend on the network in CI
 	})

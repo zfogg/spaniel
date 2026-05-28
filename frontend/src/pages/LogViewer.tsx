@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
+import { useWS } from '@/lib/ws'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
@@ -479,6 +480,27 @@ export default function LogViewer() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Live log push via WebSocket
+  useWS(ev => {
+    if (ev.type !== 'log') return
+    const p = ev.payload
+    const l: Log = {
+      timestamp_ns: ev.timestamp_ns,
+      trace_id:     p.traceId,
+      span_id:      p.spanId,
+      severity:     p.severity,
+      body:         p.body,
+      attributes:   '{}',
+      service_name: p.serviceName,
+      session_id:   p.sessionId,
+      received_at:  ev.timestamp_ns,
+    }
+    const key = logKey(l)
+    if (knownIds.current.has(key)) return
+    knownIds.current.add(key)
+    setLogs(prev => [l, ...prev].slice(0, 500))
+  })
 
   const filtered = logs.filter(l => {
     if (filterService !== 'all' && l.service_name !== filterService) return false
