@@ -179,6 +179,21 @@ const TONE_CLASS: Record<TagTone, string> = {
   accent: 'bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] text-[var(--accent)]',
 }
 
+const ISSUE_ABBREV: Record<string, string> = {
+  slow_db: 'slow db', chatty_http: 'chatty', large_payload: 'large',
+  cache_miss_storm: 'cache', tracing_gap: 'gap', error_chain: 'err chain',
+  serial_promise: 'serial', synchronous_io: 'sync io',
+}
+
+function IssueKindChip({ kind }: { kind: string }) {
+  const label = ISSUE_ABBREV[kind] ?? kind.replace(/_/g, ' ')
+  return (
+    <span className="inline-flex items-center px-1.5 py-px rounded font-mono text-[9px] font-bold uppercase tracking-[0.04em] bg-[var(--warn-bg)] text-[var(--warn-ink)]">
+      {label}
+    </span>
+  )
+}
+
 function TagChip({ tag }: { tag: NonNullable<ReturnType<typeof traceTag>> }) {
   const tone = TAG_TONE[tag]
   return (
@@ -226,6 +241,9 @@ function TraceRowItem({
             {trace.name}
           </span>
           {tag && <TagChip tag={tag} />}
+          {(trace.issue_kinds ?? []).filter(k => k !== 'n_plus_one').slice(0, 2).map(k => (
+            <IssueKindChip key={k} kind={k} />
+          ))}
         </div>
         <div className="font-mono text-[10px] text-[var(--ink3)]">
           {trace.trace_id.slice(0, 16)}…

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, LintWarning } from '@/lib/api'
+import { api, LintWarning, TraceIssue } from '@/lib/api'
 import { useWS } from '@/lib/ws'
 import EmptyState from '@/components/EmptyState'
 
@@ -97,14 +97,35 @@ function LintRow({ w, last }: { w: LintWarning; last: boolean }) {
 
 // ── LintPage ──────────────────────────────────────────────────────────────────
 
+const KIND_LABELS: Record<string, string> = {
+  n_plus_one:      'N+1 queries',
+  slow_db:         'slow DB',
+  chatty_http:     'chatty HTTP',
+  large_payload:   'large payload',
+  cache_miss_storm:'cache miss storm',
+  tracing_gap:     'tracing gap',
+  error_chain:     'error chain',
+  serial_promise:  'serial promises',
+  synchronous_io:  'synchronous I/O',
+}
+
+function kindLabel(kind: string): string {
+  return KIND_LABELS[kind] ?? kind.replace(/_/g, ' ')
+}
+
 export default function LintPage() {
-  const [warnings, setWarnings] = useState<LintWarning[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [warnings, setWarnings]         = useState<LintWarning[]>([])
+  const [traceIssues, setTraceIssues]   = useState<TraceIssue[]>([])
+  const [loading, setLoading]           = useState(true)
 
   async function load() {
     try {
-      const res = await api.lint.list()
-      setWarnings(res.data ?? [])
+      const [lintRes, issueRes] = await Promise.all([
+        api.lint.list(),
+        api.issues.list(),
+      ])
+      setWarnings(lintRes.data ?? [])
+      setTraceIssues(issueRes.data ?? [])
     } finally {
       setLoading(false)
     }
@@ -117,10 +138,22 @@ export default function LintPage() {
   const warnCnt  = warnings.filter(w => w.severity === 'warning').length
   const infoCnt  = warnings.filter(w => w.severity === 'info').length
 
-  const n1Count  = warnings.filter(w => w.rule_id === 'n_plus_one').length
   const reqAttr  = warnings.filter(w => w.severity === 'error').length
-  const semconvW = warnings.filter(w => w.severity === 'warning' && w.rule_id !== 'n_plus_one').length
-  const firstN1  = warnings.find(w => w.rule_id === 'n_plus_one')
+  const semconvW = warnings.filter(w => w.severity === 'warning').length
+
+  // Aggregate detector issues by kind.
+  const kindMap = new Map<string, { count: number; first: TraceIssue }>()
+  for (const issue of traceIssues) {
+    const existing = kindMap.get(issue.kind)
+    if (!existing) {
+      kindMap.set(issue.kind, { count: 1, first: issue })
+    } else {
+      existing.count++
+    }
+  }
+  const detectorKinds = Array.from(kindMap.entries())
+    .map(([kind, { count, first }]) => ({ kind, count, first }))
+    .sort((a, b) => b.count - a.count)
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-[var(--bg)]">
@@ -150,7 +183,7 @@ export default function LintPage() {
       </div>
 
       {/* summary band */}
-      <div className="px-[18px] py-3.5 flex gap-3 shrink-0 bg-surface border-b border-line">
+      <div className="px-[18px] py-3.5 flex gap-3 shrink-0 bg-surface border-b border-line overflow-x-auto">
         <SummaryStat
           tone="danger"
           big={reqAttr}
@@ -158,21 +191,24 @@ export default function LintPage() {
           sub={reqAttr > 0 ? warnings.find(w => w.severity === 'error')?.rule_id ?? '—' : 'none'}
         />
         <SummaryStat
-          tone="warn"
-          big={n1Count}
-          label="N+1 detected"
-          sub={firstN1 ? firstN1.span_id.slice(0, 12) + '…' : 'none'}
-        />
-        <SummaryStat
           tone="neutral"
           big={semconvW}
           label="semconv warnings"
           sub={semconvW > 0 ? 'db.system, rpc…' : 'none'}
         />
+        {detectorKinds.map(({ kind, count, first }) => (
+          <SummaryStat
+            key={kind}
+            tone="warn"
+            big={count}
+            label={kindLabel(kind)}
+            sub={first?.example_span_id?.slice(0, 10) + '…' ?? 'trace'}
+          />
+        ))}
         <SummaryStat
           tone="ok"
           big={warnings.length}
-          label="total warnings"
+          label="total lint warnings"
           sub={loading ? 'loading…' : `${warnings.length} total`}
         />
       </div>

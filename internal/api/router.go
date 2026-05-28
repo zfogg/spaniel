@@ -575,12 +575,25 @@ func (r *Router) getServiceMap(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
-	traceID := req.URL.Query().Get("traceId")
-	if traceID == "" {
-		respondErr(w, req, 400, "traceId required")
+	q := req.URL.Query()
+	traceID := q.Get("traceId")
+	sessionID := q.Get("sessionId")
+
+	if traceID != "" {
+		issues, err := r.store.GetTraceIssues(traceID)
+		if err != nil {
+			respondErr(w, req, 500, err.Error())
+			return
+		}
+		respond(w, issues, len(issues), 1)
 		return
 	}
-	issues, err := r.store.GetTraceIssues(traceID)
+
+	// No traceId: list all issues for the session (or active session).
+	if sessionID == "" {
+		sessionID = r.store.ActiveSessionID()
+	}
+	issues, err := r.store.ListTraceIssuesBySession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return

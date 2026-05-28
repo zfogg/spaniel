@@ -628,6 +628,46 @@ function SpanLinkRow({ link, last, incoming }: {
 
 // ── Inspector ─────────────────────────────────────────────────────────────────
 
+const ISSUE_KIND_LABELS: Record<string, string> = {
+  slow_db:         'slow DB query',
+  chatty_http:     'chatty HTTP',
+  large_payload:   'large payload',
+  cache_miss_storm:'cache miss storm',
+  tracing_gap:     'tracing gap',
+  error_chain:     'error chain',
+  serial_promise:  'serial promises',
+  synchronous_io:  'synchronous I/O',
+}
+
+function IssueCallout({ issue }: { issue: import('@/lib/api').TraceIssue }) {
+  const label = ISSUE_KIND_LABELS[issue.kind] ?? issue.kind.replace(/_/g, ' ')
+  return (
+    <div
+      data-testid="issue-callout"
+      data-kind={issue.kind}
+      className="mx-3.5 mt-3 rounded-lg border px-3 py-2.5"
+      style={{
+        background: 'color-mix(in oklch, var(--warn) 14%, var(--surface))',
+        borderColor: 'color-mix(in oklch, var(--warn) 35%, var(--surface))',
+      }}
+    >
+      <div className="mb-1 flex items-center gap-1.5">
+        <span className="size-1.5 shrink-0 rounded-full bg-[var(--warn)]" />
+        <span className="font-mono text-[10px] font-bold tracking-[0.06em] text-[var(--warn-ink)] uppercase">
+          {label}
+        </span>
+      </div>
+      <div className="text-[11.5px] leading-snug text-[var(--ink)]">
+        {issue.count > 1 && <><strong>{issue.count}×</strong>{' '}</>}
+        <code className="rounded-[3px] bg-[var(--surface)] px-1 font-mono">{issue.fingerprint}</code>
+        {issue.wasted_ns > 0 && (
+          <> — <strong>{fmtNs(issue.wasted_ns)}</strong> wasted</>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClose }: {
   span: Span
   traceStartNs: number
@@ -721,47 +761,49 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
         </div>
       </div>
 
-      {/* N+1 SUSPECTED callout — shown only for DB spans clustered by the
-          server detector. Pulls fingerprint + wasted_ns from the matching
-          TraceIssue; falls back to the inline n1Count summary when no issue
-          struct is available (e.g. client-side detection without a server
-          round-trip yet). */}
+      {/* Detector issue callouts — one card per matching TraceIssue on this span.
+          N+1 keeps its specific messaging; all others get a generic card. */}
       {(() => {
+        const spanIssues = issues.filter(
+          i => i.example_span_id === span.span_id || i.parent_span_id === span.span_id
+        )
         const n1Issue = n1IssueForSpan(span, issues)
-        if (!n1Issue && !isN1) return null
-        const count    = n1Issue?.count    ?? n1Count
-        const wastedNs = n1Issue?.wasted_ns
-        const fp       = n1Issue?.fingerprint ?? ''
+        // Include legacy isN1 signal even without a persisted issue.
+        const showN1 = n1Issue || isN1
+
         return (
-          <div
-            data-testid="n1-callout"
-            className="mx-3.5 mt-3 rounded-lg border px-3 py-2.5"
-            style={{
-              background: 'color-mix(in oklch, var(--danger) 18%, var(--surface))',
-              borderColor: 'color-mix(in oklch, var(--danger) 40%, var(--surface))',
-            }}
-          >
-            <div className="mb-1 flex items-center gap-1.5">
-              <span className="size-1.5 shrink-0 rounded-full bg-[var(--danger)]" />
-              <span className="font-mono text-[10px] font-bold tracking-[0.06em] text-[var(--danger-ink)]">
-                N+1 SUSPECTED
-              </span>
-            </div>
-            <div className="text-[11.5px] leading-snug text-[var(--ink)]">
-              <strong>{count}</strong> sibling spans share fingerprint
-              {fp && (
-                <>
-                  {' '}
-                  <code className="rounded-[3px] bg-[var(--surface)] px-1 py-0 font-mono">{fp}</code>
-                </>
-              )}
-              {wastedNs && wastedNs > 0 ? (
-                <>{' '}totalling <strong>{fmtNs(wastedNs)}</strong> of wasted time.</>
-              ) : '.'}
-              {' '}Batch with{' '}
-              <code className="font-mono">WHERE … IN (?)</code>.
-            </div>
-          </div>
+          <>
+            {showN1 && (
+              <div
+                data-testid="n1-callout"
+                className="mx-3.5 mt-3 rounded-lg border px-3 py-2.5"
+                style={{
+                  background: 'color-mix(in oklch, var(--danger) 18%, var(--surface))',
+                  borderColor: 'color-mix(in oklch, var(--danger) 40%, var(--surface))',
+                }}
+              >
+                <div className="mb-1 flex items-center gap-1.5">
+                  <span className="size-1.5 shrink-0 rounded-full bg-[var(--danger)]" />
+                  <span className="font-mono text-[10px] font-bold tracking-[0.06em] text-[var(--danger-ink)]">
+                    N+1 SUSPECTED
+                  </span>
+                </div>
+                <div className="text-[11.5px] leading-snug text-[var(--ink)]">
+                  <strong>{n1Issue?.count ?? n1Count}</strong> sibling spans share fingerprint
+                  {n1Issue?.fingerprint && (
+                    <> <code className="rounded-[3px] bg-[var(--surface)] px-1 py-0 font-mono">{n1Issue.fingerprint}</code></>
+                  )}
+                  {n1Issue?.wasted_ns && n1Issue.wasted_ns > 0 ? (
+                    <> totalling <strong>{fmtNs(n1Issue.wasted_ns)}</strong> of wasted time.</>
+                  ) : '.'}
+                  {' '}Batch with <code className="font-mono">WHERE … IN (?)</code>.
+                </div>
+              </div>
+            )}
+            {spanIssues.filter(i => i.kind !== 'n_plus_one').map(issue => (
+              <IssueCallout key={issue.id} issue={issue} />
+            ))}
+          </>
         )
       })()}
 

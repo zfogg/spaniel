@@ -363,7 +363,8 @@ func (p *Pipeline) flushBuffer(traceID string) {
 
 	sessionID := p.store.ActiveSessionID()
 	now := time.Now().UnixNano()
-	issues := detectN1Spans(traceID, sessionID, spans, now)
+	// Run N+1 detection inline (pre-storage) to inform the sampler.
+	issues := new(N1Detector).Analyze(traceID, sessionID, spans, now)
 
 	serviceP95 := map[string]int64{}
 	if p.sampler.alwaysKeep&KeepSlow != 0 {
