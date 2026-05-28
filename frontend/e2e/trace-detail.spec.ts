@@ -216,6 +216,46 @@ test.describe('Trace detail page', () => {
     await expect(page.getByText('n+1', { exact: true }).first()).toBeVisible()
   })
 
+  test('inspector shows the N+1 SUSPECTED callout with fingerprint + wasted ns', async ({ page }) => {
+    const { spans } = makeTrace()
+    await stubBackend(page, {
+      spans,
+      issues: [{
+        id: 'iss-1', trace_id: TRACE_ID, session_id: 's1', kind: 'n_plus_one',
+        fingerprint: 'SELECT * FROM items WHERE sku = ?',
+        count: 12, wasted_ns: 20_000_000,
+        parent_span_id: 'root', example_span_id: 'db1', created_at: 0,
+      }],
+    })
+    await page.goto(`/traces/${TRACE_ID}`)
+    await page.getByText('SELECT items', { exact: true }).click()
+
+    const callout = page.getByTestId('n1-callout')
+    await expect(callout).toBeVisible()
+    await expect(callout.getByText('N+1 SUSPECTED')).toBeVisible()
+    await expect(callout.getByText(/12/)).toBeVisible()
+    await expect(callout.getByText('SELECT * FROM items WHERE sku = ?')).toBeVisible()
+    await expect(callout.getByText(/20\.0ms/)).toBeVisible()
+    await expect(callout.getByText('WHERE … IN (?)')).toBeVisible() // fix hint
+  })
+
+  test('inspector hides the N+1 callout for non-DB spans even with sibling issues', async ({ page }) => {
+    const { spans } = makeTrace()
+    await stubBackend(page, {
+      spans,
+      issues: [{
+        id: 'iss-1', trace_id: TRACE_ID, session_id: 's1', kind: 'n_plus_one',
+        fingerprint: 'SELECT * FROM items', count: 12, wasted_ns: 20_000_000,
+        parent_span_id: 'root', example_span_id: 'db1', created_at: 0,
+      }],
+    })
+    await page.goto(`/traces/${TRACE_ID}`)
+    // `authenticate` shares the root parent with the flagged db span but has
+    // no db.statement → callout must not show.
+    await page.getByText('authenticate', { exact: true }).click()
+    await expect(page.getByTestId('n1-callout')).toHaveCount(0)
+  })
+
   test('lint warnings appear in the inspector for the affected span', async ({ page }) => {
     const { spans } = makeTrace()
     await stubBackend(page, {

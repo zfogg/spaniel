@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeLayout, criticalPath, detectN1SpanIds, n1BannerEntries } from './trace-waterfall-utils'
+import { computeLayout, criticalPath, detectN1SpanIds, n1BannerEntries, n1IssueForSpan } from './trace-waterfall-utils'
 import { flatten } from '@/lib/span-utils'
 import type { Span, TraceIssue } from '@/lib/api'
 
@@ -165,5 +165,64 @@ describe('n1BannerEntries', () => {
     const queries = Array.from({ length: 9 }, (_, i) => dbSpan(`q${i}`, 'SELECT 1'))
     const flat = flatten([parent, ...queries])
     expect(n1BannerEntries(flat, [])).toEqual([])
+  })
+})
+
+// ── n1IssueForSpan ─────────────────────────────────────────────────────────
+
+function issue(o: Partial<TraceIssue> & { id: string }): TraceIssue {
+  return {
+    id: o.id,
+    trace_id: o.trace_id ?? 't1',
+    session_id: o.session_id ?? '',
+    kind: o.kind ?? 'n_plus_one',
+    fingerprint: o.fingerprint ?? 'SELECT * FROM t WHERE x=?',
+    count: o.count ?? 12,
+    wasted_ns: o.wasted_ns ?? 50_000_000,
+    parent_span_id: o.parent_span_id ?? '',
+    example_span_id: o.example_span_id ?? '',
+    created_at: 0,
+  }
+}
+
+describe('n1IssueForSpan', () => {
+  it('returns null when span is null', () => {
+    expect(n1IssueForSpan(null, [])).toBeNull()
+  })
+
+  it('returns null for non-DB spans (no db.statement attribute)', () => {
+    const s = span({ span_id: 'op', parent_span_id: 'p', attributes: '{"http.method":"GET"}' })
+    const i = issue({ id: 'i1', parent_span_id: 'p', example_span_id: 'op' })
+    expect(n1IssueForSpan(s, [i])).toBeNull()
+  })
+
+  it('returns null when no matching n_plus_one issue exists', () => {
+    const s = span({ span_id: 'db1', parent_span_id: 'p',
+      attributes: '{"db.statement":"SELECT 1"}' })
+    expect(n1IssueForSpan(s, [])).toBeNull()
+    // Wrong kind shouldn't match either.
+    const otherKind = issue({ id: 'i2', kind: 'slow', parent_span_id: 'p', example_span_id: 'db1' })
+    expect(n1IssueForSpan(s, [otherKind])).toBeNull()
+  })
+
+  it('matches when the span is the issue example_span_id', () => {
+    const s = span({ span_id: 'db1', parent_span_id: 'p',
+      attributes: '{"db.statement":"SELECT 1"}' })
+    const i = issue({ id: 'i1', example_span_id: 'db1' })
+    expect(n1IssueForSpan(s, [i])?.id).toBe('i1')
+  })
+
+  it('matches a sibling under the same parent (clustered by parent + fingerprint)', () => {
+    const sibling = span({ span_id: 'db2', parent_span_id: 'p',
+      attributes: '{"db.statement":"SELECT 1"}' })
+    const i = issue({ id: 'i1', parent_span_id: 'p', example_span_id: 'db1' })
+    expect(n1IssueForSpan(sibling, [i])?.id).toBe('i1')
+  })
+
+  it('does not match a sibling with a different parent', () => {
+    const otherParent = span({ span_id: 'db3', parent_span_id: 'other',
+      attributes: '{"db.statement":"SELECT 1"}' })
+    const i = issue({ id: 'i1', parent_span_id: 'p', example_span_id: 'db1' })
+    expect(n1IssueForSpan(otherParent, [i])).toBeNull()
   })
 })

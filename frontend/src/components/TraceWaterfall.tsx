@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
 import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, FlatSpan } from '@/lib/span-utils'
-import { computeLayout, detectN1SpanIds, n1BannerEntries } from '@/components/trace-waterfall-utils'
+import { computeLayout, detectN1SpanIds, n1BannerEntries, n1IssueForSpan } from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
 import TraceGraph from '@/components/TraceGraph'
 
@@ -658,10 +658,11 @@ function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStar
 
 // ── Inspector ─────────────────────────────────────────────────────────────────
 
-function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
+function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClose }: {
   span: Span
   traceStartNs: number
   warnings: LintWarning[]
+  issues: TraceIssue[]
   isN1: boolean
   n1Count: number
   onClose: () => void
@@ -776,30 +777,49 @@ function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
         </div>
       </div>
 
-      {/* N+1 callout */}
-      {isN1 && (
-        <div style={{ margin: '12px 14px 0' }}>
-          <div style={{
-            padding: '10px 12px',
-            background: 'var(--warn-bg)',
-            border: '1px solid var(--warn)',
-            borderRadius: 7,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <AlertTriangle size={11} color="var(--warn)" style={{ flexShrink: 0 }} />
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 9.5,
-                fontWeight: 700, color: 'var(--warn)', letterSpacing: '0.06em',
-              }}>
-                n_plus_one
+      {/* N+1 SUSPECTED callout — shown only for DB spans clustered by the
+          server detector. Pulls fingerprint + wasted_ns from the matching
+          TraceIssue; falls back to the inline n1Count summary when no issue
+          struct is available (e.g. client-side detection without a server
+          round-trip yet). */}
+      {(() => {
+        const n1Issue = n1IssueForSpan(span, issues)
+        if (!n1Issue && !isN1) return null
+        const count    = n1Issue?.count    ?? n1Count
+        const wastedNs = n1Issue?.wasted_ns
+        const fp       = n1Issue?.fingerprint ?? ''
+        return (
+          <div
+            data-testid="n1-callout"
+            className="mx-3.5 mt-3 rounded-lg border px-3 py-2.5"
+            style={{
+              background: 'color-mix(in oklch, var(--danger) 18%, var(--surface))',
+              borderColor: 'color-mix(in oklch, var(--danger) 40%, var(--surface))',
+            }}
+          >
+            <div className="mb-1 flex items-center gap-1.5">
+              <span className="size-1.5 shrink-0 rounded-full bg-[var(--danger)]" />
+              <span className="font-mono text-[10px] font-bold tracking-[0.06em] text-[var(--danger-ink)]">
+                N+1 SUSPECTED
               </span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--warn-ink)', lineHeight: 1.45 }}>
-              This DB span is repeated <strong>{n1Count}×</strong> in the trace — likely an N+1 query pattern.
+            <div className="text-[11.5px] leading-snug text-[var(--ink)]">
+              <strong>{count}</strong> sibling spans share fingerprint
+              {fp && (
+                <>
+                  {' '}
+                  <code className="rounded-[3px] bg-[var(--surface)] px-1 py-0 font-mono">{fp}</code>
+                </>
+              )}
+              {wastedNs && wastedNs > 0 ? (
+                <>{' '}totalling <strong>{fmtNs(wastedNs)}</strong> of wasted time.</>
+              ) : '.'}
+              {' '}Batch with{' '}
+              <code className="font-mono">WHERE … IN (?)</code>.
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* warning callouts */}
       {spanWarnings.length > 0 && (
@@ -1300,6 +1320,7 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
               span={selectedSpan}
               traceStartNs={traceStartNs}
               warnings={warnings}
+              issues={issues}
               isN1={selIsN1}
               n1Count={selN1Count}
               onClose={() => setSelectedId(null)}

@@ -3,6 +3,8 @@
 // DOM, no module state.
 
 import type { Span, TraceIssue } from '@/lib/api'
+
+// ── N+1 issue lookup for a single span (inspector callout) ─────────────────
 import type { FlatSpan } from '@/lib/span-utils'
 
 const ZERO_ID = '0000000000000000'
@@ -104,6 +106,23 @@ export interface N1BannerEntry {
 /** Summary entries for the N+1 banner. Prefers server issues when present;
  *  otherwise derives from client-side `db.statement` grouping. Sorted by
  *  wasted time descending. */
+/** Returns the n_plus_one TraceIssue that implicates this span, or null.
+ *  A span is implicated when it has a `db.statement` attribute and either
+ *  it IS the issue's example span or it shares the issue's parent span
+ *  (the server clusters by parent + statement fingerprint). */
+export function n1IssueForSpan(span: Span | null, issues: TraceIssue[]): TraceIssue | null {
+  if (!span) return null
+  let attrs: Record<string, unknown> = {}
+  try { attrs = JSON.parse(span.attributes || '{}') } catch { /* empty */ }
+  if (typeof attrs['db.statement'] !== 'string') return null
+  for (const issue of issues) {
+    if (issue.kind !== 'n_plus_one') continue
+    if (issue.example_span_id && issue.example_span_id === span.span_id) return issue
+    if (issue.parent_span_id && span.parent_span_id && issue.parent_span_id === span.parent_span_id) return issue
+  }
+  return null
+}
+
 export function n1BannerEntries(flatSpans: FlatSpan[], issues: TraceIssue[]): N1BannerEntry[] {
   const server = issues
     .filter(i => i.kind === 'n_plus_one')
