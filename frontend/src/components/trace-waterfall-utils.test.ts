@@ -24,6 +24,7 @@ function span(o: Partial<Span> & { span_id: string }): Span {
     session_label: '',
     received_at: 0,
     events: o.events ?? [],
+    links: o.links ?? [],
   }
 }
 

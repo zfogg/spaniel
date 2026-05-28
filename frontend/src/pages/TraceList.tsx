@@ -1,26 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DurBar } from '@/components/DurBar'
 import { api, TraceRow } from '../lib/api'
 import { createWS, SpanEvent } from '../lib/ws'
-
-function StatusBadge({ code }: { code: number }) {
-  const variant = code === 2 ? 'destructive' : 'secondary'
-  const label = code === 2 ? 'ERROR' : 'OK'
-  return <Badge variant={variant} className="font-mono text-[10px]">{label}</Badge>
-}
+import { traceTag } from '../lib/trace-tag'
+import { fmtRelative } from '../lib/fmt-relative'
 
 function fmtDuration(ns: number): string {
   if (ns < 1_000) return `${ns}ns`
   if (ns < 1_000_000) return `${(ns / 1_000).toFixed(1)}µs`
   if (ns < 1_000_000_000) return `${(ns / 1_000_000).toFixed(1)}ms`
   return `${(ns / 1_000_000_000).toFixed(2)}s`
-}
-
-function fmtTs(ns: number): string {
-  return new Date(ns / 1_000_000).toLocaleTimeString()
 }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
@@ -152,12 +143,109 @@ function EmptyState() {
   )
 }
 
+// ── Tag chip ──────────────────────────────────────────────────────────────────
+
+type TagTone = 'danger' | 'warn' | 'accent'
+
+const TAG_TONE: Record<NonNullable<ReturnType<typeof traceTag>>, TagTone> = {
+  'n+1':     'danger',
+  'slow':    'warn',
+  'baseline': 'accent',
+  'error':   'danger',
+}
+
+const TONE_CLASS: Record<TagTone, string> = {
+  danger: 'bg-[var(--danger-bg)] text-[var(--danger-ink)]',
+  warn:   'bg-[var(--warn-bg)]   text-[var(--warn-ink)]',
+  accent: 'bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] text-[var(--accent)]',
+}
+
+function TagChip({ tag }: { tag: NonNullable<ReturnType<typeof traceTag>> }) {
+  const tone = TAG_TONE[tag]
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0 font-mono text-[9px] font-bold uppercase tracking-wide ${TONE_CLASS[tone]}`}>
+      {tag}
+    </span>
+  )
+}
+
+// ── Trace row ─────────────────────────────────────────────────────────────────
+
+function TraceRowItem({
+  trace,
+  maxNs,
+  isFirst,
+  baselineSessionId,
+  onClick,
+}: {
+  trace: TraceRow
+  maxNs: number
+  isFirst: boolean
+  baselineSessionId: string | null
+  onClick: () => void
+}) {
+  const tag = traceTag(trace, baselineSessionId)
+  const hot = tag === 'n+1' || tag === 'slow'
+
+  return (
+    <div
+      data-testid={`trace-row-${trace.trace_id}`}
+      onClick={onClick}
+      className="grid cursor-pointer items-center gap-0 px-[18px] py-[10px] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)]"
+      style={{
+        gridTemplateColumns: 'minmax(0,1fr) 90px 60px minmax(120px,280px) 70px',
+        borderBottom: '1px solid var(--line2)',
+        background: isFirst
+          ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
+          : undefined,
+        borderLeft: isFirst ? '2px solid var(--accent)' : '2px solid transparent',
+      }}
+    >
+      {/* operation + tag chips + trace id */}
+      <div className="min-w-0">
+        <div className="mb-0.5 flex items-center gap-2">
+          <span className="truncate font-mono text-[12px] font-semibold text-[var(--ink)]">
+            {trace.name}
+          </span>
+          {tag && <TagChip tag={tag} />}
+        </div>
+        <div className="font-mono text-[10px] text-[var(--ink3)]">
+          {trace.trace_id.slice(0, 16)}…
+        </div>
+      </div>
+
+      {/* duration */}
+      <div className="text-right font-mono text-[12px] font-semibold text-[var(--ink)]">
+        {fmtDuration(trace.duration_ns)}
+      </div>
+
+      {/* span count */}
+      <div className="text-right font-mono text-[11px] text-[var(--ink2)]">
+        {trace.span_count}
+      </div>
+
+      {/* shape bar */}
+      <div className="px-2">
+        <DurBar durNs={trace.duration_ns} maxNs={maxNs} hot={hot} />
+      </div>
+
+      {/* relative time */}
+      <div className="text-right font-mono text-[10px] text-[var(--ink3)]">
+        {fmtRelative(trace.start_ns)}
+      </div>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function TraceList() {
   const [traces, setTraces] = useState<TraceRow[]>([])
   const [services, setServices] = useState<string[]>([])
   const [searchParams] = useSearchParams()
   const [filterService, setFilterService] = useState(searchParams.get('service') ?? 'all')
   const [loading, setLoading] = useState(true)
+  const [baselineSessionId] = useState<string | null>(null)
   const navigate = useNavigate()
   const tracesRef = useRef(traces)
   tracesRef.current = traces
@@ -181,7 +269,9 @@ export default function TraceList() {
         end_ns: (Date.now() * 1_000_000) + ev.durationNs,
         duration_ns: ev.durationNs,
         session_id: '',
+        session_label: '',
         has_n1: false,
+        span_count: 1,
       }
       setTraces(prev => {
         if (prev.some(t => t.trace_id === ev.traceId)) return prev
@@ -194,6 +284,8 @@ export default function TraceList() {
   const filtered = filterService === 'all'
     ? traces
     : traces.filter(t => t.service_name === filterService)
+
+  const maxNs = filtered.reduce((m, t) => Math.max(m, t.duration_ns), 0)
 
   if (loading) {
     return <div className="p-8 text-muted-foreground text-sm">Loading…</div>
@@ -219,51 +311,33 @@ export default function TraceList() {
       {filtered.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="overflow-auto flex-1">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Service</TableHead>
-                <TableHead>Root Span</TableHead>
-                <TableHead className="text-right">Duration</TableHead>
-                <TableHead className="text-right">Time</TableHead>
-                <TableHead className="text-center w-20">Status</TableHead>
-                <TableHead className="text-center w-16">Issues</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map(t => (
-                <TableRow
-                  key={t.trace_id}
-                  onClick={() => navigate(`/traces/${t.trace_id}`)}
-                  className="cursor-pointer"
-                >
-                  <TableCell className="text-muted-foreground text-xs">{t.service_name}</TableCell>
-                  <TableCell className="font-mono text-xs">{t.name}</TableCell>
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                    {fmtDuration(t.duration_ns)}
-                  </TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">
-                    {fmtTs(t.start_ns)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <StatusBadge code={t.status_code} />
-                  </TableCell>
-                  <TableCell className="text-center w-16">
-                    {t.has_n1 && (
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 3,
-                        padding: '2px 6px', borderRadius: 4,
-                        fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
-                        letterSpacing: '0.04em', textTransform: 'uppercase',
-                        color: 'var(--warn-ink)', background: 'var(--warn-bg)',
-                      }}>N+1</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="flex-1 overflow-auto">
+          {/* column header */}
+          <div
+            className="grid border-b px-[18px] py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--ink3)]"
+            style={{
+              gridTemplateColumns: 'minmax(0,1fr) 90px 60px minmax(120px,280px) 70px',
+              background: 'var(--surface2)',
+              borderColor: 'var(--line)',
+            }}
+          >
+            <div>operation</div>
+            <div className="text-right">dur</div>
+            <div className="text-right">spans</div>
+            <div className="pl-2">shape</div>
+            <div className="text-right">ago</div>
+          </div>
+
+          {filtered.map((t, i) => (
+            <TraceRowItem
+              key={t.trace_id}
+              trace={t}
+              maxNs={maxNs}
+              isFirst={i === 0}
+              baselineSessionId={baselineSessionId}
+              onClick={() => navigate(`/traces/${t.trace_id}`)}
+            />
+          ))}
         </div>
       )}
     </div>

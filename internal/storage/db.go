@@ -36,6 +36,7 @@ type Span struct {
 	SessionLabel  string       `json:"session_label"`
 	ReceivedAt    int64        `json:"received_at"`
 	Events        []*SpanEvent `json:"events"`
+	Links         []*SpanLink  `json:"links"`
 }
 
 type Log struct {
@@ -82,6 +83,7 @@ type TraceRow struct {
 	SessionID    string `json:"session_id"`
 	SessionLabel string `json:"session_label"`
 	HasN1        bool   `json:"has_n1"`
+	SpanCount    int    `json:"span_count"`
 }
 
 type TraceIssue struct {
@@ -104,6 +106,20 @@ type SpanEvent struct {
 	TimeNs     int64  `json:"time_ns"`
 	Name       string `json:"name"`
 	Attributes string `json:"attributes"`
+}
+
+// SpanLink is a causal/relational pointer from one span to another span
+// (potentially in a different trace). OTel uses these for fan-out work
+// items, batched jobs, async retries — anywhere a span was caused by
+// something not on its direct parent chain.
+type SpanLink struct {
+	SpanID        string `json:"span_id"`
+	TraceID       string `json:"trace_id"`
+	SessionID     string `json:"session_id"`
+	LinkedTraceID string `json:"linked_trace_id"`
+	LinkedSpanID  string `json:"linked_span_id"`
+	TraceState    string `json:"trace_state"`
+	Attributes    string `json:"attributes"`
 }
 
 type Stats struct {
@@ -254,6 +270,17 @@ func (d *DB) migrate() error {
 			attributes   JSON
 		);
 		CREATE INDEX IF NOT EXISTS idx_span_events_span_id ON span_events(span_id);
+		CREATE TABLE IF NOT EXISTS span_links (
+			span_id          TEXT,
+			trace_id         TEXT,
+			session_id       TEXT,
+			linked_trace_id  TEXT,
+			linked_span_id   TEXT,
+			trace_state      TEXT,
+			attributes       JSON
+		);
+		CREATE INDEX IF NOT EXISTS idx_span_links_span_id ON span_links(span_id);
+		CREATE INDEX IF NOT EXISTS idx_span_links_linked_trace_id ON span_links(linked_trace_id);
 		CREATE TABLE IF NOT EXISTS metrics (
 			name         TEXT,
 			description  TEXT,
@@ -361,6 +388,62 @@ func (d *DB) ListEventsBySpan(spanID string) ([]*SpanEvent, error) {
 	return out, rows.Err()
 }
 
+// InsertSpanLinks bulk-inserts links emitted by a span. Best-effort: not
+// transactional, mirroring InsertSpanEvents.
+func (d *DB) InsertSpanLinks(links []*SpanLink) error {
+	for _, l := range links {
+		if _, err := d.db.Exec(`
+			INSERT INTO span_links (span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes)
+			VALUES (?,?,?,?,?,?,?)`,
+			l.SpanID, l.TraceID, l.SessionID, l.LinkedTraceID, l.LinkedSpanID, l.TraceState, l.Attributes,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListLinksBySpan returns the outbound links emitted by a single span.
+func (d *DB) ListLinksBySpan(spanID string) ([]*SpanLink, error) {
+	rows, err := d.db.Query(`
+		SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR
+		FROM span_links WHERE span_id = ?`, spanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+	var out []*SpanLink
+	for rows.Next() {
+		l := &SpanLink{}
+		if err := rows.Scan(&l.SpanID, &l.TraceID, &l.SessionID, &l.LinkedTraceID, &l.LinkedSpanID, &l.TraceState, &l.Attributes); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// ListIncomingLinks returns every link in the store whose target is the
+// given trace ID — the "who links into this trace?" reverse lookup.
+func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
+	rows, err := d.db.Query(`
+		SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR
+		FROM span_links WHERE linked_trace_id = ?`, linkedTraceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+	var out []*SpanLink
+	for rows.Next() {
+		l := &SpanLink{}
+		if err := rows.Scan(&l.SpanID, &l.TraceID, &l.SessionID, &l.LinkedTraceID, &l.LinkedSpanID, &l.TraceState, &l.Attributes); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
 func (d *DB) InsertLog(l *Log) error {
 	_, err := d.db.Exec(`
 		INSERT INTO logs (timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at)
@@ -398,13 +481,17 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 
 	query := `
 		SELECT s.trace_id, s.service_name, s.name, s.status_code, s.start_ns, s.end_ns, s.duration_ns, s.session_id, s.session_label,
-		       COALESCE(ti.has_n1, FALSE) AS has_n1
+		       COALESCE(ti.has_n1, FALSE) AS has_n1,
+		       COALESCE(sc.span_count, 1) AS span_count
 		FROM spans s
 		LEFT JOIN (
 			SELECT trace_id, TRUE AS has_n1
 			FROM trace_issues WHERE kind = 'n_plus_one'
 			GROUP BY trace_id
 		) ti ON s.trace_id = ti.trace_id
+		LEFT JOIN (
+			SELECT trace_id, COUNT(*) AS span_count FROM spans GROUP BY trace_id
+		) sc ON s.trace_id = sc.trace_id
 		WHERE (s.parent_span_id = '' OR s.parent_span_id IS NULL)`
 	args := []any{}
 
@@ -428,7 +515,7 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	for rows.Next() {
 		t := &TraceRow{}
 		if err := rows.Scan(&t.TraceID, &t.ServiceName, &t.Name, &t.StatusCode,
-			&t.StartNs, &t.EndNs, &t.DurationNs, &t.SessionID, &t.SessionLabel, &t.HasN1); err != nil {
+			&t.StartNs, &t.EndNs, &t.DurationNs, &t.SessionID, &t.SessionLabel, &t.HasN1, &t.SpanCount); err != nil {
 			return nil, err
 		}
 		result = append(result, t)
@@ -662,7 +749,7 @@ func (d *DB) SetBaseline(id string, isBaseline bool) error {
 }
 
 func (d *DB) DeleteSession(id string) error {
-	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "metrics", "spans"} {
+	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "metrics", "span_events", "span_links", "spans"} {
 		if _, err := d.db.Exec(`DELETE FROM `+tbl+` WHERE session_id = ?`, id); err != nil {
 			return err
 		}

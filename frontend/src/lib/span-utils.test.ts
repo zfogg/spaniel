@@ -39,7 +39,7 @@ function makeSpan(id: string, parentId = ''): Span {
     status_code: 0, status_message: '',
     attributes: '{}', resource: '{}',
     session_id: '', session_label: '', received_at: 0,
-    events: [],
+    events: [], links: [],
   }
 }
 
@@ -172,5 +172,32 @@ describe('svcColor', () => {
   it('bg is fg with "28" alpha suffix', () => {
     const { fg, bg } = svcColor('payment-service')
     expect(bg).toBe(fg + '28')
+  })
+})
+
+describe('hasLinks', () => {
+  it('returns false for null / undefined / empty', async () => {
+    const { hasLinks } = await import('./span-utils')
+    expect(hasLinks(null)).toBe(false)
+    expect(hasLinks(undefined)).toBe(false)
+    expect(hasLinks({} as { links?: never[] })).toBe(false)
+    expect(hasLinks({ links: [] })).toBe(false)
+  })
+  it('returns true when at least one link is present', async () => {
+    const { hasLinks } = await import('./span-utils')
+    expect(hasLinks({ links: [{ linked_trace_id: 'x' }] })).toBe(true)
+    expect(hasLinks({ links: [{ linked_trace_id: 'x' }, { linked_trace_id: 'y' }] })).toBe(true)
+  })
+})
+
+describe('shortTraceId', () => {
+  it('passes through short IDs untouched', async () => {
+    const { shortTraceId } = await import('./span-utils')
+    expect(shortTraceId('')).toBe('')
+    expect(shortTraceId('abcd')).toBe('abcd')
+  })
+  it('abbreviates long IDs as first4…last5', async () => {
+    const { shortTraceId } = await import('./span-utils')
+    expect(shortTraceId('9ef357237e8c74950f711b77779d19eb')).toBe('9ef3…d19eb')
   })
 })

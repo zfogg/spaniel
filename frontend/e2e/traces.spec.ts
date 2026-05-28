@@ -2,13 +2,6 @@ import { test, expect, type Route, type Page } from '@playwright/test'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-interface Fixture {
-  traces?: unknown[]
-  services?: string[]
-  stats?: Record<string, number>
-  forwarders?: unknown[]
-}
-
 function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
   return route.fulfill({
     status: 200,
@@ -17,30 +10,48 @@ function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown>
   })
 }
 
-async function stubBackend(page: Page, fx: Fixture) {
-  // Block any websocket attempt cleanly — we don't drive realtime spans here.
-  await page.routeWebSocket('**/ws', ws => ws.close())
-
-  await page.route('**/api/traces*', r => jsonResponse(r, fx.traces ?? []))
-  await page.route('**/api/services', r => jsonResponse(r, fx.services ?? []))
-  await page.route('**/api/stats*', r => jsonResponse(r, fx.stats ?? { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 }))
-  await page.route('**/api/forwarders', r => jsonResponse(r, fx.forwarders ?? []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/sessions', r => jsonResponse(r, []))
-  await page.route('**/api/lint*', r => jsonResponse(r, []))
+interface Fixture {
+  traces?: unknown[]
+  services?: string[]
 }
 
-function trace(id: string, service: string, name: string, durationNs: number, statusCode = 1, hasN1 = false) {
+async function stubBackend(page: Page, fx: Fixture) {
+  await page.routeWebSocket('**/ws', ws => ws.close())
+  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
+    const pathname = new URL(r.request().url()).pathname
+    if (pathname === '/api/stats')
+      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
+    if (pathname === '/api/forwarders') return jsonResponse(r, [])
+    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+    if (pathname === '/api/sessions') return jsonResponse(r, [])
+    if (pathname === '/api/services') return jsonResponse(r, fx.services ?? [])
+    if (pathname.startsWith('/api/lint')) return jsonResponse(r, [])
+    if (pathname.startsWith('/api/traces')) return jsonResponse(r, fx.traces ?? [])
+    return r.continue()
+  })
+}
+
+function trace(overrides: {
+  id: string
+  service?: string
+  name?: string
+  durationNs?: number
+  statusCode?: number
+  hasN1?: boolean
+  spanCount?: number
+}) {
   return {
-    trace_id: id,
-    service_name: service,
-    name,
-    status_code: statusCode,
+    trace_id: overrides.id,
+    service_name: overrides.service ?? 'api',
+    name: overrides.name ?? 'GET /',
+    status_code: overrides.statusCode ?? 1,
     start_ns: Date.now() * 1_000_000,
-    end_ns: Date.now() * 1_000_000 + durationNs,
-    duration_ns: durationNs,
+    end_ns: Date.now() * 1_000_000 + (overrides.durationNs ?? 10_000_000),
+    duration_ns: overrides.durationNs ?? 10_000_000,
     session_id: 's1',
-    has_n1: hasN1,
+    session_label: 'live',
+    has_n1: overrides.hasN1 ?? false,
+    span_count: overrides.spanCount ?? 3,
   }
 }
 
@@ -52,10 +63,8 @@ test.describe('Traces page', () => {
     await page.goto('/')
 
     await expect(page.getByText('Waiting for traces…')).toBeVisible()
-    // OTLP endpoint pills — text appears twice (pill + env-var snippet); strict mode requires uniqueness.
     await expect(page.getByText(':4318', { exact: true })).toBeVisible()
     await expect(page.getByText(':4317', { exact: true })).toBeVisible()
-    // Step-1 env vars are shown
     await expect(page.getByText(/OTEL_EXPORTER_OTLP_ENDPOINT/)).toBeVisible()
   })
 
@@ -63,7 +72,6 @@ test.describe('Traces page', () => {
     await stubBackend(page, { traces: [], services: [] })
     await page.goto('/')
 
-    // Python default — pip command is visible.
     await expect(page.getByText(/opentelemetry-distro opentelemetry-exporter-otlp/)).toBeVisible()
 
     await page.getByRole('button', { name: 'Node.js' }).click()
@@ -76,41 +84,103 @@ test.describe('Traces page', () => {
     await expect(page.getByText(/opentelemetry-javaagent/)).toBeVisible()
   })
 
-  test('renders a populated traces table', async ({ page }) => {
+  test('renders the column header row', async ({ page }) => {
+    await stubBackend(page, {
+      traces: [trace({ id: 'aaa111', name: 'GET /cart', durationNs: 12_000_000 })],
+    })
+    await page.goto('/')
+
+    const main = page.getByRole('main')
+    await expect(main.getByText('operation', { exact: true })).toBeVisible()
+    await expect(main.getByText('dur',       { exact: true })).toBeVisible()
+    await expect(main.getByText('spans',     { exact: true })).toBeVisible()
+    await expect(main.getByText('shape',     { exact: true })).toBeVisible()
+    await expect(main.getByText('ago',       { exact: true })).toBeVisible()
+  })
+
+  test('renders operation name, duration, and span count', async ({ page }) => {
     await stubBackend(page, {
       traces: [
-        trace('aaa111', 'api',     'GET /cart',     12_000_000,  1, false),
-        trace('bbb222', 'pricing', 'pricing.Quote',  80_000_000,  1, true),
-        trace('ccc333', 'api',     'POST /checkout', 320_000_000, 2, false),
+        trace({ id: 'aaa111', name: 'GET /cart',     durationNs: 12_000_000,  spanCount: 5 }),
+        trace({ id: 'bbb222', name: 'pricing.Quote', durationNs: 80_000_000,  spanCount: 12 }),
+        trace({ id: 'ccc333', name: 'POST /checkout', durationNs: 320_000_000, spanCount: 8 }),
       ],
       services: ['api', 'pricing'],
     })
     await page.goto('/')
 
-    // Table header row.
-    await expect(page.getByRole('columnheader', { name: 'Service' })).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: 'Root Span' })).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: 'Duration' })).toBeVisible()
-
-    // Three data rows.
     await expect(page.getByText('GET /cart')).toBeVisible()
     await expect(page.getByText('pricing.Quote')).toBeVisible()
     await expect(page.getByText('POST /checkout')).toBeVisible()
 
-    // Status badges and N+1 badge.
-    await expect(page.getByText('ERROR')).toBeVisible()
-    await expect(page.getByText('N+1')).toBeVisible()
-
     // Duration formatting.
     await expect(page.getByText('12.0ms')).toBeVisible()
     await expect(page.getByText('320.0ms')).toBeVisible()
+
+    // Span count column.
+    await expect(page.getByTestId('trace-row-aaa111').getByText('5', { exact: true })).toBeVisible()
+    await expect(page.getByTestId('trace-row-bbb222').getByText('12', { exact: true })).toBeVisible()
+  })
+
+  test('n+1 chip appears for traces with has_n1=true', async ({ page }) => {
+    await stubBackend(page, {
+      traces: [
+        trace({ id: 'n1-trace', name: 'pricing.Quote', durationNs: 80_000_000, hasN1: true }),
+      ],
+    })
+    await page.goto('/')
+
+    await expect(page.getByTestId('trace-row-n1-trace').getByText('n+1', { exact: true })).toBeVisible()
+  })
+
+  test('slow chip appears for traces with duration > 250ms', async ({ page }) => {
+    await stubBackend(page, {
+      traces: [
+        trace({ id: 'slow-trace', name: 'POST /checkout', durationNs: 300_000_000 }),
+      ],
+    })
+    await page.goto('/')
+
+    await expect(page.getByTestId('trace-row-slow-trace').getByText('slow', { exact: true })).toBeVisible()
+  })
+
+  test('error chip appears for traces with status_code=2', async ({ page }) => {
+    await stubBackend(page, {
+      traces: [
+        trace({ id: 'err-trace', name: 'GET /fail', durationNs: 10_000_000, statusCode: 2 }),
+      ],
+    })
+    await page.goto('/')
+
+    await expect(page.getByTestId('trace-row-err-trace').getByText('error', { exact: true })).toBeVisible()
+  })
+
+  test('shape bar fill width is proportional to duration', async ({ page }) => {
+    await stubBackend(page, {
+      traces: [
+        trace({ id: 'fast', name: 'fast-op', durationNs: 50_000_000 }),
+        trace({ id: 'slow', name: 'slow-op', durationNs: 200_000_000 }),
+      ],
+    })
+    await page.goto('/')
+
+    // The fastest trace (50ms, max=200ms) should have a bar at 25% width.
+    // The slowest (200ms, max=200ms) should be at 100%.
+    const fastBar = page.getByTestId('trace-row-fast').locator('.rounded-full.opacity-80')
+    const slowBar = page.getByTestId('trace-row-slow').locator('.rounded-full.opacity-80')
+
+    const fastWidth = await fastBar.evaluate((el: HTMLElement) => el.style.width)
+    const slowWidth = await slowBar.evaluate((el: HTMLElement) => el.style.width)
+
+    expect(fastWidth).toBe('25%')
+    expect(slowWidth).toBe('100%')
   })
 
   test('filters traces by service via the select', async ({ page }) => {
     await stubBackend(page, {
       traces: [
-        trace('aaa111', 'api',     'GET /cart',     12_000_000),
-        trace('bbb222', 'pricing', 'pricing.Quote', 80_000_000),
+        trace({ id: 'aaa111', service: 'api',     name: 'GET /cart',     durationNs: 12_000_000 }),
+        trace({ id: 'bbb222', service: 'pricing', name: 'pricing.Quote', durationNs: 80_000_000 }),
       ],
       services: ['api', 'pricing'],
     })
@@ -119,7 +189,6 @@ test.describe('Traces page', () => {
     await expect(page.getByText('GET /cart')).toBeVisible()
     await expect(page.getByText('pricing.Quote')).toBeVisible()
 
-    // Open the service filter and pick "pricing".
     await page.getByRole('combobox').click()
     await page.getByRole('option', { name: 'pricing' }).click()
 
@@ -128,16 +197,13 @@ test.describe('Traces page', () => {
   })
 
   test('clicking a row navigates to the trace detail URL', async ({ page }) => {
-    // Stub the detail endpoint so the navigation lands on a page that doesn't error.
     await stubBackend(page, {
-      traces: [trace('aaa111', 'api', 'GET /cart', 12_000_000)],
+      traces: [trace({ id: 'aaa111', name: 'GET /cart', durationNs: 12_000_000 })],
       services: ['api'],
     })
-    await page.route('**/api/traces/aaa111', r => jsonResponse(r, []))
-    await page.route('**/api/issues*', r => jsonResponse(r, []))
 
     await page.goto('/')
-    await page.getByText('GET /cart').click()
+    await page.getByTestId('trace-row-aaa111').click()
 
     await expect(page).toHaveURL(/\/traces\/aaa111$/)
   })
