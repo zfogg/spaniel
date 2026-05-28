@@ -101,12 +101,8 @@ func (p *gormOTelPlugin) after(db *gorm.DB) {
 	}
 
 	if db.Statement != nil && db.Statement.SQL.Len() > 0 {
-		sql := db.Statement.SQL.String()
-		if len(sql) > 300 {
-			sql = sql[:300]
-		}
 		span.SetAttributes(
-			semconv.DBQueryTextKey.String(sql),
+			semconv.DBQueryTextKey.String(db.Statement.SQL.String()),
 			semconv.DBCollectionNameKey.String(db.Statement.Table),
 		)
 	}
