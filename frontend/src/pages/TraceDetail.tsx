@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { api, Span, LintWarning, TraceIssue } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
+import { api } from '@/lib/api'
 import TraceWaterfall from '@/components/TraceWaterfall'
 
 function ShareIcon() {
@@ -46,26 +48,25 @@ function HeaderButton({ onClick, title, children, testid }: {
 export default function TraceDetail() {
   const { traceId } = useParams<{ traceId: string }>()
   const navigate = useNavigate()
-  const [spans, setSpans]       = useState<Span[]>([])
-  const [warnings, setWarnings] = useState<LintWarning[]>([])
-  const [issues, setIssues]     = useState<TraceIssue[]>([])
-  const [loading, setLoading]   = useState(true)
   const [copied, setCopied]     = useState(false)
   const copiedTimer             = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
-    if (!traceId) return
-    api.traces.get(traceId).then(r => {
-      setSpans(r.data ?? [])
-      setLoading(false)
-    })
-    api.lint.list().then(r => {
-      setWarnings((r.data ?? []).filter(w => w.trace_id === traceId))
-    })
-    api.issues.get(traceId).then(r => {
-      setIssues(r.data ?? [])
-    }).catch(() => { /* issues endpoint is optional */ })
-  }, [traceId])
+  const { data: spans = [], isLoading: loading } = useQuery({
+    queryKey: qk.trace(traceId ?? ''),
+    queryFn: () => api.traces.get(traceId!).then(r => r.data ?? []),
+    enabled: !!traceId,
+  })
+  const { data: warnings = [] } = useQuery({
+    queryKey: qk.lint(),
+    queryFn: () => api.lint.list().then(r => r.data ?? []),
+    enabled: !!traceId,
+    select: rows => rows.filter(w => w.trace_id === traceId),
+  })
+  const { data: issues = [] } = useQuery({
+    queryKey: qk.issues(traceId ?? ''),
+    queryFn: () => api.issues.get(traceId!).then(r => r.data ?? []),
+    enabled: !!traceId,
+  })
 
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
 

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
 import { useNavigate } from 'react-router-dom'
 import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
@@ -299,38 +301,32 @@ function rangeFromNs(range: TimeRange): number {
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export default function Metrics() {
-  const [catalog, setCatalog] = useState<MetricCatalogEntry[]>([])
   const [selected, setSelected] = useState<{ name: string; service: string } | null>(null)
-  const [series, setSeries] = useState<MetricSeries | null>(null)
   const [query, setQuery] = useState('')
   const [typeSel, setTypeSel] = useState<MetricType | null>(null)
-  const [loading, setLoading] = useState(true)
   const [range, setRange] = useState<TimeRange>('1h')
 
-  useEffect(() => {
-    let cancel = false
-    api.metrics.list().then(r => {
-      if (cancel) return
-      setCatalog(r.data ?? [])
-      setLoading(false)
-      // auto-select first metric
-      if (!selected && (r.data ?? []).length > 0) {
-        const m = r.data[0]
-        setSelected({ name: m.name, service: m.service_name })
-      }
-    }).catch(() => { if (!cancel) setLoading(false) })
-    return () => { cancel = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const { data: catalog = [], isLoading: loading } = useQuery({
+    queryKey: qk.metrics(),
+    queryFn: () => api.metrics.list().then(r => r.data ?? []),
+  })
 
+  // auto-select the first metric once the catalog loads
   useEffect(() => {
-    if (!selected) return
-    let cancel = false
-    api.metrics.series({ name: selected.name, service: selected.service, withTraces: true, from: rangeFromNs(range) })
-      .then(r => { if (!cancel) setSeries(r.data) })
-      .catch(() => { if (!cancel) setSeries(null) })
-    return () => { cancel = true }
-  }, [selected, range])
+    if (!selected && catalog.length > 0) {
+      setSelected({ name: catalog[0].name, service: catalog[0].service_name })
+    }
+  }, [catalog, selected])
+
+  // `range` (not the computed `from`) is the key input so we don't refetch on
+  // every render; the live invalidator refreshes the series on metric events.
+  const { data: series = null } = useQuery({
+    queryKey: qk.metricSeries({ name: selected?.name, service: selected?.service, range }),
+    queryFn: () => api.metrics
+      .series({ name: selected!.name, service: selected!.service, withTraces: true, from: rangeFromNs(range) })
+      .then(r => r.data),
+    enabled: !!selected,
+  })
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
 import { useNavigate } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
-import { useWS } from '@/lib/ws'
 import EmptyState from '@/components/EmptyState'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
@@ -340,42 +341,24 @@ function Attribute({ k, v }: { k: string; v: unknown }) {
 // ── LogViewer ─────────────────────────────────────────────────────────────────
 
 export default function LogViewer() {
-  const [logs, setLogs]               = useState<Log[]>([])
-  const [services, setServices]       = useState<string[]>([])
   const [filterService, setFilterService] = useState('all')
   const [filterSev, setFilterSev]     = useState<SevFilter>('ALL')
   const [search, setSearch]           = useState('')
-  const [loading, setLoading]         = useState(true)
   const [nowMs, setNowMs]             = useState(() => Date.now())
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const navigate = useNavigate()
-  const knownIds = useRef<Set<string>>(new Set())
 
-  // initial load + services
-  useEffect(() => {
-    api.logs.list({}).then(r => {
-      const rows = r.data ?? []
-      setLogs(rows)
-      for (const l of rows) knownIds.current.add(logKey(l))
-      setLoading(false)
-    }).catch(() => setLoading(false))
-    api.services.list().then(r => setServices(r.data ?? []))
-  }, [])
-
-  // live poll every 3s
-  useEffect(() => {
-    const id = setInterval(() => {
-      api.logs.list({}).then(r => {
-        const rows = r.data ?? []
-        const newRows = rows.filter(l => !knownIds.current.has(logKey(l)))
-        if (newRows.length > 0) {
-          for (const l of newRows) knownIds.current.add(logKey(l))
-          setLogs(prev => [...newRows, ...prev].slice(0, 500))
-        }
-      }).catch(() => { /* ignore poll errors */ })
-    }, 3_000)
-    return () => clearInterval(id)
-  }, [])
+  // Logs + services come from queries; live log events refresh them via
+  // useLiveInvalidation() in App.tsx (throttled), replacing the old initial
+  // load + 3s poll + WebSocket-push + client-side dedup machinery.
+  const { data: logs = [], isLoading: loading } = useQuery({
+    queryKey: qk.logs({}),
+    queryFn: () => api.logs.list({}).then(r => r.data ?? []),
+  })
+  const { data: services = [] } = useQuery({
+    queryKey: qk.services(),
+    queryFn: () => api.services.list().then(r => r.data ?? []),
+  })
 
   // tick relative timestamps every second
   useEffect(() => {
@@ -389,27 +372,6 @@ export default function LogViewer() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-
-  // Live log push via WebSocket
-  useWS(ev => {
-    if (ev.type !== 'log') return
-    const p = ev.payload
-    const l: Log = {
-      timestamp_ns: ev.timestamp_ns,
-      trace_id:     p.traceId,
-      span_id:      p.spanId,
-      severity:     p.severity,
-      body:         p.body,
-      attributes:   '{}',
-      service_name: p.serviceName,
-      session_id:   p.sessionId,
-      received_at:  ev.timestamp_ns,
-    }
-    const key = logKey(l)
-    if (knownIds.current.has(key)) return
-    knownIds.current.add(key)
-    setLogs(prev => [l, ...prev].slice(0, 500))
-  })
 
   const filtered = logs.filter(l => {
     if (filterService !== 'all' && l.service_name !== filterService) return false

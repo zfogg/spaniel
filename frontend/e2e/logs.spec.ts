@@ -178,9 +178,25 @@ test.describe('LogViewer', () => {
     await expect(page.getByRole('button', { name: 'FATAL', exact: true })).toHaveCount(0)
   })
 
-  test('a log pushed via WebSocket appears without refresh', async ({ page }) => {
-    // Multiple WS connections are created per page (BottomBar × 2, LogViewer × 1),
-    // so collect all of them and broadcast to each.
+  test('a WebSocket log event refreshes the list and shows the new log', async ({ page }) => {
+    // Live updates are now driven by TanStack Query: a 'log' WS event triggers a
+    // (throttled) invalidation of the 'logs' query, which re-fetches /api/logs.
+    // So the server-side list is what surfaces — we flip it once the event fires.
+    const liveLog = {
+      timestamp_ns: Date.now() * 1_000_000,
+      trace_id: '0000000000000000',
+      span_id: 'span-ws-001',
+      severity: 9,
+      body: 'live log from websocket',
+      attributes: '{}',
+      service_name: 'ws-test-svc',
+      session_id: 's1',
+      received_at: Date.now() * 1_000_000,
+    }
+    let logs: unknown[] = []
+
+    // Multiple WS connections are created per page (BottomBar × 2, LogViewer's
+    // central invalidator × 1), so collect all of them and broadcast to each.
     const serverWsList: import('@playwright/test').WebSocketRoute[] = []
     await page.routeWebSocket('**/ws', ws => {
       serverWsList.push(ws)
@@ -192,24 +208,25 @@ test.describe('LogViewer', () => {
       if (pathname === '/api/forwarders') return jsonResponse(r, [])
       if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
       if (pathname === '/api/services') return jsonResponse(r, [])
-      if (pathname.startsWith('/api/logs')) return jsonResponse(r, [])
+      if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
       return r.continue()
     })
 
     await page.goto('/logs')
     await expect(page.getByText('No logs yet')).toBeVisible()
 
-    // Push a log event through all WS connections so LogViewer's hook receives it.
+    // The log now exists server-side; pushing the WS event drives the refetch.
+    logs = [liveLog]
     const logEvent = {
       type: 'log',
-      timestamp_ns: Date.now() * 1_000_000,
+      timestamp_ns: liveLog.timestamp_ns,
       payload: {
-        traceId: '0000000000000000',
-        spanId:  'span-ws-001',
-        severity: 9,
-        body: 'live log from websocket',
-        serviceName: 'ws-test-svc',
-        sessionId: 's1',
+        traceId: liveLog.trace_id,
+        spanId: liveLog.span_id,
+        severity: liveLog.severity,
+        body: liveLog.body,
+        serviceName: liveLog.service_name,
+        sessionId: liveLog.session_id,
       },
     }
     for (const ws of serverWsList) {

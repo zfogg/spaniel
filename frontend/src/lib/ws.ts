@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export interface SpanPayload { traceId: string; spanId: string; serviceName: string; name: string; durationNs: number; statusCode: number }
 export interface LogPayload { traceId: string; spanId: string; severity: number; body: string; serviceName: string; sessionId: string }
@@ -71,7 +71,14 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
 }
 
 export function useWS(onEvent: Handler, onStatus?: StatusHandler) {
-  useEffect(() => createWS(onEvent, onStatus), [])
+  // Keep the latest callbacks in refs so the single long-lived socket always
+  // calls the current handlers, rather than capturing the first render's
+  // closures forever (the effect intentionally runs once).
+  const evRef = useRef(onEvent)
+  evRef.current = onEvent
+  const stRef = useRef(onStatus)
+  stRef.current = onStatus
+  useEffect(() => createWS(e => evRef.current(e), s => stRef.current?.(s)), [])
 }
 
 // Hook for components that only care about connection status.

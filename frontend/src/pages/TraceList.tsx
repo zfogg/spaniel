@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { DurBar } from '@/components/DurBar'
-import { api, TraceRow, Session } from '../lib/api'
-import { createWS } from '../lib/ws'
+import { qk } from '../lib/query'
+import { api, TraceRow } from '../lib/api'
 import { traceTag } from '../lib/trace-tag'
 import { fmtRelative } from '../lib/fmt-relative'
 import { SEARCH_PALETTE_EVENT } from '../lib/shortcuts'
@@ -95,16 +96,14 @@ function EmptyState() {
   // actually-bound ports, not the hardcoded defaults. The runtime.* fields
   // are the bound ports (which may differ from the configured ones if the
   // user changed the config without restarting yet).
-  const [ports, setPorts] = useState({ http: 4318, grpc: 4317 })
-  useEffect(() => {
-    api.settings.get().then(r => {
-      const rt = r.data?.runtime
-      if (rt) setPorts({
-        http: rt.otlp_http_port || 4318,
-        grpc: rt.otlp_grpc_port || 4317,
-      })
-    }).catch(() => { /* keep defaults */ })
-  }, [])
+  const { data: settings } = useQuery({
+    queryKey: qk.settings(),
+    queryFn: () => api.settings.get().then(r => r.data),
+  })
+  const ports = {
+    http: settings?.runtime?.otlp_http_port || 4318,
+    grpc: settings?.runtime?.otlp_grpc_port || 4317,
+  }
 
   return (
     <div className="fade-up flex h-full flex-col items-center justify-center gap-7 overflow-y-auto px-6 py-8">
@@ -333,55 +332,24 @@ function SbMore({ count }: { count: number }) {
 type QuickFilter = 'lint' | 'slow' | 'errors'
 
 export default function TraceList() {
-  const [traces, setTraces] = useState<TraceRow[]>([])
-  const [sessions, setSessions] = useState<Session[]>([])
   const [searchParams] = useSearchParams()
   const [filterService, setFilterService] = useState(searchParams.get('service') ?? 'all')
   const [filterSession, setFilterSession] = useState<string | null>(null)
   const [quickFilter, setQuickFilter] = useState<QuickFilter | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [baselineSessionId, setBaselineSessionId] = useState<string | null>(null)
   const navigate = useNavigate()
-  const tracesRef = useRef(traces)
-  tracesRef.current = traces
 
-  useEffect(() => {
-    api.traces.list().then(r => {
-      setTraces(r.data ?? [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
-
-    api.sessions.list().then(r => {
-      const list = r.data ?? []
-      setSessions(list)
-      const baseline = list.find(s => s.is_baseline)
-      if (baseline) setBaselineSessionId(baseline.id)
-    })
-
-    const disconnect = createWS((ev) => {
-      if (ev.type !== 'span') return
-      const p = ev.payload
-      const newRow: TraceRow = {
-        trace_id: p.traceId,
-        service_name: p.serviceName,
-        name: p.name,
-        status_code: p.statusCode,
-        start_ns: Date.now() * 1_000_000,
-        end_ns: (Date.now() * 1_000_000) + p.durationNs,
-        duration_ns: p.durationNs,
-        session_id: '',
-        session_label: '',
-        has_n1: false,
-        span_count: 1,
-        issue_kinds: [],
-      }
-      setTraces(prev => {
-        if (prev.some(t => t.trace_id === p.traceId)) return prev
-        return [newRow, ...prev].slice(0, 200)
-      })
-    })
-    return disconnect
-  }, [])
+  // Live refresh is driven centrally by useLiveInvalidation() in App.tsx, which
+  // invalidates the 'traces' key on span events (throttled), so this query
+  // re-fetches automatically instead of optimistically prepending rows here.
+  const { data: traces = [], isLoading: loading } = useQuery({
+    queryKey: qk.traces(),
+    queryFn: () => api.traces.list().then(r => r.data ?? []),
+  })
+  const { data: sessions = [] } = useQuery({
+    queryKey: qk.sessions(),
+    queryFn: () => api.sessions.list().then(r => r.data ?? []),
+  })
+  const baselineSessionId = sessions.find(s => s.is_baseline)?.id ?? null
 
   // Per-service trace counts + most-recent timestamp, derived from the
   // loaded traces. Services are ordered by recency (newest trace first).

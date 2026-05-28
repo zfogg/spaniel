@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
 import { useNavigate } from 'react-router-dom'
-import { api, ServiceMapData, ServiceMapNode, ServiceMapEdge, Session, SourceStats } from '@/lib/api'
-import { useWS } from '@/lib/ws'
+import { api, ServiceMapNode, ServiceMapEdge, SourceStats } from '@/lib/api'
 import EmptyState from '@/components/EmptyState'
 
 // ── palette (same hash as TraceWaterfall) ─────────────────────────────────────
@@ -492,44 +493,27 @@ function fmtSourceBytes(n: number): string {
 
 export default function ServiceMap() {
   const navigate = useNavigate()
-  const [data, setData]            = useState<ServiceMapData | null>(null)
   const [selectedSvc, setSelected] = useState<string | null>(null)
   const [hoverEdge, setHoverEdge]  = useState<ServiceMapEdge | null>(null)
-  const [loading, setLoading]      = useState(true)
-  const [sessions, setSessions]    = useState<Session[]>([])
   const [sessionId, setSessionId]  = useState<string>('') // '' = all
   const [tab, setTab]              = useState<'map' | 'sources'>('map')
-  const [sources, setSources]      = useState<SourceStats[]>([])
   const [sourceSort, setSourceSort] = useState<keyof SourceStats>('accepted_per_sec')
 
-  const load = useCallback((sid: string) => {
-    api.serviceMap.get(sid || undefined).then(r => {
-      setData(r.data ?? { nodes: [], edges: [] })
-      setLoading(false)
-    })
-  }, [])
-
-  useEffect(() => { load(sessionId) }, [load, sessionId])
-
-  useEffect(() => {
-    api.sessions.list().then(r => setSessions(r.data ?? [])).catch(() => {})
-  }, [])
-
-  // re-fetch on new spans
-  useWS(ev => {
-    if (ev.type === 'span') load(sessionId)
+  // sessionId is part of the request (in the key); span events refresh the map
+  // via useLiveInvalidation() in App.tsx. Sources keep their own 2s poll.
+  const { data = { nodes: [], edges: [] }, isLoading: loading } = useQuery({
+    queryKey: qk.serviceMap(sessionId || undefined),
+    queryFn: () => api.serviceMap.get(sessionId || undefined).then(r => r.data ?? { nodes: [], edges: [] }),
   })
-
-  // poll /api/sources every 2s
-  useEffect(() => {
-    let cancel = false
-    function refresh() {
-      api.sources.list().then(r => { if (!cancel) setSources(r.data ?? []) }).catch(() => {})
-    }
-    refresh()
-    const t = setInterval(refresh, 2000)
-    return () => { cancel = true; clearInterval(t) }
-  }, [])
+  const { data: sessions = [] } = useQuery({
+    queryKey: qk.sessions(),
+    queryFn: () => api.sessions.list().then(r => r.data ?? []),
+  })
+  const { data: sources = [] } = useQuery({
+    queryKey: qk.sources(),
+    queryFn: () => api.sources.list().then(r => r.data ?? []),
+    refetchInterval: 2000,
+  })
 
   const nodes = data?.nodes ?? []
   const edges = data?.edges ?? []
