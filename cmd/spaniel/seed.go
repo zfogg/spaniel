@@ -536,6 +536,8 @@ func buildN1TraceSpans(traceID, sessionID, sessionLabel string, startNs int64) [
 		}
 		out = append(out, child)
 	}
+	return out
+}
 
 // buildSlowDBTrace returns a parent span containing a deliberately slow DB call.
 func buildSlowDBTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
