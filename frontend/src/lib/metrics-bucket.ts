@@ -33,9 +33,9 @@ export function bucketPoints(
 
   if (type === 'histogram') {
     const out: Record<'p50' | 'p95' | 'p99', number[]> = {
-      p50: new Array(bins).fill(0),
-      p95: new Array(bins).fill(0),
-      p99: new Array(bins).fill(0),
+      p50: new Array(bins).fill(NaN),
+      p95: new Array(bins).fill(NaN),
+      p99: new Array(bins).fill(NaN),
     }
     for (const p of points) {
       if (!p.percentile) continue
@@ -48,7 +48,7 @@ export function bucketPoints(
     return { values: out.p95, p50: out.p50, p95: out.p95, p99: out.p99 }
   }
 
-  const values = new Array(bins).fill(0)
+  const values = new Array(bins).fill(NaN)
   for (const p of points) {
     const i = Math.min(bins - 1, Math.floor(((p.timestamp_ns - tMin) / span) * bins))
     values[i] = p.value
@@ -58,9 +58,12 @@ export function bucketPoints(
 }
 
 function forwardFill(arr: number[]) {
-  let last = 0
+  let last = NaN
   for (let i = 0; i < arr.length; i++) {
-    if (arr[i] === 0) arr[i] = last
-    else last = arr[i]
+    if (isNaN(arr[i])) {
+      arr[i] = isNaN(last) ? 0 : last
+    } else {
+      last = arr[i]
+    }
   }
 }

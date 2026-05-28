@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -35,7 +36,8 @@ type SettingsResponse struct {
 	OTLPHTTPPort      int      `json:"otlp_http_port"`
 	NoBrowser     bool     `json:"no_browser"`
 	Forward       []string `json:"forward"`
-	BindAddress   string   `json:"bind_address"`
+	BindAddressV4 string   `json:"bind_address_v4"`
+	BindAddressV6 string   `json:"bind_address_v6"`
 	ForwardSample float64  `json:"forward_sample"`
 
 	Runtime SettingsRuntime `json:"runtime"`
@@ -64,7 +66,8 @@ type SettingsUpdate struct {
 	OTLPHTTPPort      *int      `json:"otlp_http_port,omitempty"`
 	NoBrowser     *bool     `json:"no_browser,omitempty"`
 	Forward       *[]string `json:"forward,omitempty"`
-	BindAddress   *string   `json:"bind_address,omitempty"`
+	BindAddressV4 *string   `json:"bind_address_v4,omitempty"`
+	BindAddressV6 *string   `json:"bind_address_v6,omitempty"`
 	ForwardSample *float64  `json:"forward_sample,omitempty"`
 }
 
@@ -124,7 +127,8 @@ func (r *Router) buildSettings() SettingsResponse {
 		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
 		NoBrowser:     v.GetBool("no_browser"),
 		Forward:       nonNilStrings(v.GetStringSlice("forward")),
-		BindAddress:   v.GetString("bind_address"),
+		BindAddressV4: v.GetString("bind_address_v4"),
+		BindAddressV6: v.GetString("bind_address_v6"),
 		ForwardSample: v.GetFloat64("forward_sample"),
 		Runtime: SettingsRuntime{
 			PID:        os.Getpid(),
@@ -179,11 +183,20 @@ func validateSettings(u *SettingsUpdate) error {
 			}
 		}
 	}
-	if u.BindAddress != nil {
-		switch *u.BindAddress {
-		case "127.0.0.1", "0.0.0.0", "::1":
-		default:
-			return fmt.Errorf("bind_address must be 127.0.0.1, 0.0.0.0, or ::1, got %q", *u.BindAddress)
+	if u.BindAddressV4 != nil {
+		if addr := strings.TrimSpace(*u.BindAddressV4); addr != "" {
+			ip := net.ParseIP(addr)
+			if ip == nil || ip.To4() == nil {
+				return fmt.Errorf("bind_address_v4 must be a valid IPv4 address or empty, got %q", *u.BindAddressV4)
+			}
+		}
+	}
+	if u.BindAddressV6 != nil {
+		if addr := strings.TrimSpace(*u.BindAddressV6); addr != "" {
+			ip := net.ParseIP(addr)
+			if ip == nil || ip.To4() != nil {
+				return fmt.Errorf("bind_address_v6 must be a valid IPv6 address or empty, got %q", *u.BindAddressV6)
+			}
 		}
 	}
 	if u.ForwardSample != nil && (*u.ForwardSample < 0 || *u.ForwardSample > 1) {
@@ -223,8 +236,11 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if u.Forward != nil {
 		s.Viper.Set("forward", *u.Forward)
 	}
-	if u.BindAddress != nil {
-		s.Viper.Set("bind_address", *u.BindAddress)
+	if u.BindAddressV4 != nil {
+		s.Viper.Set("bind_address_v4", strings.TrimSpace(*u.BindAddressV4))
+	}
+	if u.BindAddressV6 != nil {
+		s.Viper.Set("bind_address_v6", strings.TrimSpace(*u.BindAddressV6))
 	}
 	if u.ForwardSample != nil {
 		s.Viper.Set("forward_sample", *u.ForwardSample)
@@ -237,7 +253,7 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address", "forward_sample"} {
+	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {

@@ -53,9 +53,11 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 	}
 
 	// Final state for reporting.
-	if err := d.db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&res.FinalSessions); err != nil {
+	var finalSessions int64
+	if err := d.gorm.Table("sessions").Count(&finalSessions).Error; err != nil {
 		return res, err
 	}
+	res.FinalSessions = int(finalSessions)
 	res.FinalDBSizeBytes = d.fileSize()
 	return res, nil
 }
@@ -64,7 +66,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 // The active session pointer in memory is cleared.
 func (d *DB) Reset() error {
 	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "metrics", "span_events", "span_links", "spans", "sessions"} {
-		if _, err := d.db.Exec(`DELETE FROM ` + tbl); err != nil {
+		if err := d.gorm.Exec(`DELETE FROM ` + tbl).Error; err != nil {
 			return fmt.Errorf("truncate %s: %w", tbl, err)
 		}
 	}
@@ -90,31 +92,19 @@ func (d *DB) deleteByAge(maxAge time.Duration, activeID string) (int, error) {
 
 func (d *DB) deleteByCount(maxSessions int, activeID string) (int, error) {
 	// Oldest deletable sessions first; preserve active + baseline.
-	rows, err := d.db.Query(`
-		SELECT id FROM sessions
-		WHERE id != ? AND is_baseline = FALSE
-		ORDER BY created_at ASC`, activeID)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
 	var deletable []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return 0, err
-		}
-		deletable = append(deletable, id)
-	}
-	if err := rows.Err(); err != nil {
+	if err := d.gorm.Table("sessions").
+		Where("id != ? AND is_baseline = FALSE", activeID).
+		Order("created_at ASC").
+		Pluck("id", &deletable).Error; err != nil {
 		return 0, err
 	}
 
-	var total int
-	if err := d.db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&total); err != nil {
+	var total int64
+	if err := d.gorm.Table("sessions").Count(&total).Error; err != nil {
 		return 0, err
 	}
-	excess := total - maxSessions
+	excess := int(total) - maxSessions
 	if excess <= 0 {
 		return 0, nil
 	}
@@ -130,23 +120,11 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 		return 0, nil
 	}
 
-	rows, err := d.db.Query(`
-		SELECT id FROM sessions
-		WHERE id != ? AND is_baseline = FALSE
-		ORDER BY created_at ASC`, activeID)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
 	var candidates []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return 0, err
-		}
-		candidates = append(candidates, id)
-	}
-	if err := rows.Err(); err != nil {
+	if err := d.gorm.Table("sessions").
+		Where("id != ? AND is_baseline = FALSE", activeID).
+		Order("created_at ASC").
+		Pluck("id", &candidates).Error; err != nil {
 		return 0, err
 	}
 
@@ -165,22 +143,11 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 }
 
 func (d *DB) protectedSessionIDsOlderThan(cutoffNs int64, activeID string) ([]string, error) {
-	rows, err := d.db.Query(`
-		SELECT id FROM sessions
-		WHERE created_at < ? AND id != ? AND is_baseline = FALSE`, cutoffNs, activeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
+	err := d.gorm.Table("sessions").
+		Where("created_at < ? AND id != ? AND is_baseline = FALSE", cutoffNs, activeID).
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 func (d *DB) deleteSessions(ids []string) (int, error) {
@@ -206,5 +173,5 @@ func (d *DB) fileSize() int64 {
 // checkpoint flushes WAL into the main DB file so file-size measurements are
 // meaningful immediately after a delete. Best-effort; errors are ignored.
 func (d *DB) checkpoint() {
-	_, _ = d.db.Exec(`CHECKPOINT`)
+	_ = d.gorm.Exec(`CHECKPOINT`).Error
 }

@@ -91,12 +91,18 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 	case pmetric.MetricTypeHistogram:
 		for i := 0; i < m.Histogram().DataPoints().Len(); i++ {
 			dp := m.Histogram().DataPoints().At(i)
+			bounds := boundsToFloat(dp.ExplicitBounds())
+			counts := countsToInt(dp.BucketCounts())
 			for _, pct := range []float64{0.50, 0.95, 0.99} {
-				v := HistogramPercentile(
-					boundsToFloat(dp.ExplicitBounds()),
-					countsToInt(dp.BucketCounts()),
-					pct,
-				)
+				var v float64
+				if len(bounds) == 0 {
+					// No explicit bucket boundaries — use sum/count mean as best estimate.
+					if dp.Count() > 0 {
+						v = dp.Sum() / float64(dp.Count())
+					}
+				} else {
+					v = HistogramPercentile(bounds, counts, pct)
+				}
 				attrs := attrsWithPercentile(dp.Attributes(), pct)
 				row := &storage.Metric{
 					Name:        name,

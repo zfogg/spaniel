@@ -10,10 +10,10 @@ import (
 // seedSession inserts a session with a specific created_at (ns) and N spans.
 func seedSession(t *testing.T, d *DB, id, label string, createdNs int64, isBaseline bool, spanCount int) {
 	t.Helper()
-	if _, err := d.db.Exec(
+	if err := d.gorm.Exec(
 		`INSERT INTO sessions (id, label, created_at, is_baseline, span_count, services) VALUES (?, ?, ?, ?, ?, '[]')`,
 		id, label, createdNs, isBaseline, spanCount,
-	); err != nil {
+	).Error; err != nil {
 		t.Fatalf("seed session %s: %v", id, err)
 	}
 	for i := range spanCount {

@@ -38,9 +38,12 @@ otlp_http_port: 4318
 # Do not open a browser tab on startup
 no_browser: false
 
-# Network bind address for the UI and OTLP receivers.
-# 127.0.0.1 = localhost only; 0.0.0.0 = all interfaces (LAN / docker); ::1 = IPv6 localhost.
-bind_address: 127.0.0.1
+# Network bind addresses for the UI and OTLP receivers. Both families are
+# served simultaneously (dual-stack). Leave a field blank to disable that family.
+# IPv4: 127.0.0.1 = localhost; 0.0.0.0 = all interfaces (LAN / docker).
+# IPv6: ::1 = localhost; :: = all interfaces.
+bind_address_v4: 127.0.0.1
+bind_address_v6: ::1
 
 # OTLP forwarding: forward received spans/logs/metrics to upstream backends
 # forward:
@@ -71,7 +74,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("otlp_grpc_port", 4317)
 	v.SetDefault("otlp_http_port", 4318)
 	v.SetDefault("no_browser", false)
-	v.SetDefault("bind_address", "127.0.0.1")
+	v.SetDefault("bind_address_v4", "127.0.0.1")
+	v.SetDefault("bind_address_v6", "::1")
 	v.SetDefault("forward_sample", 1.0)
 
 	// ENV: SPANIEL_PORT, SPANIEL_DB_PATH, etc.

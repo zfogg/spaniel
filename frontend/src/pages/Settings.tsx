@@ -21,13 +21,56 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
   )
 }
 
+// Bind address commits on blur / Enter rather than per-keystroke: the value is
+// validated server-side, and partial input ("192.168.1") would otherwise be
+// rejected and reverted mid-typing.
+function BindAddressBox({ value, onCommit, ariaLabel, placeholder }: {
+  value: string; onCommit: (v: string) => void; ariaLabel: string; placeholder?: string
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => { setDraft(value) }, [value])
+  const commit = () => { if (draft !== value) onCommit(draft.trim()) }
+  return (
+    <span
+      className="inline-flex items-center bg-white dark:bg-background border border-border rounded-md px-2.5 h-[30px] max-w-full"
+      style={{ width: 200 }}
+    >
+      <input
+        type="text"
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        className="flex-1 min-w-0 border-none outline-hidden bg-transparent text-xs text-foreground font-mono"
+      />
+    </span>
+  )
+}
+
+function bindAddressLabel(addr: string | undefined): string {
+  switch ((addr ?? '').trim()) {
+    case '':
+      return 'disabled'
+    case '0.0.0.0':
+    case '::':
+      return 'all interfaces'
+    case '127.0.0.1':
+    case '::1':
+      return 'localhost only'
+    default:
+      return 'custom'
+  }
+}
+
 function NumberBox({ value, onChange, min, max, step, w = 110, suffix, ariaLabel }: {
   value: number; onChange: (v: number) => void
   min?: number; max?: number; step?: number; w?: number; suffix?: string; ariaLabel: string
 }) {
   return (
     <span
-      className="inline-flex items-center bg-background border border-border rounded-md px-2 h-[30px]"
+      className="inline-flex items-center bg-white dark:bg-background border border-border rounded-md px-2 h-[30px]"
       style={{ width: w }}
     >
       <input
@@ -51,7 +94,7 @@ function TextBox({ value, onChange, w = 320, mono = true, ariaLabel }: {
 }) {
   return (
     <span
-      className="inline-flex items-center bg-background border border-border rounded-md px-2.5 h-[30px] max-w-full"
+      className="inline-flex items-center bg-white dark:bg-background border border-border rounded-md px-2.5 h-[30px] max-w-full"
       style={{ width: w }}
     >
       <input
@@ -71,7 +114,7 @@ function SelectBox<T extends string>({ value, onChange, options, w = 130, ariaLa
 }) {
   return (
     <span
-      className="inline-flex items-center bg-background border border-border rounded-md h-[30px] pr-1.5"
+      className="inline-flex items-center bg-white dark:bg-background border border-border rounded-md h-[30px] pr-1.5"
       style={{ width: w }}
     >
       <select
@@ -105,14 +148,15 @@ function Pill({ tone = 'neutral', children }: { tone?: 'neutral' | 'ok' | 'warn'
   )
 }
 
-function Row({ label, hint, danger, children, testid }: {
+function Row({ label, hint, danger, children, testid, align = 'start' }: {
   label: string; hint?: string; danger?: boolean; testid?: string
+  align?: 'start' | 'center'
   children: React.ReactNode
 }) {
   return (
     <div
       data-testid={testid}
-      className="grid gap-[18px] py-3.5 border-b border-border items-start"
+      className={`grid gap-[18px] py-3.5 border-b border-border last:border-b-0 ${align === 'center' ? 'items-center' : 'items-start'}`}
       style={{ gridTemplateColumns: 'minmax(0, 260px) 1fr' }}
     >
       <div>
@@ -218,16 +262,25 @@ function NetworkSection({ s, mutate, hidden }: {
           ? <Pill tone="ok">● listening :{s.runtime.otlp_http_port}</Pill>
           : <Pill>stopped</Pill>}
       </Row>
-      <Row label="Bind address"
-        hint="Network interface the UI and OTLP receivers listen on. Use 0.0.0.0 to accept traffic from docker / LAN."
-        testid="row-bind">
-        <SelectBox<'127.0.0.1' | '0.0.0.0' | '::1'>
-          value={(s.bind_address as '127.0.0.1' | '0.0.0.0' | '::1') ?? '127.0.0.1'}
-          onChange={v => mutate({ bind_address: v })}
-          options={['127.0.0.1', '0.0.0.0', '::1'] as const}
-          w={140} ariaLabel="bind address"
+      <Row label="IPv4 bind address"
+        hint="IPv4 address the UI and OTLP receivers listen on. 127.0.0.1 = localhost; 0.0.0.0 = all interfaces (LAN / docker). Leave blank to disable IPv4."
+        testid="row-bind-v4">
+        <BindAddressBox
+          value={s.bind_address_v4 ?? ''}
+          onCommit={v => mutate({ bind_address_v4: v })}
+          ariaLabel="ipv4 bind address" placeholder="127.0.0.1"
         />
-        <Pill>{s.bind_address === '0.0.0.0' ? 'all interfaces' : 'localhost only'}</Pill>
+        <Pill>{bindAddressLabel(s.bind_address_v4)}</Pill>
+      </Row>
+      <Row label="IPv6 bind address"
+        hint="IPv6 address the UI and OTLP receivers listen on. ::1 = localhost; :: = all interfaces. Served alongside IPv4 (dual-stack). Leave blank to disable IPv6."
+        testid="row-bind-v6">
+        <BindAddressBox
+          value={s.bind_address_v6 ?? ''}
+          onCommit={v => mutate({ bind_address_v6: v })}
+          ariaLabel="ipv6 bind address" placeholder="::1"
+        />
+        <Pill>{bindAddressLabel(s.bind_address_v6)}</Pill>
       </Row>
       <Row label="Forward sampling"
         hint="Fraction of received payloads to forward upstream (1.0 = everything, 0.1 = 10%)."
@@ -373,7 +426,7 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         <button
           type="button"
           onClick={onPrune}
-          className="px-3 h-[30px] rounded-md cursor-pointer bg-background border border-border font-sans text-xs text-foreground outline-hidden"
+          className="px-3 h-[30px] rounded-md cursor-pointer bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden"
         >spaniel prune</button>
       </Row>
 
@@ -440,7 +493,7 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
           data-testid="compact-btn"
           disabled={compacting}
           onClick={handleCompact}
-          className={`px-3.5 h-[30px] rounded-md bg-background border border-border font-sans text-xs text-foreground outline-hidden ${compacting ? 'cursor-default opacity-60' : 'cursor-pointer opacity-100'}`}
+          className={`px-3.5 h-[30px] rounded-md bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden ${compacting ? 'cursor-default opacity-60' : 'cursor-pointer opacity-100'}`}
         >
           {compacting ? 'compacting…' : 'compact now'}
         </button>
@@ -485,11 +538,26 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
           className="font-sans text-xs text-accent-d underline decoration-dotted"
         >view source</a>
       </Row>
-      <Row label="Config file" hint="All settings on this page are persisted to this YAML file."
-        testid="row-config">
-        <code className="font-mono text-xs text-foreground">
-          {s.runtime.config_path}
-        </code>
+      <Row label="Creator" hint="Who thought of spaniel?" testid="row-creator" align="center">
+        <span className="font-sans text-xs text-foreground">Zachary Fogg</span>
+        <a
+          href="mailto:me@zfo.gg"
+          className="font-sans text-xs text-accent-d underline decoration-dotted"
+        >me@zfo.gg</a>
+        <a
+          href="https://zfo.gg"
+          target="_blank"
+          rel="noreferrer"
+          className="font-sans text-xs text-accent-d underline decoration-dotted"
+        >zfo.gg</a>
+        <span className="font-sans text-xs text-muted-foreground">·</span>
+        <span className="font-sans text-xs text-foreground">Claude</span>
+        <a
+          href="https://claude.ai"
+          target="_blank"
+          rel="noreferrer"
+          className="font-sans text-xs text-accent-d underline decoration-dotted"
+        >claude.ai</a>
       </Row>
     </Card>
   )

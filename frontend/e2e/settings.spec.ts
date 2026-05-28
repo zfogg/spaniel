@@ -20,7 +20,8 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     otlp_http_port: 4318,
     no_browser: false,
     forward: [],
-    bind_address: '127.0.0.1',
+    bind_address_v4: '127.0.0.1',
+    bind_address_v6: '::1',
     forward_sample: 1.0,
     runtime: {
       pid: 32118,
@@ -216,15 +217,30 @@ test.describe('Settings page', () => {
     await expect.poll(() => h.dropCount()).toBe(1)
   })
 
-  test('changing the bind address PUTs bind_address', async ({ page }) => {
+  test('changing the IPv4 bind address PUTs bind_address_v4', async ({ page }) => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
 
-    await page.getByLabel('bind address').selectOption('0.0.0.0')
+    const input = page.getByLabel('ipv4 bind address')
+    await input.fill('0.0.0.0')
+    await input.blur()
 
-    await expect.poll(() => h.lastPut()).toMatchObject({ bind_address: '0.0.0.0' })
-    await expect(page.getByTestId('row-bind').getByText('all interfaces')).toBeVisible()
+    await expect.poll(() => h.lastPut()).toMatchObject({ bind_address_v4: '0.0.0.0' })
+    await expect(page.getByTestId('row-bind-v4').getByText('all interfaces')).toBeVisible()
+  })
+
+  test('changing the IPv6 bind address PUTs bind_address_v6', async ({ page }) => {
+    await stubChrome(page)
+    const h = await stubSettings(page, makeSettings())
+    await page.goto('/settings')
+
+    const input = page.getByLabel('ipv6 bind address')
+    await input.fill('::')
+    await input.blur()
+
+    await expect.poll(() => h.lastPut()).toMatchObject({ bind_address_v6: '::' })
+    await expect(page.getByTestId('row-bind-v6').getByText('all interfaces')).toBeVisible()
   })
 
   test('moving the forward-sampling slider updates the percentage pill and PUTs forward_sample', async ({ page }) => {

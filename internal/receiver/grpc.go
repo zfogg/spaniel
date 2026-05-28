@@ -35,6 +35,12 @@ func (r *GRPCReceiver) ListenAndServe(addr string) error {
 	return r.server.Serve(lis)
 }
 
+// Serve runs the gRPC server on an already-bound listener. Safe to call from
+// multiple goroutines with different listeners (e.g. one per IP family).
+func (r *GRPCReceiver) Serve(lis net.Listener) error {
+	return r.server.Serve(lis)
+}
+
 func (r *GRPCReceiver) Stop() {
 	r.server.GracefulStop()
 }

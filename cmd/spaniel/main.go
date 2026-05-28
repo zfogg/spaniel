@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -14,6 +15,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -30,7 +33,43 @@ import (
 )
 
 // version is overridden at release-build time via -ldflags "-X main.version=...".
+// The Makefile sets it from `git describe --tags`. When unset (e.g. `go run`),
+// init() falls back to the VCS metadata Go embeds in the binary.
 var version = "dev"
+
+func init() {
+	if version != "dev" {
+		return // pinned by ldflags (release build)
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	// `go install module@vX.Y.Z` records the tag here; local builds get "(devel)".
+	if bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = bi.Main.Version
+		return
+	}
+	// Fall back to the embedded commit hash + dirty flag.
+	var rev, modified string
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			modified = s.Value
+		}
+	}
+	if rev != "" {
+		if len(rev) > 12 {
+			rev = rev[:12]
+		}
+		if modified == "true" {
+			rev += "-dirty"
+		}
+		version = rev
+	}
+}
 
 func main() {
 	v := viper.New()
@@ -102,9 +141,12 @@ func main() {
 
 	sessionListCmd := &cobra.Command{
 		Use:   "list",
-		Short: "List all sessions (active is marked with *)",
+		Short: "List all sessions in an interactive picker (Enter activates, b baselines, d deletes)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return sessionList(apiBase, cmd.OutOrStdout())
+			if !isTerminal(os.Stdout) {
+				return fmt.Errorf("spaniel session list requires a terminal — run it interactively")
+			}
+			return sessionListTUI(apiBase)
 		},
 	}
 	sessionCmd.AddCommand(sessionListCmd)
@@ -210,7 +252,9 @@ Examples:
 	root.AddCommand(traceSubcommand())
 	root.AddCommand(logsSubcommand())
 	root.AddCommand(watchSubcommand())
+	root.AddCommand(tuiSubcommand())
 	root.AddCommand(compactSubcommand())
+	root.AddCommand(seedSubcommand(v))
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -231,7 +275,8 @@ type runConfig struct {
 	RoutesFile    string
 	OTLPGRPCPort  int
 	OTLPHTTPPort  int
-	BindAddress   string
+	BindAddressV4 string
+	BindAddressV6 string
 	Viper         *viper.Viper
 }
 
@@ -250,7 +295,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		ForwardSample: v.GetFloat64("forward_sample"),
 		OTLPGRPCPort:  v.GetInt("otlp_grpc_port"),
 		OTLPHTTPPort:  v.GetInt("otlp_http_port"),
-		BindAddress:   v.GetString("bind_address"),
+		BindAddressV4: v.GetString("bind_address_v4"),
+		BindAddressV6: v.GetString("bind_address_v6"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -286,8 +332,9 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	if cfg.OTLPHTTPPort == 0 {
 		cfg.OTLPHTTPPort = 4318
 	}
-	if cfg.BindAddress == "" {
-		cfg.BindAddress = "127.0.0.1"
+	if cfg.BindAddressV4 == "" && cfg.BindAddressV6 == "" {
+		cfg.BindAddressV4 = "127.0.0.1"
+		cfg.BindAddressV6 = "::1"
 	}
 	if cfg.ForwardSample <= 0 || cfg.ForwardSample > 1 {
 		cfg.ForwardSample = 1.0
@@ -314,6 +361,7 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("open storage: %w", err)
 	}
 	defer store.Close() //nolint:errcheck
+	_ = store.SetSpanielVersion(version)
 
 	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
 	if err != nil {
@@ -331,14 +379,21 @@ func run(cfg runConfig) error {
 		fwd = forwarder.New(cfg.ForwardURLs, cfg.ForwardSample)
 	}
 
+	hosts := bindHosts(cfg)
+
 	grpcRcv := receiver.NewGRPCReceiver(pipeline)
 	if cfg.OTLPGRPCPort > 0 {
-		grpcAddr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.OTLPGRPCPort)
-		go func() {
-			if err := grpcRcv.ListenAndServe(grpcAddr); err != nil {
-				fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
-			}
-		}()
+		lns, err := listenAll(hosts, cfg.OTLPGRPCPort)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
+		}
+		for _, ln := range lns {
+			go func(ln net.Listener) {
+				if err := grpcRcv.Serve(ln); err != nil {
+					fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
+				}
+			}(ln)
+		}
 	}
 
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
@@ -348,12 +403,17 @@ func run(cfg runConfig) error {
 	otlpMux.HandleFunc("/v1/logs", httpRcv.HandleLogs)
 	otlpMux.HandleFunc("/v1/metrics", httpRcv.HandleMetrics)
 	if cfg.OTLPHTTPPort > 0 {
-		httpAddr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.OTLPHTTPPort)
-		go func() {
-			if err := http.ListenAndServe(httpAddr, otlpMux); err != nil {
-				fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
-			}
-		}()
+		lns, err := listenAll(hosts, cfg.OTLPHTTPPort)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
+		}
+		if len(lns) > 0 {
+			go func() {
+				if err := serveHTTP(lns, otlpMux); err != nil {
+					fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
+				}
+			}()
+		}
 	}
 
 	var manifests *coverage.Manifests
@@ -454,7 +514,58 @@ func run(cfg runConfig) error {
 	}()
 
 	_ = context.Background()
-	return http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port), mainMux)
+	lns, err := listenAll(hosts, cfg.Port)
+	if err != nil {
+		return fmt.Errorf("ui/api listen: %w", err)
+	}
+	return serveHTTP(lns, mainMux)
+}
+
+// bindHosts returns the configured bind addresses (IPv4 and/or IPv6). Blank
+// entries are skipped, so a family left empty is simply not served.
+func bindHosts(cfg runConfig) []string {
+	var hosts []string
+	if cfg.BindAddressV4 != "" {
+		hosts = append(hosts, cfg.BindAddressV4)
+	}
+	if cfg.BindAddressV6 != "" {
+		hosts = append(hosts, cfg.BindAddressV6)
+	}
+	return hosts
+}
+
+// listenAll binds a TCP listener for each host at the given port. It tolerates
+// per-host failures (e.g. an IPv6 wildcard that already covers IPv4) as long as
+// at least one listener comes up.
+func listenAll(hosts []string, port int) ([]net.Listener, error) {
+	var lns []net.Listener
+	var firstErr error
+	for _, h := range hosts {
+		ln, err := net.Listen("tcp", net.JoinHostPort(h, strconv.Itoa(port)))
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		lns = append(lns, ln)
+	}
+	if len(lns) == 0 {
+		if firstErr == nil {
+			firstErr = fmt.Errorf("no bind addresses configured")
+		}
+		return nil, firstErr
+	}
+	return lns, nil
+}
+
+// serveHTTP serves h on every listener, blocking until the first one returns.
+func serveHTTP(lns []net.Listener, h http.Handler) error {
+	errc := make(chan error, len(lns))
+	for _, ln := range lns {
+		go func(ln net.Listener) { errc <- http.Serve(ln, h) }(ln)
+	}
+	return <-errc
 }
 
 func printBanner(cfg runConfig) {

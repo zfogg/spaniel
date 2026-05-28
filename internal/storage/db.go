@@ -7,12 +7,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/alifiroozi80/duckdb"
 	"github.com/google/uuid"
-	_ "github.com/marcboeker/go-duckdb"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 type DB struct {
-	db                 *sql.DB
+	gorm               *gorm.DB
 	path               string
 	activeSessionID    string
 	activeSessionLabel string
@@ -27,7 +30,7 @@ type Span struct {
 	Kind          int          `json:"kind"`
 	StartNs       int64        `json:"start_ns"`
 	EndNs         int64        `json:"end_ns"`
-	DurationNs    int64        `json:"duration_ns"`
+	DurationNs    int64        `json:"duration_ns" gorm:"->"` // generated column, read-only
 	StatusCode    int          `json:"status_code"`
 	StatusMessage string       `json:"status_message"`
 	Attributes    string       `json:"attributes"`
@@ -35,9 +38,11 @@ type Span struct {
 	SessionID     string       `json:"session_id"`
 	SessionLabel  string       `json:"session_label"`
 	ReceivedAt    int64        `json:"received_at"`
-	Events        []*SpanEvent `json:"events"`
-	Links         []*SpanLink  `json:"links"`
+	Events        []*SpanEvent `json:"events" gorm:"-"`
+	Links         []*SpanLink  `json:"links" gorm:"-"`
 }
+
+func (Span) TableName() string { return "spans" }
 
 type Log struct {
 	TimestampNs int64  `json:"timestamp_ns"`
@@ -51,16 +56,20 @@ type Log struct {
 	ReceivedAt  int64  `json:"received_at"`
 }
 
+func (Log) TableName() string { return "logs" }
+
 type Session struct {
-	ID         string `json:"id"`
+	ID         string `json:"id" gorm:"primaryKey"`
 	Label      string `json:"label"`
 	CreatedAt  int64  `json:"created_at"`
 	IsBaseline bool   `json:"is_baseline"`
 	IsImported bool   `json:"is_imported"`
 	SpanCount  int    `json:"span_count"`
-	TraceCount int    `json:"trace_count"`
+	TraceCount int    `json:"trace_count" gorm:"-"` // computed via join, not a column
 	Services   string `json:"services"`
 }
+
+func (Session) TableName() string { return "sessions" }
 
 type LintWarning struct {
 	SpanID    string `json:"span_id"`
@@ -71,6 +80,8 @@ type LintWarning struct {
 	Severity  string `json:"severity"`
 	CreatedAt int64  `json:"created_at"`
 }
+
+func (LintWarning) TableName() string { return "lint_warnings" }
 
 type TraceRow struct {
 	TraceID      string `json:"trace_id"`
@@ -87,7 +98,7 @@ type TraceRow struct {
 }
 
 type TraceIssue struct {
-	ID            string `json:"id"`
+	ID            string `json:"id" gorm:"primaryKey"`
 	TraceID       string `json:"trace_id"`
 	SessionID     string `json:"session_id"`
 	Kind          string `json:"kind"`
@@ -98,6 +109,8 @@ type TraceIssue struct {
 	ExampleSpanID string `json:"example_span_id"`
 	CreatedAt     int64  `json:"created_at"`
 }
+
+func (TraceIssue) TableName() string { return "trace_issues" }
 
 // AsLintWarning renders a detector finding as a lint warning so the lint view
 // can show detector issues (e.g. N+1) alongside semantic-convention warnings.
@@ -128,6 +141,8 @@ type SpanEvent struct {
 	Attributes string `json:"attributes"`
 }
 
+func (SpanEvent) TableName() string { return "span_events" }
+
 // SpanLink is a causal/relational pointer from one span to another span
 // (potentially in a different trace). OTel uses these for fan-out work
 // items, batched jobs, async retries — anywhere a span was caused by
@@ -141,6 +156,8 @@ type SpanLink struct {
 	TraceState    string `json:"trace_state"`
 	Attributes    string `json:"attributes"`
 }
+
+func (SpanLink) TableName() string { return "span_links" }
 
 type Stats struct {
 	SpanCount       int   `json:"span_count"`
@@ -166,6 +183,8 @@ type Metric struct {
 	SessionID   string  `json:"session_id"`
 }
 
+func (Metric) TableName() string { return "metrics" }
+
 // MetricCatalogEntry summarizes one (name, service) metric stream.
 type MetricCatalogEntry struct {
 	Name        string `json:"name"`
@@ -181,7 +200,7 @@ type ServiceMapNode struct {
 	SpanCount  int                `json:"span_count"`
 	ErrorCount int                `json:"error_count"`
 	P95Ns      int64              `json:"p95_ns"`
-	TopOps     []ServiceMapOpStat `json:"top_operations"`
+	TopOps     []ServiceMapOpStat `json:"top_operations" gorm:"-"`
 }
 
 // ServiceMapOpStat is one (operation name, count, p95) entry for the node
@@ -205,120 +224,32 @@ type ServiceMapData struct {
 	Edges []*ServiceMapEdge `json:"edges"`
 }
 
+// spanCols is the read projection for spans: JSON columns are cast to VARCHAR
+// so they scan into the string fields on Span.
+const spanCols = `trace_id, span_id, parent_span_id, service_name, name, kind,
+	start_ns, end_ns, duration_ns, status_code, status_message,
+	attributes::VARCHAR AS attributes, resource::VARCHAR AS resource,
+	session_id, session_label, received_at`
+
 func Open(path string) (*DB, error) {
-	db, err := sql.Open("duckdb", path)
+	g, err := gorm.Open(duckdb.Open(path), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open duckdb: %w", err)
 	}
-	if err := db.Ping(); err != nil {
+	sqlDB, err := g.DB()
+	if err != nil {
+		return nil, fmt.Errorf("duckdb pool: %w", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{db: db, path: path}
+	d := &DB{gorm: g, path: path}
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return d, nil
-}
-
-func (d *DB) migrate() error {
-	_, err := d.db.Exec(`
-		CREATE TABLE IF NOT EXISTS spans (
-			trace_id        TEXT,
-			span_id         TEXT,
-			parent_span_id  TEXT,
-			service_name    TEXT,
-			name            TEXT,
-			kind            INTEGER,
-			start_ns        BIGINT,
-			end_ns          BIGINT,
-			duration_ns     BIGINT GENERATED ALWAYS AS (end_ns - start_ns),
-			status_code     INTEGER,
-			status_message  TEXT,
-			attributes      JSON,
-			resource        JSON,
-			session_id      TEXT,
-			session_label   TEXT,
-			received_at     BIGINT
-		);
-		CREATE TABLE IF NOT EXISTS logs (
-			timestamp_ns  BIGINT,
-			trace_id      TEXT,
-			span_id       TEXT,
-			severity      INTEGER,
-			body          TEXT,
-			attributes    JSON,
-			service_name  TEXT,
-			session_id    TEXT,
-			received_at   BIGINT
-		);
-		CREATE TABLE IF NOT EXISTS sessions (
-			id            TEXT PRIMARY KEY,
-			label         TEXT,
-			created_at    BIGINT,
-			is_baseline   BOOLEAN DEFAULT FALSE,
-			is_imported   BOOLEAN DEFAULT FALSE,
-			span_count    INTEGER DEFAULT 0,
-			services      JSON
-		);
-		CREATE TABLE IF NOT EXISTS lint_warnings (
-			span_id     TEXT,
-			trace_id    TEXT,
-			session_id  TEXT,
-			rule_id     TEXT,
-			message     TEXT,
-			severity    TEXT,
-			created_at  BIGINT
-		);
-		CREATE TABLE IF NOT EXISTS trace_issues (
-			id             VARCHAR PRIMARY KEY,
-			trace_id       VARCHAR NOT NULL,
-			session_id     VARCHAR NOT NULL,
-			kind           VARCHAR NOT NULL,
-			fingerprint    VARCHAR NOT NULL,
-			count          INTEGER NOT NULL,
-			wasted_ns      BIGINT NOT NULL,
-			parent_span_id VARCHAR NOT NULL DEFAULT '',
-			example_span_id VARCHAR NOT NULL DEFAULT '',
-			created_at     BIGINT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS span_events (
-			span_id      TEXT,
-			trace_id     TEXT,
-			session_id   TEXT,
-			time_ns      BIGINT,
-			name         TEXT,
-			attributes   JSON
-		);
-		CREATE INDEX IF NOT EXISTS idx_span_events_span_id ON span_events(span_id);
-		CREATE TABLE IF NOT EXISTS span_links (
-			span_id          TEXT,
-			trace_id         TEXT,
-			session_id       TEXT,
-			linked_trace_id  TEXT,
-			linked_span_id   TEXT,
-			trace_state      TEXT,
-			attributes       JSON
-		);
-		CREATE INDEX IF NOT EXISTS idx_span_links_span_id ON span_links(span_id);
-		CREATE INDEX IF NOT EXISTS idx_span_links_linked_trace_id ON span_links(linked_trace_id);
-		CREATE TABLE IF NOT EXISTS metrics (
-			name         TEXT,
-			description  TEXT,
-			unit         TEXT,
-			type         TEXT,
-			timestamp_ns BIGINT,
-			value        DOUBLE,
-			attributes   JSON,
-			service_name TEXT,
-			session_id   TEXT
-		);
-	`)
-	if err != nil {
-		return err
-	}
-	// Add is_imported column for existing databases that predate this field.
-	d.db.Exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE`) //nolint:errcheck
-	return nil
 }
 
 func (d *DB) CreateSession(label string, isBaseline bool) (*Session, error) {
@@ -339,14 +270,15 @@ func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session,
 		label = id
 	}
 	services, _ := json.Marshal([]string{})
-	_, err := d.db.Exec(
-		`INSERT INTO sessions (id, label, created_at, is_baseline, is_imported, span_count, services) VALUES (?, ?, ?, ?, ?, 0, ?)`,
-		id, label, now, isBaseline, isImported, string(services),
-	)
-	if err != nil {
+	s := &Session{
+		ID: id, Label: label, CreatedAt: now,
+		IsBaseline: isBaseline, IsImported: isImported,
+		SpanCount: 0, Services: string(services),
+	}
+	if err := d.gorm.Create(s).Error; err != nil {
 		return nil, err
 	}
-	return &Session{ID: id, Label: label, CreatedAt: now, IsBaseline: isBaseline, IsImported: isImported, Services: string(services)}, nil
+	return s, nil
 }
 
 func (d *DB) SetActiveSession(id, label string) {
@@ -357,157 +289,87 @@ func (d *DB) SetActiveSession(id, label string) {
 // SQL exposes the underlying *sql.DB for callers that need to run statements
 // outside the curated API (seed fixtures, ad-hoc migrations). Prefer the
 // typed methods above for anything in the hot path.
-func (d *DB) SQL() *sql.DB { return d.db }
+func (d *DB) SQL() *sql.DB {
+	sqlDB, _ := d.gorm.DB()
+	return sqlDB
+}
+
+// Gorm exposes the underlying *gorm.DB for callers that want to build queries.
+func (d *DB) Gorm() *gorm.DB { return d.gorm }
 
 func (d *DB) ActiveSessionID() string    { return d.activeSessionID }
 func (d *DB) ActiveSessionLabel() string { return d.activeSessionLabel }
 
 func (d *DB) InsertSpan(s *Span) error {
-	// duration_ns is a generated column — omit it from INSERT
-	_, err := d.db.Exec(`
-		INSERT INTO spans (
-			trace_id, span_id, parent_span_id, service_name, name, kind,
-			start_ns, end_ns, status_code, status_message,
-			attributes, resource, session_id, session_label, received_at
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		s.TraceID, s.SpanID, s.ParentSpanID, s.ServiceName, s.Name, s.Kind,
-		s.StartNs, s.EndNs, s.StatusCode, s.StatusMessage,
-		s.Attributes, s.Resource, s.SessionID, s.SessionLabel, s.ReceivedAt,
-	)
-	return err
+	// duration_ns is a generated column (gorm:"->") — never written.
+	return d.gorm.Create(s).Error
 }
 
 // InsertSpanEvents bulk-inserts the events attached to a span. Empty input
 // is a no-op; on error any rows inserted before the failure are not rolled
 // back (events are best-effort, not transactional, like spans).
 func (d *DB) InsertSpanEvents(events []*SpanEvent) error {
-	for _, e := range events {
-		if _, err := d.db.Exec(`
-			INSERT INTO span_events (span_id, trace_id, session_id, time_ns, name, attributes)
-			VALUES (?,?,?,?,?,?)`,
-			e.SpanID, e.TraceID, e.SessionID, e.TimeNs, e.Name, e.Attributes,
-		); err != nil {
-			return err
-		}
+	if len(events) == 0 {
+		return nil
 	}
-	return nil
+	return d.gorm.Create(&events).Error
 }
 
 // ListEventsBySpan returns the events attached to a single span, in time order.
 func (d *DB) ListEventsBySpan(spanID string) ([]*SpanEvent, error) {
-	rows, err := d.db.Query(`
-		SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR
-		FROM span_events WHERE span_id = ? ORDER BY time_ns ASC`, spanID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close() //nolint:errcheck
 	var out []*SpanEvent
-	for rows.Next() {
-		e := &SpanEvent{}
-		if err := rows.Scan(&e.SpanID, &e.TraceID, &e.SessionID, &e.TimeNs, &e.Name, &e.Attributes); err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	err := d.gorm.Table("span_events").
+		Select(`span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes`).
+		Where("span_id = ?", spanID).
+		Order("time_ns ASC").
+		Find(&out).Error
+	return out, err
 }
 
 // InsertSpanLinks bulk-inserts links emitted by a span. Best-effort: not
 // transactional, mirroring InsertSpanEvents.
 func (d *DB) InsertSpanLinks(links []*SpanLink) error {
-	for _, l := range links {
-		if _, err := d.db.Exec(`
-			INSERT INTO span_links (span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes)
-			VALUES (?,?,?,?,?,?,?)`,
-			l.SpanID, l.TraceID, l.SessionID, l.LinkedTraceID, l.LinkedSpanID, l.TraceState, l.Attributes,
-		); err != nil {
-			return err
-		}
+	if len(links) == 0 {
+		return nil
 	}
-	return nil
+	return d.gorm.Create(&links).Error
 }
+
+const linkCols = `span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes`
 
 // ListLinksBySpan returns the outbound links emitted by a single span.
 func (d *DB) ListLinksBySpan(spanID string) ([]*SpanLink, error) {
-	rows, err := d.db.Query(`
-		SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR
-		FROM span_links WHERE span_id = ?`, spanID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close() //nolint:errcheck
 	var out []*SpanLink
-	for rows.Next() {
-		l := &SpanLink{}
-		if err := rows.Scan(&l.SpanID, &l.TraceID, &l.SessionID, &l.LinkedTraceID, &l.LinkedSpanID, &l.TraceState, &l.Attributes); err != nil {
-			return nil, err
-		}
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	err := d.gorm.Table("span_links").Select(linkCols).
+		Where("span_id = ?", spanID).Find(&out).Error
+	return out, err
 }
 
 // ListIncomingLinks returns every link in the store whose target is the
 // given trace ID — the "who links into this trace?" reverse lookup.
 func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
-	rows, err := d.db.Query(`
-		SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR
-		FROM span_links WHERE linked_trace_id = ?`, linkedTraceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close() //nolint:errcheck
 	var out []*SpanLink
-	for rows.Next() {
-		l := &SpanLink{}
-		if err := rows.Scan(&l.SpanID, &l.TraceID, &l.SessionID, &l.LinkedTraceID, &l.LinkedSpanID, &l.TraceState, &l.Attributes); err != nil {
-			return nil, err
-		}
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	err := d.gorm.Table("span_links").Select(linkCols).
+		Where("linked_trace_id = ?", linkedTraceID).Find(&out).Error
+	return out, err
 }
 
 // ListLinksByTrace returns all span_links whose trace_id matches — used to
 // bulk-attach links to spans when serving GET /api/traces/:id so the
 // waterfall can show the link badge without a per-span round-trip.
 func (d *DB) ListLinksByTrace(traceID string) ([]*SpanLink, error) {
-	rows, err := d.db.Query(`
-		SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR
-		FROM span_links WHERE trace_id = ?`, traceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close() //nolint:errcheck
 	var out []*SpanLink
-	for rows.Next() {
-		l := &SpanLink{}
-		if err := rows.Scan(&l.SpanID, &l.TraceID, &l.SessionID, &l.LinkedTraceID, &l.LinkedSpanID, &l.TraceState, &l.Attributes); err != nil {
-			return nil, err
-		}
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	err := d.gorm.Table("span_links").Select(linkCols).
+		Where("trace_id = ?", traceID).Find(&out).Error
+	return out, err
 }
 
 func (d *DB) InsertLog(l *Log) error {
-	_, err := d.db.Exec(`
-		INSERT INTO logs (timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		l.TimestampNs, l.TraceID, l.SpanID, l.Severity, l.Body,
-		l.Attributes, l.ServiceName, l.SessionID, l.ReceivedAt,
-	)
-	return err
+	return d.gorm.Create(l).Error
 }
 
 func (d *DB) InsertLintWarning(w *LintWarning) error {
-	_, err := d.db.Exec(`
-		INSERT INTO lint_warnings (span_id, trace_id, session_id, rule_id, message, severity, created_at)
-		VALUES (?,?,?,?,?,?,?)`,
-		w.SpanID, w.TraceID, w.SessionID, w.RuleID, w.Message, w.Severity, w.CreatedAt,
-	)
-	return err
+	return d.gorm.Create(w).Error
 }
 
 type TraceFilter struct {
@@ -553,21 +415,11 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	query += ` ORDER BY s.start_ns DESC LIMIT ? OFFSET ?`
 	args = append(args, f.Limit, offset)
 
-	rows, err := d.db.Query(query, args...)
-	if err != nil {
+	var result []*TraceRow
+	if err := d.gorm.Raw(query, args...).Scan(&result).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var result []*TraceRow
-	for rows.Next() {
-		t := &TraceRow{}
-		if err := rows.Scan(&t.TraceID, &t.ServiceName, &t.Name, &t.StatusCode,
-			&t.StartNs, &t.EndNs, &t.DurationNs, &t.SessionID, &t.SessionLabel, &t.HasN1, &t.SpanCount); err != nil {
-			return nil, err
-		}
-		result = append(result, t)
-	}
-	return result, rows.Err()
+	return result, nil
 }
 
 // TraceOverlayFilter scopes the "traces during this window" query used by
@@ -585,13 +437,13 @@ type TraceOverlayFilter struct {
 // metrics chart overlay + correlated-traces panel — just enough to draw a
 // marker and link out to /traces/:id.
 type TraceOverlay struct {
-	TraceID     string `json:"trace_id"`
-	Op          string `json:"op"`
-	Service     string `json:"service"`
-	StatusCode  int    `json:"status_code"`
-	StartNs     int64  `json:"start_ns"`
-	EndNs       int64  `json:"end_ns"`
-	DurationNs  int64  `json:"duration_ns"`
+	TraceID    string `json:"trace_id"`
+	Op         string `json:"op"`
+	Service    string `json:"service"`
+	StatusCode int    `json:"status_code"`
+	StartNs    int64  `json:"start_ns"`
+	EndNs      int64  `json:"end_ns"`
+	DurationNs int64  `json:"duration_ns"`
 }
 
 // ListTracesInWindow returns root spans (traces) whose start_ns falls in
@@ -601,87 +453,44 @@ func (d *DB) ListTracesInWindow(f TraceOverlayFilter) ([]*TraceOverlay, error) {
 	if f.Limit <= 0 || f.Limit > 200 {
 		f.Limit = 50
 	}
-	q := `
-		SELECT trace_id, name, service_name, status_code, start_ns, end_ns, duration_ns
-		FROM spans
-		WHERE (parent_span_id = '' OR parent_span_id IS NULL)`
-	args := []any{}
+	q := d.gorm.Table("spans").
+		Select(`trace_id, name AS op, service_name AS service, status_code, start_ns, end_ns, duration_ns`).
+		Where(`parent_span_id = '' OR parent_span_id IS NULL`)
 	if f.Service != "" {
-		q += ` AND service_name = ?`
-		args = append(args, f.Service)
+		q = q.Where("service_name = ?", f.Service)
 	}
 	if f.SessionID != "" {
-		q += ` AND session_id = ?`
-		args = append(args, f.SessionID)
+		q = q.Where("session_id = ?", f.SessionID)
 	}
 	if f.FromNs > 0 {
-		q += ` AND start_ns >= ?`
-		args = append(args, f.FromNs)
+		q = q.Where("start_ns >= ?", f.FromNs)
 	}
 	if f.ToNs > 0 {
-		q += ` AND start_ns <= ?`
-		args = append(args, f.ToNs)
+		q = q.Where("start_ns <= ?", f.ToNs)
 	}
-	q += ` ORDER BY start_ns ASC LIMIT ?`
-	args = append(args, f.Limit)
-
-	rows, err := d.db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close() //nolint:errcheck
 	var out []*TraceOverlay
-	for rows.Next() {
-		t := &TraceOverlay{}
-		if err := rows.Scan(&t.TraceID, &t.Op, &t.Service, &t.StatusCode, &t.StartNs, &t.EndNs, &t.DurationNs); err != nil {
-			return nil, err
-		}
-		out = append(out, t)
-	}
-	return out, rows.Err()
+	err := q.Order("start_ns ASC").Limit(f.Limit).Scan(&out).Error
+	return out, err
 }
 
 func (d *DB) GetTrace(traceID string) ([]*Span, error) {
-	rows, err := d.db.Query(`
-		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
-		       start_ns, end_ns, duration_ns, status_code, status_message,
-		       attributes::VARCHAR, resource::VARCHAR, session_id, session_label, received_at
-		FROM spans WHERE trace_id = ? ORDER BY start_ns`, traceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var result []*Span
-	for rows.Next() {
-		s := &Span{}
-		if err := rows.Scan(
-			&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name, &s.Kind,
-			&s.StartNs, &s.EndNs, &s.DurationNs, &s.StatusCode, &s.StatusMessage,
-			&s.Attributes, &s.Resource, &s.SessionID, &s.SessionLabel, &s.ReceivedAt,
-		); err != nil {
-			return nil, err
-		}
-		result = append(result, s)
-	}
-	return result, rows.Err()
+	err := d.gorm.Table("spans").Select(spanCols).
+		Where("trace_id = ?", traceID).Order("start_ns").Find(&result).Error
+	return result, err
 }
 
 func (d *DB) GetSpan(spanID string) (*Span, error) {
-	row := d.db.QueryRow(`
-		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
-		       start_ns, end_ns, duration_ns, status_code, status_message,
-		       attributes::VARCHAR, resource::VARCHAR, session_id, session_label, received_at
-		FROM spans WHERE span_id = ? LIMIT 1`, spanID)
-	s := &Span{}
-	err := row.Scan(
-		&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name, &s.Kind,
-		&s.StartNs, &s.EndNs, &s.DurationNs, &s.StatusCode, &s.StatusMessage,
-		&s.Attributes, &s.Resource, &s.SessionID, &s.SessionLabel, &s.ReceivedAt,
-	)
-	if err == sql.ErrNoRows {
+	var spans []*Span
+	err := d.gorm.Table("spans").Select(spanCols).
+		Where("span_id = ?", spanID).Limit(1).Find(&spans).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(spans) == 0 {
 		return nil, nil
 	}
-	return s, err
+	return spans[0], nil
 }
 
 type SpanFilter struct {
@@ -714,7 +523,7 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 		SELECT
 			s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind,
 			s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message,
-			s.attributes::VARCHAR, s.resource::VARCHAR, s.session_id, s.session_label, s.received_at,
+			s.attributes::VARCHAR AS attributes, s.resource::VARCHAR AS resource, s.session_id, s.session_label, s.received_at,
 			CASE
 				WHEN ni.trace_id IS NOT NULL  THEN 'n+1'
 				WHEN s.status_code = 2        THEN 'error'
@@ -730,25 +539,11 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 		WHERE (? = '' OR s.session_id = ?)
 		ORDER BY ` + orderBy + `
 		LIMIT ?`
-	rows, err := d.db.Query(query, f.SessionID, f.SessionID, f.Limit)
-	if err != nil {
+	var result []*SpanRow
+	if err := d.gorm.Raw(query, f.SessionID, f.SessionID, f.Limit).Scan(&result).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var result []*SpanRow
-	for rows.Next() {
-		r := &SpanRow{}
-		if err := rows.Scan(
-			&r.TraceID, &r.SpanID, &r.ParentSpanID, &r.ServiceName, &r.Name, &r.Kind,
-			&r.StartNs, &r.EndNs, &r.DurationNs, &r.StatusCode, &r.StatusMessage,
-			&r.Attributes, &r.Resource, &r.SessionID, &r.SessionLabel, &r.ReceivedAt,
-			&r.Tag,
-		); err != nil {
-			return nil, err
-		}
-		result = append(result, r)
-	}
-	return result, rows.Err()
+	return result, nil
 }
 
 type LogFilter struct {
@@ -768,178 +563,149 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	}
 	offset := (f.Page - 1) * f.Limit
 
-	query := `
-		SELECT timestamp_ns, trace_id, span_id, severity, body, attributes::VARCHAR, service_name, session_id, received_at
-		FROM logs WHERE 1=1`
-	args := []any{}
-
+	q := d.gorm.Table("logs").
+		Select(`timestamp_ns, trace_id, span_id, severity, body, attributes::VARCHAR AS attributes, service_name, session_id, received_at`)
 	if f.SessionID != "" {
-		query += ` AND session_id = ?`
-		args = append(args, f.SessionID)
+		q = q.Where("session_id = ?", f.SessionID)
 	}
 	if f.TraceID != "" {
-		query += ` AND trace_id = ?`
-		args = append(args, f.TraceID)
+		q = q.Where("trace_id = ?", f.TraceID)
 	}
 	if f.SpanID != "" {
-		query += ` AND span_id = ?`
-		args = append(args, f.SpanID)
+		q = q.Where("span_id = ?", f.SpanID)
 	}
-	query += ` ORDER BY timestamp_ns DESC LIMIT ? OFFSET ?`
-	args = append(args, f.Limit, offset)
-
-	rows, err := d.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var result []*Log
-	for rows.Next() {
-		l := &Log{}
-		if err := rows.Scan(&l.TimestampNs, &l.TraceID, &l.SpanID, &l.Severity, &l.Body,
-			&l.Attributes, &l.ServiceName, &l.SessionID, &l.ReceivedAt); err != nil {
-			return nil, err
-		}
-		result = append(result, l)
-	}
-	return result, rows.Err()
+	err := q.Order("timestamp_ns DESC").Limit(f.Limit).Offset(offset).Find(&result).Error
+	return result, err
 }
 
 func (d *DB) ListServices() ([]string, error) {
-	rows, err := d.db.Query(`SELECT DISTINCT service_name FROM spans ORDER BY service_name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var result []string
-	for rows.Next() {
-		var s string
-		if err := rows.Scan(&s); err != nil {
-			return nil, err
-		}
-		result = append(result, s)
-	}
-	return result, rows.Err()
+	err := d.gorm.Table("spans").
+		Distinct("service_name").Order("service_name").
+		Pluck("service_name", &result).Error
+	return result, err
 }
 
 func (d *DB) ListSessions() ([]*Session, error) {
-	rows, err := d.db.Query(`
-		SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services::VARCHAR,
+	// Joins spans to count distinct traces per session — not expressible as a
+	// plain Find because trace_count is a computed aggregate.
+	type sessionRow struct {
+		ID         string
+		Label      string
+		CreatedAt  int64
+		IsBaseline bool
+		IsImported bool
+		SpanCount  int
+		Services   string
+		TraceCount int
+	}
+	var rows []sessionRow
+	err := d.gorm.Raw(`
+		SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services::VARCHAR AS services,
 		       COUNT(DISTINCT sp.trace_id) AS trace_count
 		FROM sessions s
 		LEFT JOIN spans sp ON sp.session_id = s.id
 		GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.span_count, s.services
-		ORDER BY s.created_at DESC`)
+		ORDER BY s.created_at DESC`).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var result []*Session
-	for rows.Next() {
-		s := &Session{}
-		if err := rows.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.IsImported, &s.SpanCount, &s.Services, &s.TraceCount); err != nil {
-			return nil, err
-		}
-		result = append(result, s)
+	result := make([]*Session, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, &Session{
+			ID: r.ID, Label: r.Label, CreatedAt: r.CreatedAt,
+			IsBaseline: r.IsBaseline, IsImported: r.IsImported,
+			SpanCount: r.SpanCount, Services: r.Services, TraceCount: r.TraceCount,
+		})
 	}
-	return result, rows.Err()
+	return result, nil
 }
 
 func (d *DB) GetSession(id string) (*Session, error) {
-	row := d.db.QueryRow(`SELECT id, label, created_at, is_baseline, is_imported, span_count, services::VARCHAR FROM sessions WHERE id = ?`, id)
-	s := &Session{}
-	err := row.Scan(&s.ID, &s.Label, &s.CreatedAt, &s.IsBaseline, &s.IsImported, &s.SpanCount, &s.Services)
-	if err == sql.ErrNoRows {
+	var sessions []*Session
+	err := d.gorm.Table("sessions").
+		Select(`id, label, created_at, is_baseline, is_imported, span_count, services::VARCHAR AS services`).
+		Where("id = ?", id).Limit(1).Find(&sessions).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(sessions) == 0 {
 		return nil, nil
 	}
-	return s, err
+	return sessions[0], nil
 }
 
 func (d *DB) SetBaseline(id string, isBaseline bool) error {
 	if isBaseline {
 		// clear any previous baseline first
-		if _, err := d.db.Exec(`UPDATE sessions SET is_baseline = FALSE WHERE is_baseline = TRUE`); err != nil {
+		if err := d.gorm.Model(&Session{}).Where("is_baseline = ?", true).
+			Update("is_baseline", false).Error; err != nil {
 			return err
 		}
 	}
-	_, err := d.db.Exec(`UPDATE sessions SET is_baseline = ? WHERE id = ?`, isBaseline, id)
-	return err
+	return d.gorm.Model(&Session{}).Where("id = ?", id).
+		Update("is_baseline", isBaseline).Error
 }
 
 func (d *DB) DeleteSession(id string) error {
 	for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "metrics", "span_events", "span_links", "spans"} {
-		if _, err := d.db.Exec(`DELETE FROM `+tbl+` WHERE session_id = ?`, id); err != nil {
+		if err := d.gorm.Exec(`DELETE FROM `+tbl+` WHERE session_id = ?`, id).Error; err != nil {
 			return err
 		}
 	}
-	_, err := d.db.Exec(`DELETE FROM sessions WHERE id = ?`, id)
-	return err
+	return d.gorm.Exec(`DELETE FROM sessions WHERE id = ?`, id).Error
 }
 
 func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
-	var (
-		rows *sql.Rows
-		err  error
-	)
+	q := d.gorm.Table("lint_warnings").
+		Select(`span_id, trace_id, session_id, rule_id, message, severity, created_at`)
 	if sessionID != "" {
-		rows, err = d.db.Query(`
-			SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at
-			FROM lint_warnings WHERE session_id = ? ORDER BY created_at DESC`, sessionID)
+		q = q.Where("session_id = ?", sessionID).Order("created_at DESC")
 	} else {
-		rows, err = d.db.Query(`
-			SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at
-			FROM lint_warnings ORDER BY created_at DESC LIMIT 500`)
+		q = q.Order("created_at DESC").Limit(500)
 	}
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var result []*LintWarning
-	for rows.Next() {
-		w := &LintWarning{}
-		if err := rows.Scan(&w.SpanID, &w.TraceID, &w.SessionID, &w.RuleID, &w.Message, &w.Severity, &w.CreatedAt); err != nil {
-			return nil, err
-		}
-		result = append(result, w)
-	}
-	return result, rows.Err()
+	err := q.Find(&result).Error
+	return result, err
 }
 
 func (d *DB) GetStats(sessionID string) (*Stats, error) {
 	s := &Stats{}
-	var row *sql.Row
+
+	spanQ := d.gorm.Table("spans")
+	traceQ := d.gorm.Table("spans").Distinct("trace_id")
+	logQ := d.gorm.Table("logs")
 	if sessionID != "" {
-		row = d.db.QueryRow(`SELECT COUNT(*) FROM spans WHERE session_id = ?`, sessionID)
-	} else {
-		row = d.db.QueryRow(`SELECT COUNT(*) FROM spans`)
+		spanQ = spanQ.Where("session_id = ?", sessionID)
+		traceQ = traceQ.Where("session_id = ?", sessionID)
+		logQ = logQ.Where("session_id = ?", sessionID)
 	}
-	if err := row.Scan(&s.SpanCount); err != nil {
+
+	var spanCount, traceCount, logCount int64
+	if err := spanQ.Count(&spanCount).Error; err != nil {
 		return nil, err
 	}
-	if sessionID != "" {
-		row = d.db.QueryRow(`SELECT COUNT(DISTINCT trace_id) FROM spans WHERE session_id = ?`, sessionID)
-	} else {
-		row = d.db.QueryRow(`SELECT COUNT(DISTINCT trace_id) FROM spans`)
-	}
-	if err := row.Scan(&s.TraceCount); err != nil {
+	if err := traceQ.Count(&traceCount).Error; err != nil {
 		return nil, err
 	}
-	if sessionID != "" {
-		row = d.db.QueryRow(`SELECT COUNT(*) FROM logs WHERE session_id = ?`, sessionID)
-	} else {
-		row = d.db.QueryRow(`SELECT COUNT(*) FROM logs`)
-	}
-	if err := row.Scan(&s.LogCount); err != nil {
+	if err := logQ.Count(&logCount).Error; err != nil {
 		return nil, err
 	}
+	s.SpanCount = int(spanCount)
+	s.TraceCount = int(traceCount)
+	s.LogCount = int(logCount)
+
 	if d.path != "" && d.path != ":memory:" {
 		if fi, err := os.Stat(d.path); err == nil {
 			s.DBSize = fi.Size()
 		}
 	}
-	_ = d.db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&s.SessionCount)
+	var sessionCount int64
+	_ = d.gorm.Table("sessions").Count(&sessionCount).Error
+	s.SessionCount = int(sessionCount)
 	var oldest sql.NullInt64
-	_ = d.db.QueryRow(`SELECT MIN(created_at) FROM sessions`).Scan(&oldest)
+	_ = d.gorm.Raw(`SELECT MIN(created_at) FROM sessions`).Scan(&oldest).Error
 	if oldest.Valid {
 		s.OldestSessionAt = oldest.Int64
 	}
@@ -947,10 +713,9 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 }
 
 func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
-	// Nodes
 	// Nodes — span_count, error_count, p95(duration_ns).
 	nodeQuery := `
-		SELECT service_name,
+		SELECT service_name AS id,
 		       COUNT(*) AS span_count,
 		       COUNT(*) FILTER (WHERE status_code = 2) AS error_count,
 		       CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns
@@ -962,21 +727,9 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	}
 	nodeQuery += ` GROUP BY service_name ORDER BY service_name`
 
-	nrows, err := d.db.Query(nodeQuery, nodeArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("service map nodes: %w", err)
-	}
-	defer nrows.Close()
 	var nodes []*ServiceMapNode
-	for nrows.Next() {
-		n := &ServiceMapNode{}
-		if err := nrows.Scan(&n.ID, &n.SpanCount, &n.ErrorCount, &n.P95Ns); err != nil {
-			return nil, err
-		}
-		nodes = append(nodes, n)
-	}
-	if err := nrows.Err(); err != nil {
-		return nil, err
+	if err := d.gorm.Raw(nodeQuery, nodeArgs...).Scan(&nodes).Error; err != nil {
+		return nil, fmt.Errorf("service map nodes: %w", err)
 	}
 
 	// Top operations per service for the inspector panel.
@@ -991,8 +744,8 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	// Edges — parent → child where services differ. Adds error_count: the
 	// count of child spans on the edge that errored (status_code = 2).
 	edgeQuery := `
-		SELECT p.service_name,
-		       c.service_name,
+		SELECT p.service_name AS "from",
+		       c.service_name AS "to",
 		       COUNT(*) AS call_count,
 		       CAST(AVG(c.duration_ns) AS BIGINT) AS avg_duration_ns,
 		       COUNT(*) FILTER (WHERE c.status_code = 2) AS error_count
@@ -1006,21 +759,9 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	}
 	edgeQuery += ` GROUP BY p.service_name, c.service_name`
 
-	erows, err := d.db.Query(edgeQuery, edgeArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("service map edges: %w", err)
-	}
-	defer erows.Close()
 	var edges []*ServiceMapEdge
-	for erows.Next() {
-		e := &ServiceMapEdge{}
-		if err := erows.Scan(&e.From, &e.To, &e.CallCount, &e.AvgDurationNs, &e.ErrorCount); err != nil {
-			return nil, err
-		}
-		edges = append(edges, e)
-	}
-	if err := erows.Err(); err != nil {
-		return nil, err
+	if err := d.gorm.Raw(edgeQuery, edgeArgs...).Scan(&edges).Error; err != nil {
+		return nil, fmt.Errorf("service map edges: %w", err)
 	}
 
 	if nodes == nil {
@@ -1037,7 +778,7 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 func (d *DB) topOperationsForService(service, sessionID string, limit int) ([]ServiceMapOpStat, error) {
 	q := `
 		SELECT name,
-		       COUNT(*) AS cnt,
+		       COUNT(*) AS count,
 		       CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns
 		FROM spans
 		WHERE service_name = ?`
@@ -1046,55 +787,28 @@ func (d *DB) topOperationsForService(service, sessionID string, limit int) ([]Se
 		q += ` AND session_id = ?`
 		args = append(args, sessionID)
 	}
-	q += ` GROUP BY name ORDER BY cnt DESC LIMIT ?`
+	q += ` GROUP BY name ORDER BY count DESC LIMIT ?`
 	args = append(args, limit)
 
-	rows, err := d.db.Query(q, args...)
-	if err != nil {
+	out := []ServiceMapOpStat{}
+	if err := d.gorm.Raw(q, args...).Scan(&out).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := []ServiceMapOpStat{}
-	for rows.Next() {
-		s := ServiceMapOpStat{}
-		if err := rows.Scan(&s.Name, &s.Count, &s.P95Ns); err != nil {
-			return nil, err
-		}
-		out = append(out, s)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
-	_, err := d.db.Exec(`
-		INSERT OR REPLACE INTO trace_issues
-			(id, trace_id, session_id, kind, fingerprint, count, wasted_ns, parent_span_id, example_span_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		issue.ID, issue.TraceID, issue.SessionID, issue.Kind,
-		issue.Fingerprint, issue.Count, issue.WastedNs,
-		issue.ParentSpanID, issue.ExampleSpanID, issue.CreatedAt,
-	)
-	return err
+	return d.gorm.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		UpdateAll: true,
+	}).Create(issue).Error
 }
 
 func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
-	rows, err := d.db.Query(`
-		SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
-		       parent_span_id, example_span_id, created_at
-		FROM trace_issues WHERE trace_id = ? ORDER BY wasted_ns DESC`, traceID)
+	var result []*TraceIssue
+	err := d.gorm.Where("trace_id = ?", traceID).Order("wasted_ns DESC").Find(&result).Error
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-	var result []*TraceIssue
-	for rows.Next() {
-		issue := &TraceIssue{}
-		if err := rows.Scan(&issue.ID, &issue.TraceID, &issue.SessionID, &issue.Kind,
-			&issue.Fingerprint, &issue.Count, &issue.WastedNs,
-			&issue.ParentSpanID, &issue.ExampleSpanID, &issue.CreatedAt); err != nil {
-			return nil, err
-		}
-		result = append(result, issue)
 	}
 	if result == nil {
 		result = []*TraceIssue{}
@@ -1104,39 +818,15 @@ func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
 
 // GetSpansBySession returns all spans for a session, ordered by start time.
 func (d *DB) GetSpansBySession(sessionID string) ([]*Span, error) {
-	rows, err := d.db.Query(`
-		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
-		       start_ns, end_ns, duration_ns, status_code, status_message,
-		       attributes::VARCHAR, resource::VARCHAR, session_id, session_label, received_at
-		FROM spans WHERE session_id = ? ORDER BY start_ns ASC`, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var result []*Span
-	for rows.Next() {
-		s := &Span{}
-		if err := rows.Scan(
-			&s.TraceID, &s.SpanID, &s.ParentSpanID, &s.ServiceName, &s.Name, &s.Kind,
-			&s.StartNs, &s.EndNs, &s.DurationNs, &s.StatusCode, &s.StatusMessage,
-			&s.Attributes, &s.Resource, &s.SessionID, &s.SessionLabel, &s.ReceivedAt,
-		); err != nil {
-			return nil, err
-		}
-		result = append(result, s)
-	}
-	return result, rows.Err()
+	err := d.gorm.Table("spans").Select(spanCols).
+		Where("session_id = ?", sessionID).Order("start_ns ASC").Find(&result).Error
+	return result, err
 }
 
 // InsertMetric stores one metric data point.
 func (d *DB) InsertMetric(m *Metric) error {
-	_, err := d.db.Exec(`
-		INSERT INTO metrics (name, description, unit, type, timestamp_ns, value, attributes, service_name, session_id)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		m.Name, m.Description, m.Unit, m.Type, m.TimestampNs, m.Value,
-		m.Attributes, m.ServiceName, m.SessionID,
-	)
-	return err
+	return d.gorm.Create(m).Error
 }
 
 // ListMetricCatalog returns one entry per (service, name) seen in the session.
@@ -1152,20 +842,9 @@ func (d *DB) ListMetricCatalog(sessionID string) ([]*MetricCatalogEntry, error) 
 	}
 	q += ` GROUP BY name, service_name, type, unit, description
 	       ORDER BY service_name, name`
-	rows, err := d.db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var out []*MetricCatalogEntry
-	for rows.Next() {
-		e := &MetricCatalogEntry{}
-		if err := rows.Scan(&e.Name, &e.ServiceName, &e.Type, &e.Unit, &e.Description, &e.SampleCount); err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	err := d.gorm.Raw(q, args...).Scan(&out).Error
+	return out, err
 }
 
 // MetricSeriesFilter scopes a series query.
@@ -1181,103 +860,55 @@ type MetricSeriesFilter struct {
 // timestamp ascending. Histogram percentiles arrive as separate rows; callers
 // split them apart by attributes.percentile.
 func (d *DB) GetMetricSeries(f MetricSeriesFilter) ([]*Metric, error) {
-	q := `
-		SELECT name, description, unit, type, timestamp_ns, value,
-		       attributes::VARCHAR, service_name, session_id
-		FROM metrics WHERE 1=1`
-	args := []any{}
+	q := d.gorm.Table("metrics").
+		Select(`name, description, unit, type, timestamp_ns, value, attributes::VARCHAR AS attributes, service_name, session_id`)
 	if f.Name != "" {
-		q += ` AND name = ?`
-		args = append(args, f.Name)
+		q = q.Where("name = ?", f.Name)
 	}
 	if f.Service != "" {
-		q += ` AND service_name = ?`
-		args = append(args, f.Service)
+		q = q.Where("service_name = ?", f.Service)
 	}
 	if f.SessionID != "" {
-		q += ` AND session_id = ?`
-		args = append(args, f.SessionID)
+		q = q.Where("session_id = ?", f.SessionID)
 	}
 	if f.FromNs > 0 {
-		q += ` AND timestamp_ns >= ?`
-		args = append(args, f.FromNs)
+		q = q.Where("timestamp_ns >= ?", f.FromNs)
 	}
 	if f.ToNs > 0 {
-		q += ` AND timestamp_ns <= ?`
-		args = append(args, f.ToNs)
+		q = q.Where("timestamp_ns <= ?", f.ToNs)
 	}
-	q += ` ORDER BY timestamp_ns ASC`
-
-	rows, err := d.db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var out []*Metric
-	for rows.Next() {
-		m := &Metric{}
-		if err := rows.Scan(&m.Name, &m.Description, &m.Unit, &m.Type,
-			&m.TimestampNs, &m.Value, &m.Attributes, &m.ServiceName, &m.SessionID); err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	return out, rows.Err()
+	err := q.Order("timestamp_ns ASC").Find(&out).Error
+	return out, err
 }
 
 // ListTraceIssuesBySession returns every detector finding for a session.
 func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
-	rows, err := d.db.Query(`
-		SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
-		       parent_span_id, example_span_id, created_at
-		FROM trace_issues WHERE session_id = ? ORDER BY wasted_ns DESC`, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	return scanTraceIssues(rows)
-}
-
-// ListTraceIssues returns detector findings. An empty sessionID returns
-// findings across all sessions (capped), mirroring ListLintWarnings.
-func (d *DB) ListTraceIssues(sessionID string) ([]*TraceIssue, error) {
-	var (
-		rows *sql.Rows
-		err  error
-	)
-	if sessionID != "" {
-		rows, err = d.db.Query(`
-			SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
-			       parent_span_id, example_span_id, created_at
-			FROM trace_issues WHERE session_id = ? ORDER BY wasted_ns DESC`, sessionID)
-	} else {
-		rows, err = d.db.Query(`
-			SELECT id, trace_id, session_id, kind, fingerprint, count, wasted_ns,
-			       parent_span_id, example_span_id, created_at
-			FROM trace_issues ORDER BY wasted_ns DESC LIMIT 500`)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return scanTraceIssues(rows)
-}
-
-func scanTraceIssues(rows *sql.Rows) ([]*TraceIssue, error) {
-	defer rows.Close()
 	var result []*TraceIssue
-	for rows.Next() {
-		issue := &TraceIssue{}
-		if err := rows.Scan(&issue.ID, &issue.TraceID, &issue.SessionID, &issue.Kind,
-			&issue.Fingerprint, &issue.Count, &issue.WastedNs,
-			&issue.ParentSpanID, &issue.ExampleSpanID, &issue.CreatedAt); err != nil {
-			return nil, err
-		}
-		result = append(result, issue)
+	err := d.gorm.Where("session_id = ?", sessionID).Order("wasted_ns DESC").Find(&result).Error
+	return result, err
+}
+
+// ListTraceIssues returns detector findings; scoped to a session when given,
+// otherwise the 500 most-wasteful findings across all sessions.
+func (d *DB) ListTraceIssues(sessionID string) ([]*TraceIssue, error) {
+	q := d.gorm.Model(&TraceIssue{}).Order("wasted_ns DESC")
+	if sessionID != "" {
+		q = q.Where("session_id = ?", sessionID)
+	} else {
+		q = q.Limit(500)
 	}
-	return result, rows.Err()
+	var result []*TraceIssue
+	err := q.Find(&result).Error
+	return result, err
 }
 
 func (d *DB) Close() error {
-	return d.db.Close()
+	sqlDB, err := d.gorm.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }
 
 // StorageBreakdown gives a per-table and per-session storage summary for the
@@ -1291,9 +922,9 @@ type StorageBreakdown struct {
 }
 
 type TableStat struct {
-	Name       string `json:"name"`
-	RowCount   int64  `json:"row_count"`
-	ApproxBytes int64 `json:"approx_bytes"`
+	Name        string `json:"name"`
+	RowCount    int64  `json:"row_count"`
+	ApproxBytes int64  `json:"approx_bytes"`
 }
 
 type SessionSize struct {
@@ -1309,60 +940,52 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	out := &StorageBreakdown{}
 
 	// Per-table: estimated_size from DuckDB's internal catalogue.
-	rows, err := d.db.Query(`
+	type tblSize struct {
+		TableName     string
+		EstimatedSize int64
+	}
+	var sizes []tblSize
+	if err := d.gorm.Raw(`
 		SELECT table_name, estimated_size
 		FROM duckdb_tables()
 		WHERE schema_name = 'main'
 		ORDER BY estimated_size DESC
-	`)
-	if err == nil {
-		defer rows.Close()
+	`).Scan(&sizes).Error; err == nil {
 		tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
 		approxByTable := make(map[string]int64, len(tableNames))
-		for rows.Next() {
-			var name string
-			var estSize int64
-			if err2 := rows.Scan(&name, &estSize); err2 == nil {
-				approxByTable[name] = estSize
-			}
+		for _, s := range sizes {
+			approxByTable[s.TableName] = s.EstimatedSize
 		}
 		for _, name := range tableNames {
 			var cnt int64
-			_ = d.db.QueryRow(`SELECT COUNT(*) FROM ` + name).Scan(&cnt) //nolint:gosec
+			_ = d.gorm.Table(name).Count(&cnt).Error
 			out.Tables = append(out.Tables, TableStat{
-				Name:       name,
-				RowCount:   cnt,
+				Name:        name,
+				RowCount:    cnt,
 				ApproxBytes: approxByTable[name],
 			})
 		}
 	}
 
 	// Per-session: proxy size via span attribute payload length.
-	srows, err2 := d.db.Query(`
-		SELECT s.session_id, COALESCE(se.label,''), COUNT(*) AS span_count,
+	var sessSizes []SessionSize
+	_ = d.gorm.Raw(`
+		SELECT s.session_id AS id, COALESCE(se.label,'') AS label, COUNT(*) AS span_count,
 		       SUM(LENGTH(s.attributes::VARCHAR) + LENGTH(s.resource::VARCHAR)) AS approx_bytes
 		FROM spans s
 		LEFT JOIN sessions se ON se.id = s.session_id
 		GROUP BY s.session_id, se.label
 		ORDER BY approx_bytes DESC
 		LIMIT 10
-	`)
-	if err2 == nil {
-		defer srows.Close()
-		for srows.Next() {
-			var ss SessionSize
-			if err3 := srows.Scan(&ss.ID, &ss.Label, &ss.SpanCount, &ss.ApproxBytes); err3 == nil {
-				out.Sessions = append(out.Sessions, ss)
-			}
-		}
-	}
+	`).Scan(&sessSizes).Error
+	out.Sessions = sessSizes
 
 	// File sizes: main DB file and WAL (if present).
 	if d.path != "" && d.path != ":memory:" {
-		if fi, err3 := os.Stat(d.path); err3 == nil {
+		if fi, err := os.Stat(d.path); err == nil {
 			out.MainBytes = fi.Size()
 		}
-		if fi, err3 := os.Stat(d.path + ".wal"); err3 == nil {
+		if fi, err := os.Stat(d.path + ".wal"); err == nil {
 			out.WALBytes = fi.Size()
 		}
 	}
@@ -1385,10 +1008,10 @@ func (d *DB) Compact() (*CompactResult, error) {
 			res.BytesBefore = fi.Size()
 		}
 	}
-	if _, err := d.db.Exec("CHECKPOINT"); err != nil {
+	if err := d.gorm.Exec("CHECKPOINT").Error; err != nil {
 		return res, fmt.Errorf("checkpoint: %w", err)
 	}
-	if _, err := d.db.Exec("VACUUM"); err != nil {
+	if err := d.gorm.Exec("VACUUM").Error; err != nil {
 		return res, fmt.Errorf("vacuum: %w", err)
 	}
 	if d.path != "" && d.path != ":memory:" {

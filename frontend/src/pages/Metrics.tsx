@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
@@ -72,8 +72,30 @@ function Spark({ series, color }: { series: number[]; color: string }) {
 
 // ── chart ────────────────────────────────────────────────────────────────────
 
+// useChartSize tracks the chart container's width and derives a viewport-tall
+// height, so the plot grows to fill the page (wider per its container, taller
+// per vh) instead of staying pinned at a fixed box on large screens.
+function useChartSize(ref: React.RefObject<HTMLElement | null>) {
+  const [size, setSize] = useState({ w: 920, h: 360 })
+  useEffect(() => {
+    const update = () => {
+      const w = ref.current?.clientWidth || 920
+      const h = Math.round(Math.max(320, Math.min(720, window.innerHeight * 0.56)))
+      setSize(prev => (prev.w === w && prev.h === h ? prev : { w, h }))
+    }
+    update()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
+    if (ro && ref.current) ro.observe(ref.current)
+    window.addEventListener('resize', update)
+    return () => { ro?.disconnect(); window.removeEventListener('resize', update) }
+  }, [ref])
+  return size
+}
+
 function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: BucketedSeries; traces: TraceOverlay[] }) {
-  const W = 920, H = 280, P = { l: 56, r: 16, t: 24, b: 36 }
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const { w: W, h: H } = useChartSize(wrapRef)
+  const P = { l: 56, r: 16, t: 24, b: 36 }
   const cw = W - P.l - P.r, ch = H - P.t - P.b
   const series = metric.type === 'histogram'
     ? [bucketed.p50!, bucketed.p95!, bucketed.p99!]
@@ -102,7 +124,7 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
   const [hoverI, setHoverI] = useState<number | null>(null)
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <svg
         viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
         className="block cursor-crosshair"
@@ -223,6 +245,24 @@ function StatBox({ s }: { s: Stat }) {
   )
 }
 
+// ── time range ───────────────────────────────────────────────────────────────
+
+type TimeRange = '30s' | '3m' | '15m' | '1h' | '6h' | '24h'
+const TIME_RANGES: TimeRange[] = ['30s', '3m', '15m', '1h', '6h', '24h']
+
+const RANGE_NS: Record<TimeRange, number> = {
+  '30s':  30 * 1_000_000_000,
+  '3m':   3  * 60 * 1_000_000_000,
+  '15m':  15 * 60 * 1_000_000_000,
+  '1h':   60 * 60 * 1_000_000_000,
+  '6h':   6  * 60 * 60 * 1_000_000_000,
+  '24h':  24 * 60 * 60 * 1_000_000_000,
+}
+
+function rangeFromNs(range: TimeRange): number {
+  return Date.now() * 1_000_000 - RANGE_NS[range]
+}
+
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export default function Metrics() {
@@ -232,6 +272,7 @@ export default function Metrics() {
   const [query, setQuery] = useState('')
   const [typeSel, setTypeSel] = useState<MetricType | null>(null)
   const [loading, setLoading] = useState(true)
+  const [range, setRange] = useState<TimeRange>('1h')
 
   useEffect(() => {
     let cancel = false
@@ -252,11 +293,11 @@ export default function Metrics() {
   useEffect(() => {
     if (!selected) return
     let cancel = false
-    api.metrics.series({ name: selected.name, service: selected.service, withTraces: true })
+    api.metrics.series({ name: selected.name, service: selected.service, withTraces: true, from: rangeFromNs(range) })
       .then(r => { if (!cancel) setSeries(r.data) })
       .catch(() => { if (!cancel) setSeries(null) })
     return () => { cancel = true }
-  }, [selected])
+  }, [selected, range])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -300,7 +341,7 @@ export default function Metrics() {
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden">
       {/* left rail */}
-      <div className="w-[320px] border-r border-border bg-surface flex flex-col overflow-hidden">
+      <div className="w-[320px] border-r border-border bg-[var(--surface)] flex flex-col overflow-hidden">
         <div className="px-3 py-2.5 border-b border-border flex flex-col gap-2">
           <span className="inline-flex items-center gap-[7px] bg-muted border border-border rounded-md px-2.5 h-7">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
@@ -337,7 +378,7 @@ export default function Metrics() {
             const c = svcColor(svc).fg
             return (
               <div key={svc}>
-                <div className="pt-2.5 px-3 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-surface sticky top-0 flex items-center gap-1.5">
+                <div className="pt-2.5 px-3 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-[var(--surface)] sticky top-0 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-md" style={{ background: c }} />
                   {svc}
                   <span className="flex-1" />
@@ -370,11 +411,17 @@ export default function Metrics() {
             )
           })}
         </div>
+
+        {/* sidebar footer — streaming status */}
+        <div className="px-3 py-2 border-t border-border bg-[var(--surface2)] font-mono text-[10px] text-muted-foreground flex gap-2.5 items-center shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_0_3px_color-mix(in_oklch,_#22c55e_30%,_transparent)]" />
+          <span>otlp/metrics · last {range}</span>
+        </div>
       </div>
 
       {/* main panel */}
-      <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
-        {series && selected ? <MainPanel series={series} /> : (
+      <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col bg-[var(--surface)]">
+        {series && selected ? <MainPanel series={series} range={range} onRangeChange={setRange} /> : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Select a metric</div>
         )}
       </div>
@@ -382,7 +429,7 @@ export default function Metrics() {
   )
 }
 
-function MainPanel({ series }: { series: MetricSeries }) {
+function MainPanel({ series, range, onRangeChange }: { series: MetricSeries; range: TimeRange; onRangeChange: (r: TimeRange) => void }) {
   const bucketed = useMemo(() => bucketPoints(series.points, series.type), [series])
   const stats = useMemo(() => statsFor(series, bucketed), [series, bucketed])
 
@@ -410,6 +457,26 @@ function MainPanel({ series }: { series: MetricSeries }) {
               style={{ fontFamily: 'var(--font-serif, serif)' }}
             >{series.description}</div>
           )}
+        </div>
+
+        {/* Range picker */}
+        <div className="inline-flex items-center gap-0.5 bg-[var(--surface2)] border border-border rounded-lg p-[3px] shrink-0" data-testid="range-picker">
+          {TIME_RANGES.map(r => {
+            const active = r === range
+            return (
+              <button
+                key={r}
+                type="button"
+                data-testid={`range-${r}`}
+                onClick={() => onRangeChange(r)}
+                className={`px-2.5 py-1 rounded-md font-mono text-[11px] cursor-pointer outline-none border transition-colors ${
+                  active
+                    ? 'bg-[var(--surface)] text-foreground border-border font-bold'
+                    : 'bg-transparent text-muted-foreground border-transparent font-medium hover:text-foreground'
+                }`}
+              >{r}</button>
+            )
+          })}
         </div>
       </div>
 

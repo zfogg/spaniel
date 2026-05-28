@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"net/http"
@@ -192,23 +191,22 @@ func TestCheckDuckDBVersion_OK(t *testing.T) {
 	}
 }
 
-// ── renderDoctor ─────────────────────────────────────────────────────────────
+// ── doctorModel View ─────────────────────────────────────────────────────────
 
-func TestRenderDoctor_CountsFailuresAndWarnings(t *testing.T) {
-	var buf bytes.Buffer
-	results := []checkResult{
+func TestDoctorModel_ViewShowsAllStatesAndSummary(t *testing.T) {
+	m := newDoctorModel([]checkSpec{
+		{Name: "a"}, {Name: "b"}, {Name: "c"}, {Name: "d"},
+	})
+	m.results = []checkResult{
 		{Name: "a", Status: checkOK, Detail: "x"},
 		{Name: "b", Status: checkWarn, Detail: "x", Hint: "be careful"},
 		{Name: "c", Status: checkFail, Detail: "x", Hint: "fix me"},
 		{Name: "d", Status: checkFail, Detail: "x"},
 	}
-	fails := renderDoctor(&buf, results)
-	if fails != 2 {
-		t.Errorf("fails = %d, want 2", fails)
-	}
-	out := buf.String()
+	m.done = len(m.results)
+	out := m.View()
 	if !strings.Contains(out, "✓") || !strings.Contains(out, "⚠") || !strings.Contains(out, "✗") {
-		t.Errorf("output should contain all three glyphs, got:\n%s", out)
+		t.Errorf("view should contain all three glyphs, got:\n%s", out)
 	}
 	if !strings.Contains(out, "2 failure") || !strings.Contains(out, "1 warning") {
 		t.Errorf("summary line missing, got:\n%s", out)
@@ -218,14 +216,12 @@ func TestRenderDoctor_CountsFailuresAndWarnings(t *testing.T) {
 	}
 }
 
-func TestRenderDoctor_AllGreen(t *testing.T) {
-	var buf bytes.Buffer
-	fails := renderDoctor(&buf, []checkResult{{Name: "a", Status: checkOK, Detail: "x"}})
-	if fails != 0 {
-		t.Errorf("fails = %d, want 0", fails)
-	}
-	if !strings.Contains(buf.String(), "all checks passed") {
-		t.Errorf("missing happy-path summary, got:\n%s", buf.String())
+func TestDoctorModel_ViewAllGreen(t *testing.T) {
+	m := newDoctorModel([]checkSpec{{Name: "a"}})
+	m.results = []checkResult{{Name: "a", Status: checkOK, Detail: "x"}}
+	m.done = 1
+	if !strings.Contains(m.View(), "all checks passed") {
+		t.Errorf("missing happy-path summary:\n%s", m.View())
 	}
 }
 
@@ -238,7 +234,6 @@ func TestRunDoctor_SmokeOnTempDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Find a free port pair so the port checks have a chance of passing.
 	free := func() int {
 		ln, _ := net.Listen("tcp", ":0")
 		p := ln.Addr().(*net.TCPAddr).Port
@@ -247,23 +242,19 @@ func TestRunDoctor_SmokeOnTempDirs(t *testing.T) {
 	}
 
 	results := runDoctor(doctorContext{
-		ConfigPath: cfg,
-		DBPath:     filepath.Join(dir, "spaniel.duckdb"),
-		UIPort:     free(),
+		ConfigPath:   cfg,
+		DBPath:       filepath.Join(dir, "spaniel.duckdb"),
+		UIPort:       free(),
 		OTLPGRPCPort: free(),
 		OTLPHTTPPort: free(),
-		Forward:    nil,
-		Offline:    true, // don't depend on the network in CI
+		Forward:      nil,
+		Offline:      true,
 	})
-
-	// Print results so failures surface with full context.
-	var buf bytes.Buffer
-	renderDoctor(&buf, results)
 
 	for _, r := range results {
 		if r.Status == checkFail {
-			t.Errorf("unexpected FAIL in runDoctor:\n  %s — %s\n  hint: %s\n\nfull output:\n%s",
-				r.Name, r.Detail, r.Hint, buf.String())
+			t.Errorf("unexpected FAIL in runDoctor: %s — %s\n  hint: %s",
+				r.Name, r.Detail, r.Hint)
 		}
 	}
 }

@@ -12,9 +12,6 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
-// diffStub serves /api/sessions (label→id resolution) and /api/diff with a
-// canned DiffResult. recordedQuery captures the last /api/diff query string
-// so tests can assert the resolved ids reached the server.
 type diffStub struct {
 	server         *httptest.Server
 	recordedQuery  string
@@ -38,9 +35,6 @@ func newDiffStub(t *testing.T, sessions []storage.Session, result api.DiffResult
 	return s
 }
 
-// sampleDiff returns a fixture matching the mockup's example output. The
-// summary counters are set so the gate would NOT trip at default thresholds
-// — gate-tripping tests override them below.
 func sampleDiff() api.DiffResult {
 	return api.DiffResult{
 		Baseline: api.DiffSessionInfo{
@@ -54,12 +48,9 @@ func sampleDiff() api.DiffResult {
 		Summary: api.DiffSummary{
 			DurationDeltaNs:  -140_000_000,
 			DurationDeltaPct: -23.0,
-			// SpansAdded kept at zero so the default fixture passes the gate.
-			// pickNames() in printDiffSummary uses span.Status, not this counter,
-			// so the rendered "added: 1" line still shows up.
-			SpansAdded:   0,
-			SpansRemoved: 0,
-			DBCallDelta:  -4,
+			SpansAdded:       0,
+			SpansRemoved:     0,
+			DBCallDelta:      -4,
 		},
 		Spans: []api.DiffSpan{
 			{Name: "payment.Charge", ServiceName: "payment-service", Status: "changed",
@@ -72,40 +63,6 @@ func sampleDiff() api.DiffResult {
 	}
 }
 
-func TestRunDiff_HumanSummary(t *testing.T) {
-	stub := newDiffStub(t, []storage.Session{
-		{ID: "88d15f24b1234567890abcde", Label: "main"},
-		{ID: "9ef3d19eb1234567890fedcba", Label: "feat/checkout"},
-	}, sampleDiff())
-
-	var buf bytes.Buffer
-	// Threshold = 100 so the 10.4% regressed span does NOT trip the gate.
-	err := runDiff(stub.server.URL, "main", "feat/checkout", 100, false, &buf)
-	if err != nil {
-		t.Fatalf("runDiff: %v", err)
-	}
-
-	out := buf.String()
-	for _, want := range []string{
-		"baseline:", "main", "612.0ms",
-		"compare:",  "feat/checkout", "472.0ms",
-		"summary:", "-23.0%", "-4",
-		"regressed:", "payment-service · payment.Charge", "+10.4%",
-		"added: 1", "POST /api/checkout/confirm",
-		"removed: 1", "pricing.Quote.child1",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("summary missing %q\n--- got ---\n%s", want, out)
-		}
-	}
-
-	// Label refs must be resolved to ids before hitting /api/diff.
-	if !strings.Contains(stub.recordedQuery, "baseline=88d15f24b1234567890abcde") ||
-		!strings.Contains(stub.recordedQuery, "compare=9ef3d19eb1234567890fedcba") {
-		t.Errorf("diff query did not carry resolved ids: %q", stub.recordedQuery)
-	}
-}
-
 func TestRunDiff_JSONFormat(t *testing.T) {
 	stub := newDiffStub(t, []storage.Session{
 		{ID: "id-base", Label: "base"},
@@ -113,11 +70,9 @@ func TestRunDiff_JSONFormat(t *testing.T) {
 	}, sampleDiff())
 
 	var buf bytes.Buffer
-	err := runDiff(stub.server.URL, "id-base", "id-cmp", 100, true, &buf)
-	if err != nil {
+	if err := runDiff(stub.server.URL, "id-base", "id-cmp", 100, true, &buf); err != nil {
 		t.Fatalf("runDiff: %v", err)
 	}
-
 	var parsed api.DiffResult
 	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
 		t.Fatalf("--json output is not parseable: %v\n%s", err, buf.String())
@@ -127,45 +82,55 @@ func TestRunDiff_JSONFormat(t *testing.T) {
 	}
 }
 
-func TestRunDiff_GateTripsOnThreshold(t *testing.T) {
-	// Compare > baseline duration so DurationDeltaPct goes positive.
+func TestRunDiff_JSONResolvesLabelsToIDs(t *testing.T) {
+	stub := newDiffStub(t, []storage.Session{
+		{ID: "88d15f24b1234567890abcde", Label: "main"},
+		{ID: "9ef3d19eb1234567890fedcba", Label: "feat/checkout"},
+	}, sampleDiff())
+
+	var buf bytes.Buffer
+	if err := runDiff(stub.server.URL, "main", "feat/checkout", 100, true, &buf); err != nil {
+		t.Fatalf("runDiff: %v", err)
+	}
+	if !strings.Contains(stub.recordedQuery, "baseline=88d15f24b1234567890abcde") ||
+		!strings.Contains(stub.recordedQuery, "compare=9ef3d19eb1234567890fedcba") {
+		t.Errorf("diff query did not carry resolved ids: %q", stub.recordedQuery)
+	}
+}
+
+func TestDiffFailsGate_Threshold(t *testing.T) {
+	r := sampleDiff()
+	r.Summary.DurationDeltaPct = 12.0
+	if !diffFailsGate(r, 5) {
+		t.Error("expected gate to trip when delta exceeds threshold")
+	}
+	if diffFailsGate(r, 50) {
+		t.Error("expected gate to pass when threshold is higher than delta")
+	}
+}
+
+func TestDiffFailsGate_SpansAdded(t *testing.T) {
+	r := sampleDiff()
+	r.Summary.DurationDeltaPct = 0
+	r.Summary.SpansAdded = 1
+	if !diffFailsGate(r, 100) {
+		t.Error("any spans_added > 0 should trip the gate")
+	}
+	r.Summary.SpansAdded = 0
+	if diffFailsGate(r, 100) {
+		t.Error("clean diff should not trip the gate")
+	}
+}
+
+func TestRunDiff_JSONGateTrips(t *testing.T) {
 	d := sampleDiff()
 	d.Summary.DurationDeltaPct = 12.0
-	d.Summary.SpansAdded = 0
 	stub := newDiffStub(t, []storage.Session{
 		{ID: "a", Label: "a"}, {ID: "b", Label: "b"},
 	}, d)
-
-	err := runDiff(stub.server.URL, "a", "b", 5, false, &bytes.Buffer{})
+	err := runDiff(stub.server.URL, "a", "b", 5, true, &bytes.Buffer{})
 	if err != errDiffRegressed {
 		t.Errorf("threshold=5 vs delta=12: want errDiffRegressed, got %v", err)
-	}
-}
-
-func TestRunDiff_GateTripsOnAddedSpans(t *testing.T) {
-	d := sampleDiff()
-	d.Summary.DurationDeltaPct = 0
-	d.Summary.SpansAdded = 1
-	stub := newDiffStub(t, []storage.Session{
-		{ID: "a", Label: "a"}, {ID: "b", Label: "b"},
-	}, d)
-
-	err := runDiff(stub.server.URL, "a", "b", 50, false, &bytes.Buffer{})
-	if err != errDiffRegressed {
-		t.Errorf("spans_added>0 should trip gate, got %v", err)
-	}
-}
-
-func TestRunDiff_GatePassesWhenSafe(t *testing.T) {
-	d := sampleDiff()
-	d.Summary.DurationDeltaPct = -23.0
-	d.Summary.SpansAdded = 0
-	stub := newDiffStub(t, []storage.Session{
-		{ID: "a", Label: "a"}, {ID: "b", Label: "b"},
-	}, d)
-
-	if err := runDiff(stub.server.URL, "a", "b", 10, false, &bytes.Buffer{}); err != nil {
-		t.Errorf("safe diff should pass gate, got %v", err)
 	}
 }
 
@@ -181,7 +146,6 @@ func TestResolveSessionRef_UnknownRef(t *testing.T) {
 }
 
 func TestResolveSessionRef_IdMatchWinsOverLabel(t *testing.T) {
-	// Pathological setup: a session whose label equals another session's id.
 	stub := newDiffStub(t, []storage.Session{
 		{ID: "real-id", Label: "real-label"},
 		{ID: "decoy", Label: "real-id"},
@@ -197,20 +161,35 @@ func TestResolveSessionRef_IdMatchWinsOverLabel(t *testing.T) {
 }
 
 func TestRunDiff_MissingFlags(t *testing.T) {
-	err := runDiff("http://unused", "", "anything", 10, false, &bytes.Buffer{})
+	err := runDiff("http://unused", "", "anything", 10, true, &bytes.Buffer{})
 	if err == nil {
 		t.Errorf("expected error for empty baseline ref")
 	}
 }
 
+func TestDiffModel_ViewShowsRegressedAndAdded(t *testing.T) {
+	m := newDiffModel(sampleDiff())
+	out := m.View()
+	for _, want := range []string{
+		"main", "feat/checkout",
+		"payment-service", "payment.Charge",
+		"POST /api/checkout/confirm",
+		"pricing.Quote.child1",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("diff view missing %q\n--- got ---\n%s", want, out)
+		}
+	}
+}
+
 func TestFmtNs(t *testing.T) {
 	cases := map[int64]string{
-		0:                 "0ns",
-		999:               "999ns",
-		1_000:             "1.0µs",
-		1_500_000:         "1.5ms",
-		612_000_000:       "612.0ms",
-		1_840_000_000:     "1.84s",
+		0:             "0ns",
+		999:           "999ns",
+		1_000:         "1.0µs",
+		1_500_000:     "1.5ms",
+		612_000_000:   "612.0ms",
+		1_840_000_000: "1.84s",
 	}
 	for ns, want := range cases {
 		if got := fmtNs(ns); got != want {

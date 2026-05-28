@@ -195,7 +195,7 @@ function AppShell() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       <Chrome />
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden flex flex-col">
         <Routes>
           <Route path="/"                  element={<TraceList />}   />
           <Route path="/spans"             element={<Spans />}       />

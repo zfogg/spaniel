@@ -123,23 +123,32 @@ func (s *sessionStub) findRequest(method, path string) *recordedReq {
 
 // ── tests ──────────────────────────────────────────────────────────────────
 
-func TestSessionList_HitsSessionsEndpoint(t *testing.T) {
+func TestSessionListData_HitsSessionsEndpoint(t *testing.T) {
 	stub := newSessionStub(t, []storage.Session{
-		{ID: "sess-aaaaaaaaa", Label: "main",      IsBaseline: true,  TraceCount: 5, SpanCount: 24},
-		{ID: "sess-bbbbbbbbb", Label: "feat-foo",  IsImported: false, TraceCount: 2, SpanCount: 9},
+		{ID: "sess-aaaaaaaaa", Label: "main", IsBaseline: true, TraceCount: 5, SpanCount: 24},
+		{ID: "sess-bbbbbbbbb", Label: "feat-foo", IsImported: false, TraceCount: 2, SpanCount: 9},
 	}, "sess-aaaaaaaaa")
 
-	var buf bytes.Buffer
-	if err := sessionList(stub.server.URL, &buf); err != nil {
-		t.Fatalf("sessionList: %v", err)
+	sessions, activeID, err := sessionListData(stub.server.URL)
+	if err != nil {
+		t.Fatalf("sessionListData: %v", err)
 	}
 	if stub.findRequest("GET", "/api/sessions") == nil {
 		t.Errorf("expected GET /api/sessions")
 	}
-	out := buf.String()
+	if activeID != "sess-aaaaaaaaa" {
+		t.Errorf("activeID = %q, want sess-aaaaaaaaa", activeID)
+	}
+	if len(sessions) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(sessions))
+	}
+
+	// Drive the model's view rendering — independent of the HTTP layer.
+	m := newSessionListModel(sessions, activeID, stub.server.URL)
+	out := m.View()
 	for _, want := range []string{"main", "feat-foo", "baseline", "*"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q\n--- got ---\n%s", want, out)
+			t.Errorf("view missing %q\n--- got ---\n%s", want, out)
 		}
 	}
 }

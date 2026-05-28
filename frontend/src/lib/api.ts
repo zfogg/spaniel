@@ -216,7 +216,8 @@ export interface Settings {
   otlp_http_port: number
   no_browser: boolean
   forward: string[]
-  bind_address: string
+  bind_address_v4: string
+  bind_address_v6: string
   forward_sample: number
   runtime: SettingsRuntime
 }
@@ -231,7 +232,8 @@ export interface SettingsUpdate {
   otlp_http_port?: number
   no_browser?: boolean
   forward?: string[]
-  bind_address?: string
+  bind_address_v4?: string
+  bind_address_v6?: string
   forward_sample?: number
 }
 

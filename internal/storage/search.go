@@ -56,7 +56,8 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 	var results []*SearchResult
 
 	// ── Traces (spans grouped by trace_id) ───────────────────────────────────
-	traceRows, err := d.db.Query(`
+	var traces []*SearchResult
+	if err := d.gorm.Raw(`
 		SELECT
 			'trace'           AS kind,
 			trace_id,
@@ -75,22 +76,14 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 		GROUP BY trace_id
 		ORDER BY MAX(start_ns) DESC
 		LIMIT ?
-	`, sessionID, sessionID, pat, pat, tracePrefix, pat, quarter)
-	if err != nil {
+	`, sessionID, sessionID, pat, pat, tracePrefix, pat, quarter).Scan(&traces).Error; err != nil {
 		return nil, err
 	}
-	defer traceRows.Close()
-	for traceRows.Next() {
-		var r SearchResult
-		var spanID string
-		if err := traceRows.Scan(&r.Kind, &r.TraceID, &spanID, &r.Title, &r.Subtitle, &r.SessionID); err != nil {
-			continue
-		}
-		results = append(results, &r)
-	}
+	results = append(results, traces...)
 
 	// ── Spans (individual child spans) ────────────────────────────────────────
-	spanRows, err := d.db.Query(`
+	var spans []*SearchResult
+	if err := d.gorm.Raw(`
 		SELECT
 			'span'       AS kind,
 			trace_id,
@@ -107,21 +100,14 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 		  )
 		ORDER BY start_ns DESC
 		LIMIT ?
-	`, sessionID, sessionID, pat, pat, quarter)
-	if err != nil {
+	`, sessionID, sessionID, pat, pat, quarter).Scan(&spans).Error; err != nil {
 		return nil, err
 	}
-	defer spanRows.Close()
-	for spanRows.Next() {
-		var r SearchResult
-		if err := spanRows.Scan(&r.Kind, &r.TraceID, &r.SpanID, &r.Title, &r.Subtitle, &r.SessionID); err != nil {
-			continue
-		}
-		results = append(results, &r)
-	}
+	results = append(results, spans...)
 
 	// ── Sessions ──────────────────────────────────────────────────────────────
-	sessRows, err := d.db.Query(`
+	var sessions []*SearchResult
+	if err := d.gorm.Raw(`
 		SELECT
 			'session' AS kind,
 			''        AS trace_id,
@@ -133,21 +119,14 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 		WHERE label ILIKE ?
 		ORDER BY created_at DESC
 		LIMIT ?
-	`, pat, quarter)
-	if err != nil {
+	`, pat, quarter).Scan(&sessions).Error; err != nil {
 		return nil, err
 	}
-	defer sessRows.Close()
-	for sessRows.Next() {
-		var r SearchResult
-		if err := sessRows.Scan(&r.Kind, &r.TraceID, &r.SpanID, &r.Title, &r.Subtitle, &r.SessionID); err != nil {
-			continue
-		}
-		results = append(results, &r)
-	}
+	results = append(results, sessions...)
 
 	// ── Services ──────────────────────────────────────────────────────────────
-	svcRows, err := d.db.Query(`
+	var services []*SearchResult
+	if err := d.gorm.Raw(`
 		SELECT
 			'service'    AS kind,
 			''           AS trace_id,
@@ -161,21 +140,14 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 		GROUP BY service_name
 		ORDER BY COUNT(*) DESC
 		LIMIT ?
-	`, pat, sessionID, sessionID, quarter)
-	if err != nil {
+	`, pat, sessionID, sessionID, quarter).Scan(&services).Error; err != nil {
 		return nil, err
 	}
-	defer svcRows.Close()
-	for svcRows.Next() {
-		var r SearchResult
-		if err := svcRows.Scan(&r.Kind, &r.TraceID, &r.SpanID, &r.Title, &r.Subtitle, &r.SessionID); err != nil {
-			continue
-		}
-		results = append(results, &r)
-	}
+	results = append(results, services...)
 
 	// ── Logs ──────────────────────────────────────────────────────────────────
-	logRows, err := d.db.Query(`
+	var logs []*SearchResult
+	if err := d.gorm.Raw(`
 		SELECT
 			'log'              AS kind,
 			trace_id,
@@ -188,18 +160,10 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 		  AND body ILIKE ?
 		ORDER BY timestamp_ns DESC
 		LIMIT ?
-	`, sessionID, sessionID, pat, quarter)
-	if err != nil {
+	`, sessionID, sessionID, pat, quarter).Scan(&logs).Error; err != nil {
 		return nil, err
 	}
-	defer logRows.Close()
-	for logRows.Next() {
-		var r SearchResult
-		if err := logRows.Scan(&r.Kind, &r.TraceID, &r.SpanID, &r.Title, &r.Subtitle, &r.SessionID); err != nil {
-			continue
-		}
-		results = append(results, &r)
-	}
+	results = append(results, logs...)
 
 	return results, nil
 }
@@ -212,7 +176,13 @@ func (d *DB) searchLint(rule, sessionID string, limit int) ([]*SearchResult, err
 	var results []*SearchResult
 
 	if norm == "n+1" || norm == "n1" || norm == "n_plus_one" {
-		rows, err := d.db.Query(`
+		var rows []struct {
+			TraceID   string
+			Title     string
+			Count     int
+			SessionID string
+		}
+		if err := d.gorm.Raw(`
 			SELECT ti.trace_id,
 			       COALESCE(s.name, '(trace)') AS title,
 			       ti.count,
@@ -222,26 +192,29 @@ func (d *DB) searchLint(rule, sessionID string, limit int) ([]*SearchResult, err
 			WHERE ti.kind = 'n_plus_one'
 			  AND (? = '' OR ti.session_id = ?)
 			ORDER BY ti.wasted_ns DESC
-			LIMIT ?`, sessionID, sessionID, limit)
-		if err != nil {
+			LIMIT ?`, sessionID, sessionID, limit).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var r SearchResult
-			var count int
-			if err := rows.Scan(&r.TraceID, &r.Title, &count, &r.SessionID); err != nil {
-				continue
-			}
-			r.Kind = "trace"
-			r.Subtitle = fmt.Sprintf("N+1 · %d queries", count)
-			results = append(results, &r)
+		for _, row := range rows {
+			results = append(results, &SearchResult{
+				Kind:      "trace",
+				TraceID:   row.TraceID,
+				Title:     row.Title,
+				Subtitle:  fmt.Sprintf("N+1 · %d queries", row.Count),
+				SessionID: row.SessionID,
+			})
 		}
 		return results, nil
 	}
 
 	// Other lint rules: match lint_warnings.rule_id, grouped by trace.
-	rows, err := d.db.Query(`
+	var rows []struct {
+		TraceID   string
+		Title     string
+		RuleID    string
+		SessionID string
+	}
+	if err := d.gorm.Raw(`
 		SELECT lw.trace_id,
 		       COALESCE(MIN(s.name), '(trace)') AS title,
 		       MIN(lw.rule_id) AS rule_id,
@@ -252,20 +225,17 @@ func (d *DB) searchLint(rule, sessionID string, limit int) ([]*SearchResult, err
 		  AND (? = '' OR lw.session_id = ?)
 		  AND lw.trace_id != ''
 		GROUP BY lw.trace_id
-		LIMIT ?`, "%"+rule+"%", sessionID, sessionID, limit)
-	if err != nil {
+		LIMIT ?`, "%"+rule+"%", sessionID, sessionID, limit).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var r SearchResult
-		var ruleID string
-		if err := rows.Scan(&r.TraceID, &r.Title, &ruleID, &r.SessionID); err != nil {
-			continue
-		}
-		r.Kind = "trace"
-		r.Subtitle = "lint · " + ruleID
-		results = append(results, &r)
+	for _, row := range rows {
+		results = append(results, &SearchResult{
+			Kind:      "trace",
+			TraceID:   row.TraceID,
+			Title:     row.Title,
+			Subtitle:  "lint · " + row.RuleID,
+			SessionID: row.SessionID,
+		})
 	}
 	return results, nil
 }

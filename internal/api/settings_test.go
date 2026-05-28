@@ -196,23 +196,41 @@ func TestPutSettings_PartialUpdatesLeaveOthersAlone(t *testing.T) {
 
 func TestPutSettings_RejectsInvalidBind(t *testing.T) {
 	router, _, _ := newSettingsRouter(t)
-	for _, bad := range []string{"localhost", "1.2.3.4", "", "0.0.0.0:80"} {
-		w := putSettings(t, router, map[string]any{"bind_address": bad})
+	cases := []map[string]any{
+		{"bind_address_v4": "localhost"},   // not an IP
+		{"bind_address_v4": "0.0.0.0:80"},  // host:port, not a bare IP
+		{"bind_address_v4": "::1"},         // IPv6 in the v4 field
+		{"bind_address_v4": "999.1.1.1"},   // out of range
+		{"bind_address_v6": "127.0.0.1"},   // IPv4 in the v6 field
+		{"bind_address_v6": "not-an-addr"}, // garbage
+	}
+	for _, bad := range cases {
+		w := putSettings(t, router, bad)
 		if w.Code != http.StatusBadRequest {
-			t.Errorf("bind_address=%q should be rejected, got %d (body=%s)", bad, w.Code, w.Body.String())
+			t.Errorf("%v should be rejected, got %d (body=%s)", bad, w.Code, w.Body.String())
 		}
 	}
 }
 
 func TestPutSettings_AcceptsBindOptions(t *testing.T) {
-	for _, ok := range []string{"127.0.0.1", "0.0.0.0", "::1"} {
+	cases := []struct{ key, val string }{
+		{"bind_address_v4", "127.0.0.1"},
+		{"bind_address_v4", "0.0.0.0"},
+		{"bind_address_v4", "192.168.1.50"},
+		{"bind_address_v4", ""}, // empty disables IPv4
+		{"bind_address_v6", "::1"},
+		{"bind_address_v6", "::"},
+		{"bind_address_v6", "fe80::1"},
+		{"bind_address_v6", ""}, // empty disables IPv6
+	}
+	for _, c := range cases {
 		router, svc, _ := newSettingsRouter(t)
-		w := putSettings(t, router, map[string]any{"bind_address": ok})
+		w := putSettings(t, router, map[string]any{c.key: c.val})
 		if w.Code != http.StatusOK {
-			t.Errorf("bind_address=%q should be accepted, got %d (body=%s)", ok, w.Code, w.Body.String())
+			t.Errorf("%s=%q should be accepted, got %d (body=%s)", c.key, c.val, w.Code, w.Body.String())
 		}
-		if got := svc.Viper.GetString("bind_address"); got != ok {
-			t.Errorf("viper not mutated for bind_address=%q: got %q", ok, got)
+		if got := svc.Viper.GetString(c.key); got != c.val {
+			t.Errorf("viper not mutated for %s=%q: got %q", c.key, c.val, got)
 		}
 	}
 }

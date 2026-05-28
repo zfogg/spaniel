@@ -130,7 +130,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         <CommandInput
           value={query}
           onValueChange={setQuery}
-          placeholder="Search traces, spans, sessions, services, logs…"
+          placeholder="Search traces, spans, sessions, services, lints, logs…"
           className="flex h-11 w-full bg-transparent py-3 font-sans text-sm text-foreground placeholder:text-muted-foreground outline-none"
         />
         {loading && (
