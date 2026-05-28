@@ -63,6 +63,8 @@ type SettingsResponse struct {
 	BindAddressV4  string   `json:"bind_address_v4"`
 	BindAddressV6  string   `json:"bind_address_v6"`
 	ForwardSample  float64  `json:"forward_sample"`
+	SourceRPS      float64  `json:"source_rps"`
+	SourceBurst    int      `json:"source_burst"`
 	TLSEnabled     bool     `json:"tls_enabled"`
 	BearerTokenSet bool     `json:"bearer_token_set"`
 
@@ -96,6 +98,8 @@ type SettingsUpdate struct {
 	BindAddressV4 *string   `json:"bind_address_v4,omitempty"`
 	BindAddressV6 *string   `json:"bind_address_v6,omitempty"`
 	ForwardSample *float64  `json:"forward_sample,omitempty"`
+	SourceRPS     *float64  `json:"source_rps,omitempty"`
+	SourceBurst   *int      `json:"source_burst,omitempty"`
 }
 
 func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
@@ -157,6 +161,8 @@ func (r *Router) buildSettings() SettingsResponse {
 		BindAddressV4:  v.GetString("bind_address_v4"),
 		BindAddressV6:  v.GetString("bind_address_v6"),
 		ForwardSample:  v.GetFloat64("forward_sample"),
+		SourceRPS:      v.GetFloat64("source_rps"),
+		SourceBurst:    v.GetInt("source_burst"),
 		TLSEnabled:     s.TLSEnabled,
 		BearerTokenSet: s.BearerTokenSet,
 		Runtime: SettingsRuntime{
@@ -232,6 +238,12 @@ func validateSettings(u *SettingsUpdate) error {
 	if u.ForwardSample != nil && (*u.ForwardSample < 0 || *u.ForwardSample > 1) {
 		return fmt.Errorf("forward_sample must be between 0 and 1, got %v", *u.ForwardSample)
 	}
+	if u.SourceRPS != nil && *u.SourceRPS < 0 {
+		return fmt.Errorf("source_rps must be ≥ 0")
+	}
+	if u.SourceBurst != nil && *u.SourceBurst < 0 {
+		return fmt.Errorf("source_burst must be ≥ 0")
+	}
 	return nil
 }
 
@@ -275,6 +287,12 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if u.ForwardSample != nil {
 		s.Viper.Set("forward_sample", *u.ForwardSample)
 	}
+	if u.SourceRPS != nil {
+		s.Viper.Set("source_rps", *u.SourceRPS)
+	}
+	if u.SourceBurst != nil {
+		s.Viper.Set("source_burst", *u.SourceBurst)
+	}
 
 	if s.ConfigPath == "" {
 		// In-memory only (tests). Nothing to persist.
@@ -283,7 +301,7 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample"} {
+	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {

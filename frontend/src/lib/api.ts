@@ -246,6 +246,8 @@ export interface Settings {
   bind_address_v4: string
   bind_address_v6: string
   forward_sample: number
+  source_rps: number
+  source_burst: number
   tls_enabled: boolean
   bearer_token_set: boolean
   runtime: SettingsRuntime
@@ -264,6 +266,8 @@ export interface SettingsUpdate {
   bind_address_v4?: string
   bind_address_v6?: string
   forward_sample?: number
+  source_rps?: number
+  source_burst?: number
 }
 
 export interface SourceStats {

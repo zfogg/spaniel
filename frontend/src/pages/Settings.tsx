@@ -453,6 +453,20 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         <NumberBox value={s.max_sessions} onChange={v => mutate({ max_sessions: v })}
           min={0} max={10000} ariaLabel="max sessions" w={120} />
       </Row>
+      <Row label="Per-source rate limit"
+        hint="Max spans/sec accepted per service.name. Excess spans are dropped and counted in the Sources panel. 0 = unlimited."
+        testid="row-source-rps">
+        <NumberBox value={s.source_rps} onChange={v => mutate({ source_rps: v })}
+          min={0} max={1000000} step={0.1} ariaLabel="source rps" w={120} />
+        <span className="font-mono text-[11px] text-muted-foreground">spans / s&nbsp;&nbsp;(0 = unlimited)</span>
+      </Row>
+      <Row label="Per-source burst"
+        hint="Token bucket capacity per service. Allows short spikes above the rate limit. 0 = rate limit × 5."
+        testid="row-source-burst">
+        <NumberBox value={s.source_burst} onChange={v => mutate({ source_burst: v })}
+          min={0} max={1000000} ariaLabel="source burst" w={120} />
+        <span className="font-mono text-[11px] text-muted-foreground">spans&nbsp;&nbsp;(0 = rps × 5)</span>
+      </Row>
       <Row label="Storage usage"
         hint={`Currently ${fmtMB(s.runtime.db_size_bytes)} on disk.`}
         testid="row-usage">
