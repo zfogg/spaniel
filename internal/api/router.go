@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
@@ -70,17 +70,16 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
 	mux.Use(corsMiddleware)
+	// Manual span creation for each request - bypass otelhttp to test tracer directly
 	mux.Use(func(next http.Handler) http.Handler {
-		return otelhttp.NewHandler(next, "spaniel.api",
-			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				if rctx := chi.RouteContext(r.Context()); rctx != nil {
-					if p := rctx.RoutePattern(); p != "" {
-						return r.Method + " " + p
-					}
-				}
-				return r.Method + " " + r.URL.Path
-			}),
-		)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tp := otel.GetTracerProvider()
+			tracer := tp.Tracer("spaniel.api")
+			spanName := r.Method + " " + r.URL.Path
+			ctx, span := tracer.Start(r.Context(), spanName)
+			defer span.End()
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	})
 
 	mux.Get("/api/health", r.health)
