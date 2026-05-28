@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
@@ -457,12 +458,15 @@ func run(cfg runConfig) error {
 		Endpoint:    cfg.SelfTelemetryEndpoint,
 		ServiceName: cfg.SelfTelemetryService,
 		Version:     version,
+		DBPath:      cfg.DBPath,
 		Insecure:    cfg.SelfTelemetryInsecure,
 	})
 	if err != nil {
 		return fmt.Errorf("self-telemetry setup: %w", err)
 	}
 	defer otelShutdown(context.Background()) //nolint:errcheck
+
+	startCtx, startSpan := otel.Tracer("spaniel").Start(context.Background(), "spaniel.startup")
 
 	store, err := storage.Open(cfg.DBPath)
 	if err != nil {
@@ -693,6 +697,8 @@ func run(cfg runConfig) error {
 		mainHandler = receiver.APIBearerMiddleware(cfg.BearerToken)(mainHandler)
 	}
 
+	startSpan.End()
+	_ = startCtx
 	printBanner(cfg)
 
 	scheme := "http"

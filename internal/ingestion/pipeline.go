@@ -55,7 +55,7 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		metric.WithDescription("Database write operation latency"),
 		metric.WithUnit("ms"),
 	)
-	return &Pipeline{
+	p := &Pipeline{
 		store:         store,
 		hub:           hub,
 		tp:            newThroughputCounter(),
@@ -66,6 +66,22 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		ingestCounter: counter,
 		dbLatency:     dbHist,
 	}
+	// Observable gauge wrapping the sampler's atomic drop counters so they
+	// appear as spaniel.sampler.dropped{signal=spans/logs/metrics} in metrics.
+	_, _ = meter.Int64ObservableCounter("spaniel.sampler.dropped",
+		metric.WithDescription("Total signals dropped by the sampler or rate limiter"),
+		metric.WithUnit("{signal}"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			o.Observe(p.sampler.Counters.DroppedSpansTotal(),
+				metric.WithAttributes(attribute.String("signal", "spans")))
+			o.Observe(p.sampler.Counters.DroppedLogsTotal(),
+				metric.WithAttributes(attribute.String("signal", "logs")))
+			o.Observe(p.sampler.Counters.DroppedMetricPointsTotal(),
+				metric.WithAttributes(attribute.String("signal", "metrics")))
+			return nil
+		}),
+	)
+	return p
 }
 
 // Sources returns a per-second stats snapshot for every source seen.
@@ -89,6 +105,8 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 	sessionLabel := p.store.ActiveSessionLabel()
 
 	spansSeen := 0
+	var droppedRateLimit, droppedSampled, clockSkewFuture, clockSkewPast int
+	now := time.Now().UnixNano()
 	defer func() { p.tp.addSpans(spansSeen) }()
 
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
@@ -100,6 +118,18 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 			ss := rs.ScopeSpans().At(j)
 			for k := 0; k < ss.Spans().Len(); k++ {
 				span := ss.Spans().At(k)
+
+				// Clock skew detection: flag spans timestamped far in the future
+				// (sender clock ahead) or more than 24h in the past (stale data).
+				if startNs := int64(span.StartTimestamp()); startNs > 0 {
+					const minAhead = 60_000_000_000      // 1 minute
+					const maxBehind = 86400_000_000_000  // 24 hours
+					if startNs > now+minAhead {
+						clockSkewFuture++
+					} else if now-startNs > maxBehind {
+						clockSkewPast++
+					}
+				}
 
 				s := &storage.Span{
 					TraceID:       span.TraceID().String(),
@@ -157,6 +187,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				spanBytes := int64(len(s.Attributes) + len(s.Resource) + len(s.Name))
 				if !p.limiter.Allow(svcName, s.StatusCode == 2, spanBytes) {
 					p.sampler.Counters.bumpSpans(1)
+					droppedRateLimit++
 					continue
 				}
 
@@ -169,6 +200,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				// Fast path: per-span decision.
 				if !p.sampler.DecideSpan(s) {
 					p.sampler.Counters.bumpSpans(1)
+					droppedSampled++
 					continue
 				}
 
@@ -216,6 +248,18 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 	}
 	p.ingestCounter.Add(ctx, int64(spansSeen), metric.WithAttributes(attribute.String("signal", "traces")))
 	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", spansSeen))
+	if droppedRateLimit > 0 || droppedSampled > 0 {
+		ingestSpan.AddEvent("spans.dropped", trace.WithAttributes(
+			attribute.Int("dropped.rate_limited", droppedRateLimit),
+			attribute.Int("dropped.sampled", droppedSampled),
+		))
+	}
+	if clockSkewFuture > 0 || clockSkewPast > 0 {
+		ingestSpan.AddEvent("spans.clock_skew", trace.WithAttributes(
+			attribute.Int("skew.future_count", clockSkewFuture),
+			attribute.Int("skew.past_24h_count", clockSkewPast),
+		))
+	}
 	return nil
 }
 

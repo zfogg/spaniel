@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
 )
@@ -56,6 +59,25 @@ type Forwarder struct {
 	client    *http.Client
 	sample    float64
 	rand      func() float64
+}
+
+// registerForwarderMetrics registers an observable gauge for spool queue depth
+// across all upstreams. Only meaningful when spools are configured.
+func registerForwarderMetrics(upstreams []*upstream) {
+	meter := otel.Meter("spaniel/forwarder")
+	_, _ = meter.Int64ObservableGauge("spaniel.forwarder.queue_bytes",
+		metric.WithDescription("Pending bytes in each upstream's spool queue"),
+		metric.WithUnit("By"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			for _, up := range upstreams {
+				if up.sp != nil {
+					o.Observe(up.sp.pendingBytes(),
+						metric.WithAttributes(attribute.String("upstream", up.url)))
+				}
+			}
+			return nil
+		}),
+	)
 }
 
 // New returns a Forwarder in fire-and-forget mode (no spool, no retry).
@@ -113,6 +135,7 @@ func NewWithSpool(urls []string, sample float64, sc SpoolConfig) *Forwarder {
 			goroutine.Go(func() { f.runLoop(up, sc.RetryMax) }, "subsystem", "forwarder", "upstream", up.url)
 		}
 	}
+	registerForwarderMetrics(ups)
 	return f
 }
 

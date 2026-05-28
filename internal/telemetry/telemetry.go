@@ -8,12 +8,14 @@ import (
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	goruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
-	"go.opentelemetry.io/otel/sdk/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/exemplar"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -28,11 +30,13 @@ type Config struct {
 	Endpoint    string
 	ServiceName string
 	Version     string
+	DBPath      string // included as spaniel.db_path resource attribute
 	Insecure    bool
 }
 
 // Setup initialises the global TracerProvider, MeterProvider, and LoggerProvider,
-// installs Go runtime metrics, and wires slog to the OTel log bridge.
+// installs Go runtime metrics, enables exemplar collection on all histograms,
+// and wires slog to the OTel log bridge.
 // If cfg.Endpoint is empty, no-op providers are installed so instrumented
 // code continues to compile and run with zero overhead.
 // The returned shutdown func must be called on process exit to flush spans.
@@ -50,11 +54,20 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
+	// Build a rich resource: SDK info, host, OS, process, and Spaniel-specific attrs.
+	attrs := []attribute.KeyValue{
+		semconv.ServiceName(cfg.ServiceName),
+		semconv.ServiceVersion(cfg.Version),
+	}
+	if cfg.DBPath != "" {
+		attrs = append(attrs, semconv.DBNamespaceKey.String(cfg.DBPath))
+	}
 	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			semconv.ServiceName(cfg.ServiceName),
-			semconv.ServiceVersion(cfg.Version),
-		),
+		resource.WithTelemetrySDK(),
+		resource.WithHost(),
+		resource.WithOS(),
+		resource.WithProcess(),
+		resource.WithAttributes(attrs...),
 	)
 	if err != nil {
 		return nil, err
@@ -77,7 +90,8 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	otel.SetTracerProvider(tp)
 	shutdownFuncs = append(shutdownFuncs, tp.Shutdown)
 
-	// Metrics
+	// Metrics — AlwaysOnFilter attaches trace exemplars to every histogram
+	// bucket, linking latency percentiles to the specific traces that caused them.
 	metricExporter, err := otlpmetricgrpc.New(ctx,
 		otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
 		otlpmetricgrpc.WithDialOption(dialOpts...),
@@ -86,14 +100,15 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		_ = tp.Shutdown(ctx)
 		return nil, err
 	}
-	mp := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(metricExporter)),
-		metric.WithResource(res),
+	mp := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
+		sdkmetric.WithResource(res),
+		sdkmetric.WithExemplarFilter(exemplar.AlwaysOnFilter),
 	)
 	otel.SetMeterProvider(mp)
 	shutdownFuncs = append(shutdownFuncs, mp.Shutdown)
 
-	// Go runtime metrics (goroutine count, heap alloc, GC pause, etc.)
+	// Go runtime metrics: goroutines, heap alloc, GC pause, thread count.
 	if err := goruntime.Start(); err != nil {
 		_ = tp.Shutdown(ctx)
 		_ = mp.Shutdown(ctx)
@@ -117,7 +132,8 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	global.SetLoggerProvider(lp)
 	shutdownFuncs = append(shutdownFuncs, lp.Shutdown)
 
-	// Wire slog to the OTel log bridge so all slog output goes to the log provider.
+	// Wire slog to the OTel log bridge so all slog output is exported as
+	// OTel log records and shows up in Spaniel's own Logs tab when dogfooding.
 	slog.SetDefault(slog.New(otelslog.NewHandler("spaniel")))
 
 	shutdown = func(ctx context.Context) error {

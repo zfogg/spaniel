@@ -1,12 +1,35 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"os"
+	"log/slog"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/zfogg/spaniel/internal/storage"
 )
+
+var (
+	retentionDeletedCounter metric.Int64Counter
+	retentionDurationHist   metric.Float64Histogram
+)
+
+func init() {
+	meter := otel.Meter("spaniel/retention")
+	retentionDeletedCounter, _ = meter.Int64Counter("spaniel.retention.deleted_sessions",
+		metric.WithDescription("Sessions deleted by the retention policy"),
+		metric.WithUnit("{session}"),
+	)
+	retentionDurationHist, _ = meter.Float64Histogram("spaniel.retention.duration",
+		metric.WithDescription("Time taken to run a retention policy pass"),
+		metric.WithUnit("ms"),
+	)
+}
 
 func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig {
 	cfg := storage.RetentionConfig{
@@ -25,17 +48,40 @@ func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig
 // lifetime of the process. Errors are logged but never fatal.
 func runRetention(store *storage.DB, cfg storage.RetentionConfig, activeID string) {
 	apply := func() {
+		ctx, span := otel.Tracer("spaniel/retention").Start(context.Background(), "retention.prune")
+		t0 := time.Now()
 		res, err := store.Prune(cfg, activeID)
+		retentionDurationHist.Record(ctx, float64(time.Since(t0).Milliseconds()))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "retention: %v\n", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
+			slog.Error("retention prune failed", "err", err)
 			return
 		}
-		if res.DeletedByAge+res.DeletedByCount+res.DeletedBySize > 0 {
-			fmt.Fprintf(os.Stderr,
-				"retention: deleted %d sessions (age=%d count=%d size=%d) → %d remain, %.1f MB\n",
-				res.DeletedByAge+res.DeletedByCount+res.DeletedBySize,
-				res.DeletedByAge, res.DeletedByCount, res.DeletedBySize,
-				res.FinalSessions, float64(res.FinalDBSizeBytes)/1024/1024,
+		deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
+		span.SetAttributes(
+			attribute.Int("retention.deleted_by_age", res.DeletedByAge),
+			attribute.Int("retention.deleted_by_count", res.DeletedByCount),
+			attribute.Int("retention.deleted_by_size", res.DeletedBySize),
+			attribute.Int("retention.final_sessions", res.FinalSessions),
+			attribute.Int64("retention.final_db_bytes", res.FinalDBSizeBytes),
+		)
+		span.End()
+		if deleted > 0 {
+			retentionDeletedCounter.Add(ctx, int64(res.DeletedByAge),
+				metric.WithAttributes(attribute.String("reason", "age")))
+			retentionDeletedCounter.Add(ctx, int64(res.DeletedByCount),
+				metric.WithAttributes(attribute.String("reason", "count")))
+			retentionDeletedCounter.Add(ctx, int64(res.DeletedBySize),
+				metric.WithAttributes(attribute.String("reason", "size")))
+			slog.Info("retention pruned sessions",
+				"deleted", deleted,
+				"by_age", res.DeletedByAge,
+				"by_count", res.DeletedByCount,
+				"by_size", res.DeletedBySize,
+				"remaining", res.FinalSessions,
+				"db_mb", float64(res.FinalDBSizeBytes)/1024/1024,
 			)
 		}
 	}

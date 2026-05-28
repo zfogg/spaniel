@@ -265,6 +265,8 @@ func Open(path string) (*DB, error) {
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+	_ = g.Use(newGORMPlugin())
+	registerDBSizeGauge(path)
 	return d, nil
 }
 
