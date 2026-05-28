@@ -71,19 +71,16 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Use(middleware.Recoverer)
 	mux.Use(corsMiddleware)
 	mux.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			handler := otelhttp.NewHandler(next, "spaniel.api",
-				otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-					if rctx := chi.RouteContext(r.Context()); rctx != nil {
-						if p := rctx.RoutePattern(); p != "" {
-							return r.Method + " " + p
-						}
+		return otelhttp.NewHandler(next, "spaniel.api",
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				if rctx := chi.RouteContext(r.Context()); rctx != nil {
+					if p := rctx.RoutePattern(); p != "" {
+						return r.Method + " " + p
 					}
-					return r.Method + " " + r.URL.Path
-				}),
-			)
-			handler.ServeHTTP(w, r)
-		})
+				}
+				return r.Method + " " + r.URL.Path
+			}),
+		)
 	})
 
 	mux.Get("/api/health", r.health)
