@@ -194,3 +194,63 @@ func TestPipelineScheduleDetectors_DebouncesRapidArrivals(t *testing.T) {
 		t.Errorf("expected 1 debounced timer for trace, got %d", count)
 	}
 }
+
+func TestPipelineIngestTraces_SpanEventsPersisted(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("events-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	p := NewPipeline(db, ws.NewHub())
+	td := makeTraces("svc", func(ss ptrace.ScopeSpans) {
+		s := ss.Spans().AppendEmpty()
+		var tid pcommon.TraceID
+		var sid pcommon.SpanID
+		copy(tid[:], []byte(strings.Repeat("e", 16))[:16])
+		copy(sid[:], []byte(strings.Repeat("E", 8))[:8])
+		s.SetTraceID(tid)
+		s.SetSpanID(sid)
+		s.SetName("GET /things")
+		s.SetKind(ptrace.SpanKindServer)
+		s.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+		s.SetEndTimestamp(pcommon.Timestamp(1_500_000_000))
+
+		// Three events on this span — one plain, one with an attribute,
+		// and one canonical OTel "exception" event.
+		e1 := s.Events().AppendEmpty()
+		e1.SetTimestamp(pcommon.Timestamp(1_000_400_000))
+		e1.SetName("pg.connection.acquired")
+
+		e2 := s.Events().AppendEmpty()
+		e2.SetTimestamp(pcommon.Timestamp(1_006_100_000))
+		e2.SetName("pg.row.fetched")
+		e2.Attributes().PutInt("rows", 1)
+
+		e3 := s.Events().AppendEmpty()
+		e3.SetTimestamp(pcommon.Timestamp(1_007_800_000))
+		e3.SetName("exception")
+		e3.Attributes().PutStr("exception.type", "DBError")
+		e3.Attributes().PutStr("exception.message", "deadlock detected")
+		e3.Attributes().PutStr("exception.stacktrace", "at L1\nat L2")
+	})
+	if err := p.IngestTraces(context.Background(), td); err != nil {
+		t.Fatalf("IngestTraces: %v", err)
+	}
+
+	spanIDStr := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SpanID().String()
+	events, err := db.ListEventsBySpan(spanIDStr)
+	if err != nil {
+		t.Fatalf("ListEventsBySpan: %v", err)
+	}
+	if len(events) != 3 {
+		t.Fatalf("want 3 events, got %d", len(events))
+	}
+	if events[0].Name != "pg.connection.acquired" || events[0].TimeNs != 1_000_400_000 {
+		t.Errorf("event[0] wrong: %+v", events[0])
+	}
+	if events[1].Name != "pg.row.fetched" || !strings.Contains(events[1].Attributes, `"rows":1`) {
+		t.Errorf("event[1] wrong: %+v", events[1])
+	}
+	if events[2].Name != "exception" || !strings.Contains(events[2].Attributes, "exception.stacktrace") {
+		t.Errorf("event[2] (exception) wrong: %+v", events[2])
+	}
+}

@@ -80,6 +80,8 @@ interface Fixture {
     session_id: string
     received_at: number
   }>
+  // Optional events keyed by span_id; the /api/spans/:id stub merges them in.
+  spanEvents?: Record<string, Array<{ time_ns: number; name: string; attributes: string }>>
 }
 
 async function stubBackend(page: Page, fx: Fixture) {
@@ -107,6 +109,16 @@ async function stubBackend(page: Page, fx: Fixture) {
     if (pathname === '/api/traces')
       return json(r, [])
 
+    // GET /api/spans/:id — used by the inspector to fetch span events.
+    if (pathname.startsWith('/api/spans/')) {
+      const id = pathname.slice('/api/spans/'.length)
+      const base = (fx.spans ?? []).find(s => s.span_id === id)
+      if (!base) return json(r, null)
+      const events = (fx.spanEvents?.[id] ?? []).map(e => ({
+        span_id: id, trace_id: base.trace_id, session_id: base.session_id, ...e,
+      }))
+      return json(r, { ...base, events })
+    }
     if (pathname.startsWith('/api/lint'))
       return json(r, fx.warnings ?? [])
     if (pathname.startsWith('/api/issues'))
@@ -256,6 +268,43 @@ test.describe('Trace detail page', () => {
     await page.getByRole('button', { name: 'logs', exact: true }).click()
 
     await expect(page.getByText('slow query: SELECT * FROM items')).toBeVisible()
+  })
+
+  test('inspector renders span events with relative timestamps + exception stack', async ({ page }) => {
+    const { spans } = makeTrace()
+    // db1 starts at +20ms (20_000_000 ns) into the trace; events are offsets from that.
+    const db1Start = 20_000_000
+    await stubBackend(page, {
+      spans,
+      spanEvents: {
+        db1: [
+          { time_ns: db1Start + 400_000,    name: 'pg.connection.acquired', attributes: '{}' },
+          { time_ns: db1Start + 6_100_000,  name: 'pg.row.fetched',         attributes: '{"rows":1}' },
+          { time_ns: db1Start + 7_800_000,  name: 'exception',
+            attributes: JSON.stringify({
+              'exception.type':       'DBError',
+              'exception.message':    'deadlock detected',
+              'exception.stacktrace': 'at queryRow (db.go:42)\nat fetchItem (svc.go:17)',
+            }),
+          },
+        ],
+      },
+    })
+    await page.goto(`/traces/${TRACE_ID}`)
+    await page.getByText('SELECT items', { exact: true }).click()
+
+    const events = page.getByTestId('span-events')
+    await expect(events).toBeVisible()
+    await expect(events.getByText('pg.connection.acquired')).toBeVisible()
+    await expect(events.getByText('pg.row.fetched')).toBeVisible()
+    await expect(events.getByText('+0.4ms')).toBeVisible()
+    await expect(events.getByText('+6.1ms')).toBeVisible()
+    await expect(events.getByText('+7.8ms')).toBeVisible()
+    await expect(events.getByText('rows=1')).toBeVisible()
+
+    // Exception event renders the stack trace verbatim in a <pre>.
+    await expect(events.getByText('exception').first()).toBeVisible()
+    await expect(events.getByText(/at queryRow \(db\.go:42\)/)).toBeVisible()
   })
 
   test('?spanId= deep-link pre-selects the span on load', async ({ page }) => {

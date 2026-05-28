@@ -68,6 +68,27 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					return err
 				}
 
+				// Persist span events. Exception events keep their canonical
+				// exception.* attributes (mapToJSON preserves the whole map),
+				// so the frontend can render a stack trace from them.
+				if span.Events().Len() > 0 {
+					events := make([]*storage.SpanEvent, 0, span.Events().Len())
+					for ei := 0; ei < span.Events().Len(); ei++ {
+						ev := span.Events().At(ei)
+						events = append(events, &storage.SpanEvent{
+							SpanID:     s.SpanID,
+							TraceID:    s.TraceID,
+							SessionID:  sessionID,
+							TimeNs:     int64(ev.Timestamp()),
+							Name:       ev.Name(),
+							Attributes: mapToJSON(ev.Attributes()),
+						})
+					}
+					if err := p.store.InsertSpanEvents(events); err != nil {
+						return err
+					}
+				}
+
 				go lintSpan(s, sessionID, p.store)
 
 				p.hub.Broadcast(&ws.SpanEvent{

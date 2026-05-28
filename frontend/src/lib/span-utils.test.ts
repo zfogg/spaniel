@@ -39,6 +39,7 @@ function makeSpan(id: string, parentId = ''): Span {
     status_code: 0, status_message: '',
     attributes: '{}', resource: '{}',
     session_id: '', session_label: '', received_at: 0,
+    events: [],
   }
 }
 

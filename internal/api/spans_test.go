@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/zfogg/spaniel/internal/storage"
@@ -227,5 +228,77 @@ func TestListSpans_TagPriorityN1OverSlow(t *testing.T) {
 	tag, _ := data[0]["tag"].(string)
 	if tag != "n+1" {
 		t.Errorf("expected tag=n+1 to take priority over slow, got %q", tag)
+	}
+}
+
+// TestGetSpan_EventsIsEmptyArrayWhenNone — a span with no events must still
+// serialize the field as [], never null, so the frontend type can be a
+// non-optional SpanEvent[].
+func TestGetSpan_EventsIsEmptyArrayWhenNone(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-empty", "span-empty", "", "svc", "noop")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spans/span-empty", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"events":[]`) {
+		t.Errorf("expected `\"events\":[]` in response, got: %s", w.Body.String())
+	}
+}
+
+// TestGetSpan_IncludesEvents verifies that GET /api/spans/:id surfaces the
+// span's stored events so the inspector doesn't need a second round-trip.
+func TestGetSpan_IncludesEvents(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-evt", "span-evt", "", "svc", "GET /things")
+
+	// Two events, including one canonical exception event.
+	now := int64(1_000_000_000)
+	if err := store.InsertSpanEvents([]*storage.SpanEvent{
+		{SpanID: "span-evt", TraceID: "trace-evt", SessionID: "sess-1",
+			TimeNs: now + 400_000, Name: "pg.connection.acquired", Attributes: "{}"},
+		{SpanID: "span-evt", TraceID: "trace-evt", SessionID: "sess-1",
+			TimeNs: now + 7_800_000, Name: "exception",
+			Attributes: `{"exception.type":"DBError","exception.message":"deadlock","exception.stacktrace":"at L1\nat L2"}`},
+	}); err != nil {
+		t.Fatalf("InsertSpanEvents: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spans/span-evt", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data struct {
+			SpanID string                  `json:"span_id"`
+			Events []map[string]any        `json:"events"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if resp.Data.SpanID != "span-evt" {
+		t.Errorf("span_id: want span-evt, got %q", resp.Data.SpanID)
+	}
+	if len(resp.Data.Events) != 2 {
+		t.Fatalf("events: want 2, got %d (%v)", len(resp.Data.Events), resp.Data.Events)
+	}
+	// Time order is enforced by ListEventsBySpan; first event should be the earlier one.
+	if got, _ := resp.Data.Events[0]["name"].(string); got != "pg.connection.acquired" {
+		t.Errorf("event[0].name: want pg.connection.acquired, got %q", got)
+	}
+	if got, _ := resp.Data.Events[1]["name"].(string); got != "exception" {
+		t.Errorf("event[1].name: want exception, got %q", got)
+	}
+	// exception attributes should be preserved verbatim in the JSON string field.
+	attrs := fmt.Sprint(resp.Data.Events[1]["attributes"])
+	if !strings.Contains(attrs, "exception.stacktrace") {
+		t.Errorf("expected exception.stacktrace in event attrs, got %q", attrs)
 	}
 }

@@ -47,6 +47,15 @@ export interface TraceIssue {
   created_at: number
 }
 
+export interface SpanEvent {
+  span_id: string
+  trace_id: string
+  session_id: string
+  time_ns: number
+  name: string
+  attributes: string
+}
+
 export interface Span {
   trace_id: string
   span_id: string
@@ -64,6 +73,7 @@ export interface Span {
   session_id: string
   session_label: string
   received_at: number
+  events: SpanEvent[]
 }
 
 export interface SpanRow extends Span {

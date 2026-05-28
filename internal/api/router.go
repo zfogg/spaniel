@@ -173,6 +173,14 @@ func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, 404, "span not found")
 		return
 	}
+	// Attach the span's events so the inspector has them without a second
+	// round-trip. Best-effort: a DB failure here doesn't shadow the span.
+	// Always materialize the slice (even empty) so the JSON field is `[]`,
+	// never `null`.
+	span.Events = []*storage.SpanEvent{}
+	if events, err := r.store.ListEventsBySpan(span.SpanID); err == nil && events != nil {
+		span.Events = events
+	}
 	respond(w, span, 1, 1)
 }
 

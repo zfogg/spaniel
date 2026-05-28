@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
-import { Span, LintWarning, TraceIssue, Log, api } from '@/lib/api'
+import { Span, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
 import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, FlatSpan } from '@/lib/span-utils'
 import { computeLayout, detectN1SpanIds, n1BannerEntries } from '@/components/trace-waterfall-utils'
+import { fmtRelMs } from '@/lib/events-format'
 import TraceGraph from '@/components/TraceGraph'
 
 // ── layout constants ──────────────────────────────────────────────────────────
@@ -579,6 +580,82 @@ function SpanLogs({ spanId }: { spanId: string }) {
   )
 }
 
+// ── SpanEventsList — events section for the Inspector ────────────────────────
+
+function SpanEventsList({ spanId, spanStartNs }: { spanId: string; spanStartNs: number }) {
+  const [events, setEvents] = useState<SpanEvent[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    setEvents([])
+    api.spans.get(spanId).then(r => {
+      setEvents(r.data?.events ?? [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [spanId])
+
+  if (loading) {
+    return <div className="px-3.5 py-1.5 font-mono text-[10px] text-[var(--ink3)]">…</div>
+  }
+  if (events.length === 0) return null
+
+  return (
+    <>
+      <div className="flex items-center px-3.5 pt-3 pb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+        <span>events</span>
+        <span className="flex-1" />
+        <span className="normal-case tracking-normal">{events.length}</span>
+      </div>
+      <div className="px-3.5 pb-3" data-testid="span-events">
+        {events.map((e, i) => (
+          <SpanEventRow key={i} event={e} spanStartNs={spanStartNs} last={i === events.length - 1} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStartNs: number; last: boolean }) {
+  let attrs: Record<string, unknown> = {}
+  try { attrs = JSON.parse(event.attributes || '{}') } catch { /* empty */ }
+
+  const isException = event.name === 'exception'
+  const excType  = typeof attrs['exception.type']       === 'string' ? attrs['exception.type']       as string : ''
+  const excMsg   = typeof attrs['exception.message']    === 'string' ? attrs['exception.message']    as string : ''
+  const excStack = typeof attrs['exception.stacktrace'] === 'string' ? attrs['exception.stacktrace'] as string : ''
+
+  const inlineAttrs = Object.entries(attrs)
+    .filter(([k]) => !k.startsWith('exception.'))
+    .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+    .join(' ')
+
+  return (
+    <div className={`py-1 ${last ? '' : 'border-b border-[var(--line2)]'}`}>
+      <div className="flex items-baseline gap-2.5">
+        <span className={`w-[60px] shrink-0 font-mono text-[10px] ${isException ? 'text-[#ef4444]' : 'text-[var(--accent)]'}`}>
+          {fmtRelMs(event.time_ns, spanStartNs)}
+        </span>
+        <span className={`min-w-0 flex-1 break-words font-mono text-[11px] ${isException ? 'text-[#ef4444]' : 'text-[var(--ink)]'}`}>
+          {isException && (
+            <span className="mr-1.5 inline-block size-1.5 rounded-full bg-[#ef4444] align-middle" />
+          )}
+          {event.name}
+          {isException && excType && (
+            <span className="text-[var(--ink2)]">{' · '}{excType}{excMsg ? `: ${excMsg}` : ''}</span>
+          )}
+        </span>
+        {!isException && inlineAttrs && (
+          <span className="font-mono text-[10px] text-[var(--ink2)]">{inlineAttrs}</span>
+        )}
+      </div>
+      {isException && excStack && (
+        <pre className="mx-0 mb-0.5 mt-1.5 max-h-[220px] overflow-auto whitespace-pre-wrap break-words rounded-[5px] border border-[color-mix(in_oklch,#ef4444_25%,var(--background))] bg-[color-mix(in_oklch,#ef4444_8%,var(--background))] px-2.5 py-1.5 font-mono text-[10px] text-[var(--ink)]">{excStack}</pre>
+      )}
+    </div>
+  )
+}
+
 // ── Inspector ─────────────────────────────────────────────────────────────────
 
 function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
@@ -798,6 +875,7 @@ function Inspector({ span, traceStartNs, warnings, isN1, n1Count, onClose }: {
               <AttrGrid entries={resEntries} />
             </>
           )}
+          <SpanEventsList spanId={span.span_id} spanStartNs={span.start_ns} />
           {attrEntries.length === 0 && resEntries.length === 0 && (
             <div style={{
               padding: '18px 16px',

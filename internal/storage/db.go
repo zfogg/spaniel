@@ -19,22 +19,23 @@ type DB struct {
 }
 
 type Span struct {
-	TraceID       string `json:"trace_id"`
-	SpanID        string `json:"span_id"`
-	ParentSpanID  string `json:"parent_span_id"`
-	ServiceName   string `json:"service_name"`
-	Name          string `json:"name"`
-	Kind          int    `json:"kind"`
-	StartNs       int64  `json:"start_ns"`
-	EndNs         int64  `json:"end_ns"`
-	DurationNs    int64  `json:"duration_ns"`
-	StatusCode    int    `json:"status_code"`
-	StatusMessage string `json:"status_message"`
-	Attributes    string `json:"attributes"`
-	Resource      string `json:"resource"`
-	SessionID     string `json:"session_id"`
-	SessionLabel  string `json:"session_label"`
-	ReceivedAt    int64  `json:"received_at"`
+	TraceID       string       `json:"trace_id"`
+	SpanID        string       `json:"span_id"`
+	ParentSpanID  string       `json:"parent_span_id"`
+	ServiceName   string       `json:"service_name"`
+	Name          string       `json:"name"`
+	Kind          int          `json:"kind"`
+	StartNs       int64        `json:"start_ns"`
+	EndNs         int64        `json:"end_ns"`
+	DurationNs    int64        `json:"duration_ns"`
+	StatusCode    int          `json:"status_code"`
+	StatusMessage string       `json:"status_message"`
+	Attributes    string       `json:"attributes"`
+	Resource      string       `json:"resource"`
+	SessionID     string       `json:"session_id"`
+	SessionLabel  string       `json:"session_label"`
+	ReceivedAt    int64        `json:"received_at"`
+	Events        []*SpanEvent `json:"events"`
 }
 
 type Log struct {
@@ -94,6 +95,15 @@ type TraceIssue struct {
 	ParentSpanID  string `json:"parent_span_id"`
 	ExampleSpanID string `json:"example_span_id"`
 	CreatedAt     int64  `json:"created_at"`
+}
+
+type SpanEvent struct {
+	SpanID     string `json:"span_id"`
+	TraceID    string `json:"trace_id"`
+	SessionID  string `json:"session_id"`
+	TimeNs     int64  `json:"time_ns"`
+	Name       string `json:"name"`
+	Attributes string `json:"attributes"`
 }
 
 type Stats struct {
@@ -235,6 +245,15 @@ func (d *DB) migrate() error {
 			example_span_id VARCHAR NOT NULL DEFAULT '',
 			created_at     BIGINT NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS span_events (
+			span_id      TEXT,
+			trace_id     TEXT,
+			session_id   TEXT,
+			time_ns      BIGINT,
+			name         TEXT,
+			attributes   JSON
+		);
+		CREATE INDEX IF NOT EXISTS idx_span_events_span_id ON span_events(span_id);
 		CREATE TABLE IF NOT EXISTS metrics (
 			name         TEXT,
 			description  TEXT,
@@ -304,6 +323,42 @@ func (d *DB) InsertSpan(s *Span) error {
 		s.Attributes, s.Resource, s.SessionID, s.SessionLabel, s.ReceivedAt,
 	)
 	return err
+}
+
+// InsertSpanEvents bulk-inserts the events attached to a span. Empty input
+// is a no-op; on error any rows inserted before the failure are not rolled
+// back (events are best-effort, not transactional, like spans).
+func (d *DB) InsertSpanEvents(events []*SpanEvent) error {
+	for _, e := range events {
+		if _, err := d.db.Exec(`
+			INSERT INTO span_events (span_id, trace_id, session_id, time_ns, name, attributes)
+			VALUES (?,?,?,?,?,?)`,
+			e.SpanID, e.TraceID, e.SessionID, e.TimeNs, e.Name, e.Attributes,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListEventsBySpan returns the events attached to a single span, in time order.
+func (d *DB) ListEventsBySpan(spanID string) ([]*SpanEvent, error) {
+	rows, err := d.db.Query(`
+		SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR
+		FROM span_events WHERE span_id = ? ORDER BY time_ns ASC`, spanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+	var out []*SpanEvent
+	for rows.Next() {
+		e := &SpanEvent{}
+		if err := rows.Scan(&e.SpanID, &e.TraceID, &e.SessionID, &e.TimeNs, &e.Name, &e.Attributes); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 func (d *DB) InsertLog(l *Log) error {
