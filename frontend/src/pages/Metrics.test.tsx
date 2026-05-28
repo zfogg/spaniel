@@ -26,10 +26,24 @@ function setup(opts: { catalog?: MetricCatalogEntry[]; series?: Record<string, M
 beforeEach(() => {
   routes = {}
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-    // match by path + sorted query for stability
+    // match by path; ignore query param order and additional params like 'from'
     for (const [routePath, body] of Object.entries(routes)) {
-      if (url === routePath || url.endsWith(routePath)) {
-        return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      const routeBase = routePath.split('?')[0]
+      const urlBase = url.split('?')[0]
+      if (urlBase === routeBase) {
+        // check if all required query params are present
+        const routeParams = new URLSearchParams(routePath.split('?')[1] || '')
+        const urlParams = new URLSearchParams(url.split('?')[1] || '')
+        let allMatch = true
+        for (const [key, value] of routeParams.entries()) {
+          if (urlParams.get(key) !== value) {
+            allMatch = false
+            break
+          }
+        }
+        if (allMatch) {
+          return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+        }
       }
     }
     return new Response('{}', { status: 404 })
