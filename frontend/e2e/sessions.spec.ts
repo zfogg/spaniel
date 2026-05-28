@@ -396,7 +396,7 @@ test.describe('Sessions page', () => {
 
   test('with-warnings filter shows only sessions that have lint warnings', async ({ page }) => {
     const sessions = [
-      makeSession({ id: 's1', label: 'warn-session-xyz', trace_count: 5, span_count: 10 }),
+      makeSession({ id: 's1', label: 'warn-session-xyz', trace_count: 5, span_count: 10, n1_count: 1 }),
       makeSession({ id: 's2', label: 'clean-session-xyz', trace_count: 2, span_count: 4 }),
     ]
     const lint = [

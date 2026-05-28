@@ -471,10 +471,12 @@ test.describe('Trace detail page', () => {
     await stubBackend(page, makeTrace())
     await page.goto('/')
     await page.goto(`/traces/${TRACE_ID}`)
-    await expect(page).toHaveURL(new RegExp(`/traces/${TRACE_ID}$`))
+    // The waterfall appends ?view=waterfall via replaceState on mount, so don't
+    // anchor on the id with $ — match the path with an optional query string.
+    await expect(page).toHaveURL(new RegExp(`/traces/${TRACE_ID}(\\?|$)`))
 
     await page.getByRole('button', { name: '←' }).click()
-    await expect(page).not.toHaveURL(new RegExp(`/traces/${TRACE_ID}$`))
+    await expect(page).not.toHaveURL(new RegExp(`/traces/${TRACE_ID}(\\?|$)`))
   })
 
   test('share button copies permalink with ?span= and ?view= to clipboard', async ({ page }) => {
@@ -490,16 +492,18 @@ test.describe('Trace detail page', () => {
       })
     })
 
-    // Select a span so ?span= appears in the URL.
-    await page.getByText('GET /cart').first().click()
-    await expect(page).toHaveURL(/span=root/)
+    // Select a span so ?span= appears in the URL. Use 'authenticate' (span_id
+    // 'auth'): the root span's name 'GET /cart' also renders in the waterfall
+    // summary header, so it isn't a unique target for the row click.
+    await page.getByText('authenticate', { exact: true }).click()
+    await expect(page).toHaveURL(/span=auth/)
 
     await page.getByTestId('btn-share').click()
 
     const clipText = await page.evaluate(() =>
       (window as unknown as Record<string, unknown>).__clipboard as string
     )
-    expect(clipText).toContain('span=root')
+    expect(clipText).toContain('span=auth')
     expect(clipText).toContain('view=')
 
     // Toast should briefly appear.
@@ -515,7 +519,8 @@ test.describe('Trace detail page', () => {
       page.getByTestId('btn-download').click(),
     ])
 
-    expect(download.suggestedFilename()).toMatch(/^trace-[a-z0-9]{8}\.json$/)
+    // Filename is trace-<first 8 chars of trace id>.json; TRACE_ID is 'abc123'.
+    expect(download.suggestedFilename()).toMatch(/^trace-abc123\.json$/)
   })
 
   test('?span= and ?view= from URL seed the inspector and view on load', async ({ page }) => {

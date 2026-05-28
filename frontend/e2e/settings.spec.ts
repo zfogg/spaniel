@@ -158,7 +158,7 @@ test.describe('Settings page', () => {
     await stubSettings(page, makeSettings({ retention_days: 7 }))
     await page.goto('/settings')
 
-    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+    await page.getByRole('button', { name: 'Storage', exact: true }).click()
 
     // Default unit is days → "7 days".
     await expect(page.getByTestId('retention-pill')).toContainText('7 days')
@@ -176,7 +176,7 @@ test.describe('Settings page', () => {
     // 612 MB used of 500 MB cap → over 100% → clamps to 100% width, danger color.
     await stubSettings(page, makeSettings({ max_db_size_mb: 500 }))
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+    await page.getByRole('button', { name: 'Storage', exact: true }).click()
 
     const fill = page.getByTestId('usage-bar-fill')
     await expect(fill).toBeVisible()
@@ -203,7 +203,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+    await page.getByRole('button', { name: 'Storage', exact: true }).click()
 
     // 1) cancel — no API call.
     page.once('dialog', d => d.dismiss())
@@ -227,7 +227,7 @@ test.describe('Settings page', () => {
     await input.blur()
 
     await expect.poll(() => h.lastPut()).toMatchObject({ bind_address_v4: '0.0.0.0' })
-    await expect(page.getByTestId('row-bind-v4').getByText('all interfaces')).toBeVisible()
+    await expect(page.getByTestId('row-bind-v4').getByText('all interfaces', { exact: true })).toBeVisible()
   })
 
   test('changing the IPv6 bind address PUTs bind_address_v6', async ({ page }) => {
@@ -240,7 +240,7 @@ test.describe('Settings page', () => {
     await input.blur()
 
     await expect.poll(() => h.lastPut()).toMatchObject({ bind_address_v6: '::' })
-    await expect(page.getByTestId('row-bind-v6').getByText('all interfaces')).toBeVisible()
+    await expect(page.getByTestId('row-bind-v6').getByText('all interfaces', { exact: true })).toBeVisible()
   })
 
   test('moving the forward-sampling slider updates the percentage pill and PUTs forward_sample', async ({ page }) => {
@@ -250,7 +250,10 @@ test.describe('Settings page', () => {
 
     const slider = page.getByLabel('forward sample', { exact: true })
     await slider.evaluate((el: HTMLInputElement) => {
-      el.value = '0.5'
+      // React tracks the input's value internally and skips onChange when the
+      // value is assigned directly, so go through the prototype setter it hooks.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      setter.call(el, '0.5')
       el.dispatchEvent(new Event('input', { bubbles: true }))
       el.dispatchEvent(new Event('change', { bubbles: true }))
     })
@@ -274,7 +277,7 @@ test.describe('Settings page', () => {
     await stubChrome(page, bd)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+    await page.getByRole('button', { name: 'Storage', exact: true }).click()
 
     const bar = page.getByTestId('breakdown-bar')
     await expect(bar).toBeVisible()
@@ -294,7 +297,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+    await page.getByRole('button', { name: 'Storage', exact: true }).click()
 
     const sessionsList = page.getByTestId('sessions-breakdown')
     await expect(sessionsList).toBeVisible()
@@ -311,7 +314,7 @@ test.describe('Settings page', () => {
       return jsonResponse(r, { bytes_before: 640 * 1024, bytes_after: 512 * 1024, reclaimed: 128 * 1024 })
     })
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+    await page.getByRole('button', { name: 'Storage', exact: true }).click()
 
     await page.getByTestId('compact-btn').click()
     await expect(page.getByTestId('compact-msg')).toContainText('Done', { timeout: 5000 })

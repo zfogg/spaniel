@@ -189,8 +189,8 @@ test.describe('Traces page', () => {
     await expect(page.getByText('GET /cart')).toBeVisible()
     await expect(page.getByText('pricing.Quote')).toBeVisible()
 
-    await page.getByRole('combobox').click()
-    await page.getByRole('option', { name: 'pricing' }).click()
+    // Service filtering is a sidebar list of role=button items, not a select.
+    await page.getByRole('button', { name: 'pricing' }).click()
 
     await expect(page.getByText('pricing.Quote')).toBeVisible()
     await expect(page.getByText('GET /cart')).toHaveCount(0)
