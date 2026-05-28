@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -71,6 +72,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Put("/api/settings", r.putSettings)
 	mux.Delete("/api/settings/data", r.dropAllData)
 	mux.Post("/api/settings/compact", r.compact)
+	mux.Post("/api/settings/prune", r.prune)
 	mux.Get("/api/storage", r.getStorageBreakdown)
 	mux.Get("/ws", hub.ServeWS)
 
@@ -417,6 +419,33 @@ func (r *Router) getStorageBreakdown(w http.ResponseWriter, _ *http.Request) {
 
 func (r *Router) compact(w http.ResponseWriter, _ *http.Request) {
 	res, err := r.store.Compact()
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	respond(w, res, 1, 1)
+}
+
+// prune applies the retention policy immediately (POST /api/settings/prune).
+// This is the one-shot the Settings page "spaniel prune" button calls, so it
+// runs the same logic as the CLI `spaniel prune` / the hourly background pass.
+// The active session is passed so it's never dropped.
+func (r *Router) prune(w http.ResponseWriter, _ *http.Request) {
+	if r.settings == nil {
+		respondErr(w, 404, "settings service not configured")
+		return
+	}
+	v := r.settings.Viper
+	cfg := storage.RetentionConfig{
+		MaxSessions: v.GetInt("max_sessions"),
+	}
+	if days := v.GetInt("retention_days"); days > 0 {
+		cfg.MaxAge = time.Duration(days) * 24 * time.Hour
+	}
+	if mb := v.GetInt("max_db_size_mb"); mb > 0 {
+		cfg.MaxDBSizeBytes = int64(mb) * 1024 * 1024
+	}
+	res, err := r.store.Prune(cfg, r.store.ActiveSessionID())
 	if err != nil {
 		respondErr(w, 500, err.Error())
 		return

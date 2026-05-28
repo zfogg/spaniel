@@ -544,9 +544,21 @@ export default function Settings() {
 
   const onPrune = useCallback(async () => {
     if (!confirm('Apply retention now? Drops old sessions according to your retention settings.')) return
-    // We don't have a generic /prune endpoint exposed; just trigger a settings round-trip so the user gets feedback.
-    // (Server runs retention on a timer and on startup; the CLI `spaniel prune` is the one-shot entrypoint.)
-    alert('Retention runs automatically every hour and at startup. Run `spaniel prune` from the CLI for an immediate pass.')
+    try {
+      const { data: res } = await api.settings.prune()
+      const deleted = res.deleted_by_age + res.deleted_by_count + res.deleted_by_size
+      // Refresh the settings card + storage breakdown so db size / counts
+      // reflect the prune we just ran.
+      api.settings.get().then(r => setData(r.data)).catch(() => {})
+      api.storage.get().then(r => setBreakdown(r.data)).catch(() => {})
+      alert(deleted > 0
+        ? `Pruned ${deleted} session${deleted === 1 ? '' : 's'} `
+          + `(age ${res.deleted_by_age}, count ${res.deleted_by_count}, size ${res.deleted_by_size}). `
+          + `${res.final_sessions} remain, ${(res.final_db_size_bytes / 1_048_576).toFixed(1)} MB on disk.`
+        : `Nothing to prune — ${res.final_sessions} session${res.final_sessions === 1 ? '' : 's'} within policy.`)
+    } catch (e) {
+      alert(`Prune failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }, [])
 
   const onDrop = useCallback(async () => {

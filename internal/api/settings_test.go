@@ -257,3 +257,77 @@ func TestDropAllData_WipesStore(t *testing.T) {
 		t.Errorf("expected sessions wiped, got %d", len(sessions))
 	}
 }
+
+// ── POST /api/settings/prune ───────────────────────────────────────────────
+
+func TestPrune_RunsRetentionAndProtectsActive(t *testing.T) {
+	router, svc, store := newSettingsRouter(t)
+	// Tighten the policy to keep at most 2 sessions.
+	svc.Viper.Set("max_sessions", 2)
+	svc.Viper.Set("retention_days", 0)
+	svc.Viper.Set("max_db_size_mb", 0)
+
+	// Create 4 sessions; mark the first one active so prune must keep it.
+	var firstID string
+	for i := 0; i < 4; i++ {
+		s, err := store.CreateSession("sess", false)
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+		if i == 0 {
+			firstID = s.ID
+			store.SetActiveSession(s.ID, s.Label)
+		}
+	}
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/settings/prune", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data storage.PruneResult `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	// 4 sessions, cap 2 → 2 deleted by count, 2 remain.
+	if resp.Data.DeletedByCount != 2 {
+		t.Errorf("deleted_by_count: want 2, got %d", resp.Data.DeletedByCount)
+	}
+	if resp.Data.FinalSessions != 2 {
+		t.Errorf("final_sessions: want 2, got %d", resp.Data.FinalSessions)
+	}
+
+	// The active session must survive the prune.
+	sessions, err := store.ListSessions()
+	if err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	found := false
+	for _, s := range sessions {
+		if s.ID == firstID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("active session %s was pruned — it must be protected", firstID)
+	}
+}
+
+func TestPrune_NoSettingsService404(t *testing.T) {
+	store, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatalf("storage.Open: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	// Router with nil settings service.
+	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, nil)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/settings/prune", nil))
+	if w.Code != http.StatusNotFound {
+		t.Errorf("want 404 when settings service is nil, got %d", w.Code)
+	}
+}

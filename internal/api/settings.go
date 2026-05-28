@@ -123,7 +123,7 @@ func (r *Router) buildSettings() SettingsResponse {
 		OTLPGRPCPort:      v.GetInt("otlp_grpc_port"),
 		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
 		NoBrowser:     v.GetBool("no_browser"),
-		Forward:       v.GetStringSlice("forward"),
+		Forward:       nonNilStrings(v.GetStringSlice("forward")),
 		BindAddress:   v.GetString("bind_address"),
 		ForwardSample: v.GetFloat64("forward_sample"),
 		Runtime: SettingsRuntime{
@@ -253,4 +253,14 @@ func parentDir(p string) string {
 		}
 	}
 	return "."
+}
+
+// nonNilStrings ensures the slice is never nil so the JSON encoder emits
+// `[]` instead of `null`. Frontend types treat `forward` as a non-optional
+// string array; receiving null would crash `.join()`.
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

@@ -16,11 +16,11 @@ type RetentionConfig struct {
 
 // PruneResult summarizes what a Prune run did. Useful for logging and tests.
 type PruneResult struct {
-	DeletedByAge     int
-	DeletedByCount   int
-	DeletedBySize    int
-	FinalSessions    int
-	FinalDBSizeBytes int64
+	DeletedByAge     int   `json:"deleted_by_age"`
+	DeletedByCount   int   `json:"deleted_by_count"`
+	DeletedBySize    int   `json:"deleted_by_size"`
+	FinalSessions    int   `json:"final_sessions"`
+	FinalDBSizeBytes int64 `json:"final_db_size_bytes"`
 }
 
 // Prune applies the retention policy. The activeID and any baseline sessions are

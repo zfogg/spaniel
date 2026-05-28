@@ -313,6 +313,15 @@ export interface CompactResult {
   reclaimed: number
 }
 
+// Mirrors storage.PruneResult (Go json tags).
+export interface PruneResult {
+  deleted_by_age: number
+  deleted_by_count: number
+  deleted_by_size: number
+  final_sessions: number
+  final_db_size_bytes: number
+}
+
 export const api = {
   traces: {
     list: (sessionId?: string) =>
@@ -403,6 +412,11 @@ export const api = {
       fetch('/api/settings/compact', { method: 'POST' }).then(r => {
         if (!r.ok) return r.text().then(t => { throw new Error(t) })
         return r.json() as Promise<{ data: CompactResult; meta: { total: number; page: number } }>
+      }),
+    prune: () =>
+      fetch('/api/settings/prune', { method: 'POST' }).then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error(t) })
+        return r.json() as Promise<{ data: PruneResult; meta: { total: number; page: number } }>
       }),
   },
   storage: {
