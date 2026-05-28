@@ -761,7 +761,7 @@ export default function Settings() {
 
   const sections = useMemo(() => ([
     { id: 'network' as const, label: 'Network' },
-    { id: 'storage' as const, label: 'Storage · DuckDB' },
+    { id: 'storage' as const, label: 'Storage' },
     { id: 'about'   as const, label: 'About' },
   ]), [])
 
