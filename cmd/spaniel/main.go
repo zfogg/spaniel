@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -534,12 +535,12 @@ func run(cfg runConfig) error {
 	if cfg.OTLPGRPCPort > 0 {
 		lns, err := listenAll(hosts, cfg.OTLPGRPCPort)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
+			slog.Error("grpc receiver listen failed", "err", err)
 		}
 		for _, ln := range lns {
 			go func(ln net.Listener) {
 				if err := grpcRcv.Serve(ln); err != nil {
-					fmt.Fprintf(os.Stderr, "grpc receiver: %v\n", err)
+					slog.Error("grpc receiver stopped", "err", err)
 				}
 			}(ln)
 		}
@@ -554,7 +555,7 @@ func run(cfg runConfig) error {
 	if cfg.OTLPHTTPPort > 0 {
 		lns, err := listenAll(hosts, cfg.OTLPHTTPPort)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
+			slog.Error("otlp http receiver listen failed", "err", err)
 		}
 		if len(lns) > 0 {
 			var otlpHandler http.Handler = otlpMux
@@ -564,7 +565,7 @@ func run(cfg runConfig) error {
 			lns = wrapTLS(lns, tlsCfg)
 			go func() {
 				if err := serveHTTP(lns, otlpHandler); err != nil {
-					fmt.Fprintf(os.Stderr, "otlp http receiver: %v\n", err)
+					slog.Error("otlp http receiver stopped", "err", err)
 				}
 			}()
 		}
@@ -574,7 +575,7 @@ func run(cfg runConfig) error {
 	if cfg.RoutesFile != "" {
 		m, err := coverage.LoadManifest(cfg.RoutesFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "routes-file: %v\n", err)
+			slog.Error("routes-file load failed", "err", err)
 		} else {
 			manifests = m
 			total := 0

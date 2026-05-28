@@ -3,10 +3,16 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"log/slog"
 
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	goruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/log/global"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -25,7 +31,8 @@ type Config struct {
 	Insecure    bool
 }
 
-// Setup initialises the global TracerProvider and MeterProvider.
+// Setup initialises the global TracerProvider, MeterProvider, and LoggerProvider,
+// installs Go runtime metrics, and wires slog to the OTel log bridge.
 // If cfg.Endpoint is empty, no-op providers are installed so instrumented
 // code continues to compile and run with zero overhead.
 // The returned shutdown func must be called on process exit to flush spans.
@@ -55,6 +62,7 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 
 	var shutdownFuncs []func(context.Context) error
 
+	// Traces
 	traceExporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithEndpoint(cfg.Endpoint),
 		otlptracegrpc.WithDialOption(dialOpts...),
@@ -69,6 +77,7 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	otel.SetTracerProvider(tp)
 	shutdownFuncs = append(shutdownFuncs, tp.Shutdown)
 
+	// Metrics
 	metricExporter, err := otlpmetricgrpc.New(ctx,
 		otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
 		otlpmetricgrpc.WithDialOption(dialOpts...),
@@ -83,6 +92,33 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	)
 	otel.SetMeterProvider(mp)
 	shutdownFuncs = append(shutdownFuncs, mp.Shutdown)
+
+	// Go runtime metrics (goroutine count, heap alloc, GC pause, etc.)
+	if err := goruntime.Start(); err != nil {
+		_ = tp.Shutdown(ctx)
+		_ = mp.Shutdown(ctx)
+		return nil, err
+	}
+
+	// Logs
+	logExporter, err := otlploggrpc.New(ctx,
+		otlploggrpc.WithEndpoint(cfg.Endpoint),
+		otlploggrpc.WithDialOption(dialOpts...),
+	)
+	if err != nil {
+		_ = tp.Shutdown(ctx)
+		_ = mp.Shutdown(ctx)
+		return nil, err
+	}
+	lp := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
+		sdklog.WithResource(res),
+	)
+	global.SetLoggerProvider(lp)
+	shutdownFuncs = append(shutdownFuncs, lp.Shutdown)
+
+	// Wire slog to the OTel log bridge so all slog output goes to the log provider.
+	slog.SetDefault(slog.New(otelslog.NewHandler("spaniel")))
 
 	shutdown = func(ctx context.Context) error {
 		var errs []error
