@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type Settings as SettingsT, type SettingsUpdate } from '@/lib/api'
+import { api, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown } from '@/lib/api'
 
 // ── atoms ────────────────────────────────────────────────────────────────────
 
@@ -302,11 +302,11 @@ function NetworkSection({ s, mutate, hidden }: {
         hint="If set, every received OTLP payload is forwarded to these URLs after being stored locally."
         testid="row-forward">
         <TextBox
-          value={s.forward.join(', ')}
+          value={(s.forward ?? []).join(', ')}
           onChange={v => mutate({ forward: v.split(',').map(x => x.trim()).filter(Boolean) })}
           w={420} ariaLabel="forward urls" mono
         />
-        {s.forward.length > 0
+        {(s.forward ?? []).length > 0
           ? <Pill tone="accent">forwarding to {s.forward.length} upstream{s.forward.length === 1 ? '' : 's'}</Pill>
           : <Pill>off</Pill>}
       </Row>
@@ -319,15 +319,46 @@ function NetworkSection({ s, mutate, hidden }: {
   )
 }
 
-function StorageSection({ s, mutate, hidden, onPrune, onDrop }: {
+const TABLE_SEGMENTS = [
+  { key: 'spans',         color: 'var(--accent, #6b7cff)',    label: 'Spans' },
+  { key: 'logs',          color: '#3e9c8a',                   label: 'Logs' },
+  { key: 'metrics',       color: '#b58400',                   label: 'Metrics' },
+  { key: 'span_events',   color: '#7c5cbf',                   label: 'Events' },
+  { key: 'trace_issues',  color: 'var(--danger, #b04040)',    label: 'Issues' },
+] as const
+
+function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompact }: {
   s: SettingsT; mutate: (patch: SettingsUpdate) => void; hidden: boolean
   onPrune: () => void; onDrop: () => void
+  breakdown: StorageBreakdown | null
+  onCompact: () => Promise<void>
 }) {
   const [retUnit, setRetUnit] = useState<RetentionUnit>('days')
+  const [compacting, setCompacting] = useState(false)
+  const [compactMsg, setCompactMsg] = useState<string | null>(null)
+
   const usedPct = s.max_db_size_mb > 0
     ? Math.min(100, Math.round((s.runtime.db_size_bytes / (s.max_db_size_mb * 1024 * 1024)) * 100))
     : 0
   const barColor = usedPct > 85 ? 'var(--danger, #b04040)' : usedPct > 60 ? '#b58400' : 'var(--accent, #6b7cff)'
+
+  // Stacked bar: total bytes across the tracked tables.
+  const totalBytes = breakdown
+    ? breakdown.tables.reduce((sum, t) => sum + t.approx_bytes, 0)
+    : 0
+
+  const handleCompact = useCallback(async () => {
+    setCompacting(true)
+    setCompactMsg(null)
+    try {
+      await onCompact()
+      setCompactMsg('Done')
+    } catch (e) {
+      setCompactMsg(String(e))
+    } finally {
+      setCompacting(false)
+    }
+  }, [onCompact])
 
   return (
     <Card id="storage" title="Storage" sub="Embedded DuckDB · spans, logs, metrics, sessions"
@@ -400,6 +431,96 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop }: {
           outline: 'none',
         }}>spaniel prune</button>
       </Row>
+
+      {/* Per-table stacked bar breakdown */}
+      <Row label="Breakdown" hint="Estimated bytes per table from DuckDB's internal catalogue." testid="row-breakdown">
+        <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            data-testid="breakdown-bar"
+            style={{
+              height: 12, borderRadius: 8, background: 'var(--muted)',
+              border: '1px solid var(--border)', overflow: 'hidden',
+              display: 'flex',
+            }}
+          >
+            {totalBytes > 0 && TABLE_SEGMENTS.map(seg => {
+              const tbl = breakdown?.tables.find(t => t.name === seg.key)
+              const pct = tbl ? (tbl.approx_bytes / totalBytes) * 100 : 0
+              if (pct < 0.5) return null
+              return (
+                <div
+                  key={seg.key}
+                  data-testid={`breakdown-seg-${seg.key}`}
+                  title={`${seg.label}: ${fmtMB(tbl?.approx_bytes ?? 0)}`}
+                  style={{ width: `${pct}%`, background: seg.color }}
+                />
+              )
+            })}
+          </div>
+          <div style={{
+            display: 'flex', gap: 10, flexWrap: 'wrap',
+            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)',
+          }}>
+            {TABLE_SEGMENTS.map(seg => {
+              const tbl = breakdown?.tables.find(t => t.name === seg.key)
+              return (
+                <span key={seg.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: seg.color, display: 'inline-block' }} />
+                  {seg.label}
+                  {tbl ? ` · ${fmtMB(tbl.approx_bytes)}` : ''}
+                </span>
+              )
+            })}
+          </div>
+
+          {/* Top sessions by size */}
+          {breakdown && breakdown.sessions.length > 0 && (
+            <div data-testid="sessions-breakdown" style={{
+              marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3,
+              fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--muted-foreground)',
+            }}>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.7, marginBottom: 2 }}>
+                Top sessions by size
+              </div>
+              {breakdown.sessions.slice(0, 5).map(ss => (
+                <div key={ss.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ss.label || ss.id.slice(0, 8)}
+                  </span>
+                  <span style={{ opacity: 0.7 }}>{fmtMB(ss.approx_bytes)} · {ss.span_count} spans</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Row>
+
+      {/* Compact button */}
+      <Row label="Compact" hint="CHECKPOINT + VACUUM — returns free pages to the OS." testid="row-compact">
+        <button
+          type="button"
+          data-testid="compact-btn"
+          disabled={compacting}
+          onClick={handleCompact}
+          style={{
+            padding: '0 14px', height: 30, borderRadius: 6, cursor: compacting ? 'default' : 'pointer',
+            background: 'var(--background)', border: '1px solid var(--border)',
+            fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--foreground)',
+            outline: 'none', opacity: compacting ? 0.6 : 1,
+          }}
+        >
+          {compacting ? 'compacting…' : 'compact now'}
+        </button>
+        {compactMsg && (
+          <span data-testid="compact-msg" style={{
+            fontFamily: 'var(--font-mono)', fontSize: 11,
+            color: compactMsg === 'Done' ? '#3e6a3e' : 'var(--danger, #b04040)',
+          }}>
+            {compactMsg}
+          </span>
+        )}
+      </Row>
+
       <Row danger label="Drop all data"
         hint="Wipe the database and start over. Cannot be undone."
         testid="row-drop">
@@ -452,12 +573,21 @@ export default function Settings() {
   const [section, setSection] = useState<Section>('network')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [breakdown, setBreakdown] = useState<StorageBreakdown | null>(null)
 
   useEffect(() => {
     let cancel = false
     api.settings.get()
       .then(r => { if (!cancel) setData(r.data) })
       .catch(e => { if (!cancel) setError(String(e)) })
+    return () => { cancel = true }
+  }, [])
+
+  useEffect(() => {
+    let cancel = false
+    api.storage.get()
+      .then(r => { if (!cancel) setBreakdown(r.data) })
+      .catch(() => {})
     return () => { cancel = true }
   }, [])
 
@@ -495,6 +625,12 @@ export default function Settings() {
     } catch (e) {
       setError(String(e))
     }
+  }, [])
+
+  const onCompact = useCallback(async () => {
+    await api.settings.compact()
+    // Refresh breakdown after compaction so sizes update.
+    api.storage.get().then(r => setBreakdown(r.data)).catch(() => {})
   }, [])
 
   const sections = useMemo(() => ([
@@ -620,7 +756,7 @@ export default function Settings() {
 
         <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />
         <StorageSection s={data} mutate={mutate} hidden={section !== 'storage'}
-          onPrune={onPrune} onDrop={onDrop} />
+          onPrune={onPrune} onDrop={onDrop} breakdown={breakdown} onCompact={onCompact} />
         <AboutSection s={data} hidden={section !== 'about'} />
       </div>
     </div>

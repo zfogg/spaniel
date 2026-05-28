@@ -1,5 +1,5 @@
 import { test, expect, type Route, type Page } from '@playwright/test'
-import type { Settings } from '../src/lib/api'
+import type { Settings, StorageBreakdown } from '../src/lib/api'
 
 function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 1, page: 1 }) {
   return route.fulfill({
@@ -35,7 +35,27 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
   }
 }
 
-async function stubChrome(page: Page) {
+function makeBreakdown(overrides: Partial<StorageBreakdown> = {}): StorageBreakdown {
+  return {
+    tables: [
+      { name: 'spans',        row_count: 1200, approx_bytes: 512 * 1024 },
+      { name: 'logs',         row_count: 300,  approx_bytes: 128 * 1024 },
+      { name: 'metrics',      row_count: 80,   approx_bytes: 64 * 1024  },
+      { name: 'span_events',  row_count: 50,   approx_bytes: 32 * 1024  },
+      { name: 'trace_issues', row_count: 4,    approx_bytes: 4 * 1024   },
+    ],
+    sessions: [
+      { id: 'sess-aaa', label: 'prod-2025-05-27', approx_bytes: 400 * 1024, span_count: 900 },
+      { id: 'sess-bbb', label: 'staging',         approx_bytes: 112 * 1024, span_count: 300 },
+    ],
+    wal_bytes: 0,
+    main_bytes: 640 * 1024,
+    last_checkpoint_at: 0,
+    ...overrides,
+  }
+}
+
+async function stubChrome(page: Page, breakdown?: StorageBreakdown) {
   await page.routeWebSocket('**/ws', ws => ws.close())
   await page.route('**/api/stats*', r => jsonResponse(r, {
     span_count: 0, trace_count: 0, log_count: 0, db_size: 0,
@@ -43,6 +63,7 @@ async function stubChrome(page: Page) {
   }))
   await page.route('**/api/forwarders', r => jsonResponse(r, []))
   await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
+  await page.route('**/api/storage', r => jsonResponse(r, breakdown ?? makeBreakdown()))
 }
 
 interface SettingsHarness {
@@ -230,5 +251,54 @@ test.describe('Settings page', () => {
     await page.getByRole('button', { name: 'About' }).click()
     await expect(page.getByText('spaniel 0.4.2')).toBeVisible()
     await expect(page.getByText('/home/user/.spaniel/config.yaml').first()).toBeVisible()
+  })
+
+  test('breakdown bar shows segments for each table with correct title attributes', async ({ page }) => {
+    const bd = makeBreakdown()
+    await stubChrome(page, bd)
+    await stubSettings(page, makeSettings())
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+
+    const bar = page.getByTestId('breakdown-bar')
+    await expect(bar).toBeVisible()
+
+    // Each non-trivial segment should render with a descriptive title.
+    const spansSegment = page.getByTestId('breakdown-seg-spans')
+    await expect(spansSegment).toBeVisible()
+    const title = await spansSegment.getAttribute('title')
+    expect(title).toMatch(/Spans/)
+    expect(title).toMatch(/KB|MB/)
+
+    const logsSegment = page.getByTestId('breakdown-seg-logs')
+    await expect(logsSegment).toBeVisible()
+  })
+
+  test('breakdown section lists top sessions by size', async ({ page }) => {
+    await stubChrome(page)
+    await stubSettings(page, makeSettings())
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+
+    const sessionsList = page.getByTestId('sessions-breakdown')
+    await expect(sessionsList).toBeVisible()
+    await expect(sessionsList).toContainText('prod-2025-05-27')
+    await expect(sessionsList).toContainText('staging')
+  })
+
+  test('compact now button calls /api/settings/compact and shows Done', async ({ page }) => {
+    await stubChrome(page)
+    await stubSettings(page, makeSettings())
+    let compactCalled = 0
+    await page.route('**/api/settings/compact', async r => {
+      compactCalled++
+      return jsonResponse(r, { bytes_before: 640 * 1024, bytes_after: 512 * 1024, reclaimed: 128 * 1024 })
+    })
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'Storage · DuckDB' }).click()
+
+    await page.getByTestId('compact-btn').click()
+    await expect(page.getByTestId('compact-msg')).toContainText('Done', { timeout: 5000 })
+    expect(compactCalled).toBe(1)
   })
 })

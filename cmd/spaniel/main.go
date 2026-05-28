@@ -207,6 +207,10 @@ Examples:
 	root.AddCommand(ciSubcommand())
 	root.AddCommand(diffSubcommand())
 	root.AddCommand(doctorSubcommand(v))
+	root.AddCommand(traceSubcommand())
+	root.AddCommand(logsSubcommand())
+	root.AddCommand(watchSubcommand())
+	root.AddCommand(compactSubcommand())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -379,7 +383,18 @@ func run(cfg runConfig) error {
 	var uiHandler http.Handler
 	if cfg.Dev {
 		viteURL, _ := url.Parse("http://localhost:5173")
-		uiHandler = httputil.NewSingleHostReverseProxy(viteURL)
+		proxy := httputil.NewSingleHostReverseProxy(viteURL)
+		// Friendly error when vite isn't up — the default reverse-proxy
+		// behaviour returns 502 with no body, which is confusing in
+		// `--dev` mode where a missing vite is the most common mistake.
+		proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusBadGateway)
+			fmt.Fprintf(w, "spaniel --dev: could not reach vite at http://localhost:5173\n\n"+
+				"start it in another terminal:\n  cd frontend && pnpm dev --host 127.0.0.1\n\n"+
+				"or run the bundled `make dev` which launches both.\n\nupstream error: %v\n", err)
+		}
+		uiHandler = proxy
 	} else {
 		distFS, err := fs.Sub(frontend.DistFS, "dist")
 		if err != nil {
@@ -444,7 +459,11 @@ func run(cfg runConfig) error {
 
 func printBanner(cfg runConfig) {
 	fmt.Printf("\nspaniel 🐕\n")
-	fmt.Printf("  UI        →  http://localhost:%d\n", cfg.Port)
+	if cfg.Dev {
+		fmt.Printf("  UI        →  http://localhost:%d  (DEV — proxying to vite at :5173)\n", cfg.Port)
+	} else {
+		fmt.Printf("  UI        →  http://localhost:%d\n", cfg.Port)
+	}
 	if cfg.OTLPGRPCPort > 0 {
 		fmt.Printf("  OTLP/gRPC →  localhost:%d\n", cfg.OTLPGRPCPort)
 	} else {

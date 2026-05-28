@@ -1226,3 +1226,125 @@ func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
 func (d *DB) Close() error {
 	return d.db.Close()
 }
+
+// StorageBreakdown gives a per-table and per-session storage summary for the
+// Settings UI and the `spaniel compact` command.
+type StorageBreakdown struct {
+	Tables           []TableStat   `json:"tables"`
+	Sessions         []SessionSize `json:"sessions"` // top 10 by approx bytes
+	WALBytes         int64         `json:"wal_bytes"`
+	MainBytes        int64         `json:"main_bytes"`
+	LastCheckpointAt int64         `json:"last_checkpoint_at"`
+}
+
+type TableStat struct {
+	Name       string `json:"name"`
+	RowCount   int64  `json:"row_count"`
+	ApproxBytes int64 `json:"approx_bytes"`
+}
+
+type SessionSize struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	ApproxBytes int64  `json:"approx_bytes"`
+	SpanCount   int    `json:"span_count"`
+}
+
+// GetStorageBreakdown returns per-table sizes via duckdb_tables() and a
+// per-session estimate based on the serialised span attribute lengths.
+func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
+	out := &StorageBreakdown{}
+
+	// Per-table: estimated_size from DuckDB's internal catalogue.
+	rows, err := d.db.Query(`
+		SELECT table_name, estimated_size
+		FROM duckdb_tables()
+		WHERE schema_name = 'main'
+		ORDER BY estimated_size DESC
+	`)
+	if err == nil {
+		defer rows.Close()
+		tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
+		approxByTable := make(map[string]int64, len(tableNames))
+		for rows.Next() {
+			var name string
+			var estSize int64
+			if err2 := rows.Scan(&name, &estSize); err2 == nil {
+				approxByTable[name] = estSize
+			}
+		}
+		for _, name := range tableNames {
+			var cnt int64
+			_ = d.db.QueryRow(`SELECT COUNT(*) FROM ` + name).Scan(&cnt) //nolint:gosec
+			out.Tables = append(out.Tables, TableStat{
+				Name:       name,
+				RowCount:   cnt,
+				ApproxBytes: approxByTable[name],
+			})
+		}
+	}
+
+	// Per-session: proxy size via span attribute payload length.
+	srows, err2 := d.db.Query(`
+		SELECT s.session_id, COALESCE(se.label,''), COUNT(*) AS span_count,
+		       SUM(LENGTH(s.attributes::VARCHAR) + LENGTH(s.resource::VARCHAR)) AS approx_bytes
+		FROM spans s
+		LEFT JOIN sessions se ON se.id = s.session_id
+		GROUP BY s.session_id, se.label
+		ORDER BY approx_bytes DESC
+		LIMIT 10
+	`)
+	if err2 == nil {
+		defer srows.Close()
+		for srows.Next() {
+			var ss SessionSize
+			if err3 := srows.Scan(&ss.ID, &ss.Label, &ss.SpanCount, &ss.ApproxBytes); err3 == nil {
+				out.Sessions = append(out.Sessions, ss)
+			}
+		}
+	}
+
+	// File sizes: main DB file and WAL (if present).
+	if d.path != "" && d.path != ":memory:" {
+		if fi, err3 := os.Stat(d.path); err3 == nil {
+			out.MainBytes = fi.Size()
+		}
+		if fi, err3 := os.Stat(d.path + ".wal"); err3 == nil {
+			out.WALBytes = fi.Size()
+		}
+	}
+
+	return out, nil
+}
+
+// CompactResult reports bytes before and after a CHECKPOINT + VACUUM cycle.
+type CompactResult struct {
+	BytesBefore int64 `json:"bytes_before"`
+	BytesAfter  int64 `json:"bytes_after"`
+	Reclaimed   int64 `json:"reclaimed"`
+}
+
+// Compact runs CHECKPOINT followed by VACUUM to return free pages to the OS.
+func (d *DB) Compact() (*CompactResult, error) {
+	res := &CompactResult{}
+	if d.path != "" && d.path != ":memory:" {
+		if fi, err := os.Stat(d.path); err == nil {
+			res.BytesBefore = fi.Size()
+		}
+	}
+	if _, err := d.db.Exec("CHECKPOINT"); err != nil {
+		return res, fmt.Errorf("checkpoint: %w", err)
+	}
+	if _, err := d.db.Exec("VACUUM"); err != nil {
+		return res, fmt.Errorf("vacuum: %w", err)
+	}
+	if d.path != "" && d.path != ":memory:" {
+		if fi, err := os.Stat(d.path); err == nil {
+			res.BytesAfter = fi.Size()
+		}
+	}
+	if res.BytesBefore > res.BytesAfter {
+		res.Reclaimed = res.BytesBefore - res.BytesAfter
+	}
+	return res, nil
+}

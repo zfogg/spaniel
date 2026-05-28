@@ -70,6 +70,8 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Get("/api/settings", r.getSettings)
 	mux.Put("/api/settings", r.putSettings)
 	mux.Delete("/api/settings/data", r.dropAllData)
+	mux.Post("/api/settings/compact", r.compact)
+	mux.Get("/api/storage", r.getStorageBreakdown)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux
@@ -402,4 +404,22 @@ func (r *Router) listForwarders(w http.ResponseWriter, _ *http.Request) {
 	}
 	statuses := r.forwarder.Status()
 	respond(w, statuses, len(statuses), 1)
+}
+
+func (r *Router) getStorageBreakdown(w http.ResponseWriter, _ *http.Request) {
+	bd, err := r.store.GetStorageBreakdown()
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	respond(w, bd, 1, 1)
+}
+
+func (r *Router) compact(w http.ResponseWriter, _ *http.Request) {
+	res, err := r.store.Compact()
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	respond(w, res, 1, 1)
 }

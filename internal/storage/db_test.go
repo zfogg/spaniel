@@ -782,3 +782,93 @@ func TestGetStats(t *testing.T) {
 		t.Errorf("expected log_count>=1, got %d", stats.LogCount)
 	}
 }
+
+func TestStorageBreakdown_PerTable(t *testing.T) {
+	db := openTestDB(t)
+
+	sess, err := db.CreateSession("breakdown-test", false)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	// Insert one span so the spans table has at least one row.
+	span := &Span{
+		TraceID:      "trace-bd",
+		SpanID:       "span-bd",
+		ServiceName:  "svc",
+		Name:         "op",
+		Kind:         1,
+		StartNs:      1000,
+		EndNs:        2000,
+		Attributes:   `{"key":"value"}`,
+		Resource:     `{"host":"localhost"}`,
+		SessionID:    sess.ID,
+		SessionLabel: sess.Label,
+		ReceivedAt:   time.Now().UnixNano(),
+	}
+	if err := db.InsertSpan(span); err != nil {
+		t.Fatalf("InsertSpan: %v", err)
+	}
+
+	bd, err := db.GetStorageBreakdown()
+	if err != nil {
+		t.Fatalf("GetStorageBreakdown: %v", err)
+	}
+
+	// Tables slice should include spans, logs, and the other tracked tables.
+	if len(bd.Tables) == 0 {
+		t.Fatal("expected at least one TableStat entry")
+	}
+	var spansRow *TableStat
+	for i := range bd.Tables {
+		if bd.Tables[i].Name == "spans" {
+			spansRow = &bd.Tables[i]
+			break
+		}
+	}
+	if spansRow == nil {
+		t.Fatal("spans table missing from StorageBreakdown.Tables")
+	}
+	if spansRow.RowCount < 1 {
+		t.Errorf("spans row_count: got %d, want >=1", spansRow.RowCount)
+	}
+
+	// Per-session: at least one entry, matching the session we used.
+	if len(bd.Sessions) == 0 {
+		t.Fatal("expected at least one SessionSize entry")
+	}
+	found := false
+	for _, ss := range bd.Sessions {
+		if ss.ID == sess.ID {
+			found = true
+			if ss.SpanCount < 1 {
+				t.Errorf("session span_count: got %d, want >=1", ss.SpanCount)
+			}
+			if ss.ApproxBytes < 1 {
+				t.Errorf("session approx_bytes: got %d, want >0", ss.ApproxBytes)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("session %s not found in StorageBreakdown.Sessions", sess.ID)
+	}
+}
+
+func TestCompact_ReclaimsBytes(t *testing.T) {
+	db := openTestDB(t)
+
+	// :memory: databases report 0 bytes, so Compact should still succeed and
+	// return a valid (zero) result without error.
+	res, err := db.Compact()
+	if err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	// BytesBefore >= BytesAfter and Reclaimed is non-negative.
+	if res.BytesBefore < res.BytesAfter {
+		t.Errorf("BytesBefore (%d) < BytesAfter (%d)", res.BytesBefore, res.BytesAfter)
+	}
+	if res.Reclaimed < 0 {
+		t.Errorf("Reclaimed negative: %d", res.Reclaimed)
+	}
+}

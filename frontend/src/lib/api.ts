@@ -286,6 +286,33 @@ export interface ServiceMapData {
   edges: ServiceMapEdge[]
 }
 
+export interface TableStat {
+  name: string
+  row_count: number
+  approx_bytes: number
+}
+
+export interface SessionSize {
+  id: string
+  label: string
+  approx_bytes: number
+  span_count: number
+}
+
+export interface StorageBreakdown {
+  tables: TableStat[]
+  sessions: SessionSize[]
+  wal_bytes: number
+  main_bytes: number
+  last_checkpoint_at: number
+}
+
+export interface CompactResult {
+  bytes_before: number
+  bytes_after: number
+  reclaimed: number
+}
+
 export const api = {
   traces: {
     list: (sessionId?: string) =>
@@ -372,6 +399,14 @@ export const api = {
         if (!r.ok) return r.text().then(t => { throw new Error(t) })
         return r.json()
       }),
+    compact: () =>
+      fetch('/api/settings/compact', { method: 'POST' }).then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error(t) })
+        return r.json() as Promise<{ data: CompactResult; meta: { total: number; page: number } }>
+      }),
+  },
+  storage: {
+    get: () => get<StorageBreakdown>('/api/storage'),
   },
   coverage: {
     get: (sessionId?: string) =>
