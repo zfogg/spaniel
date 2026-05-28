@@ -16,12 +16,14 @@ import (
 // already on the Router (storage, hub, etc.). main.go builds one of these
 // after viper has been bootstrapped and hands it to Router.SetSettingsService.
 type SettingsService struct {
-	Viper      *viper.Viper
-	ConfigPath string // path to the file Save() will write
-	Version    string
-	StartedAt  time.Time
+	Viper          *viper.Viper
+	ConfigPath     string // path to the file Save() will write
+	Version        string
+	StartedAt      time.Time
 	OTLPGRPCPort   int
 	OTLPHTTPPort   int
+	TLSEnabled     bool
+	BearerTokenSet bool
 }
 
 // SettingsResponse is the JSON shape returned by GET /api/settings.
@@ -35,10 +37,12 @@ type SettingsResponse struct {
 	OTLPGRPCPort      int      `json:"otlp_grpc_port"`
 	OTLPHTTPPort      int      `json:"otlp_http_port"`
 	NoBrowser     bool     `json:"no_browser"`
-	Forward       []string `json:"forward"`
-	BindAddressV4 string   `json:"bind_address_v4"`
-	BindAddressV6 string   `json:"bind_address_v6"`
-	ForwardSample float64  `json:"forward_sample"`
+	Forward        []string `json:"forward"`
+	BindAddressV4  string   `json:"bind_address_v4"`
+	BindAddressV6  string   `json:"bind_address_v6"`
+	ForwardSample  float64  `json:"forward_sample"`
+	TLSEnabled     bool     `json:"tls_enabled"`
+	BearerTokenSet bool     `json:"bearer_token_set"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -127,9 +131,11 @@ func (r *Router) buildSettings() SettingsResponse {
 		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
 		NoBrowser:     v.GetBool("no_browser"),
 		Forward:       nonNilStrings(v.GetStringSlice("forward")),
-		BindAddressV4: v.GetString("bind_address_v4"),
-		BindAddressV6: v.GetString("bind_address_v6"),
-		ForwardSample: v.GetFloat64("forward_sample"),
+		BindAddressV4:  v.GetString("bind_address_v4"),
+		BindAddressV6:  v.GetString("bind_address_v6"),
+		ForwardSample:  v.GetFloat64("forward_sample"),
+		TLSEnabled:     s.TLSEnabled,
+		BearerTokenSet: s.BearerTokenSet,
 		Runtime: SettingsRuntime{
 			PID:        os.Getpid(),
 			UptimeNs:   time.Since(s.StartedAt).Nanoseconds(),
