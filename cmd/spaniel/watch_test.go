@@ -4,9 +4,27 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (sb *syncBuffer) Write(p []byte) (int, error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *syncBuffer) String() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.String()
+}
 
 func TestRunWatch_PrintsSpanLines(t *testing.T) {
 	frames := []map[string]any{
@@ -20,7 +38,7 @@ func TestRunWatch_PrintsSpanLines(t *testing.T) {
 	srv, wg := newWSPusher(t, frames)
 	defer srv.Close()
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go func() {
@@ -47,7 +65,7 @@ func TestRunWatch_ErrorsOnlyFiltersOK(t *testing.T) {
 	srv, wg := newWSPusher(t, frames)
 	defer srv.Close()
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go func() {
@@ -75,7 +93,7 @@ func TestRunWatch_ServiceFilter(t *testing.T) {
 	srv, wg := newWSPusher(t, frames)
 	defer srv.Close()
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go func() {
@@ -103,7 +121,7 @@ func TestRunWatch_N1OnlyDropsRegularSpansShowsIssues(t *testing.T) {
 	srv, wg := newWSPusher(t, frames)
 	defer srv.Close()
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go func() {
