@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, ServiceMapData, ServiceMapNode, ServiceMapEdge, Session } from '@/lib/api'
+import { api, ServiceMapData, ServiceMapNode, ServiceMapEdge, Session, SourceStats } from '@/lib/api'
 import { useWS } from '@/lib/ws'
 import EmptyState from '@/components/EmptyState'
 
@@ -475,6 +475,21 @@ function Empty() {
 
 // ── ServiceMap page ───────────────────────────────────────────────────────────
 
+function fmtSourceRate(n: number): string {
+  if (n <= 0) return '0'
+  if (n < 1) return '<1'
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return n.toFixed(1)
+}
+
+function fmtSourceBytes(n: number): string {
+  if (!n) return '0 B'
+  const u = ['B', 'KB', 'MB', 'GB']
+  let i = 0, v = n
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
+}
+
 export default function ServiceMap() {
   const navigate = useNavigate()
   const [data, setData]            = useState<ServiceMapData | null>(null)
@@ -483,6 +498,9 @@ export default function ServiceMap() {
   const [loading, setLoading]      = useState(true)
   const [sessions, setSessions]    = useState<Session[]>([])
   const [sessionId, setSessionId]  = useState<string>('') // '' = all
+  const [tab, setTab]              = useState<'map' | 'sources'>('map')
+  const [sources, setSources]      = useState<SourceStats[]>([])
+  const [sourceSort, setSourceSort] = useState<keyof SourceStats>('accepted_per_sec')
 
   const load = useCallback((sid: string) => {
     api.serviceMap.get(sid || undefined).then(r => {
@@ -501,6 +519,17 @@ export default function ServiceMap() {
   useWS(ev => {
     if (ev.type === 'span') load(sessionId)
   })
+
+  // poll /api/sources every 2s
+  useEffect(() => {
+    let cancel = false
+    function refresh() {
+      api.sources.list().then(r => { if (!cancel) setSources(r.data ?? []) }).catch(() => {})
+    }
+    refresh()
+    const t = setInterval(refresh, 2000)
+    return () => { cancel = true; clearInterval(t) }
+  }, [])
 
   const nodes = data?.nodes ?? []
   const edges = data?.edges ?? []
@@ -530,16 +559,42 @@ export default function ServiceMap() {
 
   const selectedNode = selectedSvc ? nodes.find(n => n.id === selectedSvc) ?? null : null
 
+  const sortedSources = [...sources]
+    .sort((a, b) => (b[sourceSort] as number) - (a[sourceSort] as number))
+    .slice(0, 10)
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* header */}
       <header className="flex shrink-0 items-center gap-3.5 border-b border-border bg-background px-[18px] py-2.5">
         <div>
-          <div className="font-sans text-[13px] font-semibold text-foreground">Service map</div>
+          <div className="font-sans text-[13px] font-semibold text-foreground">Services</div>
           <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-            auto-generated from span relationships
+            {tab === 'map' ? 'auto-generated from span relationships' : 'live ingest rates per service'}
           </div>
         </div>
+
+        {/* tab toggle */}
+        <div className="flex rounded-md border border-border overflow-hidden font-mono text-[11px]">
+          <button
+            data-testid="tab-map"
+            onClick={() => setTab('map')}
+            className={`px-3 py-1 ${tab === 'map' ? 'bg-surface text-ink' : 'bg-background text-ink3 hover:text-ink'}`}
+          >
+            Map
+          </button>
+          <button
+            data-testid="tab-sources"
+            onClick={() => setTab('sources')}
+            className={`px-3 py-1 border-l border-border ${tab === 'sources' ? 'bg-surface text-ink' : 'bg-background text-ink3 hover:text-ink'}`}
+          >
+            Sources
+            {sources.some(s => s.rejected_per_sec > 0) && (
+              <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-danger align-middle" aria-label="rate-limited sources" />
+            )}
+          </button>
+        </div>
+
         <div className="flex-1" />
 
         {/* session filter */}
@@ -575,8 +630,66 @@ export default function ServiceMap() {
         </span>
       </header>
 
+      {/* sources table */}
+      {tab === 'sources' && (
+        <div className="flex-1 overflow-auto p-4">
+          {sortedSources.length === 0 ? (
+            <p className="font-mono text-[11px] text-ink3 mt-8 text-center">No sources seen yet — start sending spans.</p>
+          ) : (
+            <table className="w-full font-mono text-[11px] border border-border rounded-lg overflow-hidden" data-testid="sources-table">
+              <thead>
+                <tr className="bg-surface-raised border-b border-border text-ink3">
+                  <th className="px-3 py-2 text-left">service</th>
+                  {([
+                    ['acc/s',    'accepted_per_sec'],
+                    ['rej/s',    'rejected_per_sec'],
+                    ['errors',   'error_rate'],
+                    ['bytes/s',  'bytes_per_sec'],
+                  ] as [string, keyof SourceStats][]).map(([label, k]) => (
+                    <th
+                      key={k}
+                      className={`px-3 py-2 text-right cursor-pointer select-none hover:text-ink ${sourceSort === k ? 'text-ink' : ''}`}
+                      onClick={() => setSourceSort(k)}
+                    >
+                      {label}{sourceSort === k ? ' ↓' : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedSources.map(s => {
+                  const rateLimited = s.rejected_per_sec > 0
+                  return (
+                    <tr key={s.service} className="border-b border-border/50 hover:bg-surface-raised/40" data-testid="source-row">
+                      <td className="px-3 py-2 text-ink flex items-center gap-1.5">
+                        {rateLimited && (
+                          <span
+                            className="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-danger"
+                            aria-label="rate-limited"
+                            data-testid="rate-limited-badge"
+                          />
+                        )}
+                        <span className="truncate max-w-[220px]">{s.service}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-ok">{fmtSourceRate(s.accepted_per_sec)}</td>
+                      <td className={`px-3 py-2 text-right ${rateLimited ? 'text-danger font-semibold' : 'text-ink3'}`}>
+                        {fmtSourceRate(s.rejected_per_sec)}
+                      </td>
+                      <td className={`px-3 py-2 text-right ${s.error_rate > 0.05 ? 'text-warning' : 'text-ink3'}`}>
+                        {(s.error_rate * 100).toFixed(1)}%
+                      </td>
+                      <td className="px-3 py-2 text-right text-ink2">{fmtSourceBytes(s.bytes_per_sec)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* canvas + inspector */}
-      <div className="flex min-h-0 flex-1">
+      {tab === 'map' && <div className="flex min-h-0 flex-1">
         <div
           className="relative flex-1 overflow-auto bg-background"
           style={{
@@ -638,7 +751,7 @@ export default function ServiceMap() {
         {selectedNode && (
           <NodeInspector node={selectedNode} onClose={() => setSelected(null)} />
         )}
-      </div>
+      </div>}
 
       {/* footer legend */}
       <footer className="flex shrink-0 items-center gap-[18px] border-t border-border bg-background px-4 py-2 font-mono text-[10.5px] text-muted-foreground">

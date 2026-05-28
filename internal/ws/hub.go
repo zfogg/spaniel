@@ -104,12 +104,37 @@ func NewThroughputEvent(p *ThroughputPayload) *Event {
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]struct{}
+
+	bytesSent     metric.Int64Counter
+	bytesReceived metric.Int64Counter
 }
 
 func NewHub() *Hub {
-	return &Hub{
-		clients: make(map[*websocket.Conn]struct{}),
+	meter := otel.Meter("spaniel/ws")
+	sent, _ := meter.Int64Counter("spaniel.ws.bytes_sent",
+		metric.WithDescription("Total bytes sent to WebSocket clients"),
+		metric.WithUnit("By"),
+	)
+	received, _ := meter.Int64Counter("spaniel.ws.bytes_received",
+		metric.WithDescription("Total bytes received from WebSocket clients"),
+		metric.WithUnit("By"),
+	)
+	h := &Hub{
+		clients:       make(map[*websocket.Conn]struct{}),
+		bytesSent:     sent,
+		bytesReceived: received,
 	}
+	_, _ = meter.Int64ObservableGauge("spaniel.ws.connections",
+		metric.WithDescription("Active WebSocket connections"),
+		metric.WithUnit("{connection}"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			h.mu.RLock()
+			o.Observe(int64(len(h.clients)))
+			h.mu.RUnlock()
+			return nil
+		}),
+	)
+	return h
 }
 
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
@@ -129,9 +154,11 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			conn.Close()
 		}()
 		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
 				break
 			}
+			h.bytesReceived.Add(context.Background(), int64(len(msg)))
 		}
 	}()
 }
@@ -146,4 +173,5 @@ func (h *Hub) Broadcast(ev *Event) {
 	for conn := range h.clients {
 		conn.WriteMessage(websocket.TextMessage, data) //nolint:errcheck
 	}
+	h.bytesSent.Add(context.Background(), int64(len(data))*int64(len(h.clients)))
 }
