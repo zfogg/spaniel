@@ -44,3 +44,5 @@ frontend/.playwright/
 # Editor/IDE
 # .idea/
 # .vscode/
+
+.playwright-mcp/
