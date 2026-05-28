@@ -53,7 +53,7 @@ test.describe('ServiceMap page', () => {
     await stubServiceMap(page, { nodes: [], edges: [] })
     await page.goto('/services')
 
-    await expect(page.getByText('No spans yet')).toBeVisible()
+    await expect(page.getByText('No service relationships yet')).toBeVisible()
   })
 
   test('renders a single node with its service name', async ({ page }) => {

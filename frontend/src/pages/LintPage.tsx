@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, LintWarning } from '@/lib/api'
 import { useWS } from '@/lib/ws'
+import EmptyState from '@/components/EmptyState'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -276,21 +277,16 @@ export default function LintPage() {
           }}>Loading…</div>
         )}
         {!loading && warnings.length === 0 && (
-          <div style={{
-            padding: '48px 18px',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', gap: 8,
-          }}>
-            <span style={{
-              width: 10, height: 10, borderRadius: 10,
-              background: 'var(--ok)', display: 'block',
-              boxShadow: '0 0 0 4px var(--ok-bg)',
-            }} />
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 12,
-              color: 'var(--ink3)', marginTop: 8,
-            }}>No lint warnings — looking good</div>
-          </div>
+          <EmptyState
+            title="All clean!"
+            hint="No semconv violations or N+1s detected."
+            glyph={
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="11" stroke="var(--ok)" strokeWidth="1.5" opacity="0.7" />
+                <path d="M11 16.5 L14.5 20 L21 13" stroke="var(--ok)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            }
+          />
         )}
         {!loading && warnings.map((w, i) => (
           <LintRow key={`${w.rule_id}-${w.span_id}-${i}`} w={w} last={i === warnings.length - 1} />

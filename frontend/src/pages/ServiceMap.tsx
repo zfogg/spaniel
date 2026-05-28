@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ServiceMapData, ServiceMapNode, ServiceMapEdge, Session } from '@/lib/api'
 import { useWS } from '@/lib/ws'
+import EmptyState from '@/components/EmptyState'
 
 // ── palette (same hash as TraceWaterfall) ─────────────────────────────────────
 
@@ -306,18 +307,20 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'da
 
 function Empty() {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <circle cx="16" cy="24" r="7" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-        <circle cx="36" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-        <circle cx="36" cy="36" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-        <line x1="23" y1="20" x2="31" y2="14" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
-        <line x1="23" y1="28" x2="31" y2="34" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
-      </svg>
-      <div className="font-mono text-[13px]">No spans yet</div>
-      <div className="max-w-[280px] text-center font-mono text-[11px] opacity-60">
-        Send traces via OTLP and the service map will appear automatically.
-      </div>
+    <div className="absolute inset-0">
+      <EmptyState
+        title="No service relationships yet"
+        hint="Once two services exchange spans, the map fills in automatically."
+        glyph={
+          <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+            <circle cx="16" cy="24" r="7" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+            <circle cx="36" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+            <circle cx="36" cy="36" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+            <line x1="23" y1="20" x2="31" y2="14" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
+            <line x1="23" y1="28" x2="31" y2="34" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
+          </svg>
+        }
+      />
     </div>
   )
 }

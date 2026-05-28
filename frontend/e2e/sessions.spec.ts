@@ -137,7 +137,7 @@ test.describe('Sessions page', () => {
     await stubBackend(page, { sessions: [], activeId: '' })
     await page.goto('/sessions')
 
-    await expect(page.getByText('no sessions yet')).toBeVisible()
+    await expect(page.getByText('No sessions yet')).toBeVisible()
     // CompareBar always present — shows "— pick baseline —" placeholder
     await expect(page.getByText('— pick baseline —')).toBeVisible()
     await expect(page.getByRole('button', { name: /compare sessions/i })).toBeDisabled()

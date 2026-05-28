@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { useWS } from '@/lib/ws'
+import EmptyState from '@/components/EmptyState'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
@@ -604,13 +605,18 @@ export default function LogViewer() {
               loading…
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
-              textAlign: 'center', padding: 24,
-            }}>
-              no logs yet — send traces with OTel logging attached
-            </div>
+            <EmptyState
+              title="No logs yet"
+              hint={<>Point your OTLP exporter at <code>localhost:4318/v1/logs</code> and logs will stream in here.</>}
+              glyph={
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  <rect x="6" y="6" width="20" height="20" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+                  <line x1="10" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+                  <line x1="10" y1="16" x2="20" y2="16" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
+                  <line x1="10" y1="20" x2="17" y2="20" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
+                </svg>
+              }
+            />
           ) : (
             <>
               {/* column header */}

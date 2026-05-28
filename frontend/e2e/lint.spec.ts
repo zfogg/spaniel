@@ -40,7 +40,7 @@ test.describe('LintPage', () => {
     await stubLint(page, [])
     await page.goto('/lint')
 
-    await expect(page.getByText('No lint warnings — looking good')).toBeVisible()
+    await expect(page.getByText('All clean!')).toBeVisible()
   })
 
   test('a warning row shows rule_id, severity badge, and message', async ({ page }) => {

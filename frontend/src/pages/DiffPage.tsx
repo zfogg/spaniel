@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { api, Span, Session } from '@/lib/api'
 import { fmtNs, svcColor } from '@/lib/span-utils'
 import { updateDiffHistoryDeltas } from '@/lib/diff-history'
+import EmptyState from '@/components/EmptyState'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -483,12 +484,17 @@ export default function DiffPage() {
             computing diff…
           </div>
         ) : !baselineId || !compareId ? (
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink3)',
-          }}>
-            select two sessions to compare
-          </div>
+          <EmptyState
+            title="No diff yet"
+            hint="Pick a baseline and compare session on the Sessions page."
+            glyph={
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <rect x="4" y="8" width="10" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+                <rect x="18" y="8" width="10" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+                <line x1="14" y1="16" x2="18" y2="16" stroke="currentColor" strokeWidth="1.5" opacity="0.4" strokeDasharray="2 2" />
+              </svg>
+            }
+          />
         ) : !diff ? null : diff.spans.length === 0 ? (
           <div style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',

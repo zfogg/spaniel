@@ -59,7 +59,7 @@ test.describe('Spans page', () => {
   test('shows empty state when no spans', async ({ page }) => {
     await stubBackend(page, [])
     await page.goto('/spans')
-    await expect(page.getByText('no spans yet')).toBeVisible()
+    await expect(page.getByText('No spans recorded')).toBeVisible()
   })
 
   // ── table rows ────────────────────────────────────────────────────────────

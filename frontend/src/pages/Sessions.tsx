@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, Session, LintWarning } from '@/lib/api'
 import { readDiffHistory, pushDiffHistory, type DiffHistoryEntry } from '@/lib/diff-history'
+import EmptyState from '@/components/EmptyState'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -862,15 +863,31 @@ export default function Sessions() {
                 loading…
               </div>
             ) : filteredSessions.length === 0 ? (
-              <div style={{
-                padding: '32px 16px', textAlign: 'center',
-                fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
-                background: 'var(--surface)',
-                border: '1px solid var(--line)', borderTop: 'none',
-                borderRadius: '0 0 10px 10px',
-              }}>
-                {sessions.length === 0 ? 'no sessions yet' : 'no sessions match this filter'}
-              </div>
+              sessions.length === 0 ? (
+                <EmptyState
+                  title="No sessions yet"
+                  hint={<>Run <code>spaniel session new &lt;label&gt;</code> or call <code>POST /api/sessions</code> to create one.</>}
+                  glyph={
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                      <rect x="5" y="8" width="22" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+                      <line x1="5" y1="13" x2="27" y2="13" stroke="currentColor" strokeWidth="1" opacity="0.3" />
+                      <circle cx="9" cy="10.5" r="1" fill="currentColor" opacity="0.5" />
+                      <circle cx="12.5" cy="10.5" r="1" fill="currentColor" opacity="0.4" />
+                      <circle cx="16" cy="10.5" r="1" fill="currentColor" opacity="0.3" />
+                    </svg>
+                  }
+                />
+              ) : (
+                <div style={{
+                  padding: '32px 16px', textAlign: 'center',
+                  fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--line)', borderTop: 'none',
+                  borderRadius: '0 0 10px 10px',
+                }}>
+                  no sessions match this filter
+                </div>
+              )
             ) : (
               <div
                 data-testid="sessions-table-body"

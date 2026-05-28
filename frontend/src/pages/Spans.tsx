@@ -4,6 +4,7 @@ import { api, type SpanRow } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import { useWS } from '@/lib/ws'
+import EmptyState from '@/components/EmptyState'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -501,10 +502,25 @@ export default function Spans() {
               fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)',
             }}>loading…</div>
           ) : filtered.length === 0 ? (
-            <div style={{
-              padding: '40px 20px', textAlign: 'center',
-              fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)',
-            }}>{spans.length === 0 ? 'no spans yet' : 'no spans match — clear a filter or try a different query'}</div>
+            spans.length === 0 ? (
+              <EmptyState
+                title="No spans recorded"
+                hint="Send any OTLP span — they'll appear here."
+                glyph={
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect x="4" y="13" width="18" height="4" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.6" />
+                    <rect x="10" y="21" width="14" height="4" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
+                    <rect x="7" y="5" width="10" height="4" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+                  </svg>
+                }
+                cta={{ label: 'OTLP docs →', href: 'https://opentelemetry.io/docs/specs/otel/protocol/' }}
+              />
+            ) : (
+              <div style={{
+                padding: '40px 20px', textAlign: 'center',
+                fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)',
+              }}>no spans match — clear a filter or try a different query</div>
+            )
           ) : filtered.map(s => {
             const isSel = s.span_id === selectedId
             const isSlow = s.duration_ns > SLOW_NS

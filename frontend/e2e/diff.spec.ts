@@ -63,7 +63,7 @@ test.describe('DiffPage', () => {
     await stubDiff(page)
     await page.goto('/diff')
 
-    await expect(page.getByText('select two sessions to compare')).toBeVisible()
+    await expect(page.getByText('No diff yet')).toBeVisible()
   })
 
   test('loads the diff and shows both session labels in column headers', async ({ page }) => {

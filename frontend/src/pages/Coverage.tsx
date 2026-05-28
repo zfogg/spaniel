@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, CoverageReport, ServiceCoverage, CoverageRoute } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
+import EmptyState from '@/components/EmptyState'
 
 type Filter = 'all' | 'dark' | 'observed'
 
@@ -377,19 +378,17 @@ export default function Coverage() {
 
   if (!report || report.services.length === 0) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <div style={{ textAlign: 'center', maxWidth: 460 }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--foreground)', marginBottom: 8,
-          }}>No coverage data</div>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)', lineHeight: 1.5,
-          }}>
-            Send traces with <code>http.route</code> attributes (or import an OpenAPI spec with{' '}
-            <code>--routes-file</code>) to populate this view.
-          </div>
-        </div>
-      </div>
+      <EmptyState
+        title="No coverage data"
+        hint={<>Send traces with <code>http.route</code> attributes (or import an OpenAPI spec with <code>--routes-file</code>) to populate this view.</>}
+        glyph={
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="11" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+            <path d="M16 5 A11 11 0 0 1 27 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
+            <circle cx="16" cy="16" r="2.5" fill="currentColor" opacity="0.6" />
+          </svg>
+        }
+      />
     )
   }
 

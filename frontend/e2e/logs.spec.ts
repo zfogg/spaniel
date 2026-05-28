@@ -58,7 +58,7 @@ test.describe('LogViewer', () => {
     await stubLogs(page, [])
     await page.goto('/logs')
 
-    await expect(page.getByText('no logs yet — send traces with OTel logging attached')).toBeVisible()
+    await expect(page.getByText('No logs yet')).toBeVisible()
   })
 
   test('a log row shows severity badge, service name, and body text', async ({ page }) => {
@@ -197,7 +197,7 @@ test.describe('LogViewer', () => {
     })
 
     await page.goto('/logs')
-    await expect(page.getByText('no logs yet — send traces with OTel logging attached')).toBeVisible()
+    await expect(page.getByText('No logs yet')).toBeVisible()
 
     // Push a log event through all WS connections so LogViewer's hook receives it.
     const logEvent = {

@@ -5,6 +5,7 @@ import { svcColor } from '@/lib/span-utils'
 import { bucketPoints, type BucketedSeries, type MetricType } from '@/lib/metrics-bucket'
 import { fmtVal, statsFor, type Stat } from '@/lib/metrics-format'
 import { xPosForTrace, valueAtBin } from '@/lib/metrics-correlate'
+import EmptyState from '@/components/EmptyState'
 
 // ── icons ────────────────────────────────────────────────────────────────────
 
@@ -293,16 +294,17 @@ export default function Metrics() {
 
   if (catalog.length === 0) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <div style={{ textAlign: 'center', maxWidth: 460 }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--foreground)', marginBottom: 8 }}>
-            No metrics yet
-          </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
-            Point your OTLP exporter at <code>localhost:4318/v1/metrics</code> and spaniel will start collecting gauges, counters, and histograms here.
-          </div>
-        </div>
-      </div>
+      <EmptyState
+        title="No metrics yet"
+        hint={<>Point your OTLP exporter at <code>localhost:4318/v1/metrics</code> and spaniel will collect gauges, counters, and histograms here.</>}
+        glyph={
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect x="4" y="20" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+            <rect x="13" y="12" width="6" height="16" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.6" />
+            <rect x="22" y="6" width="6" height="22" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.7" />
+          </svg>
+        }
+      />
     )
   }
 
