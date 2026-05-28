@@ -219,9 +219,9 @@ describe('<Metrics />', () => {
     expect(result.p99!.some(v => v > 0)).toBeTruthy()
   })
 
-  it('histogram without percentile attribute becomes flat zeros (the bug)', () => {
-    // This is the bug: histogram data without percentile attributes gets skipped entirely,
-    // resulting in all NaN values that forward-fill to 0.
+  it('histogram without percentile attribute distributes to all percentiles (fallback)', () => {
+    // Fallback for malformed data: if a histogram point has no percentile attribute,
+    // distribute it to p50/p95/p99 equally rather than dropping it entirely.
     const histogramPointsWithoutPercentile = [
       { timestamp_ns: 1000, value: 10 },
       { timestamp_ns: 2000, value: 20 },
@@ -230,12 +230,9 @@ describe('<Metrics />', () => {
 
     const result = bucketPoints(histogramPointsWithoutPercentile, 'histogram', 60)
 
-    // Without percentile attributes, all p50/p95/p99 arrays become flat zeros
-    // This is the bug — they should still contain data even without percentile attribute
-    // (or the code should validate that histogram data HAS percentile attributes).
-    const allZeros = result.p50!.every(v => v === 0) &&
-                     result.p95!.every(v => v === 0) &&
-                     result.p99!.every(v => v === 0)
-    expect(allZeros).toBeTruthy() // This is the bug — all zeros
+    // All three percentiles should have the same values (distributed equally)
+    expect(result.p50!.some(v => v > 0)).toBeTruthy()
+    expect(result.p95!.some(v => v > 0)).toBeTruthy()
+    expect(result.p99!.some(v => v > 0)).toBeTruthy()
   })
 })

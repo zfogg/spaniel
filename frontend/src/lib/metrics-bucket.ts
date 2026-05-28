@@ -38,9 +38,15 @@ export function bucketPoints(
       p99: new Array(bins).fill(NaN),
     }
     for (const p of points) {
-      if (!p.percentile) continue
       const i = Math.min(bins - 1, Math.floor(((p.timestamp_ns - tMin) / span) * bins))
-      out[p.percentile][i] = p.value
+      // If no percentile is set, distribute to all three (fallback for malformed data)
+      if (p.percentile) {
+        out[p.percentile][i] = p.value
+      } else {
+        out.p50[i] = p.value
+        out.p95[i] = p.value
+        out.p99[i] = p.value
+      }
     }
     for (const k of ['p50', 'p95', 'p99'] as const) {
       forwardFill(out[k])
