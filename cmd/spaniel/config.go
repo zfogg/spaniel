@@ -112,6 +112,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("self_telemetry_endpoint", "")
 	v.SetDefault("self_telemetry_service", "spaniel")
 	v.SetDefault("self_telemetry_insecure", true)
+	v.SetDefault("self_monitor", false)
 
 	// ENV: SPANIEL_PORT, SPANIEL_DB_PATH, etc.
 	v.SetEnvPrefix("SPANIEL")

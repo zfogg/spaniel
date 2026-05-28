@@ -339,6 +339,7 @@ type runConfig struct {
 	SelfTelemetryEndpoint  string
 	SelfTelemetryService   string
 	SelfTelemetryInsecure  bool
+	SelfMonitor            bool
 	Debug                  bool
 	Viper                  *viper.Viper
 }
@@ -373,6 +374,7 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		SelfTelemetryEndpoint: v.GetString("self_telemetry_endpoint"),
 		SelfTelemetryService:  v.GetString("self_telemetry_service"),
 		SelfTelemetryInsecure: v.GetBool("self_telemetry_insecure"),
+		SelfMonitor:           v.GetBool("self_monitor"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -437,6 +439,11 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	if cfg.ForwardSample <= 0 || cfg.ForwardSample > 1 {
 		cfg.ForwardSample = 1.0
 	}
+	// self_monitor auto-wires self-telemetry to Spaniel's own OTLP gRPC port.
+	// An explicit self_telemetry_endpoint takes precedence.
+	if cfg.SelfMonitor && cfg.SelfTelemetryEndpoint == "" && cfg.OTLPGRPCPort > 0 {
+		cfg.SelfTelemetryEndpoint = fmt.Sprintf("localhost:%d", cfg.OTLPGRPCPort)
+	}
 	cfg.Viper = v
 	return cfg
 }
@@ -454,17 +461,41 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("create data dir: %w", err)
 	}
 
-	otelShutdown, err := telemetry.Setup(context.Background(), telemetry.Config{
-		Endpoint:    cfg.SelfTelemetryEndpoint,
-		ServiceName: cfg.SelfTelemetryService,
-		Version:     version,
-		DBPath:      cfg.DBPath,
-		Insecure:    cfg.SelfTelemetryInsecure,
-	})
-	if err != nil {
+	// otelState holds the currently-active OTel shutdown function under a mutex
+	// so it can be hot-swapped when self_monitor is toggled at runtime.
+	var otelMu sync.Mutex
+	var otelActive func(context.Context) error
+
+	setupOTel := func(endpoint string) error {
+		sd, err := telemetry.Setup(context.Background(), telemetry.Config{
+			Endpoint:    endpoint,
+			ServiceName: cfg.SelfTelemetryService,
+			Version:     version,
+			DBPath:      cfg.DBPath,
+			Insecure:    cfg.SelfTelemetryInsecure,
+		})
+		if err != nil {
+			return err
+		}
+		otelMu.Lock()
+		if otelActive != nil {
+			_ = otelActive(context.Background())
+		}
+		otelActive = sd
+		otelMu.Unlock()
+		return nil
+	}
+	if err := setupOTel(cfg.SelfTelemetryEndpoint); err != nil {
 		return fmt.Errorf("self-telemetry setup: %w", err)
 	}
-	defer otelShutdown(context.Background()) //nolint:errcheck
+	defer func() {
+		otelMu.Lock()
+		fn := otelActive
+		otelMu.Unlock()
+		if fn != nil {
+			_ = fn(context.Background())
+		}
+	}()
 
 	startCtx, startSpan := otel.Tracer("spaniel").Start(context.Background(), "spaniel.startup")
 
@@ -654,6 +685,19 @@ func run(cfg runConfig) error {
 		},
 		SetLiveGRPCPort: startGRPC,
 		SetLiveHTTPPort: startOTLPHTTP,
+		SetSelfMonitor: func(enabled bool) error {
+			var endpoint string
+			if enabled {
+				grpcLS.mu.Lock()
+				port := grpcLS.port
+				grpcLS.mu.Unlock()
+				if port <= 0 {
+					port = cfg.OTLPGRPCPort
+				}
+				endpoint = fmt.Sprintf("localhost:%d", port)
+			}
+			return setupOTel(endpoint)
+		},
 	}
 	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters(), pipeline)
 

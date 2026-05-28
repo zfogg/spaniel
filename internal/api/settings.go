@@ -37,6 +37,11 @@ type SettingsService struct {
 	SetLiveGRPCPort func(int) error
 	SetLiveHTTPPort func(int) error
 
+	// SetSelfMonitor enables or disables self-telemetry without a restart.
+	// When enabled, Spaniel sends its own traces/metrics to its own OTLP gRPC
+	// port. nil = setting is persisted but takes effect on next restart only.
+	SetSelfMonitor func(bool) error
+
 	// GithubClient is injected in tests to stub the GitHub API. nil = use
 	// http.DefaultClient.
 	GithubClient *http.Client
@@ -77,6 +82,7 @@ type SettingsResponse struct {
 	SourceBurst    int      `json:"source_burst"`
 	TLSEnabled     bool     `json:"tls_enabled"`
 	BearerTokenSet bool     `json:"bearer_token_set"`
+	SelfMonitor    bool     `json:"self_monitor"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -110,6 +116,7 @@ type SettingsUpdate struct {
 	ForwardSample *float64  `json:"forward_sample,omitempty"`
 	SourceRPS     *float64  `json:"source_rps,omitempty"`
 	SourceBurst   *int      `json:"source_burst,omitempty"`
+	SelfMonitor   *bool     `json:"self_monitor,omitempty"`
 }
 
 func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
@@ -175,6 +182,7 @@ func (r *Router) buildSettings() SettingsResponse {
 		SourceBurst:    v.GetInt("source_burst"),
 		TLSEnabled:     s.TLSEnabled,
 		BearerTokenSet: s.BearerTokenSet,
+		SelfMonitor:    v.GetBool("self_monitor"),
 		Runtime: SettingsRuntime{
 			PID:          os.Getpid(),
 			UptimeNs:     time.Since(s.StartedAt).Nanoseconds(),
@@ -313,6 +321,14 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if u.SourceBurst != nil {
 		s.Viper.Set("source_burst", *u.SourceBurst)
 	}
+	if u.SelfMonitor != nil {
+		s.Viper.Set("self_monitor", *u.SelfMonitor)
+		if s.SetSelfMonitor != nil {
+			if err := s.SetSelfMonitor(*u.SelfMonitor); err != nil {
+				return fmt.Errorf("set self-monitor: %w", err)
+			}
+		}
+	}
 
 	if s.ConfigPath == "" {
 		// In-memory only (tests). Nothing to persist.
@@ -321,7 +337,7 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst"} {
+	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {

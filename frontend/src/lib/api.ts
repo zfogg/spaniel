@@ -251,6 +251,7 @@ export interface Settings {
   source_burst: number
   tls_enabled: boolean
   bearer_token_set: boolean
+  self_monitor: boolean
   runtime: SettingsRuntime
 }
 
@@ -269,6 +270,7 @@ export interface SettingsUpdate {
   forward_sample?: number
   source_rps?: number
   source_burst?: number
+  self_monitor?: boolean
 }
 
 export interface SourceStats {

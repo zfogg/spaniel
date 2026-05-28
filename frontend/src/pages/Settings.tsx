@@ -467,6 +467,16 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
           min={0} max={1000000} ariaLabel="source burst" w={120} />
         <span className="font-mono text-[11px] text-muted-foreground">spans&nbsp;&nbsp;(0 = rps × 5)</span>
       </Row>
+      <Row label="Self-monitor"
+        hint="Send Spaniel's own traces and metrics to itself via its OTLP gRPC port. Enables the dogfood loop: see Spaniel's request latency, DB query times, and ingest spans in the Traces and Metrics tabs. Takes effect immediately."
+        testid="row-self-monitor">
+        <Toggle on={s.self_monitor} onChange={v => mutate({ self_monitor: v })} label="self monitor" />
+        {s.self_monitor && (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            → localhost:{s.runtime.otlp_grpc_port}
+          </span>
+        )}
+      </Row>
       <Row label="Storage usage"
         hint={`Currently ${fmtMB(s.runtime.db_size_bytes)} on disk.`}
         testid="row-usage">
