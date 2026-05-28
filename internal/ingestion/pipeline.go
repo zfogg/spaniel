@@ -96,8 +96,37 @@ func (p *Pipeline) Throughput() storage.Throughput {
 func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
+	// Build OTel links to the root span of every received trace so this
+	// processing span is causally connected to the application spans it handles.
+	// Navigating to the ingestSpan from the app trace (or vice versa) shows the
+	// full picture: app span → Spaniel collected it → stored it.
+	var receivedLinks []trace.Link
+	for i := 0; i < traces.ResourceSpans().Len(); i++ {
+		rs := traces.ResourceSpans().At(i)
+		for j := 0; j < rs.ScopeSpans().Len(); j++ {
+			ss := rs.ScopeSpans().At(j)
+			for k := 0; k < ss.Spans().Len(); k++ {
+				span := ss.Spans().At(k)
+				if !span.ParentSpanID().IsEmpty() {
+					continue
+				}
+				sc := trace.NewSpanContext(trace.SpanContextConfig{
+					TraceID:    trace.TraceID(span.TraceID()),
+					SpanID:     trace.SpanID(span.SpanID()),
+					TraceFlags: trace.FlagsSampled,
+					Remote:     true,
+				})
+				if sc.IsValid() {
+					receivedLinks = append(receivedLinks, trace.Link{SpanContext: sc})
+				}
+			}
+		}
+	}
+
 	ctx, ingestSpan := p.tracer.Start(ctx, "IngestTraces",
-		trace.WithAttributes(attribute.Int("otel.span_count", traces.SpanCount())))
+		trace.WithAttributes(attribute.Int("otel.span_count", traces.SpanCount())),
+		trace.WithLinks(receivedLinks...),
+	)
 	defer ingestSpan.End()
 
 	sessionID := p.store.ActiveSessionID()
