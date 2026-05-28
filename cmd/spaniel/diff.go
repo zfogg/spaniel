@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,11 +15,10 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
-// diffSubcommand is the top-level `spaniel diff` command. It diffs two
-// sessions (by id or label) via the running spaniel's /api/diff endpoint
-// and prints a human summary — or pretty JSON when --json is set. Exits
-// non-zero when duration_delta_pct exceeds --threshold or any spans were
-// added (the CI gate from issue #49).
+// diffSubcommand is `spaniel diff` — compares two sessions via /api/diff and
+// either launches the TUI (interactive) or emits machine-readable JSON.
+// The exit code gate (threshold + spans_added > 0) fires in both modes so
+// CI pipelines using --json keep working.
 func diffSubcommand() *cobra.Command {
 	var (
 		apiBase   string
@@ -32,19 +30,21 @@ func diffSubcommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "diff",
 		Short: "Diff two sessions (id or label) via /api/diff",
-		Long: `Compare two sessions and print a regression summary.
+		Long: `Compare two sessions and either open an interactive pager or
+emit JSON for CI.
 
 Both --baseline and --compare accept either a session id or its label.
 With --json the full DiffResult is printed verbatim for piping into jq.
-Exits 1 when duration_delta_pct > --threshold OR spans_added > 0 so the
-command slots into CI gates.`,
-		// Suppress cobra's auto-usage / auto-error print when the gate trips —
-		// the summary is the user-facing signal; the non-zero exit is for CI.
+Without --json the result is shown in an interactive TUI (requires a TTY).
+Exits 1 when duration_delta_pct > --threshold OR spans_added > 0.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if baseline == "" || compare == "" {
 				return fmt.Errorf("both --baseline and --compare are required")
+			}
+			if !asJSON && !isTerminal(os.Stdout) {
+				return fmt.Errorf("non-TTY output requires --json (interactive mode needs a terminal)")
 			}
 			err := runDiff(apiBase, baseline, compare, threshold, asJSON, cmd.OutOrStdout())
 			if err == errDiffRegressed {
@@ -61,10 +61,10 @@ command slots into CI gates.`,
 	return cmd
 }
 
-// runDiff orchestrates the resolve → fetch → render → gate pipeline.
-// Output is written to `out` so tests can capture it; the exit-code gate
-// only fires when invoked from a real process (os.Exit is harness-unsafe
-// in tests — runDiff returns a sentinel error instead).
+// runDiff orchestrates: resolve refs → fetch → render (TUI or JSON) → gate.
+// `out` is honored for the JSON path and ignored for the TUI path (which
+// owns its own renderer). The exit-code gate fires via errDiffRegressed in
+// both modes so callers (CI and humans) get the same signal.
 func runDiff(apiBase, baselineRef, compareRef string, threshold float64, asJSON bool, out io.Writer) error {
 	baselineID, err := resolveSessionRef(apiBase, baselineRef)
 	if err != nil {
@@ -84,7 +84,9 @@ func runDiff(apiBase, baselineRef, compareRef string, threshold float64, asJSON 
 		raw, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Fprintln(out, string(raw))
 	} else {
-		printDiffSummary(out, result)
+		if err := diffTUI(result); err != nil {
+			return err
+		}
 	}
 
 	if diffFailsGate(result, threshold) {
@@ -93,9 +95,6 @@ func runDiff(apiBase, baselineRef, compareRef string, threshold float64, asJSON 
 	return nil
 }
 
-// errDiffRegressed is returned by runDiff when the threshold or
-// spans_added gate trips. main.go's diff command converts this into a
-// non-zero exit code without printing the error a second time.
 var errDiffRegressed = fmt.Errorf("regression detected")
 
 func diffFailsGate(r api.DiffResult, threshold float64) bool {
@@ -109,8 +108,7 @@ func diffFailsGate(r api.DiffResult, threshold float64) bool {
 }
 
 // resolveSessionRef resolves a "ref" (id or label) by GETting /api/sessions
-// and matching either field. Exact-id match wins over label match, so
-// labels that happen to look like ids still pick the right session.
+// and matching either field. Exact-id match wins over label match.
 func resolveSessionRef(apiBase, ref string) (string, error) {
 	if ref == "" {
 		return "", fmt.Errorf("empty session ref")
@@ -165,67 +163,16 @@ func fetchDiff(apiBase, baselineID, compareID string) (api.DiffResult, error) {
 	return envelope.Data, nil
 }
 
-// ── human summary ──────────────────────────────────────────────────────────
+// ── shared helpers (used by both --json result inspection and the TUI) ─────
 
-func printDiffSummary(out io.Writer, r api.DiffResult) {
-	bw := newColWriter(out)
-
-	fmt.Fprintf(bw, "baseline:\t%s\t(%s · %d spans · %s)\n",
-		r.Baseline.Label, shortID(r.Baseline.SessionID), r.Baseline.SpanCount, fmtNs(r.Baseline.TotalDurationNs))
-	fmt.Fprintf(bw, "compare:\t%s\t(%s · %d spans · %s)\n",
-		r.Compare.Label, shortID(r.Compare.SessionID), r.Compare.SpanCount, fmtNs(r.Compare.TotalDurationNs))
-	bw.flush()
-
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "summary:")
-	sw := newColWriter(out)
-	fmt.Fprintf(sw, "  duration\t%s → %s\t(%s)\n",
-		fmtNs(r.Baseline.TotalDurationNs), fmtNs(r.Compare.TotalDurationNs), pctStr(r.Summary.DurationDeltaPct))
-	fmt.Fprintf(sw, "  spans\t%d → %d\t(%s)\n",
-		r.Baseline.SpanCount, r.Compare.SpanCount, deltaStr(r.Compare.SpanCount-r.Baseline.SpanCount))
-	fmt.Fprintf(sw, "  db calls\t%d → %d\t(%s)\n",
-		r.Baseline.DBCalls, r.Compare.DBCalls, deltaStr(r.Summary.DBCallDelta))
-	sw.flush()
-
-	// regressed = changed spans with positive DeltaPct, sorted desc.
-	var regressed []api.DiffSpan
-	for _, s := range r.Spans {
-		if s.Status == "changed" && s.DeltaPct > 0 {
-			regressed = append(regressed, s)
-		}
-	}
-	sort.Slice(regressed, func(i, j int) bool { return regressed[i].DeltaPct > regressed[j].DeltaPct })
-	if len(regressed) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "regressed:")
-		rw := newColWriter(out)
-		for _, s := range regressed {
-			fmt.Fprintf(rw, "  %s · %s\t%s → %s\t(%s)\n",
-				s.ServiceName, s.Name,
-				fmtNs(s.BaselineDurationNs), fmtNs(s.CompareDurationNs),
-				pctStr(s.DeltaPct))
-		}
-		rw.flush()
-	}
-
-	addedNames   := pickNames(r.Spans, "added")
-	removedNames := pickNames(r.Spans, "removed")
-	if len(addedNames) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintf(out, "added: %d (%s)\n", len(addedNames), strings.Join(addedNames, ", "))
-	}
-	if len(removedNames) > 0 {
-		fmt.Fprintf(out, "removed: %d (%s)\n", len(removedNames), strings.Join(removedNames, ", "))
-	}
-}
-
-func pickNames(spans []api.DiffSpan, status string) []string {
-	var out []string
+func sortRegressedDesc(spans []api.DiffSpan) []api.DiffSpan {
+	var out []api.DiffSpan
 	for _, s := range spans {
-		if s.Status == status {
-			out = append(out, s.Name)
+		if s.Status == "changed" && s.DeltaPct > 0 {
+			out = append(out, s)
 		}
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].DeltaPct > out[j].DeltaPct })
 	return out
 }
 
@@ -263,45 +210,5 @@ func fmtNs(ns int64) string {
 		return fmt.Sprintf("%.1fms", float64(ns)/1_000_000)
 	}
 	return fmt.Sprintf("%.2fs", float64(ns)/1_000_000_000)
-}
-
-// colWriter is a tiny tab-aligned writer so we don't pull in text/tabwriter
-// for one-off summary tables. Columns are separated by literal '\t' chars.
-type colWriter struct {
-	w     io.Writer
-	rows  [][]string
-	cols  []int
-}
-
-func newColWriter(w io.Writer) *colWriter { return &colWriter{w: w} }
-
-func (c *colWriter) Write(p []byte) (int, error) {
-	// Strip trailing newline, split into cells, accumulate.
-	line := strings.TrimSuffix(string(p), "\n")
-	cells := strings.Split(line, "\t")
-	for i, cell := range cells {
-		if i >= len(c.cols) {
-			c.cols = append(c.cols, 0)
-		}
-		if w := len(cell); w > c.cols[i] {
-			c.cols[i] = w
-		}
-	}
-	c.rows = append(c.rows, cells)
-	return len(p), nil
-}
-
-func (c *colWriter) flush() {
-	for _, row := range c.rows {
-		for i, cell := range row {
-			if i < len(row)-1 {
-				fmt.Fprintf(c.w, "%-*s  ", c.cols[i], cell)
-			} else {
-				fmt.Fprintln(c.w, cell)
-			}
-		}
-	}
-	c.rows = nil
-	c.cols = nil
 }
 

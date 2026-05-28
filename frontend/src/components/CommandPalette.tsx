@@ -119,6 +119,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       onOpenChange={v => { if (!v) onClose() }}
       label="Global search"
       shouldFilter={false}
+      // cmdk's Dialog ships ZERO styling — without these classes the
+      // portal renders the overlay + content with no positioning and the
+      // palette is invisible. The selectors below match Radix's animation
+      // hooks (data-[state=open/closed]) so it fades cleanly.
+      overlayClassName="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+      contentClassName="fixed left-1/2 top-[20%] z-50 w-[min(640px,90vw)] -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl outline-none"
     >
       <div className="flex items-center border-b border-border px-3">
         <CommandInput

@@ -12,8 +12,7 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
-// fetchSessions returns the full session list from the API. Helper for
-// the CLI list/activate/baseline/delete commands.
+// fetchSessions returns the full session list from the API.
 func fetchSessions(apiBase string) ([]storage.Session, error) {
 	resp, err := http.Get(apiBase + "/api/sessions") //nolint:gosec
 	if err != nil {
@@ -33,9 +32,9 @@ func fetchSessions(apiBase string) ([]storage.Session, error) {
 	return envelope.Data, nil
 }
 
-// resolveSessionRefFull is the verbose counterpart to resolveSessionRef
-// (in diff.go) — returns the whole Session record because callers need
-// the current is_baseline flag to toggle it. id-match wins over label.
+// resolveSessionRefFull is the verbose counterpart to resolveSessionRef — it
+// returns the whole Session record because callers need the current
+// is_baseline flag to toggle it. id-match wins over label.
 func resolveSessionRefFull(apiBase, ref string) (storage.Session, error) {
 	if ref == "" {
 		return storage.Session{}, fmt.Errorf("empty session ref")
@@ -58,7 +57,6 @@ func resolveSessionRefFull(apiBase, ref string) (storage.Session, error) {
 }
 
 // activeSessionRef returns the id of the currently-active session, if any.
-// Used as the default for `spaniel session baseline` (no arg).
 func activeSessionRef(apiBase string) (storage.Session, error) {
 	resp, err := http.Get(apiBase + "/api/sessions/active") //nolint:gosec
 	if err != nil {
@@ -81,52 +79,30 @@ func activeSessionRef(apiBase string) (storage.Session, error) {
 	if envelope.Data.ID == "" {
 		return storage.Session{}, fmt.Errorf("no active session — pass an id/label or start one with `spaniel session new`")
 	}
-	// Pull the full record so the caller has is_baseline etc.
 	return resolveSessionRefFull(apiBase, envelope.Data.ID)
 }
 
-// ── list ───────────────────────────────────────────────────────────────────
+// sessionListData fetches the data the list TUI needs. Pulled out so tests
+// can verify the HTTP call without driving a TUI.
+func sessionListData(apiBase string) (sessions []storage.Session, activeID string, err error) {
+	sessions, err = fetchSessions(apiBase)
+	if err != nil {
+		return nil, "", err
+	}
+	if s, e := activeSessionRef(apiBase); e == nil {
+		activeID = s.ID
+	}
+	return sessions, activeID, nil
+}
 
-func sessionList(apiBase string, out io.Writer) error {
-	sessions, err := fetchSessions(apiBase)
+// sessionListTUI launches the interactive picker. Pre-fetches sessions and
+// active id, then hands them to the model.
+func sessionListTUI(apiBase string) error {
+	sessions, activeID, err := sessionListData(apiBase)
 	if err != nil {
 		return err
 	}
-	// Also fetch the active session so we can mark it with a `*`.
-	activeID := ""
-	if s, err := activeSessionRef(apiBase); err == nil {
-		activeID = s.ID
-	}
-	if len(sessions) == 0 {
-		fmt.Fprintln(out, "no sessions yet — start one with `spaniel session new`")
-		return nil
-	}
-	tw := newColWriter(out)
-	fmt.Fprintln(tw, "  \tID\tLABEL\tFLAGS\tTRACES\tSPANS\tAGE")
-	now := time.Now()
-	for _, s := range sessions {
-		marker := " "
-		if s.ID == activeID {
-			marker = "*"
-		}
-		flags := []string{}
-		if s.IsBaseline {
-			flags = append(flags, "baseline")
-		}
-		if s.IsImported {
-			flags = append(flags, "imported")
-		}
-		flagStr := strings.Join(flags, ",")
-		if flagStr == "" {
-			flagStr = "-"
-		}
-		age := now.Sub(time.Unix(0, s.CreatedAt))
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\t%s\n",
-			marker, shortID(s.ID), s.Label, flagStr,
-			s.TraceCount, s.SpanCount, fmtAge(age))
-	}
-	tw.flush()
-	return nil
+	return runSessionListTUI(sessions, activeID, apiBase)
 }
 
 func fmtAge(d time.Duration) string {
@@ -164,9 +140,6 @@ func sessionActivate(apiBase, ref string, out io.Writer) error {
 
 // ── baseline ───────────────────────────────────────────────────────────────
 
-// sessionBaseline toggles is_baseline on a session. If ref is empty the
-// active session is used. The server expects {is_baseline: bool} as the
-// new desired value, so we read the current flag and POST the inverse.
 func sessionBaseline(apiBase, ref string, out io.Writer) error {
 	var s storage.Session
 	var err error
@@ -210,9 +183,10 @@ func sessionDelete(apiBase, ref string, out io.Writer) error {
 	}
 	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode == 400 {
-		// Server's friendly refusal — usually "cannot delete the active session".
 		body, _ := io.ReadAll(resp.Body)
-		var errEnv struct{ Error string `json:"error"` }
+		var errEnv struct {
+			Error string `json:"error"`
+		}
 		_ = json.Unmarshal(body, &errEnv)
 		msg := strings.TrimSpace(errEnv.Error)
 		if msg == "" {
