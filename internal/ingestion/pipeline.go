@@ -25,8 +25,9 @@ type Pipeline struct {
 	tp      *throughputCounter
 	sampler *Sampler
 
-	debounce   map[string]*time.Timer
-	debounceMu sync.Mutex
+	debounce     map[string]*time.Timer
+	debounceMu   sync.Mutex
+	traceBuffers sync.Map
 
 	tracer        trace.Tracer
 	ingestCounter metric.Int64Counter
@@ -102,21 +103,9 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					Sampled:       true,
 				}
 
-				if !p.sampler.DecideSpan(s) {
-					p.sampler.Counters.bumpSpans(1)
-					continue
-				}
-
-				if err := p.store.InsertSpan(s); err != nil {
-					return err
-				}
-				spansSeen++
-
-				// Persist span events. Exception events keep their canonical
-				// exception.* attributes (mapToJSON preserves the whole map),
-				// so the frontend can render a stack trace from them.
+				var events []*storage.SpanEvent
 				if span.Events().Len() > 0 {
-					events := make([]*storage.SpanEvent, 0, span.Events().Len())
+					events = make([]*storage.SpanEvent, 0, span.Events().Len())
 					for ei := 0; ei < span.Events().Len(); ei++ {
 						ev := span.Events().At(ei)
 						events = append(events, &storage.SpanEvent{
@@ -128,15 +117,11 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 							Attributes: mapToJSON(ev.Attributes()),
 						})
 					}
-					if err := p.store.InsertSpanEvents(events); err != nil {
-						return err
-					}
 				}
 
-				// Persist span links — references to other spans/traces this
-				// span was caused by (fan-out batches, async retries, etc.).
+				var links []*storage.SpanLink
 				if span.Links().Len() > 0 {
-					links := make([]*storage.SpanLink, 0, span.Links().Len())
+					links = make([]*storage.SpanLink, 0, span.Links().Len())
 					for li := 0; li < span.Links().Len(); li++ {
 						ln := span.Links().At(li)
 						links = append(links, &storage.SpanLink{
@@ -149,13 +134,35 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 							Attributes:    mapToJSON(ln.Attributes()),
 						})
 					}
+				}
+
+				if p.sampler.NeedsBuffer() {
+					p.bufferSpan(s.TraceID, s, events, links)
+					p.scheduleDetectors(s.TraceID)
+					continue
+				}
+
+				// Fast path: per-span decision.
+				if !p.sampler.DecideSpan(s) {
+					p.sampler.Counters.bumpSpans(1)
+					continue
+				}
+
+				if err := p.store.InsertSpan(s); err != nil {
+					return err
+				}
+				spansSeen++
+				if len(events) > 0 {
+					if err := p.store.InsertSpanEvents(events); err != nil {
+						return err
+					}
+				}
+				if len(links) > 0 {
 					if err := p.store.InsertSpanLinks(links); err != nil {
 						return err
 					}
 				}
-
 				go lintSpan(s, sessionID, p.store)
-
 				p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 					TraceID:     s.TraceID,
 					SpanID:      s.SpanID,
@@ -164,7 +171,6 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					DurationNs:  s.EndNs - s.StartNs,
 					StatusCode:  s.StatusCode,
 				}))
-
 				p.scheduleDetectors(s.TraceID)
 			}
 		}
@@ -245,11 +251,116 @@ func (p *Pipeline) scheduleDetectors(traceID string) {
 		return
 	}
 	p.debounce[traceID] = time.AfterFunc(500*time.Millisecond, func() {
-		runDetectors(traceID, p.store, p.hub)
+		if p.sampler.NeedsBuffer() {
+			p.flushBuffer(traceID)
+		} else {
+			runDetectors(traceID, p.store, p.hub)
+		}
 		p.debounceMu.Lock()
 		delete(p.debounce, traceID)
 		p.debounceMu.Unlock()
 	})
+}
+
+const maxBufferSpansPerTrace = 10_000
+
+type pendingSpan struct {
+	span   *storage.Span
+	events []*storage.SpanEvent
+	links  []*storage.SpanLink
+}
+
+type traceBuffer struct {
+	mu       sync.Mutex
+	entries  []*pendingSpan
+	services map[string]struct{}
+}
+
+func (p *Pipeline) bufferSpan(traceID string, s *storage.Span, events []*storage.SpanEvent, links []*storage.SpanLink) {
+	val, _ := p.traceBuffers.LoadOrStore(traceID, &traceBuffer{services: map[string]struct{}{}})
+	buf := val.(*traceBuffer)
+	buf.mu.Lock()
+	defer buf.mu.Unlock()
+	if len(buf.entries) >= maxBufferSpansPerTrace {
+		return // fail open: buffer cap reached, drop this span from buffer
+	}
+	buf.entries = append(buf.entries, &pendingSpan{span: s, events: events, links: links})
+	buf.services[s.ServiceName] = struct{}{}
+}
+
+func (p *Pipeline) flushBuffer(traceID string) {
+	val, ok := p.traceBuffers.LoadAndDelete(traceID)
+	if !ok {
+		return
+	}
+	buf := val.(*traceBuffer)
+	buf.mu.Lock()
+	entries := buf.entries
+	services := buf.services
+	buf.mu.Unlock()
+
+	if len(entries) == 0 {
+		return
+	}
+
+	spans := make([]*storage.Span, len(entries))
+	for i, e := range entries {
+		spans[i] = e.span
+	}
+
+	sessionID := p.store.ActiveSessionID()
+	now := time.Now().UnixNano()
+	issues := detectN1Spans(traceID, sessionID, spans, now)
+
+	serviceP95 := map[string]int64{}
+	if p.sampler.alwaysKeep&KeepSlow != 0 {
+		for svc := range services {
+			if p95, err := p.store.GetServiceP95(svc); err == nil {
+				serviceP95[svc] = p95
+			}
+		}
+	}
+
+	if !p.sampler.DecideTrace(spans, len(issues) > 0, serviceP95) {
+		p.sampler.Counters.bumpSpans(int64(len(entries)))
+		return
+	}
+
+	// Accept: store all spans.
+	for _, e := range entries {
+		if err := p.store.InsertSpan(e.span); err != nil {
+			continue
+		}
+		p.tp.addSpans(1)
+		if len(e.events) > 0 {
+			_ = p.store.InsertSpanEvents(e.events)
+		}
+		if len(e.links) > 0 {
+			_ = p.store.InsertSpanLinks(e.links)
+		}
+		go lintSpan(e.span, e.span.SessionID, p.store)
+		p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
+			TraceID:     e.span.TraceID,
+			SpanID:      e.span.SpanID,
+			ServiceName: e.span.ServiceName,
+			Name:        e.span.Name,
+			DurationNs:  e.span.EndNs - e.span.StartNs,
+			StatusCode:  e.span.StatusCode,
+		}))
+	}
+
+	// Store N+1 issues and broadcast.
+	for _, issue := range issues {
+		if err := p.store.UpsertTraceIssue(issue); err == nil {
+			p.hub.Broadcast(ws.NewIssueEvent(&ws.IssuePayload{
+				TraceID:     issue.TraceID,
+				Kind:        issue.Kind,
+				Fingerprint: issue.Fingerprint,
+				Count:       issue.Count,
+				WastedNs:    issue.WastedNs,
+			}))
+		}
+	}
 }
 
 func serviceNameFromAttrs(attrs pcommon.Map) string {

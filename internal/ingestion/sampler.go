@@ -72,6 +72,13 @@ func (c *Counters) DroppedMetricPointsTotal() int64 { return c.droppedMetricPoin
 // LastDropAt implements api.DropCounterProvider.
 func (c *Counters) LastDropAt() int64 { return c.lastDropAt.Load() }
 
+// Seed sets the initial values for the drop counters, loaded from persistent storage.
+func (c *Counters) Seed(spans, logs, metrics int64) {
+	c.droppedSpans.Store(spans)
+	c.droppedLogs.Store(logs)
+	c.droppedMetricPoints.Store(metrics)
+}
+
 // Sampler applies tail-based sampling to incoming telemetry.
 // When budget == 0 every span/log/metric is accepted (default off behaviour).
 type Sampler struct {
@@ -123,6 +130,65 @@ func (s *Sampler) DecideMetric() bool {
 		return true
 	}
 	return s.consume()
+}
+
+// NeedsBuffer reports whether the sampler requires a per-trace buffer before
+// the store/drop decision can be made (i.e., N+1 or Slow signals are enabled
+// and rate limiting is active). When budget==0 every span is accepted regardless
+// of signal, so buffering would only add latency with no benefit.
+func (s *Sampler) NeedsBuffer() bool {
+	return s.budget > 0 && s.alwaysKeep&(KeepNPlusOne|KeepSlow) != 0
+}
+
+// consumeN tries to take n tokens from the bucket. Used for per-trace decisions.
+func (s *Sampler) consumeN(n int) bool {
+	if n <= 0 {
+		return true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(s.lastAt).Seconds()
+	s.lastAt = now
+
+	s.tokens += elapsed * float64(s.budget)
+	if max := float64(s.budget); s.tokens > max {
+		s.tokens = max
+	}
+	if s.tokens < float64(n) {
+		return false
+	}
+	s.tokens -= float64(n)
+	return true
+}
+
+// DecideTrace makes a keep/drop decision for an entire buffered trace. It
+// checks always-keep signals first; if none fire it falls back to the token
+// bucket, consuming n tokens (one per span).
+func (s *Sampler) DecideTrace(spans []*storage.Span, hasN1 bool, serviceP95 map[string]int64) bool {
+	if s.alwaysKeep&KeepErrors != 0 {
+		for _, sp := range spans {
+			if sp.StatusCode == 2 {
+				return true
+			}
+		}
+	}
+	if s.alwaysKeep&KeepNPlusOne != 0 && hasN1 {
+		return true
+	}
+	if s.alwaysKeep&KeepSlow != 0 {
+		for _, sp := range spans {
+			dur := sp.EndNs - sp.StartNs
+			if p95, ok := serviceP95[sp.ServiceName]; ok && p95 > 0 && dur > 2*p95 {
+				return true
+			}
+		}
+	}
+	if s.budget == 0 {
+		return true
+	}
+	return s.consumeN(len(spans))
 }
 
 // consume tries to take one token, refilling the bucket from elapsed time first.

@@ -839,6 +839,53 @@ func (d *DB) topOperationsForService(service, sessionID string, limit int) ([]Se
 	return out, nil
 }
 
+// LoadDropCounters reads the persisted drop counters from the meta table.
+// Returns zeros (no error) if not yet written.
+func (d *DB) LoadDropCounters() (spans, logs, metrics int64, err error) {
+	type row struct {
+		Key string
+		Val int64
+	}
+	var rows []row
+	err = d.gorm.Raw(`
+		SELECT meta_key AS key, CAST(meta_value AS BIGINT) AS val
+		FROM meta WHERE meta_key IN ('dropped_spans','dropped_logs','dropped_metric_points')
+	`).Scan(&rows).Error
+	if err != nil {
+		return
+	}
+	for _, r := range rows {
+		switch r.Key {
+		case "dropped_spans":
+			spans = r.Val
+		case "dropped_logs":
+			logs = r.Val
+		case "dropped_metric_points":
+			metrics = r.Val
+		}
+	}
+	return
+}
+
+// SaveDropCounters writes the current drop counters to the meta table.
+func (d *DB) SaveDropCounters(spans, logs, metrics int64) error {
+	return d.gorm.Exec(`
+		INSERT OR REPLACE INTO meta (meta_key, meta_value) VALUES
+			('dropped_spans', ?), ('dropped_logs', ?), ('dropped_metric_points', ?)
+	`, spans, logs, metrics).Error
+}
+
+// GetServiceP95 returns the p95 duration_ns for spans of the given service.
+// Returns 0 (no error) when there are no stored spans for that service yet.
+func (d *DB) GetServiceP95(serviceName string) (int64, error) {
+	var p95 int64
+	err := d.gorm.Raw(
+		`SELECT CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) FROM spans WHERE service_name = ?`,
+		serviceName,
+	).Scan(&p95).Error
+	return p95, err
+}
+
 func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
 	return d.gorm.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},

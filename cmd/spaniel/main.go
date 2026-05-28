@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -456,6 +458,20 @@ func run(cfg runConfig) error {
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
 	pipeline := ingestion.NewPipelineWithSampler(store, hub, sampler)
 
+	// Seed drop counters from last run.
+	if dSpans, dLogs, dMetrics, err := store.LoadDropCounters(); err == nil {
+		pipeline.DropCounters().Seed(dSpans, dLogs, dMetrics)
+	}
+	// Persist drop counters every 30 s.
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for range t.C {
+			dc := pipeline.DropCounters()
+			_ = store.SaveDropCounters(dc.DroppedSpansTotal(), dc.DroppedLogsTotal(), dc.DroppedMetricPointsTotal())
+		}
+	}()
+
 	var fwd *forwarder.Forwarder
 	if len(cfg.ForwardURLs) > 0 {
 		sc := forwarder.SpoolConfig{
@@ -640,12 +656,33 @@ func run(cfg runConfig) error {
 		}
 	}()
 
-	_ = context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	lns, err := listenAll(hosts, cfg.Port)
 	if err != nil {
 		return fmt.Errorf("ui/api listen: %w", err)
 	}
-	return serveHTTP(wrapTLS(lns, tlsCfg), mainHandler)
+
+	// Close listeners when the OS signal fires, unblocking serveHTTP.
+	go func() {
+		<-ctx.Done()
+		for _, ln := range lns {
+			ln.Close()
+		}
+	}()
+
+	serveErr := serveHTTP(wrapTLS(lns, tlsCfg), mainHandler)
+
+	// Final drop-counter flush on shutdown.
+	dc := pipeline.DropCounters()
+	_ = store.SaveDropCounters(dc.DroppedSpansTotal(), dc.DroppedLogsTotal(), dc.DroppedMetricPointsTotal())
+
+	// A listener-closed error from a clean shutdown is not a real failure.
+	if ctx.Err() != nil {
+		return nil
+	}
+	return serveErr
 }
 
 // bindHosts returns the configured bind addresses (IPv4 and/or IPv6). Blank

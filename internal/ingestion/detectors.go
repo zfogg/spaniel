@@ -47,13 +47,9 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub) {
 	detectN1(traceID, store, hub)
 }
 
-func detectN1(traceID string, store *storage.DB, hub *ws.Hub) {
-	spans, err := store.GetTrace(traceID)
-	if err != nil || len(spans) == 0 {
-		return
-	}
-
-	// Group DB spans by statement fingerprint
+// detectN1Spans runs N+1 detection on the given span slice and returns any
+// detected issues. Does NOT touch storage or the hub.
+func detectN1Spans(traceID, sessionID string, spans []*storage.Span, now int64) []*storage.TraceIssue {
 	type group struct {
 		spans []*storage.Span
 		fp    string
@@ -75,15 +71,11 @@ func detectN1(traceID string, store *storage.DB, hub *ws.Hub) {
 		}
 	}
 
-	sessionID := store.ActiveSessionID()
-	now := time.Now().UnixNano()
-
+	var issues []*storage.TraceIssue
 	for _, g := range groups {
 		if len(g.spans) < 10 {
 			continue
 		}
-
-		// Sum total duration of all repeated calls
 		var totalNs int64
 		parentCounts := map[string]int{}
 		for _, s := range g.spans {
@@ -92,8 +84,6 @@ func detectN1(traceID string, store *storage.DB, hub *ws.Hub) {
 			}
 			parentCounts[s.ParentSpanID]++
 		}
-
-		// Find the most common parent span (the loop)
 		var loopSpanID string
 		maxCnt := 0
 		for pid, cnt := range parentCounts {
@@ -102,8 +92,7 @@ func detectN1(traceID string, store *storage.DB, hub *ws.Hub) {
 				loopSpanID = pid
 			}
 		}
-
-		issue := &storage.TraceIssue{
+		issues = append(issues, &storage.TraceIssue{
 			ID:            traceID + "-n1-" + itoa(len(g.fp)),
 			TraceID:       traceID,
 			SessionID:     sessionID,
@@ -114,7 +103,19 @@ func detectN1(traceID string, store *storage.DB, hub *ws.Hub) {
 			ParentSpanID:  loopSpanID,
 			ExampleSpanID: g.spans[0].SpanID,
 			CreatedAt:     now,
-		}
+		})
+	}
+	return issues
+}
+
+// detectN1 is the entry point for post-store N+1 annotation.
+func detectN1(traceID string, store *storage.DB, hub *ws.Hub) {
+	spans, err := store.GetTrace(traceID)
+	if err != nil || len(spans) == 0 {
+		return
+	}
+	issues := detectN1Spans(traceID, store.ActiveSessionID(), spans, time.Now().UnixNano())
+	for _, issue := range issues {
 		if err := store.UpsertTraceIssue(issue); err == nil {
 			hub.Broadcast(ws.NewIssueEvent(&ws.IssuePayload{
 				TraceID:     issue.TraceID,

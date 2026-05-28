@@ -61,6 +61,12 @@ forward_sample: 1.0
 # The browser UI is seeded automatically via /api/health?token=<value> on
 # first visit. Set via env var SPANIEL_BEARER_TOKEN to avoid storing in config.
 # bearer_token: ""
+
+# Tail-based sampling: max uninteresting spans/sec accepted (0 = unlimited)
+# sample_rate: 0
+
+# Signals that always bypass the rate limit (comma-separated: error, n_plus_one, slow, none)
+# sample_always_keep: error,n_plus_one,slow
 `
 
 // globalConfigPath returns the path to ~/.spaniel/config.yaml.
@@ -93,6 +99,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("tls_cert", "")
 	v.SetDefault("tls_key", "")
 	v.SetDefault("bearer_token", "")
+	v.SetDefault("sample_rate", 0)
+	v.SetDefault("sample_always_keep", "error,n_plus_one,slow")
 	v.SetDefault("self_telemetry_endpoint", "")
 	v.SetDefault("self_telemetry_service", "spaniel")
 	v.SetDefault("self_telemetry_insecure", true)
