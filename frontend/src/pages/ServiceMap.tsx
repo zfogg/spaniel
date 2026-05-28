@@ -641,8 +641,8 @@ export default function ServiceMap() {
                 <tr className="bg-surface-raised border-b border-border text-ink3">
                   <th className="px-3 py-2 text-left">service</th>
                   {([
-                    ['acc/s',    'accepted_per_sec'],
-                    ['rej/s',    'rejected_per_sec'],
+                    ['accepted/s', 'accepted_per_sec'],
+                    ['rejected/s', 'rejected_per_sec'],
                     ['errors',   'error_rate'],
                     ['bytes/s',  'bytes_per_sec'],
                   ] as [string, keyof SourceStats][]).map(([label, k]) => (

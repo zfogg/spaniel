@@ -77,8 +77,8 @@ export default function SourcesPanel({ onClose }: Props) {
           <thead>
             <tr className="border-b border-border bg-surface-raised text-ink3">
               <th className="px-2 py-1 text-left">service</th>
-              <Col label="acc/s"  k="accepted_per_sec" />
-              <Col label="rej/s"  k="rejected_per_sec" />
+              <Col label="accepted/s" k="accepted_per_sec" />
+              <Col label="rejected/s" k="rejected_per_sec" />
               <Col label="errors" k="error_rate" />
               <Col label="bytes/s" k="bytes_per_sec" />
             </tr>
