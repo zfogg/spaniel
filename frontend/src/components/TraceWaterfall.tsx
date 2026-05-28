@@ -68,7 +68,7 @@ function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
   const zWidth = ((zEnd - zStart) / traceDurNs) * 100
 
   return (
-    <div className="relative h-[54px] px-4 py-2.5 bg-muted border-b border-border shrink-0">
+    <div className="relative h-[120px] px-4 py-2.5 bg-muted border-b border-border shrink-0">
       <div className="absolute left-4 right-4 top-3.5 bottom-2.5 bg-background rounded-[3px] overflow-hidden">
         {flatSpans.map(({ span, depth }) => {
           const c = svcColor(span.service_name)
@@ -77,8 +77,8 @@ function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
               position: 'absolute' as const,
               left: `${((span.start_ns - traceStartNs) / traceDurNs) * 100}%`,
               width: `${Math.max(0.3, (span.duration_ns / traceDurNs) * 100)}%`,
-              top: depth * 4,
-              height: 3,
+              top: depth * 9,
+              height: 10,
               background: c.fg,
               opacity: 0.55,
             }} />
