@@ -184,6 +184,24 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
           )
         })}
 
+        {/* Exemplar markers — small diamonds for metric points with trace links */}
+        {metric.points.map((p, i) => {
+          if (!p.exemplars || p.exemplars.length === 0) return null
+          const x = xAt(i)
+          return (
+            <g key={`exemplar-${i}`}>
+              {p.exemplars.map((ex, j) => (
+                <g key={`${i}-${j}`} opacity="0.7" className="cursor-pointer hover:opacity-100">
+                  <polygon
+                    points={`${x},${P.t - 6} ${x + 2.5},${P.t - 3.5} ${x},${P.t - 1} ${x - 2.5},${P.t - 3.5}`}
+                    fill="var(--accent)" />
+                  <title>{`trace: ${ex.trace_id.slice(0, 8)}`}</title>
+                </g>
+              ))}
+            </g>
+          )
+        })}
+
         {hoverI != null && (
           <g>
             <line x1={xAt(hoverI)} x2={xAt(hoverI)} y1={P.t} y2={H - P.b}
@@ -200,7 +218,7 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
 
       {hoverI != null && (
         <div
-          className="absolute top-[30px] bg-foreground text-background font-mono text-[11px] px-2.5 py-2 rounded-md min-w-[160px] pointer-events-none shadow-[0_8px_18px_-8px_rgba(0,0,0,.32)]"
+          className="absolute top-[30px] bg-foreground text-background font-mono text-[11px] px-2.5 py-2 rounded-md min-w-[160px] pointer-events-auto shadow-[0_8px_18px_-8px_rgba(0,0,0,.32)]"
           style={{ left: `calc(${(xAt(hoverI) / W) * 100}% + 14px)` }}
         >
           {series.map((s, i) => (
@@ -210,6 +228,21 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
               <span className="font-bold">{fmtVal(s[hoverI], metric.unit)}</span>
             </div>
           ))}
+          {metric.points[hoverI]?.exemplars && metric.points[hoverI].exemplars!.length > 0 && (
+            <>
+              <div className="border-t border-current opacity-50 my-1" />
+              {metric.points[hoverI].exemplars!.map((ex, i) => (
+                <a
+                  key={i}
+                  href={`/traces/${ex.trace_id}`}
+                  className="block text-accent hover:underline py-px truncate"
+                  title={ex.trace_id}
+                >
+                  trace: {ex.trace_id.slice(0, 8)}…
+                </a>
+              ))}
+            </>
+          )}
         </div>
       )}
 
