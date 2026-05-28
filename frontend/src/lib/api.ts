@@ -146,6 +146,16 @@ export interface MetricSeriesPoint {
   percentile?: 'p50' | 'p95' | 'p99'
 }
 
+export interface TraceOverlay {
+  trace_id: string
+  op: string
+  service: string
+  status_code: number
+  start_ns: number
+  end_ns: number
+  duration_ns: number
+}
+
 export interface MetricSeries {
   name: string
   service_name: string
@@ -153,6 +163,9 @@ export interface MetricSeries {
   unit: string
   description: string
   points: MetricSeriesPoint[]
+  // Populated only when ?with_traces=1 is requested. Always an array
+  // (server returns [] when none) so the type stays non-optional.
+  traces: TraceOverlay[]
 }
 
 export interface CoverageRoute {
@@ -188,8 +201,8 @@ export interface SettingsRuntime {
   uptime_ns: number
   version: string
   config_path: string
-  grpc_port: number
-  http_port: number
+  otlp_grpc_port: number
+  otlp_http_port: number
   db_size_bytes: number
 }
 
@@ -199,8 +212,8 @@ export interface Settings {
   retention_days: number
   max_sessions: number
   max_db_size_mb: number
-  grpc_port: number
-  http_port: number
+  otlp_grpc_port: number
+  otlp_http_port: number
   no_browser: boolean
   forward: string[]
   runtime: SettingsRuntime
@@ -212,8 +225,8 @@ export interface SettingsUpdate {
   retention_days?: number
   max_sessions?: number
   max_db_size_mb?: number
-  grpc_port?: number
-  http_port?: number
+  otlp_grpc_port?: number
+  otlp_http_port?: number
   no_browser?: boolean
   forward?: string[]
 }
@@ -363,12 +376,13 @@ export const api = {
   metrics: {
     list: (sessionId?: string) =>
       get<MetricCatalogEntry[]>(`/api/metrics${sessionId ? `?sessionId=${sessionId}` : ''}`),
-    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number }) => {
+    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number; withTraces?: boolean }) => {
       const q = new URLSearchParams({ name: params.name })
       if (params.service) q.set('service', params.service)
       if (params.sessionId) q.set('sessionId', params.sessionId)
       if (params.from) q.set('from', String(params.from))
       if (params.to) q.set('to', String(params.to))
+      if (params.withTraces) q.set('with_traces', '1')
       return get<MetricSeries>(`/api/metrics/series?${q}`)
     },
   },

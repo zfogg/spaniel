@@ -33,12 +33,16 @@ type MetricSeriesPoint struct {
 }
 
 type MetricSeriesResponse struct {
-	Name        string              `json:"name"`
-	ServiceName string              `json:"service_name"`
-	Type        string              `json:"type"`
-	Unit        string              `json:"unit"`
-	Description string              `json:"description"`
-	Points      []MetricSeriesPoint `json:"points"`
+	Name        string                  `json:"name"`
+	ServiceName string                  `json:"service_name"`
+	Type        string                  `json:"type"`
+	Unit        string                  `json:"unit"`
+	Description string                  `json:"description"`
+	Points      []MetricSeriesPoint     `json:"points"`
+	// Traces is populated only when ?with_traces=1 is passed. Always
+	// materialized as [] (never null) so the frontend type can be
+	// non-optional and rendering branches stay flat.
+	Traces []*storage.TraceOverlay `json:"traces"`
 }
 
 // getMetricSeries returns the time series for one metric.
@@ -66,7 +70,11 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	out := MetricSeriesResponse{Name: name, Points: []MetricSeriesPoint{}}
+	out := MetricSeriesResponse{
+		Name:   name,
+		Points: []MetricSeriesPoint{},
+		Traces: []*storage.TraceOverlay{},
+	}
 	for _, m := range rows {
 		if out.ServiceName == "" {
 			out.ServiceName = m.ServiceName
@@ -79,6 +87,37 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 			p.Percentile = extractPercentile(m.Attributes)
 		}
 		out.Points = append(out.Points, p)
+	}
+
+	// Optional ?with_traces=1: attach the trace overlay for the chart's
+	// time window. Use the min/max of the points we just returned as the
+	// window when explicit ?from/?to weren't supplied.
+	if q.Get("with_traces") == "1" && len(out.Points) > 0 {
+		minNs, maxNs := out.Points[0].TimestampNs, out.Points[0].TimestampNs
+		for _, p := range out.Points {
+			if p.TimestampNs < minNs {
+				minNs = p.TimestampNs
+			}
+			if p.TimestampNs > maxNs {
+				maxNs = p.TimestampNs
+			}
+		}
+		windowFrom, windowTo := from, to
+		if windowFrom == 0 {
+			windowFrom = minNs
+		}
+		if windowTo == 0 {
+			windowTo = maxNs
+		}
+		traces, err := r.store.ListTracesInWindow(storage.TraceOverlayFilter{
+			Service:   q.Get("service"),
+			SessionID: q.Get("sessionId"),
+			FromNs:    windowFrom,
+			ToNs:      windowTo,
+		})
+		if err == nil && traces != nil {
+			out.Traces = traces
+		}
 	}
 	respond(w, out, len(out.Points), 1)
 }

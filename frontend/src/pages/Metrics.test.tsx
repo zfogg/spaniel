@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import Metrics from './Metrics'
+
+// Metrics uses useNavigate() (in the correlated-traces panel) which needs
+// a Router context. Wrap once so the existing test cases stay unchanged.
+const renderMetrics = () => render(<MemoryRouter><Metrics /></MemoryRouter>)
 import type { MetricCatalogEntry, MetricSeries } from '@/lib/api'
 
 // ── fetch mock ──────────────────────────────────────────────────────────────
@@ -41,13 +46,13 @@ afterEach(() => {
 describe('<Metrics />', () => {
   it('shows the loading state initially', () => {
     setup({ catalog: [] })
-    render(<Metrics />)
+    renderMetrics()
     expect(screen.getByText(/Loading metrics/i)).toBeTruthy()
   })
 
   it('shows an empty-state message when the catalog is empty', async () => {
     setup({ catalog: [] })
-    render(<Metrics />)
+    renderMetrics()
     await waitFor(() => {
       expect(screen.getByText(/No metrics yet/i)).toBeTruthy()
     })
@@ -62,18 +67,19 @@ describe('<Metrics />', () => {
         { name: 'pool.in_use',    service_name: 'postgres', type: 'gauge',     unit: 'conn', description: '', sample_count: 8 },
       ],
       series: {
-        'name=http.requests&service=api': {
+        'name=http.requests&service=api&with_traces=1': {
           name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req',
           description: 'request count',
           points: [
             { timestamp_ns: 1, value: 5 },
             { timestamp_ns: 2, value: 8 },
           ],
+          traces: [],
         },
       },
     })
 
-    render(<Metrics />)
+    renderMetrics()
 
     // sidebar entries land
     await waitFor(() => {
@@ -99,7 +105,7 @@ describe('<Metrics />', () => {
         { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',   unit: 'conn', description: '', sample_count: 1 },
       ],
     })
-    render(<Metrics />)
+    renderMetrics()
     await waitFor(() => screen.getByText('http.requests'))
 
     const input = screen.getByPlaceholderText(/search metrics/i)
@@ -116,7 +122,7 @@ describe('<Metrics />', () => {
         { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',   unit: 'conn', description: '', sample_count: 1 },
       ],
     })
-    render(<Metrics />)
+    renderMetrics()
     await waitFor(() => screen.getByText('http.requests'))
 
     // Click the "GAUGE" filter chip — must use exact-match since the tag also says GAUGE.
@@ -136,18 +142,19 @@ describe('<Metrics />', () => {
         { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'request count', sample_count: 2 },
       ],
       series: {
-        'name=http.requests&service=api': {
+        'name=http.requests&service=api&with_traces=1': {
           name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req',
           description: 'request count',
           points: [
             { timestamp_ns: 1, value: 5 },
             { timestamp_ns: 2, value: 8 },
           ],
+          traces: [],
         },
       },
     })
 
-    render(<Metrics />)
+    renderMetrics()
     await waitFor(() => {
       // The page auto-selects the first metric on load, so the chart header
       // (h1 containing the metric name) should appear without a click.

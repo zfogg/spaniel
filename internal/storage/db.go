@@ -545,6 +545,77 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	return result, rows.Err()
 }
 
+// TraceOverlayFilter scopes the "traces during this window" query used by
+// the metrics chart overlay. Service narrows by the metric's service name;
+// SessionID by the active session when set. FromNs/ToNs are inclusive.
+type TraceOverlayFilter struct {
+	Service   string
+	SessionID string
+	FromNs    int64
+	ToNs      int64
+	Limit     int
+}
+
+// TraceOverlay is the lightweight row returned to the frontend for the
+// metrics chart overlay + correlated-traces panel — just enough to draw a
+// marker and link out to /traces/:id.
+type TraceOverlay struct {
+	TraceID     string `json:"trace_id"`
+	Op          string `json:"op"`
+	Service     string `json:"service"`
+	StatusCode  int    `json:"status_code"`
+	StartNs     int64  `json:"start_ns"`
+	EndNs       int64  `json:"end_ns"`
+	DurationNs  int64  `json:"duration_ns"`
+}
+
+// ListTracesInWindow returns root spans (traces) whose start_ns falls in
+// the [FromNs, ToNs] window for use as chart overlay markers. Caps at
+// f.Limit (default 50).
+func (d *DB) ListTracesInWindow(f TraceOverlayFilter) ([]*TraceOverlay, error) {
+	if f.Limit <= 0 || f.Limit > 200 {
+		f.Limit = 50
+	}
+	q := `
+		SELECT trace_id, name, service_name, status_code, start_ns, end_ns, duration_ns
+		FROM spans
+		WHERE (parent_span_id = '' OR parent_span_id IS NULL)`
+	args := []any{}
+	if f.Service != "" {
+		q += ` AND service_name = ?`
+		args = append(args, f.Service)
+	}
+	if f.SessionID != "" {
+		q += ` AND session_id = ?`
+		args = append(args, f.SessionID)
+	}
+	if f.FromNs > 0 {
+		q += ` AND start_ns >= ?`
+		args = append(args, f.FromNs)
+	}
+	if f.ToNs > 0 {
+		q += ` AND start_ns <= ?`
+		args = append(args, f.ToNs)
+	}
+	q += ` ORDER BY start_ns ASC LIMIT ?`
+	args = append(args, f.Limit)
+
+	rows, err := d.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+	var out []*TraceOverlay
+	for rows.Next() {
+		t := &TraceOverlay{}
+		if err := rows.Scan(&t.TraceID, &t.Op, &t.Service, &t.StatusCode, &t.StartNs, &t.EndNs, &t.DurationNs); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 func (d *DB) GetTrace(traceID string) ([]*Span, error) {
 	rows, err := d.db.Query(`
 		SELECT trace_id, span_id, parent_span_id, service_name, name, kind,

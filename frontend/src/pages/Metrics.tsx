@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, MetricCatalogEntry, MetricSeries } from '@/lib/api'
+import { useNavigate } from 'react-router-dom'
+import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { bucketPoints, type BucketedSeries, type MetricType } from '@/lib/metrics-bucket'
 import { fmtVal, statsFor, type Stat } from '@/lib/metrics-format'
+import { xPosForTrace, valueAtBin } from '@/lib/metrics-correlate'
 
 // ── icons ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +74,7 @@ function Spark({ series, color }: { series: number[]; color: string }) {
 
 // ── chart ────────────────────────────────────────────────────────────────────
 
-function Chart({ metric, bucketed }: { metric: MetricSeries; bucketed: BucketedSeries }) {
+function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: BucketedSeries; traces: TraceOverlay[] }) {
   const W = 920, H = 280, P = { l: 56, r: 16, t: 24, b: 36 }
   const cw = W - P.l - P.r, ch = H - P.t - P.b
   const series = metric.type === 'histogram'
@@ -141,6 +143,26 @@ function Chart({ metric, bucketed }: { metric: MetricSeries; bucketed: BucketedS
               strokeLinejoin="round" strokeLinecap="round" />
           ))
         )}
+
+        {/* Trace overlay markers — vertical dotted lines at each in-window
+            trace's start. Red dot for error/slow, neutral otherwise. The
+            xPosForTrace helper handles clamping + empty-points cases. */}
+        {traces.map((t) => {
+          const bin = xPosForTrace(t, metric.points, n)
+          if (bin == null) return null
+          const x = xAt(bin)
+          const isError = t.status_code === 2
+          const isSlow  = t.duration_ns >= 250_000_000 // 250ms
+          const tone = isError || isSlow ? 'var(--danger)' : 'var(--ink3)'
+          return (
+            <g key={t.trace_id} data-testid="metric-trace-marker">
+              <line x1={x} x2={x} y1={P.t} y2={H - P.b}
+                stroke={tone} strokeWidth="1" strokeDasharray="2 3" opacity="0.55" />
+              <circle cx={x} cy={P.t - 4} r="2.5" fill={tone} />
+              <title>{`${t.op} · ${t.trace_id.slice(0, 8)}`}</title>
+            </g>
+          )
+        })}
 
         {hoverI != null && (
           <g>
@@ -239,7 +261,7 @@ export default function Metrics() {
   useEffect(() => {
     if (!selected) return
     let cancel = false
-    api.metrics.series({ name: selected.name, service: selected.service })
+    api.metrics.series({ name: selected.name, service: selected.service, withTraces: true })
       .then(r => { if (!cancel) setSeries(r.data) })
       .catch(() => { if (!cancel) setSeries(null) })
     return () => { cancel = true }
@@ -443,12 +465,82 @@ function MainPanel({ series }: { series: MetricSeries }) {
       </div>
 
       <div style={{ padding: '18px 16px 22px' }}>
-        <Chart metric={series} bucketed={bucketed} />
+        <Chart metric={series} bucketed={bucketed} traces={series.traces ?? []} />
       </div>
 
       <div style={{ padding: '4px 24px 22px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)' }}>
         {series.points.length} raw points · bucketed into 60 bins
       </div>
+
+      <CorrelatedTracesPanel series={series} bucketed={bucketed} />
     </>
   )
+}
+
+// ── correlated-traces panel ──────────────────────────────────────────────────
+
+function CorrelatedTracesPanel({ series, bucketed }: { series: MetricSeries; bucketed: BucketedSeries }) {
+  const navigate = useNavigate()
+  const traces = series.traces ?? []
+  if (traces.length === 0) return null
+
+  // For value-at-time, prefer the histogram p95 series when present; fall
+  // back to the gauge/counter value series. Same source the chart line uses.
+  const valueSeries = series.type === 'histogram'
+    ? (bucketed.p95 ?? bucketed.values)
+    : bucketed.values
+  const bins = valueSeries.length
+
+  return (
+    <div className="border-t border-[var(--border)] px-6 py-4">
+      <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+        Traces during this window
+        <span className="ml-2 normal-case tracking-normal text-[var(--ink2)]">{traces.length}</span>
+      </div>
+      <div
+        data-testid="correlated-traces"
+        className="grid gap-y-1 font-mono text-[11px]"
+        style={{ gridTemplateColumns: '14px 56px 1fr auto auto auto' }}
+      >
+        {traces.map(t => {
+          const bin   = xPosForTrace(t, series.points, bins)
+          const v     = valueAtBin(valueSeries, bin)
+          const offs  = relativeOffset(t.start_ns, series.points)
+          const isErr = t.status_code === 2
+          const isSlow = t.duration_ns >= 250_000_000
+          return (
+            <div key={t.trace_id} className="contents">
+              <span
+                className={`size-1.5 self-center rounded-full ${isErr || isSlow ? 'bg-[var(--danger)]' : 'bg-[var(--ink3)]'}`}
+                aria-hidden
+              />
+              <span className="text-[var(--ink3)]">{offs}</span>
+              <span className="truncate font-bold text-[var(--ink)]">{t.op}</span>
+              <span className="text-[var(--ink3)]">{t.trace_id.slice(0, 8)}…</span>
+              <span className="text-[var(--ink2)]">{v != null ? fmtVal(v, series.unit) : '—'}</span>
+              <button
+                type="button"
+                onClick={() => navigate(`/traces/${t.trace_id}`)}
+                className="cursor-pointer rounded border border-transparent px-1.5 text-[var(--accent)] hover:border-[var(--border)]"
+              >
+                open →
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// relativeOffset returns "−12m" / "−3s" / "now" for a trace start vs the
+// last point in the series — the mockup's "Xm ago" column.
+function relativeOffset(startNs: number, points: { timestamp_ns: number }[]): string {
+  if (points.length === 0) return ''
+  const lastNs = points[points.length - 1].timestamp_ns
+  const deltaMs = (lastNs - startNs) / 1_000_000
+  if (deltaMs < 1_000) return 'now'
+  if (deltaMs < 60_000) return `−${Math.round(deltaMs / 1000)}s`
+  if (deltaMs < 3_600_000) return `−${Math.round(deltaMs / 60_000)}m`
+  return `−${Math.round(deltaMs / 3_600_000)}h`
 }

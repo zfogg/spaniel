@@ -107,3 +107,117 @@ func TestGetMetricSeries_HistogramSplitsByPercentile(t *testing.T) {
 		t.Errorf("percentile values wrong: %+v", pcts)
 	}
 }
+
+func TestGetMetricSeries_WithTracesOverlay(t *testing.T) {
+	handler, db := setupRouter(t)
+	// One metric data point at t=2000 anchors the window.
+	_ = db.InsertMetric(&storage.Metric{
+		Name: "http.req", Type: "counter", Unit: "req",
+		TimestampNs: 2000, Value: 5, Attributes: "{}",
+		ServiceName: "api", SessionID: "s1",
+	})
+	// Three root spans inside [1000, 3000]; one outside (should NOT come back).
+	insertRoot := func(traceID, op string, statusCode int, startNs, endNs int64) {
+		_ = db.InsertSpan(&storage.Span{
+			TraceID: traceID, SpanID: "root-" + traceID, ParentSpanID: "",
+			ServiceName: "api", Name: op, StatusCode: statusCode,
+			StartNs: startNs, EndNs: endNs,
+			Attributes: "{}", Resource: "{}", SessionID: "s1", SessionLabel: "s1",
+		})
+	}
+	insertRoot("trace-a", "GET /cart",     1, 1100, 1200)
+	insertRoot("trace-b", "POST /checkout", 1, 1800, 1900)
+	insertRoot("trace-c", "GET /promo",    2, 2500, 2600) // error
+	insertRoot("trace-out", "outside",     1, 9000, 9100) // out of window
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/metrics/series?name=http.req&service=api&sessionId=s1&with_traces=1&from=1000&to=3000", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Data.Traces) != 3 {
+		t.Fatalf("expected 3 in-window traces, got %d (%+v)", len(resp.Data.Traces), resp.Data.Traces)
+	}
+	// Ascending by start_ns + op resolved from root span name.
+	wantOps := []string{"GET /cart", "POST /checkout", "GET /promo"}
+	for i, want := range wantOps {
+		if resp.Data.Traces[i].Op != want {
+			t.Errorf("traces[%d].op: want %q, got %q", i, want, resp.Data.Traces[i].Op)
+		}
+	}
+	if resp.Data.Traces[2].StatusCode != 2 {
+		t.Errorf("expected status_code=2 carried for the error trace, got %d", resp.Data.Traces[2].StatusCode)
+	}
+}
+
+func TestGetMetricSeries_WithTracesOverlay_DefaultsToPointsWindow(t *testing.T) {
+	// No explicit from/to → server falls back to min/max of returned points.
+	handler, db := setupRouter(t)
+	for _, ts := range []int64{1500, 2500} {
+		_ = db.InsertMetric(&storage.Metric{
+			Name: "g", Type: "gauge", TimestampNs: ts, Value: 1,
+			Attributes: "{}", ServiceName: "api", SessionID: "s1",
+		})
+	}
+	_ = db.InsertSpan(&storage.Span{
+		TraceID: "in", SpanID: "root-in", ServiceName: "api", Name: "in-window",
+		StartNs: 2000, EndNs: 2100, Attributes: "{}", Resource: "{}",
+		SessionID: "s1", SessionLabel: "s1",
+	})
+	_ = db.InsertSpan(&storage.Span{
+		TraceID: "out", SpanID: "root-out", ServiceName: "api", Name: "out-window",
+		StartNs: 9000, EndNs: 9100, Attributes: "{}", Resource: "{}",
+		SessionID: "s1", SessionLabel: "s1",
+	})
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/metrics/series?name=g&service=api&sessionId=s1&with_traces=1", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d (%s)", w.Code, w.Body.String())
+	}
+	var resp struct{ Data MetricSeriesResponse `json:"data"` }
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp.Data.Traces) != 1 || resp.Data.Traces[0].Op != "in-window" {
+		t.Errorf("expected single in-window trace, got %+v", resp.Data.Traces)
+	}
+}
+
+func TestGetMetricSeries_TracesEmptyArrayWhenFlagAbsent(t *testing.T) {
+	// Without ?with_traces=1, the field must serialize as [] (not null) so
+	// the frontend type stays non-optional.
+	handler, db := setupRouter(t)
+	_ = db.InsertMetric(&storage.Metric{
+		Name: "g", Type: "gauge", TimestampNs: 100, Value: 1,
+		Attributes: "{}", ServiceName: "api", SessionID: "s1",
+	})
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/metrics/series?name=g&service=api&sessionId=s1", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d", w.Code)
+	}
+	if !contains(w.Body.String(), `"traces":[]`) {
+		t.Errorf("expected `\"traces\":[]` in response, got: %s", w.Body.String())
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}

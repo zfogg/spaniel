@@ -27,6 +27,7 @@ interface MetricFixture {
     unit: string
     description: string
     points: Array<{ timestamp_ns: number; value: number; percentile?: 'p50' | 'p95' | 'p99' }>
+    traces?: Array<{ trace_id: string; op: string; service: string; status_code: number; start_ns: number; end_ns: number; duration_ns: number }>
   }>
 }
 
@@ -53,7 +54,11 @@ async function stubMetrics(page: Page, fx: MetricFixture) {
         const name = url.searchParams.get('name') || ''
         const service = url.searchParams.get('service') || ''
         const series = fx.series[`${service}/${name}`]
-        return jsonResponse(r, series ?? { name, service_name: service, type: 'gauge', unit: '', description: '', points: [] })
+        // Always include the `traces` field (the server contract guarantees [] when none).
+        const filled = series
+          ? { ...series, traces: series.traces ?? [] }
+          : { name, service_name: service, type: 'gauge', unit: '', description: '', points: [], traces: [] }
+        return jsonResponse(r, filled)
       }
       return jsonResponse(r, fx.catalog)
     },
@@ -254,5 +259,69 @@ test.describe('Metrics page', () => {
     await expect(page.locator('h1', { hasText: 'pool.in_use' })).toBeVisible()
     await expect(page.getByText('now', { exact: true })).toBeVisible()
     await expect(page.getByText('5m ago')).toBeVisible()
+  })
+})
+
+test.describe('Metrics — trace overlay + correlated panel', () => {
+  test('renders dotted markers + correlated-traces table, "open" navigates to /traces/:id', async ({ page }) => {
+    await stubMetrics(page, {
+      catalog: [
+        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'inbound', sample_count: 4 },
+      ],
+      series: {
+        'api/http.requests': {
+          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'inbound',
+          points: [
+            { timestamp_ns: 1_000_000_000, value: 1 },
+            { timestamp_ns: 2_000_000_000, value: 4 },
+            { timestamp_ns: 3_000_000_000, value: 7 },
+            { timestamp_ns: 4_000_000_000, value: 9 },
+          ],
+          traces: [
+            { trace_id: 'abc1230000000000', op: 'GET /cart',     service: 'api', status_code: 1, start_ns: 1_500_000_000, end_ns: 1_600_000_000, duration_ns: 100_000_000 },
+            { trace_id: 'def4560000000000', op: 'POST /checkout', service: 'api', status_code: 2, start_ns: 3_500_000_000, end_ns: 3_600_000_000, duration_ns: 100_000_000 },
+          ],
+        },
+      },
+    })
+    await page.goto('/metrics')
+    // Metrics auto-selects the first metric — wait for the chart H1 to confirm.
+    await expect(page.locator('h1', { hasText: 'http.requests' })).toBeVisible()
+
+    // Vertical dotted markers: two of them, one per trace.
+    await expect(page.getByTestId('metric-trace-marker')).toHaveCount(2)
+
+    // Correlated-traces table: rows + "open →" buttons.
+    const panel = page.getByTestId('correlated-traces')
+    await expect(panel).toBeVisible()
+    await expect(panel.getByText('GET /cart')).toBeVisible()
+    await expect(panel.getByText('POST /checkout')).toBeVisible()
+    await expect(panel.getByText('abc12300…')).toBeVisible()
+
+    // Click "open →" on the first trace row → navigate to /traces/:id.
+    await panel.getByRole('button', { name: /open/ }).first().click()
+    await expect(page).toHaveURL(/\/traces\/abc1230000000000$/)
+  })
+
+  test('hides the correlated panel when no traces fell in the window', async ({ page }) => {
+    await stubMetrics(page, {
+      catalog: [
+        { name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '', sample_count: 2 },
+      ],
+      series: {
+        'postgres/pool.in_use': {
+          name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '',
+          points: [
+            { timestamp_ns: 1, value: 3 },
+            { timestamp_ns: 2, value: 5 },
+          ],
+          traces: [],
+        },
+      },
+    })
+    await page.goto('/metrics')
+    await expect(page.locator('h1', { hasText: 'pool.in_use' })).toBeVisible()
+    await expect(page.getByTestId('correlated-traces')).toHaveCount(0)
+    await expect(page.getByTestId('metric-trace-marker')).toHaveCount(0)
   })
 })

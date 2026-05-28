@@ -35,6 +35,7 @@ function mkSeries(type: MetricSeries['type'], unit = 'req'): MetricSeries {
     unit,
     description: '',
     points: [],
+    traces: [],
   }
 }
 
