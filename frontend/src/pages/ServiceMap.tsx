@@ -120,7 +120,7 @@ function SvgEdge({ edge, pos, hot, dim, onHover }: {
       data-testid={`edge-${edge.from}-to-${edge.to}`}
       onMouseEnter={() => onHover(edge)}
       onMouseLeave={() => onHover(null)}
-      style={{ cursor: 'pointer' }}
+      className="cursor-pointer"
     >
       <defs>
         <marker
@@ -185,7 +185,8 @@ function SvgNode({ node, pos, selected, highlighted, dim, onClick }: {
       data-error={hasError ? 'true' : 'false'}
       transform={`translate(${p.x}, ${p.y})`}
       onClick={onClick}
-      style={{ cursor: 'pointer', opacity }}
+      className="cursor-pointer"
+      style={{ opacity }}
     >
       <rect
         width={NODE_W} height={NODE_H}

@@ -11,22 +11,12 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      style={{
-        width: 38, height: 22, padding: 0, borderRadius: 22,
-        background: on ? 'var(--accent, #6b7cff)' : 'var(--muted)',
-        border: `1px solid ${on ? 'var(--accent, #6b7cff)' : 'var(--border)'}`,
-        position: 'relative', cursor: 'pointer', outline: 'none',
-        transition: 'background .15s, border-color .15s',
-        flex: '0 0 auto',
-      }}
+      className={`w-[38px] h-[22px] p-0 rounded-[22px] relative cursor-pointer outline-hidden transition-[background,border-color] duration-150 shrink-0 border ${on ? 'bg-accent-d border-accent-d' : 'bg-muted border-border'}`}
     >
-      <span style={{
-        position: 'absolute', top: 1, left: on ? 17 : 1,
-        width: 18, height: 18, borderRadius: 18,
-        background: 'var(--background)',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
-        transition: 'left .18s cubic-bezier(.4,.0,.2,1)',
-      }} />
+      <span
+        className="absolute top-px w-[18px] h-[18px] rounded-full bg-background shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-[left] duration-[180ms] ease-[cubic-bezier(.4,.0,.2,1)]"
+        style={{ left: on ? 17 : 1 }}
+      />
     </button>
   )
 }
@@ -36,27 +26,20 @@ function NumberBox({ value, onChange, min, max, step, w = 110, suffix, ariaLabel
   min?: number; max?: number; step?: number; w?: number; suffix?: string; ariaLabel: string
 }) {
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      background: 'var(--background)', border: '1px solid var(--border)',
-      borderRadius: 6, padding: '0 8px', height: 30, width: w,
-    }}>
+    <span
+      className="inline-flex items-center bg-background border border-border rounded-md px-2 h-[30px]"
+      style={{ width: w }}
+    >
       <input
         type="number"
         aria-label={ariaLabel}
         value={value}
         min={min} max={max} step={step}
         onChange={e => onChange(Number(e.target.value))}
-        style={{
-          flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
-          fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--foreground)',
-        }}
+        className="flex-1 min-w-0 border-none outline-hidden bg-transparent font-mono text-xs text-foreground"
       />
       {suffix && (
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)',
-          textTransform: 'uppercase', letterSpacing: '0.12em', marginLeft: 4,
-        }}>{suffix}</span>
+        <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.12em] ml-1">{suffix}</span>
       )}
     </span>
   )
@@ -67,21 +50,16 @@ function TextBox({ value, onChange, w = 320, mono = true, ariaLabel }: {
   w?: number; mono?: boolean; ariaLabel: string
 }) {
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      background: 'var(--background)', border: '1px solid var(--border)',
-      borderRadius: 6, padding: '0 10px', height: 30, width: w, maxWidth: '100%',
-    }}>
+    <span
+      className="inline-flex items-center bg-background border border-border rounded-md px-2.5 h-[30px] max-w-full"
+      style={{ width: w }}
+    >
       <input
         type="text"
         aria-label={ariaLabel}
         value={value}
         onChange={e => onChange(e.target.value)}
-        style={{
-          flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
-          fontFamily: mono ? 'var(--font-mono)' : 'var(--font-sans)',
-          fontSize: 12, color: 'var(--foreground)',
-        }}
+        className={`flex-1 min-w-0 border-none outline-hidden bg-transparent text-xs text-foreground ${mono ? 'font-mono' : 'font-sans'}`}
       />
     </span>
   )
@@ -92,24 +70,19 @@ function SelectBox<T extends string>({ value, onChange, options, w = 130, ariaLa
   options: readonly T[]; w?: number; ariaLabel: string
 }) {
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      background: 'var(--background)', border: '1px solid var(--border)',
-      borderRadius: 6, height: 30, paddingRight: 6, width: w,
-    }}>
+    <span
+      className="inline-flex items-center bg-background border border-border rounded-md h-[30px] pr-1.5"
+      style={{ width: w }}
+    >
       <select
         aria-label={ariaLabel}
         value={value}
         onChange={e => onChange(e.target.value as T)}
-        style={{
-          flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
-          fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--foreground)',
-          padding: '0 8px', appearance: 'none', WebkitAppearance: 'none',
-        }}
+        className="flex-1 min-w-0 border-none outline-hidden bg-transparent font-mono text-xs text-foreground px-2 appearance-none"
       >
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
-      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted-foreground)', fontSize: 9 }}>▾</span>
+      <span className="font-mono text-muted-foreground text-[9px]">▾</span>
     </span>
   )
 }
@@ -125,13 +98,10 @@ function Pill({ tone = 'neutral', children }: { tone?: 'neutral' | 'ok' | 'warn'
   } as const
   const t = tones[tone]
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '3px 8px', borderRadius: 14,
-      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-      background: t.bg, color: t.fg, border: `1px solid ${t.bd}`,
-      whiteSpace: 'nowrap',
-    }}>{children}</span>
+    <span
+      className="inline-flex items-center gap-[5px] py-[3px] px-2 rounded-[14px] font-mono text-[10px] font-semibold whitespace-nowrap"
+      style={{ background: t.bg, color: t.fg, border: `1px solid ${t.bd}` }}
+    >{children}</span>
   )
 }
 
@@ -140,25 +110,18 @@ function Row({ label, hint, danger, children, testid }: {
   children: React.ReactNode
 }) {
   return (
-    <div data-testid={testid} style={{
-      display: 'grid', gridTemplateColumns: 'minmax(0, 260px) 1fr',
-      gap: 18, padding: '14px 0',
-      borderBottom: '1px solid var(--border)',
-      alignItems: 'flex-start',
-    }}>
+    <div
+      data-testid={testid}
+      className="grid gap-[18px] py-3.5 border-b border-border items-start"
+      style={{ gridTemplateColumns: 'minmax(0, 260px) 1fr' }}
+    >
       <div>
-        <div style={{
-          fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-          color: danger ? 'var(--danger, #b04040)' : 'var(--foreground)',
-        }}>{label}</div>
+        <div className={`font-sans text-[13px] font-semibold ${danger ? 'text-danger' : 'text-foreground'}`}>{label}</div>
         {hint && (
-          <div style={{
-            fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--muted-foreground)',
-            marginTop: 3, lineHeight: 1.45,
-          }}>{hint}</div>
+          <div className="font-sans text-[11.5px] text-muted-foreground mt-[3px] leading-[1.45]">{hint}</div>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div className="flex items-center gap-2.5 flex-wrap">
         {children}
       </div>
     </div>
@@ -171,27 +134,18 @@ function Card({ id, title, sub, right, children, hidden }: {
 }) {
   if (hidden) return null
   return (
-    <section id={id} style={{
-      background: 'var(--background)', border: '1px solid var(--border)',
-      borderRadius: 12, padding: '18px 22px', marginBottom: 18,
-      scrollMarginTop: 80,
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
-        paddingBottom: 12, borderBottom: '1px solid var(--border)',
-      }}>
+    <section
+      id={id}
+      className="bg-background border border-border rounded-xl py-[18px] px-[22px] mb-[18px] scroll-mt-20"
+    >
+      <div className="flex items-center gap-2.5 mb-2 pb-3 border-b border-border">
         <div>
-          <div style={{
-            fontFamily: 'var(--font-serif, serif)', fontSize: 20, fontWeight: 600,
-            color: 'var(--foreground)', letterSpacing: '-0.01em',
-          }}>{title}</div>
+          <div className="font-serif text-xl font-semibold text-foreground tracking-[-0.01em]">{title}</div>
           {sub && (
-            <div style={{
-              fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2,
-            }}>{sub}</div>
+            <div className="font-sans text-xs text-muted-foreground mt-0.5">{sub}</div>
           )}
         </div>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         {right}
       </div>
       {children}
@@ -284,7 +238,7 @@ function NetworkSection({ s, mutate, hidden }: {
           value={s.forward_sample}
           onChange={e => mutate({ forward_sample: parseFloat(e.target.value) })}
           aria-label="forward sample"
-          style={{ width: 180 }}
+          className="w-[180px]"
         />
         <NumberBox value={s.forward_sample} onChange={v => mutate({ forward_sample: v })}
           min={0} max={1} step={0.01} w={90} ariaLabel="forward sample number" />
@@ -398,50 +352,37 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
       <Row label="Storage usage"
         hint={`Currently ${fmtMB(s.runtime.db_size_bytes)} on disk.`}
         testid="row-usage">
-        <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="w-[340px] flex flex-col gap-1.5">
           <div
             data-testid="usage-bar"
-            style={{
-              height: 8, borderRadius: 8, background: 'var(--muted)',
-              border: '1px solid var(--border)', overflow: 'hidden', position: 'relative',
-            }}
+            className="h-2 rounded-lg bg-muted border border-border overflow-hidden relative"
           >
             <div
               data-testid="usage-bar-fill"
-              style={{
-                position: 'absolute', left: 0, top: 0, bottom: 0,
-                width: `${usedPct}%`, background: barColor,
-              }}
+              className="absolute left-0 top-0 bottom-0"
+              style={{ width: `${usedPct}%`, background: barColor }}
             />
           </div>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--muted-foreground)',
-          }}>
+          <div className="flex justify-between font-mono text-[10.5px] text-muted-foreground">
             <span>{fmtMB(s.runtime.db_size_bytes)} used</span>
-            <span style={{ opacity: 0.7 }}>
+            <span className="opacity-70">
               {s.max_db_size_mb > 0 ? `of ${s.max_db_size_mb.toLocaleString()} MB` : 'no cap'}
             </span>
           </div>
         </div>
-        <button type="button" onClick={onPrune} style={{
-          padding: '0 12px', height: 30, borderRadius: 6, cursor: 'pointer',
-          background: 'var(--background)', border: '1px solid var(--border)',
-          fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--foreground)',
-          outline: 'none',
-        }}>spaniel prune</button>
+        <button
+          type="button"
+          onClick={onPrune}
+          className="px-3 h-[30px] rounded-md cursor-pointer bg-background border border-border font-sans text-xs text-foreground outline-hidden"
+        >spaniel prune</button>
       </Row>
 
       {/* Per-table stacked bar breakdown */}
       <Row label="Breakdown" hint="Estimated bytes per table from DuckDB's internal catalogue." testid="row-breakdown">
-        <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="w-[340px] flex flex-col gap-2">
           <div
             data-testid="breakdown-bar"
-            style={{
-              height: 12, borderRadius: 8, background: 'var(--muted)',
-              border: '1px solid var(--border)', overflow: 'hidden',
-              display: 'flex',
-            }}
+            className="h-3 rounded-lg bg-muted border border-border overflow-hidden flex"
           >
             {totalBytes > 0 && TABLE_SEGMENTS.map(seg => {
               const tbl = breakdown?.tables.find(t => t.name === seg.key)
@@ -457,15 +398,12 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
               )
             })}
           </div>
-          <div style={{
-            display: 'flex', gap: 10, flexWrap: 'wrap',
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)',
-          }}>
+          <div className="flex gap-2.5 flex-wrap font-mono text-[10px] text-muted-foreground">
             {TABLE_SEGMENTS.map(seg => {
               const tbl = breakdown?.tables.find(t => t.name === seg.key)
               return (
-                <span key={seg.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: seg.color, display: 'inline-block' }} />
+                <span key={seg.key} className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-sm inline-block" style={{ background: seg.color }} />
                   {seg.label}
                   {tbl ? ` · ${fmtMB(tbl.approx_bytes)}` : ''}
                 </span>
@@ -475,19 +413,19 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
 
           {/* Top sessions by size */}
           {breakdown && breakdown.sessions.length > 0 && (
-            <div data-testid="sessions-breakdown" style={{
-              marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3,
-              fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--muted-foreground)',
-            }}>
-              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.7, marginBottom: 2 }}>
+            <div
+              data-testid="sessions-breakdown"
+              className="mt-1 flex flex-col gap-[3px] font-mono text-[10.5px] text-muted-foreground"
+            >
+              <div className="text-[10px] uppercase tracking-[0.05em] opacity-70 mb-0.5">
                 Top sessions by size
               </div>
               {breakdown.sessions.slice(0, 5).map(ss => (
-                <div key={ss.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div key={ss.id} className="flex justify-between">
+                  <span className="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">
                     {ss.label || ss.id.slice(0, 8)}
                   </span>
-                  <span style={{ opacity: 0.7 }}>{fmtMB(ss.approx_bytes)} · {ss.span_count} spans</span>
+                  <span className="opacity-70">{fmtMB(ss.approx_bytes)} · {ss.span_count} spans</span>
                 </div>
               ))}
             </div>
@@ -502,20 +440,15 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
           data-testid="compact-btn"
           disabled={compacting}
           onClick={handleCompact}
-          style={{
-            padding: '0 14px', height: 30, borderRadius: 6, cursor: compacting ? 'default' : 'pointer',
-            background: 'var(--background)', border: '1px solid var(--border)',
-            fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--foreground)',
-            outline: 'none', opacity: compacting ? 0.6 : 1,
-          }}
+          className={`px-3.5 h-[30px] rounded-md bg-background border border-border font-sans text-xs text-foreground outline-hidden ${compacting ? 'cursor-default opacity-60' : 'cursor-pointer opacity-100'}`}
         >
           {compacting ? 'compacting…' : 'compact now'}
         </button>
         {compactMsg && (
-          <span data-testid="compact-msg" style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11,
-            color: compactMsg === 'Done' ? '#3e6a3e' : 'var(--danger, #b04040)',
-          }}>
+          <span
+            data-testid="compact-msg"
+            className={`font-mono text-[11px] ${compactMsg === 'Done' ? 'text-[#3e6a3e]' : 'text-danger'}`}
+          >
             {compactMsg}
           </span>
         )}
@@ -524,14 +457,11 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
       <Row danger label="Drop all data"
         hint="Wipe the database and start over. Cannot be undone."
         testid="row-drop">
-        <button type="button" onClick={onDrop} style={{
-          padding: '0 14px', height: 30, borderRadius: 6, cursor: 'pointer',
-          background: 'transparent',
-          border: '1px solid var(--danger, #b04040)',
-          color: 'var(--danger, #b04040)',
-          fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600,
-          outline: 'none',
-        }}>drop &amp; recreate</button>
+        <button
+          type="button"
+          onClick={onDrop}
+          className="px-3.5 h-[30px] rounded-md cursor-pointer bg-transparent border border-danger text-danger font-sans text-xs font-semibold outline-hidden"
+        >drop &amp; recreate</button>
       </Row>
     </Card>
   )
@@ -541,21 +471,23 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
   return (
     <Card id="about" title="About" sub="Build, license, source" hidden={hidden}>
       <Row label="Version" hint="Current binary build." testid="row-version">
-        <code style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--foreground)' }}>
+        <code className="font-mono text-xs text-foreground">
           spaniel {s.runtime.version}
         </code>
         <Pill tone="accent">channel: stable</Pill>
       </Row>
       <Row label="License" hint="Spaniel is MIT-licensed." testid="row-license">
         <Pill>MIT</Pill>
-        <a href="https://github.com/zfogg/spaniel" target="_blank" rel="noreferrer" style={{
-          fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--accent, #4a5dc7)',
-          textDecoration: 'underline', textDecorationStyle: 'dotted',
-        }}>view source</a>
+        <a
+          href="https://github.com/zfogg/spaniel"
+          target="_blank"
+          rel="noreferrer"
+          className="font-sans text-xs text-accent-d underline decoration-dotted"
+        >view source</a>
       </Row>
       <Row label="Config file" hint="All settings on this page are persisted to this YAML file."
         testid="row-config">
-        <code style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--foreground)' }}>
+        <code className="font-mono text-xs text-foreground">
           {s.runtime.config_path}
         </code>
       </Row>
@@ -641,12 +573,12 @@ export default function Settings() {
 
   if (error && !data) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <div style={{ textAlign: 'center', maxWidth: 460 }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--danger, #b04040)', marginBottom: 8 }}>
+      <div className="flex-1 flex items-center justify-center p-10">
+        <div className="text-center max-w-[460px]">
+          <div className="font-mono text-[13px] text-danger mb-2">
             Couldn't load settings
           </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)' }}>{error}</div>
+          <div className="font-mono text-[11px] text-muted-foreground">{error}</div>
         </div>
       </div>
     )
@@ -654,26 +586,18 @@ export default function Settings() {
 
   if (!data) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+      <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">
         Loading settings…
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+    <div className="flex-1 flex min-h-0 overflow-hidden">
       {/* sidebar */}
-      <div style={{
-        width: 220, borderRight: '1px solid var(--border)',
-        background: 'var(--muted)', padding: '14px 12px',
-        display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0,
-      }}>
+      <div className="w-[220px] border-r border-border bg-muted py-3.5 px-3 flex flex-col gap-4 shrink-0">
         <div>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8,
-          }}>settings</div>
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">settings</div>
           {sections.map(sec => {
             const on = section === sec.id
             return (
@@ -681,14 +605,7 @@ export default function Settings() {
                 key={sec.id}
                 type="button"
                 onClick={() => setSection(sec.id)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-                  background: on ? 'var(--background)' : 'transparent',
-                  border: '1px solid ' + (on ? 'var(--border)' : 'transparent'),
-                  color: 'var(--foreground)', fontFamily: 'var(--font-mono)', fontSize: 11,
-                  outline: 'none', textAlign: 'left', marginBottom: 2,
-                }}
+                className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer text-foreground font-mono text-[11px] outline-hidden text-left mb-0.5 ${on ? 'bg-background border border-border' : 'bg-transparent border border-transparent'}`}
               >
                 {sec.label}
               </button>
@@ -697,61 +614,39 @@ export default function Settings() {
         </div>
 
         <div>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8,
-          }}>config file</div>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--foreground)',
-            padding: '5px 8px', background: 'var(--background)',
-            border: '1px solid var(--border)', borderRadius: 6,
-            lineHeight: 1.4, wordBreak: 'break-all',
-          }}>{data.runtime.config_path}</div>
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">config file</div>
+          <div className="font-mono text-[10.5px] text-foreground py-[5px] px-2 bg-background border border-border rounded-md leading-[1.4] break-all">{data.runtime.config_path}</div>
         </div>
 
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
 
-        <div data-testid="daemon-pill" style={{
-          padding: '6px 8px', borderRadius: 6,
-          background: '#dff0e0', border: '1px solid #9bc4a4',
-          fontFamily: 'var(--font-mono)', fontSize: 10.5, color: '#3e6a3e',
-          display: 'flex', flexDirection: 'column', gap: 2,
-        }}>
+        <div
+          data-testid="daemon-pill"
+          className="py-1.5 px-2 rounded-md bg-[#dff0e0] border border-[#9bc4a4] font-mono text-[10.5px] text-[#3e6a3e] flex flex-col gap-0.5"
+        >
           <span>
-            <span style={{ width: 6, height: 6, borderRadius: 6, background: '#3e6a3e', display: 'inline-block', marginRight: 6 }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#3e6a3e] inline-block mr-1.5" />
             daemon running
           </span>
-          <span style={{ opacity: 0.7 }}>pid {data.runtime.pid} · {fmtUptime(data.runtime.uptime_ns)}</span>
+          <span className="opacity-70">pid {data.runtime.pid} · {fmtUptime(data.runtime.uptime_ns)}</span>
         </div>
       </div>
 
       {/* main */}
-      <div style={{ flex: 1, overflow: 'hidden auto', padding: '20px 24px 40px' }}>
-        <div style={{ marginBottom: 18 }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6,
-          }}>preferences</div>
-          <h1 style={{
-            margin: 0, fontFamily: 'var(--font-serif, serif)', fontSize: 28, fontWeight: 600,
-            letterSpacing: '-0.02em', color: 'var(--foreground)',
-          }}>Settings</h1>
-          <div style={{
-            fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--muted-foreground)',
-            marginTop: 4, maxWidth: 640,
-          }}>
-            Saved to <code style={{
-              fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--foreground)',
-              background: 'var(--muted)', padding: '1px 6px', borderRadius: 4,
-            }}>{data.runtime.config_path}</code>. Port changes take effect after restart.
+      <div className="flex-1 overflow-x-hidden overflow-y-auto pt-5 px-6 pb-10">
+        <div className="mb-[18px]">
+          <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.18em] mb-1.5">preferences</div>
+          <h1 className="m-0 font-serif text-[28px] font-semibold tracking-[-0.02em] text-foreground">Settings</h1>
+          <div className="font-sans text-[13px] text-muted-foreground mt-1 max-w-[640px]">
+            Saved to <code className="font-mono text-xs text-foreground bg-muted py-px px-1.5 rounded">{data.runtime.config_path}</code>. Port changes take effect after restart.
           </div>
         </div>
 
         {/* save state strip */}
-        <div data-testid="save-state" style={{ marginBottom: 12, minHeight: 18, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-          {error && <span style={{ color: 'var(--danger, #b04040)' }}>✗ {error}</span>}
-          {!error && saving && <span style={{ color: 'var(--muted-foreground)' }}>saving…</span>}
-          {!error && !saving && savedAt && <span style={{ color: '#3e6a3e' }}>✓ saved</span>}
+        <div data-testid="save-state" className="mb-3 min-h-[18px] font-mono text-[11px]">
+          {error && <span className="text-danger">✗ {error}</span>}
+          {!error && saving && <span className="text-muted-foreground">saving…</span>}
+          {!error && !saving && savedAt && <span className="text-[#3e6a3e]">✓ saved</span>}
         </div>
 
         <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />

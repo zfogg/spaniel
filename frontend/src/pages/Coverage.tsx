@@ -38,16 +38,13 @@ function fmtNs(ns: number): string {
 
 function CoverageBar({ pct, big = false }: { pct: number; big?: boolean }) {
   return (
-    <div style={{
-      height: big ? 12 : 8, borderRadius: 8,
-      background: 'var(--muted)', border: '1px solid var(--border)',
-      overflow: 'hidden', position: 'relative', width: '100%',
-    }}>
-      <div style={{
-        position: 'absolute', left: 0, top: 0, bottom: 0,
-        width: `${pct}%`, background: coverageColor(pct),
-        transition: 'width .2s',
-      }} />
+    <div
+      className={`${big ? 'h-3' : 'h-2'} rounded-lg bg-muted border border-border overflow-hidden relative w-full`}
+    >
+      <div
+        className="absolute left-0 top-0 bottom-0 transition-[width] duration-200"
+        style={{ width: `${pct}%`, background: coverageColor(pct) }}
+      />
     </div>
   )
 }
@@ -65,9 +62,8 @@ function HeatCell({
       type="button"
       onClick={onClick}
       title={`${route.method} ${route.path} · ${route.hits} traces`}
+      className="relative cursor-pointer text-left pt-[7px] pr-[9px] pb-[7px] pl-[11px] rounded-md font-mono text-[11px] outline-hidden flex items-center gap-[7px] min-w-0"
       style={{
-        position: 'relative', cursor: 'pointer', textAlign: 'left',
-        padding: '7px 9px 7px 11px', borderRadius: 6,
         background: dark
           ? `repeating-linear-gradient(45deg,
               color-mix(in oklch, var(--danger, #b04040) 18%, var(--background)) 0 5px,
@@ -75,27 +71,22 @@ function HeatCell({
           : `color-mix(in oklch, ${m.fg} ${intensity * 100}%, var(--background))`,
         border: '1px solid ' + (dark ? 'var(--danger, #b04040)' : selected ? m.fg : 'var(--border)'),
         boxShadow: selected ? `inset 0 0 0 1px ${dark ? 'var(--danger, #b04040)' : m.fg}` : 'none',
-        fontFamily: 'var(--font-mono)', fontSize: 11,
-        outline: 'none',
-        display: 'flex', alignItems: 'center', gap: 7, minWidth: 0,
       }}
     >
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
-        color: m.fg, background: dark ? 'var(--background)' : 'transparent',
-        border: `1px solid ${m.fg}`, borderRadius: 3, padding: '0 4px',
-        letterSpacing: '0.05em', whiteSpace: 'nowrap', flex: '0 0 auto',
-      }}>{route.method || '·'}</span>
-      <span style={{
-        flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        fontWeight: dark ? 600 : 500,
-        color: dark ? 'var(--danger, #b04040)' : 'var(--foreground)',
-      }}>{route.path}</span>
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9.5,
-        fontWeight: dark ? 700 : 500,
-        color: dark ? 'var(--danger, #b04040)' : 'var(--muted-foreground)',
-      }}>{dark ? 'DARK' : route.hits.toLocaleString()}</span>
+      <span
+        className="font-mono text-[9px] font-bold rounded-[3px] px-1 tracking-[0.05em] whitespace-nowrap shrink-0"
+        style={{
+          color: m.fg,
+          background: dark ? 'var(--background)' : 'transparent',
+          border: `1px solid ${m.fg}`,
+        }}
+      >{route.method || '·'}</span>
+      <span
+        className={`flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap ${dark ? 'font-semibold text-danger' : 'font-medium text-foreground'}`}
+      >{route.path}</span>
+      <span
+        className={`font-mono text-[9.5px] ${dark ? 'font-bold text-danger' : 'font-medium text-muted-foreground'}`}
+      >{dark ? 'DARK' : route.hits.toLocaleString()}</span>
     </button>
   )
 }
@@ -104,19 +95,13 @@ function BigStat({ label, value, sub, tone, mono }: {
   label: string; value: string | number; sub?: string; tone?: 'danger'; mono?: boolean
 }) {
   return (
-    <div style={{ padding: '18px 20px', borderRight: '1px solid var(--border)' }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-        textTransform: 'uppercase', letterSpacing: '0.14em',
-      }}>{label}</div>
-      <div style={{
-        fontFamily: mono ? 'var(--font-mono)' : 'var(--font-serif, serif)',
-        fontSize: mono ? 18 : 32, fontWeight: 600,
-        marginTop: 4, lineHeight: 1.05,
-        color: tone === 'danger' ? 'var(--danger, #b04040)' : 'var(--foreground)',
-      }}>{value}</div>
+    <div className="py-[18px] px-5 border-r border-border">
+      <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">{label}</div>
+      <div
+        className={`${mono ? 'font-mono text-lg' : 'font-serif text-[32px]'} font-semibold mt-1 leading-[1.05] ${tone === 'danger' ? 'text-danger' : 'text-foreground'}`}
+      >{value}</div>
       {sub && (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)', marginTop: 6 }}>{sub}</div>
+        <div className="font-mono text-[10px] text-muted-foreground mt-1.5">{sub}</div>
       )}
     </div>
   )
@@ -143,103 +128,63 @@ function ServiceSection({
   const c = svcColor(svc.name).fg
 
   return (
-    <section style={{
-      background: 'var(--background)', border: '1px solid var(--border)',
-      borderRadius: 10, marginBottom: 14, overflow: 'hidden',
-    }}>
+    <section className="bg-background border border-border rounded-[10px] mb-3.5 overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        style={{
-          width: '100%', padding: '12px 16px', cursor: 'pointer',
-          display: 'grid',
-          gridTemplateColumns: 'auto minmax(140px, 1fr) 220px 90px 80px 64px',
-          gap: 14, alignItems: 'center',
-          background: 'transparent', border: 'none', outline: 'none', textAlign: 'left',
-        }}
+        className="w-full py-3 px-4 cursor-pointer grid gap-3.5 items-center bg-transparent border-none outline-hidden text-left"
+        style={{ gridTemplateColumns: 'auto minmax(140px, 1fr) 220px 90px 80px 64px' }}
       >
-        <span style={{
-          display: 'inline-flex', width: 12, height: 12,
-          color: 'var(--muted-foreground)',
-          transform: expanded ? 'rotate(90deg)' : 'rotate(0)',
-          transition: 'transform .15s',
-        }} aria-hidden>▶</span>
+        <span
+          className="inline-flex w-3 h-3 text-muted-foreground transition-transform duration-150"
+          style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0)' }}
+          aria-hidden
+        >▶</span>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-            color: c, background: svcColor(svc.name).bg,
-            padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap',
-          }}>{svc.name}</span>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span
+            className="font-mono text-[11px] font-semibold py-0.5 px-[7px] rounded whitespace-nowrap"
+            style={{ color: c, background: svcColor(svc.name).bg }}
+          >{svc.name}</span>
           {svc.source === 'openapi' ? (
-            <span style={{
-              padding: '2px 7px', borderRadius: 5,
-              background: 'var(--muted)', color: 'var(--foreground)',
-              border: '1px solid var(--border)',
-              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-            }}>★ {svc.spec}</span>
+            <span className="py-0.5 px-[7px] rounded-[5px] bg-muted text-foreground border border-border font-mono text-[9px] font-semibold">★ {svc.spec}</span>
           ) : (
-            <span style={{
-              padding: '2px 7px', borderRadius: 5,
-              background: 'var(--muted)', color: 'var(--muted-foreground)',
-              border: '1px solid var(--border)',
-              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-            }}>observed only · no spec</span>
+            <span className="py-0.5 px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[9px] font-semibold">observed only · no spec</span>
           )}
         </div>
 
         <CoverageBar pct={svc.coverage_pct} />
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{
-            fontFamily: 'var(--font-serif, serif)', fontSize: 18, fontWeight: 600,
-            lineHeight: 1, color: coverageColor(svc.coverage_pct),
-          }}>{svc.coverage_pct.toFixed(1)}<span style={{ fontSize: 11, marginLeft: 1 }}>%</span></span>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em',
-          }}>coverage</span>
+        <div className="flex flex-col gap-0.5">
+          <span
+            className="font-serif text-lg font-semibold leading-none"
+            style={{ color: coverageColor(svc.coverage_pct) }}
+          >{svc.coverage_pct.toFixed(1)}<span className="text-[11px] ml-px">%</span></span>
+          <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">coverage</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{
-            fontFamily: 'var(--font-serif, serif)', fontSize: 18, fontWeight: 600, lineHeight: 1,
-            color: svc.dark_routes.length > 0 ? 'var(--danger, #b04040)' : 'var(--muted-foreground)',
-          }}>{svc.dark_routes.length}</span>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em',
-          }}>dark</span>
+        <div className="flex flex-col gap-0.5">
+          <span
+            className={`font-serif text-lg font-semibold leading-none ${svc.dark_routes.length > 0 ? 'text-danger' : 'text-muted-foreground'}`}
+          >{svc.dark_routes.length}</span>
+          <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">dark</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{
-            fontFamily: 'var(--font-serif, serif)', fontSize: 18, fontWeight: 600, lineHeight: 1,
-            color: 'var(--foreground)',
-          }}>{svc.total_routes}</span>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em',
-          }}>total</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-serif text-lg font-semibold leading-none text-foreground">{svc.total_routes}</span>
+          <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">total</span>
         </div>
       </button>
 
       {expanded && (
         <div
           data-testid={`routes-${svc.name}`}
-          style={{
-            padding: '4px 14px 14px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: 8,
-            borderTop: '1px solid var(--border)',
-            background: 'var(--muted)',
-          }}
+          className="pt-1 px-3.5 pb-3.5 grid gap-2 border-t border-border bg-muted"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}
         >
           {filtered.length === 0 ? (
-            <div style={{
-              gridColumn: '1 / -1', padding: '14px 6px',
-              fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)',
-              textAlign: 'center',
-            }}>no routes match this filter</div>
+            <div
+              className="py-3.5 px-1.5 font-mono text-[11px] text-muted-foreground text-center"
+              style={{ gridColumn: '1 / -1' }}
+            >no routes match this filter</div>
           ) : filtered.map(r => (
             <HeatCell
               key={`${r.method}-${r.path}`}
@@ -260,86 +205,52 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
   const dark = route.hits === 0
   const m = methodTone(route.method)
   return (
-    <aside style={{
-      width: 340, borderLeft: '1px solid var(--border)',
-      background: 'var(--background)',
-      display: 'flex', flexDirection: 'column', overflow: 'auto',
-    }}>
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-            color: svcColor(svc).fg, background: svcColor(svc).bg,
-            padding: '1px 7px', borderRadius: 4,
-          }}>{svc}</span>
-          <span style={{
-            padding: '2px 7px', borderRadius: 4,
-            background: dark ? 'var(--danger, #b04040)' : '#3e6a3e',
-            color: 'white',
-            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.08em',
-          }}>{dark ? 'dark' : 'observed'}</span>
+    <aside className="w-[340px] border-l border-border bg-background flex flex-col overflow-auto">
+      <div className="py-3.5 px-4 border-b border-border">
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className="font-mono text-[10px] font-semibold py-px px-[7px] rounded"
+            style={{ color: svcColor(svc).fg, background: svcColor(svc).bg }}
+          >{svc}</span>
+          <span
+            className={`py-0.5 px-[7px] rounded text-white font-mono text-[9px] font-bold uppercase tracking-[0.08em] ${dark ? 'bg-danger' : 'bg-[#3e6a3e]'}`}
+          >{dark ? 'dark' : 'observed'}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-            color: m.fg, border: `1px solid ${m.fg}`,
-            padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em',
-          }}>{route.method || '·'}</span>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 14, color: 'var(--foreground)',
-            fontWeight: 600, wordBreak: 'break-all',
-          }}>{route.path}</span>
+        <div className="flex items-baseline gap-2">
+          <span
+            className="font-mono text-[11px] font-bold py-px px-1.5 rounded tracking-[0.05em]"
+            style={{ color: m.fg, border: `1px solid ${m.fg}` }}
+          >{route.method || '·'}</span>
+          <span className="font-mono text-sm text-foreground font-semibold break-all">{route.path}</span>
         </div>
       </div>
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0,
-        borderBottom: '1px solid var(--border)',
-      }}>
-        <div style={{ padding: '14px 16px', borderRight: '1px solid var(--border)' }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em',
-          }}>traces seen</div>
-          <div style={{
-            fontFamily: 'var(--font-serif, serif)', fontSize: 24, fontWeight: 600,
-            lineHeight: 1.1, marginTop: 4,
-            color: dark ? 'var(--danger, #b04040)' : 'var(--foreground)',
-          }}>{route.hits.toLocaleString()}</div>
+      <div className="grid grid-cols-2 gap-0 border-b border-border">
+        <div className="py-3.5 px-4 border-r border-border">
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">traces seen</div>
+          <div
+            className={`font-serif text-2xl font-semibold leading-[1.1] mt-1 ${dark ? 'text-danger' : 'text-foreground'}`}
+          >{route.hits.toLocaleString()}</div>
         </div>
-        <div style={{ padding: '14px 16px' }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em',
-          }}>p95</div>
-          <div style={{
-            fontFamily: 'var(--font-serif, serif)', fontSize: 24, fontWeight: 600,
-            lineHeight: 1.1, marginTop: 4, color: 'var(--foreground)',
-          }}>{route.p95_ns ? fmtNs(route.p95_ns) : '—'}</div>
+        <div className="py-3.5 px-4">
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">p95</div>
+          <div className="font-serif text-2xl font-semibold leading-[1.1] mt-1 text-foreground">{route.p95_ns ? fmtNs(route.p95_ns) : '—'}</div>
         </div>
       </div>
 
       {dark && (
-        <div style={{ padding: '14px 16px' }}>
-          <div style={{
-            padding: '10px 12px', borderRadius: 8,
-            background: 'color-mix(in oklch, var(--danger, #b04040) 14%, var(--background))',
-            border: '1px solid color-mix(in oklch, var(--danger, #b04040) 35%, transparent)',
-          }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-              color: 'var(--danger, #b04040)', letterSpacing: '0.08em', marginBottom: 5,
-            }}>● no traces — instrument this route</div>
-            <div style={{
-              fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--foreground)',
-              lineHeight: 1.5,
-            }}>
+        <div className="py-3.5 px-4">
+          <div
+            className="py-2.5 px-3 rounded-lg"
+            style={{
+              background: 'color-mix(in oklch, var(--danger, #b04040) 14%, var(--background))',
+              border: '1px solid color-mix(in oklch, var(--danger, #b04040) 35%, transparent)',
+            }}
+          >
+            <div className="font-mono text-[10px] font-bold text-danger tracking-[0.08em] mb-[5px]">● no traces — instrument this route</div>
+            <div className="font-sans text-xs text-foreground leading-[1.5]">
               Spaniel hasn't seen any span with{' '}
-              <code style={{
-                fontFamily: 'var(--font-mono)', fontSize: 11,
-                background: 'var(--muted)', padding: '1px 4px', borderRadius: 3,
-              }}>http.route = "{route.path}"</code>.
+              <code className="font-mono text-[11px] bg-muted py-px px-1 rounded-[3px]">http.route = "{route.path}"</code>.
             </div>
           </div>
         </div>
@@ -369,10 +280,7 @@ export default function Coverage() {
 
   if (loading) {
     return (
-      <div style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: 13,
-      }}>Loading coverage…</div>
+      <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Loading coverage…</div>
     )
   }
 
@@ -396,18 +304,11 @@ export default function Coverage() {
   const overall = report.overall
 
   return (
-    <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+    <div className="flex-1 flex min-h-0 overflow-hidden">
       {/* left rail */}
-      <div style={{
-        width: 220, borderRight: '1px solid var(--border)',
-        background: 'var(--muted)', padding: '14px 12px',
-        display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0,
-      }}>
+      <div className="w-[220px] border-r border-border bg-muted py-3.5 px-3 flex flex-col gap-4 shrink-0">
         <div>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8,
-          }}>filter</div>
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">filter</div>
           {([
             ['all', 'all routes', overall.total_routes],
             ['dark', 'dark only', totalDark],
@@ -419,23 +320,18 @@ export default function Coverage() {
                 key={key}
                 type="button"
                 onClick={() => setFilter(key)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-                  background: on ? 'var(--background)' : 'transparent',
-                  border: '1px solid ' + (on ? 'var(--border)' : 'transparent'),
-                  color: 'var(--foreground)', fontFamily: 'var(--font-mono)', fontSize: 11,
-                  outline: 'none', textAlign: 'left',
-                }}
+                className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer text-foreground font-mono text-[11px] outline-hidden text-left ${on ? 'bg-background border border-border' : 'bg-transparent border border-transparent'}`}
               >
-                <span style={{
-                  width: 6, height: 6, borderRadius: 6,
-                  background: key === 'dark' ? 'var(--danger, #b04040)'
-                    : key === 'observed' ? '#3e6a3e'
-                    : 'var(--foreground)',
-                }} />
-                <span style={{ flex: 1 }}>{label}</span>
-                <span style={{ color: 'var(--muted-foreground)' }}>{count}</span>
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: key === 'dark' ? 'var(--danger, #b04040)'
+                      : key === 'observed' ? '#3e6a3e'
+                      : 'var(--foreground)',
+                  }}
+                />
+                <span className="flex-1">{label}</span>
+                <span className="text-muted-foreground">{count}</span>
               </button>
             )
           })}
@@ -443,52 +339,35 @@ export default function Coverage() {
       </div>
 
       {/* main */}
-      <div style={{ flex: 1, overflow: 'hidden auto' }}>
-        <div style={{ padding: '22px 24px 4px' }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6,
-          }}>instrumentation coverage</div>
-          <h1 style={{
-            margin: 0, fontFamily: 'var(--font-serif, serif)', fontSize: 28, fontWeight: 600,
-            letterSpacing: '-0.02em', color: 'var(--foreground)',
-          }}>Coverage</h1>
-          <div style={{
-            fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--muted-foreground)',
-            marginTop: 4, maxWidth: 720,
-          }}>
+      <div className="flex-1 overflow-x-hidden overflow-y-auto">
+        <div className="pt-[22px] px-6 pb-1">
+          <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.18em] mb-1.5">instrumentation coverage</div>
+          <h1 className="m-0 font-serif text-[28px] font-semibold tracking-[-0.02em] text-foreground">Coverage</h1>
+          <div className="font-sans text-[13px] text-muted-foreground mt-1 max-w-[720px]">
             Which routes have we ever seen a trace for? Spaniel cross-references every{' '}
-            <code style={{
-              fontFamily: 'var(--font-mono)', fontSize: 12, background: 'var(--muted)',
-              padding: '1px 5px', borderRadius: 4,
-            }}>http.route</code> against any declared specs to find the dark ones.
+            <code className="font-mono text-xs bg-muted py-px px-[5px] rounded">http.route</code> against any declared specs to find the dark ones.
           </div>
         </div>
 
-        <div style={{ padding: '18px 24px 4px' }}>
+        <div className="pt-[18px] px-6 pb-1">
           {/* overall card */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
-            gap: 0, marginBottom: 18,
-            background: 'var(--background)', border: '1px solid var(--border)',
-            borderRadius: 10, overflow: 'hidden',
-          }}>
-            <div style={{ padding: '18px 20px', borderRight: '1px solid var(--border)' }}>
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-                textTransform: 'uppercase', letterSpacing: '0.14em',
-              }}>overall</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                <span style={{
-                  fontFamily: 'var(--font-serif, serif)', fontSize: 40, fontWeight: 600,
-                  color: coverageColor(overall.coverage_pct), lineHeight: 1,
-                }}>{overall.coverage_pct.toFixed(1)}</span>
-                <span style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 20, color: 'var(--muted-foreground)' }}>%</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)', marginLeft: 8 }}>
+          <div
+            className="grid gap-0 mb-[18px] bg-background border border-border rounded-[10px] overflow-hidden"
+            style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1fr' }}
+          >
+            <div className="py-[18px] px-5 border-r border-border">
+              <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">overall</div>
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span
+                  className="font-serif text-[40px] font-semibold leading-none"
+                  style={{ color: coverageColor(overall.coverage_pct) }}
+                >{overall.coverage_pct.toFixed(1)}</span>
+                <span className="font-serif text-xl text-muted-foreground">%</span>
+                <span className="font-mono text-[11px] text-muted-foreground ml-2">
                   {overall.observed_operations} of {overall.total_routes} routes
                 </span>
               </div>
-              <div style={{ marginTop: 14 }}>
+              <div className="mt-3.5">
                 <CoverageBar pct={overall.coverage_pct} big />
               </div>
             </div>
@@ -513,7 +392,7 @@ export default function Coverage() {
             />
           ))}
 
-          <div style={{ height: 30 }} />
+          <div className="h-[30px]" />
         </div>
       </div>
 

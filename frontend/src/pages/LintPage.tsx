@@ -11,16 +11,10 @@ function sevDot(sev: string) {
   return 'var(--ink3)'
 }
 
-function sevBadgeBg(sev: string) {
-  if (sev === 'error') return 'var(--danger-bg)'
-  if (sev === 'warning') return 'var(--warn-bg)'
-  return 'var(--surface2)'
-}
-
-function sevBadgeInk(sev: string) {
-  if (sev === 'error') return 'var(--danger-ink)'
-  if (sev === 'warning') return 'var(--warn-ink)'
-  return 'var(--ink2)'
+function sevBadgeClass(sev: string) {
+  if (sev === 'error') return 'text-danger-ink bg-danger-bg'
+  if (sev === 'warning') return 'text-warn-ink bg-warn-bg'
+  return 'text-ink2 bg-surface2'
 }
 
 // ── SummaryStat ───────────────────────────────────────────────────────────────
@@ -33,42 +27,20 @@ interface SummaryStatProps {
 }
 
 function SummaryStat({ tone, big, label, sub }: SummaryStatProps) {
-  const colors = {
-    danger:  'var(--danger)',
-    warn:    'var(--warn)',
-    ok:      'var(--ok)',
-    neutral: 'var(--ink3)',
-  }
+  const dotClass = {
+    danger:  'bg-danger',
+    warn:    'bg-warn',
+    ok:      'bg-ok',
+    neutral: 'bg-ink3',
+  }[tone]
   return (
-    <div style={{
-      flex: 1,
-      padding: '10px 12px',
-      border: '1px solid var(--line)',
-      borderRadius: 8,
-      background: 'var(--surface2)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{
-          width: 8, height: 8, borderRadius: 8,
-          background: colors[tone], alignSelf: 'center', flexShrink: 0,
-        }} />
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 20, fontWeight: 700,
-          color: 'var(--ink)',
-          lineHeight: 1,
-        }}>{big}</span>
+    <div className="flex-1 px-3 py-2.5 border border-line rounded-lg bg-surface2">
+      <div className="flex items-baseline gap-2">
+        <span className={`w-2 h-2 rounded-full self-center shrink-0 ${dotClass}`} />
+        <span className="font-mono text-xl font-bold text-ink leading-none">{big}</span>
       </div>
-      <div style={{
-        fontFamily: 'var(--font-sans)',
-        fontSize: 11, color: 'var(--ink2)',
-        marginTop: 4,
-      }}>{label}</div>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10, color: 'var(--ink3)',
-        marginTop: 2,
-      }}>{sub}</div>
+      <div className="font-sans text-[11px] text-ink2 mt-1">{label}</div>
+      <div className="font-mono text-[10px] text-ink3 mt-0.5">{sub}</div>
     </div>
   )
 }
@@ -77,72 +49,44 @@ function SummaryStat({ tone, big, label, sub }: SummaryStatProps) {
 
 function LintRow({ w, last }: { w: LintWarning; last: boolean }) {
   const dot = sevDot(w.severity)
-  const badgeBg = sevBadgeBg(w.severity)
-  const badgeInk = sevBadgeInk(w.severity)
+  const badgeClass = sevBadgeClass(w.severity)
 
   return (
-    <div style={{
-      padding: '12px 18px',
-      borderBottom: last ? 'none' : '1px solid var(--line2)',
-      display: 'flex',
-      gap: 12,
-      alignItems: 'flex-start',
-    }}>
+    <div
+      className={`px-[18px] py-3 flex gap-3 items-start ${last ? '' : 'border-b border-line2'}`}
+    >
       {/* severity dot */}
-      <span style={{
-        width: 9, height: 9, borderRadius: 9,
-        marginTop: 5, background: dot,
-        flexShrink: 0,
-        boxShadow: `0 0 0 3px color-mix(in srgb, ${dot} 22%, transparent)`,
-      }} />
+      <span
+        className="w-[9px] h-[9px] rounded-full mt-[5px] shrink-0"
+        style={{
+          background: dot,
+          boxShadow: `0 0 0 3px color-mix(in srgb, ${dot} 22%, transparent)`,
+        }}
+      />
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="flex-1 min-w-0">
         {/* header row: rule id + badge + span id */}
-        <div style={{
-          display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3,
-          flexWrap: 'wrap',
-        }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11, fontWeight: 700,
-            color: 'var(--ink)',
-          }}>{w.rule_id}</span>
-          <span style={{
-            padding: '1px 6px', borderRadius: 4,
-            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-            letterSpacing: '0.04em', textTransform: 'uppercase',
-            color: badgeInk, background: badgeBg,
-          }}>{w.severity}</span>
-          <span style={{ flex: 1 }} />
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10, color: 'var(--ink3)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240,
-          }}>
-            span: <span style={{ color: 'var(--ink2)' }}>{w.span_id.slice(0, 16)}</span>
+        <div className="flex items-baseline gap-2 mb-[3px] flex-wrap">
+          <span className="font-mono text-[11px] font-bold text-ink">{w.rule_id}</span>
+          <span className={`px-1.5 py-px rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase ${badgeClass}`}>
+            {w.severity}
+          </span>
+          <span className="flex-1" />
+          <span className="font-mono text-[10px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap max-w-[240px]">
+            span: <span className="text-ink2">{w.span_id.slice(0, 16)}</span>
           </span>
         </div>
 
         {/* message */}
-        <div style={{
-          fontSize: 12.5,
-          color: 'var(--ink)',
-          lineHeight: 1.45,
-        }}>{w.message}</div>
+        <div className="text-[12.5px] text-ink leading-[1.45]">{w.message}</div>
 
         {/* trace link */}
         {w.trace_id && (
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10, color: 'var(--accent-ink)',
-            background: 'var(--accent-bg)',
-            borderRadius: 5, padding: '3px 8px',
-            marginTop: 6, display: 'inline-block',
-          }}>
-            <span style={{ color: 'var(--ink3)' }}>trace → </span>
+          <div className="font-mono text-[10px] text-accent-ink bg-accent-bg rounded-[5px] px-2 py-[3px] mt-1.5 inline-block">
+            <span className="text-ink3">trace → </span>
             <a
               href={`/traces/${w.trace_id}`}
-              style={{ color: 'inherit', textDecoration: 'none' }}
+              className="text-inherit no-underline"
             >{w.trace_id.slice(0, 16)}…</a>
           </div>
         )}
@@ -179,68 +123,34 @@ export default function LintPage() {
   const firstN1  = warnings.find(w => w.rule_id === 'n_plus_one')
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      overflow: 'hidden',
-      background: 'var(--bg)',
-    }}>
+    <div className="flex flex-col h-full overflow-hidden bg-[var(--bg)]">
       {/* panel head */}
-      <div style={{
-        padding: '12px 18px',
-        borderBottom: '1px solid var(--line)',
-        background: 'var(--surface)',
-        display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
-      }}>
-        <div style={{ flex: 1 }}>
-          <div style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 13, fontWeight: 600,
-            color: 'var(--ink)',
-            letterSpacing: '-0.01em',
-          }}>Lint warnings</div>
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10, color: 'var(--ink3)',
-            marginTop: 2,
-          }}>OTel semantic conventions · N+1 detector</div>
+      <div className="px-[18px] py-3 border-b border-line bg-surface flex items-center gap-3 shrink-0">
+        <div className="flex-1">
+          <div className="font-sans text-[13px] font-semibold text-ink tracking-[-0.01em]">Lint warnings</div>
+          <div className="font-mono text-[10px] text-ink3 mt-0.5">OTel semantic conventions · N+1 detector</div>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div className="flex gap-1.5">
           {errors > 0 && (
-            <span style={{
-              padding: '2px 7px', borderRadius: 4,
-              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-              letterSpacing: '0.04em', textTransform: 'uppercase',
-              color: 'var(--danger-ink)', background: 'var(--danger-bg)',
-            }}>{errors} error{errors !== 1 ? 's' : ''}</span>
+            <span className="px-[7px] py-0.5 rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase text-danger-ink bg-danger-bg">
+              {errors} error{errors !== 1 ? 's' : ''}
+            </span>
           )}
           {warnCnt > 0 && (
-            <span style={{
-              padding: '2px 7px', borderRadius: 4,
-              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-              letterSpacing: '0.04em', textTransform: 'uppercase',
-              color: 'var(--warn-ink)', background: 'var(--warn-bg)',
-            }}>{warnCnt} warn{warnCnt !== 1 ? 's' : ''}</span>
+            <span className="px-[7px] py-0.5 rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase text-warn-ink bg-warn-bg">
+              {warnCnt} warn{warnCnt !== 1 ? 's' : ''}
+            </span>
           )}
           {infoCnt > 0 && (
-            <span style={{
-              padding: '2px 7px', borderRadius: 4,
-              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-              letterSpacing: '0.04em', textTransform: 'uppercase',
-              color: 'var(--ink3)', background: 'var(--chip-bg)',
-            }}>{infoCnt} info</span>
+            <span className="px-[7px] py-0.5 rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase text-ink3 bg-chip-bg">
+              {infoCnt} info
+            </span>
           )}
         </div>
       </div>
 
       {/* summary band */}
-      <div style={{
-        padding: '14px 18px',
-        display: 'flex', gap: 12, flexShrink: 0,
-        background: 'var(--surface)',
-        borderBottom: '1px solid var(--line)',
-      }}>
+      <div className="px-[18px] py-3.5 flex gap-3 shrink-0 bg-surface border-b border-line">
         <SummaryStat
           tone="danger"
           big={reqAttr}
@@ -268,13 +178,9 @@ export default function LintPage() {
       </div>
 
       {/* warning list */}
-      <div style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
+      <div className="flex-1 overflow-auto bg-surface">
         {loading && (
-          <div style={{
-            padding: '32px 18px',
-            fontFamily: 'var(--font-mono)', fontSize: 12,
-            color: 'var(--ink3)',
-          }}>Loading…</div>
+          <div className="px-[18px] py-8 font-mono text-xs text-ink3">Loading…</div>
         )}
         {!loading && warnings.length === 0 && (
           <EmptyState

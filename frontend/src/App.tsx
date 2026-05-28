@@ -25,7 +25,7 @@ import { api, type ForwarderStatus } from './lib/api'
 
 function SpanielLogo({ size = 22 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 28 28" style={{ display: 'block', flexShrink: 0 }}>
+    <svg width={size} height={size} viewBox="0 0 28 28" className="block shrink-0">
       <ellipse cx="8"  cy="13" rx="6" ry="9" fill="var(--accent)" opacity="0.78" transform="rotate(-12 8 13)" />
       <ellipse cx="20" cy="13" rx="6" ry="9" fill="var(--accent)" opacity="0.50" transform="rotate(12 20 13)" />
       <circle cx="14" cy="14" r="5.4" fill="var(--background)" stroke="var(--foreground)" strokeWidth="1.2" />
@@ -42,21 +42,13 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
   return (
     <NavLink to={to} end={end}>
       {({ isActive }) => (
-        <span style={{
-          display: 'inline-block',
-          padding: '5px 10px',
-          borderRadius: 6,
-          fontFamily: 'var(--font-sans)',
-          fontSize: 12,
-          fontWeight: 500,
-          color: isActive ? 'var(--foreground)' : 'var(--muted-foreground)',
-          background: isActive ? 'var(--muted)' : 'transparent',
-          border: isActive ? '1px solid var(--border)' : '1px solid transparent',
-          cursor: 'pointer',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
-          transition: 'color 0.1s, background 0.1s',
-        }}>
+        <span
+          className={`inline-block px-2.5 py-[5px] rounded-md font-sans text-xs font-medium cursor-pointer select-none whitespace-nowrap transition-colors border ${
+            isActive
+              ? 'text-foreground bg-muted border-border'
+              : 'text-muted-foreground bg-transparent border-transparent'
+          }`}
+        >
           {label}
         </span>
       )}
@@ -75,29 +67,7 @@ function ThemeToggle() {
       type="button"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 28,
-        height: 28,
-        borderRadius: 6,
-        background: 'transparent',
-        border: '1px solid var(--border)',
-        color: 'var(--muted-foreground)',
-        cursor: 'pointer',
-        outline: 'none',
-        transition: 'color 0.1s, background 0.1s',
-        flexShrink: 0,
-      }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLButtonElement).style.background = 'var(--muted)'
-        ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground)'
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
-        ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--muted-foreground)'
-      }}
+      className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent border border-border text-muted-foreground cursor-pointer outline-none transition-colors shrink-0 hover:bg-muted hover:text-foreground"
     >
       {isDark ? <Sun size={14} /> : <Moon size={14} />}
     </button>
@@ -128,8 +98,8 @@ function ForwardingPills() {
 
   return (
     <>
-      <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      <div className="w-px h-[18px] bg-border shrink-0" />
+      <div className="flex gap-1 items-center">
         {statuses.map(s => {
           const hasError = s.errors > 0
           const label = new URL(s.url).host
@@ -137,28 +107,15 @@ function ForwardingPills() {
             <span
               key={s.url}
               title={hasError ? `${s.errors} error(s) — last: ${s.last_error}` : `→ ${s.url}  sent: ${s.sent}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 7px',
-                borderRadius: 5,
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                fontWeight: 500,
-                color: hasError ? 'var(--destructive-foreground, #fff)' : 'var(--muted-foreground)',
-                background: hasError ? 'var(--destructive, #c0392b)' : 'var(--muted)',
-                border: '1px solid var(--border)',
-                whiteSpace: 'nowrap',
-                cursor: 'default',
-                userSelect: 'none',
-              }}
+              className={`inline-flex items-center gap-1 px-[7px] py-[3px] rounded-[5px] font-mono text-[10px] font-medium border border-border whitespace-nowrap cursor-default select-none ${
+                hasError ? 'text-white bg-destructive' : 'text-muted-foreground bg-muted'
+              }`}
             >
-              <span style={{ opacity: 0.6 }}>→</span>
+              <span className="opacity-60">→</span>
               {label}
               {hasError
-                ? <span style={{ opacity: 0.85 }}>✗</span>
-                : <span style={{ opacity: 0.55 }}>✓</span>
+                ? <span className="opacity-85">✗</span>
+                : <span className="opacity-55">✓</span>
               }
             </span>
           )
@@ -172,44 +129,23 @@ function ForwardingPills() {
 
 function Chrome() {
   return (
-    <header style={{
-      height: 46,
-      padding: '0 16px',
-      borderBottom: '1px solid var(--border)',
-      background: 'var(--background)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 14,
-      flexShrink: 0,
-    }}>
+    <header className="h-[46px] px-4 border-b border-border bg-background flex items-center gap-[14px] shrink-0">
       {/* brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="flex items-center gap-2">
         <SpanielLogo size={22} />
-        <span style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 15,
-          fontWeight: 600,
-          color: 'var(--foreground)',
-          letterSpacing: '-0.01em',
-          lineHeight: 1,
-        }}>
+        <span className="font-sans text-[15px] font-semibold text-foreground tracking-[-0.01em] leading-none">
           spaniel
         </span>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          color: 'var(--muted-foreground)',
-          letterSpacing: '0.06em',
-        }}>
+        <span className="font-mono text-[9px] text-muted-foreground tracking-[0.06em]">
           v0.1
         </span>
       </div>
 
       {/* divider */}
-      <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
+      <div className="w-px h-[18px] bg-border shrink-0" />
 
       {/* nav */}
-      <nav style={{ display: 'flex', gap: 2 }}>
+      <nav className="flex gap-0.5">
         <NavPill to="/"         end   label="Traces"   />
         <NavPill to="/spans"          label="Spans"    />
         <NavPill to="/logs"           label="Logs"     />
@@ -221,7 +157,7 @@ function Chrome() {
         <NavPill to="/settings"       label="Settings" />
       </nav>
 
-      <div style={{ flex: 1 }} />
+      <div className="flex-1" />
 
       {/* forwarding status */}
       <ForwardingPills />
@@ -257,15 +193,9 @@ function AppShell() {
   }, [])
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      overflow: 'hidden',
-      background: 'var(--background)',
-    }}>
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
       <Chrome />
-      <main style={{ flex: 1, overflow: 'hidden' }}>
+      <main className="flex-1 overflow-hidden">
         <Routes>
           <Route path="/"                  element={<TraceList />}   />
           <Route path="/spans"             element={<Spans />}       />

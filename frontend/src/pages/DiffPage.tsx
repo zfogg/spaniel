@@ -79,24 +79,19 @@ function DiffStat({
   }
 
   return (
-    <div style={{ minWidth: 96 }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
-        letterSpacing: '0.14em', color: 'var(--ink3)',
-      }}>
+    <div className="min-w-24">
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink3">
         {label}
       </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
-        <span style={{
-          fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: 'var(--ink)',
-        }}>
+      <div className="flex items-baseline gap-1.5 mt-0.5">
+        <span className="font-serif text-lg font-semibold text-ink">
           {fmtValue(after)}{unit && !raw ? unit : ''}
         </span>
         {delta !== 0 && (
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-            color: better ? '#3e6a3e' : 'var(--danger-ink)',
-          }}>
+          <span
+            className="font-mono text-[10px] font-semibold"
+            style={{ color: better ? '#3e6a3e' : 'var(--danger-ink)' }}
+          >
             {fmtDelta(delta)}
           </span>
         )}
@@ -122,13 +117,10 @@ function Badge({ tone, children }: { tone: 'accent' | 'ok'; children: React.Reac
   }
   const t = tones[tone]
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      padding: '1px 7px', borderRadius: 10,
-      fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 600,
-      background: t.bg, color: t.fg, border: `1px solid ${t.bd}`,
-      whiteSpace: 'nowrap', lineHeight: 1.4,
-    }}>
+    <span
+      className="inline-flex items-center px-[7px] py-px rounded-[10px] font-mono text-[9.5px] font-semibold whitespace-nowrap leading-[1.4] border"
+      style={{ background: t.bg, color: t.fg, borderColor: t.bd }}
+    >
       {children}
     </span>
   )
@@ -166,56 +158,48 @@ function SpanRow({
   const deltaPositive = ds.delta_pct > 0
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '94px minmax(0,1fr) auto',
-      gap: 8, alignItems: 'center',
-      padding: '2px 8px',
-      borderBottom: '1px solid var(--line2)',
-      background: rowBg,
-    }}>
+    <div
+      className="grid gap-2 items-center px-2 py-0.5 border-b border-line2"
+      style={{
+        gridTemplateColumns: '94px minmax(0,1fr) auto',
+        background: rowBg,
+      }}
+    >
       {/* service */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        paddingLeft: ds.depth * 8,
-        minWidth: 0,
-      }}>
-        <span style={{
-          width: 5, height: 5, borderRadius: 5,
-          background: color.fg, opacity: 0.85, flex: '0 0 auto',
-        }} />
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 9.5, color: color.fg,
-          fontWeight: 600, letterSpacing: '-0.01em',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+      <div
+        className="flex items-center gap-[5px] min-w-0"
+        style={{ paddingLeft: ds.depth * 8 }}
+      >
+        <span
+          className="w-[5px] h-[5px] rounded-[5px] opacity-85 flex-none"
+          style={{ background: color.fg }}
+        />
+        <span
+          className="font-mono text-[9.5px] font-semibold tracking-[-0.01em] overflow-hidden text-ellipsis whitespace-nowrap"
+          style={{ color: color.fg }}
+        >
           {ds.service_name.replace(/-service$/, '')}
         </span>
       </div>
 
       {/* span name */}
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--ink2)',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        paddingLeft: ds.depth * 8,
-      }}>
+      <span
+        className="font-mono text-[9.5px] text-ink2 overflow-hidden text-ellipsis whitespace-nowrap"
+        style={{ paddingLeft: ds.depth * 8 }}
+      >
         {ds.name}
       </span>
 
       {/* duration + optional delta badge */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end', flexShrink: 0 }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--ink2)',
-          textAlign: 'right', whiteSpace: 'nowrap',
-        }}>
+      <div className="flex items-center gap-[5px] justify-end shrink-0">
+        <span className="font-mono text-[9.5px] text-ink2 text-right whitespace-nowrap">
           {fmtNs(dur)}
         </span>
         {showDelta && (
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-            color: deltaPositive ? 'var(--danger-ink)' : '#3e6a3e',
-            whiteSpace: 'nowrap',
-          }}>
+          <span
+            className="font-mono text-[9px] font-semibold whitespace-nowrap"
+            style={{ color: deltaPositive ? 'var(--danger-ink)' : '#3e6a3e' }}
+          >
             {deltaPositive ? '+' : '−'}{Math.abs(Math.round(ds.delta_pct))}%
           </span>
         )}
@@ -243,33 +227,31 @@ function SpanColumn({
   )
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface)' }}>
+    <div className="flex-1 flex flex-col overflow-hidden bg-surface">
       {/* column header */}
-      <div style={{
-        padding: '10px 14px', borderBottom: '1px solid var(--line)',
-        background: isBaseline
-          ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
-          : 'color-mix(in oklch, var(--ok) 18%, var(--surface))',
-        display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
-      }}>
+      <div
+        className="px-3.5 py-2.5 border-b border-line flex items-center gap-2.5 shrink-0"
+        style={{
+          background: isBaseline
+            ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
+            : 'color-mix(in oklch, var(--ok) 18%, var(--surface))',
+        }}
+      >
         <Badge tone={isBaseline ? 'accent' : 'ok'}>
           {isBaseline ? 'baseline' : 'compare'}
         </Badge>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
+        <span className="font-mono text-[11px] text-ink flex-1">
           {label}
         </span>
-        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>
+        <span className="font-serif text-lg font-semibold text-ink">
           {fmtNs(totalDurNs)}
         </span>
       </div>
 
       {/* span rows */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="flex-1 overflow-y-auto">
         {visibleSpans.length === 0 ? (
-          <div style={{
-            padding: '24px 16px', textAlign: 'center',
-            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)',
-          }}>
+          <div className="px-4 py-6 text-center font-mono text-[11px] text-ink3">
             no spans
           </div>
         ) : (
@@ -344,53 +326,31 @@ export default function DiffPage() {
     updateIds(compareId, baselineId)
   }
 
-  // ── select style ──
-  const selectStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-mono)',
-    fontSize: 11,
-    background: 'var(--surface2)',
-    color: 'var(--ink)',
-    border: '1px solid var(--line)',
-    borderRadius: 6,
-    height: 28,
-    padding: '0 8px',
-    outline: 'none',
-    cursor: 'pointer',
-    minWidth: 160,
-  }
+  const selectClass = "font-mono text-[11px] bg-surface2 text-ink border border-line rounded-md h-7 px-2 outline-none cursor-pointer min-w-[160px]"
 
   const baselineSess = sessions.find(s => s.id === baselineId)
   const compareSess = sessions.find(s => s.id === compareId)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex flex-col h-full overflow-hidden">
 
       {/* 1. Top breadcrumb bar */}
-      <div style={{
-        height: 36, padding: '0 12px',
-        borderBottom: '1px solid var(--line)',
-        background: 'var(--surface)',
-        display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
-      }}>
+      <div className="h-9 px-3 border-b border-line bg-surface flex items-center gap-2.5 shrink-0">
         <button
           type="button"
           onClick={() => navigate(-1)}
-          style={{
-            fontFamily: 'var(--font-mono)', fontSize: 12,
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--ink2)', padding: '0 4px',
-          }}
+          className="font-mono text-xs bg-transparent border-none cursor-pointer text-ink2 px-1"
         >
           ← back
         </button>
 
-        <div style={{ width: 1, height: 18, background: 'var(--line)', flexShrink: 0 }} />
+        <div className="w-px h-[18px] bg-line shrink-0" />
 
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)' }}>
+        <span className="font-mono text-[10px] text-ink3">
           baseline
         </span>
         <select
-          style={selectStyle}
+          className={selectClass}
           value={baselineId}
           onChange={e => updateIds(e.target.value, compareId)}
         >
@@ -404,22 +364,16 @@ export default function DiffPage() {
           type="button"
           onClick={handleSwap}
           title="Swap baseline and compare"
-          style={{
-            fontFamily: 'var(--font-mono)', fontSize: 14,
-            background: 'transparent', border: '1px solid var(--line)', borderRadius: 6,
-            cursor: 'pointer', color: 'var(--ink2)',
-            width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}
+          className="font-mono text-sm bg-transparent border border-line rounded-md cursor-pointer text-ink2 w-7 h-7 inline-flex items-center justify-center shrink-0"
         >
           ⇄
         </button>
 
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)' }}>
+        <span className="font-mono text-[10px] text-ink3">
           compare
         </span>
         <select
-          style={selectStyle}
+          className={selectClass}
           value={compareId}
           onChange={e => updateIds(baselineId, e.target.value)}
         >
@@ -432,22 +386,16 @@ export default function DiffPage() {
 
       {/* 2. Summary strip */}
       {diff && (
-        <div style={{
-          padding: '14px 18px', borderBottom: '1px solid var(--line)',
-          background: 'var(--surface)',
-          display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0,
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{
-              fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: 'var(--ink)',
-            }}>
+        <div className="px-[18px] py-3.5 border-b border-line bg-surface flex items-center gap-[18px] shrink-0">
+          <div className="flex-1">
+            <div className="font-serif text-lg font-semibold text-ink">
               {diff.baseline.label}
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)' }}>
+            <div className="font-mono text-[10px] text-ink3">
               baseline @{' '}
-              <span style={{ color: 'var(--ink2)' }}>{diff.baseline.label}</span>
+              <span className="text-ink2">{diff.baseline.label}</span>
               {' '}↔ compare @{' '}
-              <span style={{ color: 'var(--ink2)' }}>{diff.compare.label}</span>
+              <span className="text-ink2">{diff.compare.label}</span>
             </div>
           </div>
 
@@ -475,12 +423,9 @@ export default function DiffPage() {
       )}
 
       {/* 3. Main body */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {loading ? (
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink3)',
-          }}>
+          <div className="flex-1 flex items-center justify-center font-mono text-[13px] text-ink3">
             computing diff…
           </div>
         ) : !baselineId || !compareId ? (
@@ -496,10 +441,7 @@ export default function DiffPage() {
             }
           />
         ) : !diff ? null : diff.spans.length === 0 ? (
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink3)',
-          }}>
+          <div className="flex-1 flex items-center justify-center font-mono text-[13px] text-ink3">
             no shared operations found between these sessions
           </div>
         ) : (
@@ -510,7 +452,7 @@ export default function DiffPage() {
               totalDurNs={diff.baseline.total_duration_ns}
               spans={diff.spans}
             />
-            <div style={{ width: 1, background: 'var(--line)', flexShrink: 0 }} />
+            <div className="w-px bg-line shrink-0" />
             <SpanColumn
               side="compare"
               label={diff.compare.label}
@@ -523,12 +465,7 @@ export default function DiffPage() {
 
       {/* 4. Footer insights strip */}
       {diff && (
-        <div style={{
-          padding: '10px 16px', borderTop: '1px solid var(--line)',
-          background: 'var(--surface2)',
-          display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0,
-          fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink2)',
-        }}>
+        <div className="px-4 py-2.5 border-t border-line bg-surface2 flex items-center gap-[18px] shrink-0 font-mono text-[11px] text-ink2">
           {diff.summary.spans_removed > 0 && (
             <span>
               <strong style={{ color: '#3e6a3e' }}>−{diff.summary.spans_removed}</strong> spans removed
@@ -536,7 +473,7 @@ export default function DiffPage() {
           )}
           {diff.summary.spans_added > 0 && (
             <span>
-              <strong style={{ color: 'var(--danger-ink)' }}>+{diff.summary.spans_added}</strong> spans added
+              <strong className="text-danger-ink">+{diff.summary.spans_added}</strong> spans added
             </span>
           )}
           {diff.summary.db_call_delta !== 0 && (
@@ -547,11 +484,8 @@ export default function DiffPage() {
               </strong>
             </span>
           )}
-          <div style={{ flex: 1 }} />
-          <span style={{
-            padding: '4px 8px', border: '1px solid var(--line)',
-            borderRadius: 5, background: 'var(--surface)',
-          }}>
+          <div className="flex-1" />
+          <span className="px-2 py-1 border border-line rounded-[5px] bg-surface">
             spaniel diff --baseline {baselineSess?.label ?? diff.baseline.label}
           </span>
         </div>

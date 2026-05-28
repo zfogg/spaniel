@@ -26,41 +26,25 @@ export default function TraceDetail() {
   }, [traceId])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '6px 14px',
-        borderBottom: '1px solid var(--border)',
-        flexShrink: 0,
-      }}>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center gap-2.5 px-3.5 py-1.5 border-b border-border shrink-0">
         <button
           onClick={() => navigate(-1)}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--muted-foreground)', fontSize: 16, lineHeight: 1,
-            padding: '2px 4px', borderRadius: 4,
-          }}
+          className="bg-none border-none cursor-pointer text-muted-foreground text-base leading-none px-1 py-0.5 rounded"
         >
           ←
         </button>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10,
-          color: 'var(--muted-foreground)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+        <span className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
           {traceId}
         </span>
       </div>
 
       {loading ? (
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: 13,
-        }}>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">
           Loading…
         </div>
       ) : (
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="flex-1 overflow-hidden">
           <TraceWaterfall
             spans={spans}
             warnings={warnings}

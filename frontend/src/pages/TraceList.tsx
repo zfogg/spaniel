@@ -86,6 +86,20 @@ function EndpointPill({ port, proto }: { port: string; proto: string }) {
 
 function EmptyState() {
   const [lang, setLang] = useState<Lang>('python')
+  // Pull live OTLP ports from /api/settings so the empty state reflects the
+  // actually-bound ports, not the hardcoded defaults. The runtime.* fields
+  // are the bound ports (which may differ from the configured ones if the
+  // user changed the config without restarting yet).
+  const [ports, setPorts] = useState({ http: 4318, grpc: 4317 })
+  useEffect(() => {
+    api.settings.get().then(r => {
+      const rt = r.data?.runtime
+      if (rt) setPorts({
+        http: rt.otlp_http_port || 4318,
+        grpc: rt.otlp_grpc_port || 4317,
+      })
+    }).catch(() => { /* keep defaults */ })
+  }, [])
 
   return (
     <div className="fade-up flex h-full flex-col items-center justify-center gap-7 overflow-y-auto px-6 py-8">
@@ -96,8 +110,8 @@ function EmptyState() {
           Waiting for traces…
         </h2>
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <EndpointPill port="4318" proto="HTTP/OTLP" />
-          <EndpointPill port="4317" proto="gRPC/OTLP" />
+          <EndpointPill port={String(ports.http)} proto="HTTP/OTLP" />
+          <EndpointPill port={String(ports.grpc)} proto="gRPC/OTLP" />
         </div>
       </div>
 
@@ -106,7 +120,7 @@ function EmptyState() {
           Step 1 — point your app at spaniel
         </p>
         <pre className="m-0 overflow-x-auto rounded-lg border border-[var(--ok)] bg-[var(--ok-bg)] px-4 py-3 font-mono text-xs leading-relaxed text-[var(--ok-ink)]">
-          {`export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318\nexport OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`}
+          {`export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:${ports.http}\nexport OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`}
         </pre>
       </div>
 
@@ -191,10 +205,9 @@ function TraceRowItem({
     <div
       data-testid={`trace-row-${trace.trace_id}`}
       onClick={onClick}
-      className="grid cursor-pointer items-center gap-0 px-[18px] py-[10px] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)]"
+      className="grid cursor-pointer items-center gap-0 px-[18px] py-[10px] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] border-b border-b-[var(--line2)]"
       style={{
         gridTemplateColumns: 'minmax(0,1fr) 90px 60px minmax(120px,280px) 70px',
-        borderBottom: '1px solid var(--line2)',
         background: isFirst
           ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
           : undefined,
@@ -295,7 +308,7 @@ export default function TraceList() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-        <h1 className="text-sm font-medium flex-1">Traces</h1>
+        <h1 className="text-sm font-medium flex-1 text-foreground">Traces</h1>
         {services.length > 0 && (
           <Select value={filterService} onValueChange={v => setFilterService(v ?? 'all')}>
             <SelectTrigger className="w-40 h-8 text-xs">
@@ -315,11 +328,9 @@ export default function TraceList() {
         <div className="flex-1 overflow-auto">
           {/* column header */}
           <div
-            className="grid border-b px-[18px] py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--ink3)]"
+            className="grid border-b border-line bg-surface2 px-[18px] py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-ink3"
             style={{
               gridTemplateColumns: 'minmax(0,1fr) 90px 60px minmax(120px,280px) 70px',
-              background: 'var(--surface2)',
-              borderColor: 'var(--line)',
             }}
           >
             <div>operation</div>

@@ -15,73 +15,24 @@ export default function IssueToast() {
   if (toasts.length === 0) return null
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 36,
-        right: 16,
-        zIndex: 1000,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        pointerEvents: 'none',
-      }}
-    >
+    <div className="fixed bottom-9 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
       {toasts.map(({ id, payload }) => (
         <div
           key={id}
-          style={{
-            background: 'var(--danger-bg)',
-            border: '1px solid var(--danger)',
-            borderRadius: 8,
-            padding: '10px 14px',
-            minWidth: 260,
-            maxWidth: 340,
-            boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
-            pointerEvents: 'auto',
-          }}
+          className="bg-danger-bg border border-danger rounded-lg px-3.5 py-2.5 min-w-[260px] max-w-[340px] shadow-[0_2px_12px_rgba(0,0,0,0.18)] pointer-events-auto"
         >
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            marginBottom: 4,
-          }}>
-            <span style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: 'var(--danger)',
-              flexShrink: 0,
-            }} />
-            <span style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.07em',
-              color: 'var(--danger-ink)',
-            }}>
+          <div className="flex items-center gap-[7px] mb-1">
+            <span className="w-[7px] h-[7px] rounded-full bg-danger shrink-0" />
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.07em] text-danger-ink">
               {payload.kind.replace(/_/g, ' ')}
             </span>
           </div>
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--ink2)',
-            marginBottom: 6,
-          }}>
+          <div className="font-mono text-[11px] text-ink2 mb-1.5">
             {payload.count} repeated queries detected
           </div>
           <Link
             to={`/traces/${payload.traceId}`}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'var(--danger)',
-              textDecoration: 'underline',
-              textDecorationStyle: 'dotted',
-            }}
+            className="font-mono text-[10px] text-danger underline decoration-dotted"
           >
             view trace →
           </Link>

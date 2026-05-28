@@ -46,14 +46,11 @@ function StarButton({ on, onClick, title }: { on: boolean; onClick: () => void; 
       type="button"
       onClick={onClick}
       title={title}
-      style={{
-        width: 28, height: 28, borderRadius: 6, padding: 0,
-        background: on ? 'color-mix(in oklch, var(--warn) 30%, var(--surface))' : 'transparent',
-        border: on ? '1px solid var(--warn)' : '1px solid var(--line)',
-        cursor: 'pointer', outline: 'none',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}
+      className={`w-7 h-7 rounded-md p-0 cursor-pointer outline-none inline-flex items-center justify-center shrink-0 ${
+        on
+          ? 'bg-[color-mix(in_oklch,var(--warn)_30%,var(--surface))] border border-warn'
+          : 'bg-transparent border border-line'
+      }`}
     >
       <svg width="14" height="14" viewBox="0 0 14 14">
         <path
@@ -96,13 +93,10 @@ function DotPill({
   }
   const t = tones[tone]
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 3,
-      padding: '1px 6px', borderRadius: 10,
-      fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 600,
-      background: t.bg, color: t.fg, border: `1px solid ${t.bd}`,
-      whiteSpace: 'nowrap', lineHeight: 1.4,
-    }}>
+    <span
+      className="inline-flex items-center gap-[3px] px-1.5 py-px rounded-[10px] font-mono text-[9.5px] font-semibold whitespace-nowrap leading-[1.4]"
+      style={{ background: t.bg, color: t.fg, border: `1px solid ${t.bd}` }}
+    >
       {children}
     </span>
   )
@@ -133,17 +127,13 @@ function Btn({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      className={`inline-flex items-center gap-1.5 rounded-md font-sans text-xs font-semibold outline-none whitespace-nowrap ${
+        small ? 'px-2.5 h-[26px]' : 'px-3.5 h-[30px]'
+      } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: small ? '0 10px' : '0 14px',
-        height: small ? 26 : 30,
-        borderRadius: 6,
         background: disabled ? 'var(--surface2)' : t.bg,
         color: disabled ? 'var(--ink3)' : t.fg,
         border: `1px solid ${disabled ? 'var(--line)' : t.bd}`,
-        fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600,
-        cursor: disabled ? 'not-allowed' : 'pointer', outline: 'none',
-        whiteSpace: 'nowrap',
       }}
     >
       {children}
@@ -154,16 +144,10 @@ function Btn({
 function NumCell({ label, value, hot }: { label: string; value: string | number; hot?: boolean }) {
   return (
     <div>
-      <div style={{
-        fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600,
-        color: hot ? 'var(--danger-ink)' : 'var(--ink)', lineHeight: 1.1,
-      }}>
+      <div className={`font-serif text-lg font-semibold leading-[1.1] ${hot ? 'text-danger-ink' : 'text-ink'}`}>
         {value}
       </div>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink3)',
-        textTransform: 'uppercase', letterSpacing: '0.14em', marginTop: 2,
-      }}>
+      <div className="font-mono text-[9px] text-ink3 uppercase tracking-[0.14em] mt-0.5">
         {label}
       </div>
     </div>
@@ -215,44 +199,32 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     if (f) setFile(f)
   }
 
-  const inputStyle: React.CSSProperties = {
-    display: 'block', width: '100%', padding: '6px 10px',
-    fontFamily: 'var(--font-mono)', fontSize: 12,
-    background: 'var(--surface)', border: '1px solid var(--line)',
-    borderRadius: 6, color: 'var(--ink)', outline: 'none',
-    boxSizing: 'border-box',
-  }
+  const inputClass = 'block w-full px-2.5 py-1.5 font-mono text-xs bg-surface border border-line rounded-md text-ink outline-none box-border'
+  const labelClass = 'block font-mono text-[10px] uppercase tracking-[0.12em] text-ink3 mb-[5px]'
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.45)',
-    }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{
-        width: 420, background: 'var(--surface)', border: '1px solid var(--line)',
-        borderRadius: 12, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16,
-        boxShadow: '0 16px 48px -12px rgba(0,0,0,.35)',
-      }}>
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45"
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        className="w-[420px] bg-surface border border-line rounded-xl px-6 py-[22px] flex flex-col gap-4 shadow-[0_16px_48px_-12px_rgba(0,0,0,.35)]"
+      >
         {/* header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'color-mix(in oklch, var(--accent) 18%, var(--surface))',
-            border: '1px solid color-mix(in oklch, var(--accent) 35%, transparent)',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--accent-ink)',
-          }}>
+        <div className="flex items-center gap-2">
+          <span className="w-7 h-7 rounded-lg bg-[color-mix(in_oklch,var(--accent)_18%,var(--surface))] border border-[color-mix(in_oklch,var(--accent)_35%,transparent)] inline-flex items-center justify-center text-accent-ink">
             <ImportIcon />
           </span>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>
+          <span className="font-sans text-[15px] font-bold text-ink">
             Import trace
           </span>
-          <div style={{ flex: 1 }} />
-          <button type="button" onClick={onClose} style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--ink3)', fontSize: 18, lineHeight: 1, padding: 2,
-          }}>×</button>
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={onClose}
+            className="bg-none border-none cursor-pointer text-ink3 text-lg leading-none p-0.5"
+          >×</button>
         </div>
 
         {/* drop zone */}
@@ -261,27 +233,30 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
           onClick={() => fileRef.current?.click()}
+          className="rounded-lg px-4 py-[18px] text-center cursor-pointer transition-[border-color,background] duration-150"
           style={{
             border: `2px dashed ${dragging ? 'var(--accent)' : file ? 'var(--ok)' : 'var(--line)'}`,
-            borderRadius: 8, padding: '18px 16px', textAlign: 'center' as const,
-            cursor: 'pointer',
             background: dragging ? 'color-mix(in oklch, var(--accent) 8%, var(--surface))' :
               file ? 'color-mix(in oklch, var(--ok) 8%, var(--surface))' : 'var(--surface2)',
-            transition: 'border-color 0.15s, background 0.15s',
           }}
         >
-          <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
-            onChange={e => e.target.files?.[0] && setFile(e.target.files[0])} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={e => e.target.files?.[0] && setFile(e.target.files[0])}
+          />
           {file ? (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ok-ink)', fontWeight: 600 }}>
+            <span className="font-mono text-xs text-ok-ink font-semibold">
               {file.name} ({(file.size / 1024).toFixed(0)} KB)
             </span>
           ) : (
             <>
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink2)', marginBottom: 4 }}>
+              <div className="font-sans text-[13px] text-ink2 mb-1">
                 Drop OTLP JSON or Jaeger JSON here
               </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)' }}>
+              <div className="font-mono text-[10px] text-ink3">
                 or click to browse
               </div>
             </>
@@ -290,11 +265,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
 
         {/* label */}
         <div>
-          <label style={{
-            display: 'block', fontFamily: 'var(--font-mono)', fontSize: 10,
-            textTransform: 'uppercase', letterSpacing: '0.12em',
-            color: 'var(--ink3)', marginBottom: 5,
-          }}>
+          <label className={labelClass}>
             session label
           </label>
           <input
@@ -302,20 +273,16 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
             value={label}
             onChange={e => setLabel(e.target.value)}
             placeholder={file ? file.name.replace(/\.[^.]+$/, '') : 'prod-baseline'}
-            style={inputStyle}
+            className={inputClass}
           />
         </div>
 
         {/* format */}
         <div>
-          <label style={{
-            display: 'block', fontFamily: 'var(--font-mono)', fontSize: 10,
-            textTransform: 'uppercase', letterSpacing: '0.12em',
-            color: 'var(--ink3)', marginBottom: 5,
-          }}>
+          <label className={labelClass}>
             format
           </label>
-          <select value={format} onChange={e => setFormat(e.target.value)} style={inputStyle}>
+          <select value={format} onChange={e => setFormat(e.target.value)} className={inputClass}>
             <option value="auto">Auto-detect</option>
             <option value="otlp">OTLP JSON (otelcol export)</option>
             <option value="jaeger">Jaeger JSON</option>
@@ -324,18 +291,13 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
 
         {/* error */}
         {status === 'error' && (
-          <div style={{
-            padding: '8px 10px', borderRadius: 6,
-            background: 'color-mix(in oklch, var(--danger) 12%, var(--surface))',
-            border: '1px solid color-mix(in oklch, var(--danger) 35%, transparent)',
-            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--danger-ink)',
-          }}>
+          <div className="px-2.5 py-2 rounded-md bg-[color-mix(in_oklch,var(--danger)_12%,var(--surface))] border border-[color-mix(in_oklch,var(--danger)_35%,transparent)] font-mono text-[11px] text-danger-ink">
             {error}
           </div>
         )}
 
         {/* actions */}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div className="flex gap-2 justify-end">
           <Btn tone="ghost" onClick={onClose}>Cancel</Btn>
           <Btn tone="primary" disabled={!file || status === 'loading'} onClick={handleImport}>
             {status === 'loading' ? 'importing…' : (
@@ -366,27 +328,16 @@ function HowToDiff() {
     },
   ]
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+    <div className="grid grid-cols-3 gap-3.5 mb-5">
       {steps.map(s => (
-        <div key={s.n} style={{
-          background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10,
-          padding: '14px 16px',
-        }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 24, height: 24, borderRadius: 24,
-            background: 'var(--accent)', color: 'var(--surface)',
-            fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, marginBottom: 8,
-          }}>
+        <div key={s.n} className="bg-surface border border-line rounded-[10px] px-4 py-3.5">
+          <div className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-surface font-mono text-xs font-bold mb-2">
             {s.n}
           </div>
-          <div style={{
-            fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-            color: 'var(--ink)', marginBottom: 4,
-          }}>
+          <div className="font-sans text-[13px] font-semibold text-ink mb-1">
             {s.title}
           </div>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5 }}>
+          <div className="font-sans text-xs text-ink2 leading-[1.5]">
             {s.body}
           </div>
         </div>
@@ -411,22 +362,22 @@ function SessionRow({
   onDelete: (id: string) => void
 }) {
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '34px minmax(0,1fr) 100px 64px 64px 168px',
-      gap: 10, alignItems: 'center', padding: '12px 14px',
-      borderBottom: '1px solid var(--line2)',
-      background:
-        isBaseline ? 'color-mix(in oklch, var(--warn) 8%, var(--surface))'
-          : isCompare ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
-          : isActive ? 'var(--surface)'
-          : 'transparent',
-      borderLeft:
-        isBaseline ? '2px solid var(--warn)'
-          : isCompare ? '2px solid var(--accent)'
-          : isActive ? '2px solid var(--ok)'
-          : '2px solid transparent',
-    }}>
+    <div
+      className="grid gap-2.5 items-center px-3.5 py-3 border-b border-[var(--line2)]"
+      style={{
+        gridTemplateColumns: '34px minmax(0,1fr) 100px 64px 64px 168px',
+        background:
+          isBaseline ? 'color-mix(in oklch, var(--warn) 8%, var(--surface))'
+            : isCompare ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
+            : isActive ? 'var(--surface)'
+            : 'transparent',
+        borderLeft:
+          isBaseline ? '2px solid var(--warn)'
+            : isCompare ? '2px solid var(--accent)'
+            : isActive ? '2px solid var(--ok)'
+            : '2px solid transparent',
+      }}
+    >
       {/* star / baseline */}
       <StarButton
         on={isBaseline}
@@ -435,30 +386,26 @@ function SessionRow({
       />
 
       {/* name + pills */}
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {s.is_imported && (
-            <span title="Imported trace" style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-              background: 'color-mix(in oklch, var(--accent) 18%, var(--surface))',
-              color: 'var(--accent-ink)',
-            }}>
+            <span
+              title="Imported trace"
+              className="inline-flex items-center justify-center w-4 h-4 rounded shrink-0 bg-[color-mix(in_oklch,var(--accent)_18%,var(--surface))] text-accent-ink"
+            >
               <ImportIcon />
             </span>
           )}
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--ink)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+          <span className="font-mono text-[13px] font-semibold text-ink overflow-hidden text-ellipsis whitespace-nowrap">
             {s.label || s.id.slice(0, 8)}
           </span>
           {isActive && <DotPill tone="ok">● active</DotPill>}
           {isBaseline && <DotPill tone="warn">★ baseline</DotPill>}
         </div>
-        <div style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)', marginTop: 3,
-        }} title={fmtAbsolute(s.created_at)}>
+        <div
+          className="font-mono text-[10px] text-ink3 mt-[3px]"
+          title={fmtAbsolute(s.created_at)}
+        >
           created {fmtRelative(s.created_at)}
         </div>
       </div>
@@ -468,7 +415,7 @@ function SessionRow({
       <NumCell label="spans" value={s.span_count} />
 
       {/* actions col */}
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+      <div className="flex gap-1.5 justify-end flex-wrap">
         {isCompare ? (
           <Btn small tone="ghost" onClick={() => onCompare(null)}>− deselect</Btn>
         ) : isBaseline ? (
@@ -495,37 +442,16 @@ function SessionRow({
 
 function DiffSelectionMini({ baseline, compare }: { baseline?: Session; compare?: Session }) {
   return (
-    <div style={{
-      padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)',
-      background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 6,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{
-          width: 16, height: 16, borderRadius: 4, display: 'inline-flex',
-          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          background: 'color-mix(in oklch, var(--warn) 30%, var(--surface))',
-          color: 'var(--warn-ink)', fontSize: 10, fontWeight: 700,
-        }}>★</span>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 11,
-          color: baseline ? 'var(--ink)' : 'var(--ink3)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-        }}>
+    <div className="px-2.5 py-2 rounded-lg border border-line bg-surface flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="w-4 h-4 rounded inline-flex items-center justify-center shrink-0 bg-[color-mix(in_oklch,var(--warn)_30%,var(--surface))] text-warn-ink text-[10px] font-bold">★</span>
+        <span className={`font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 ${baseline ? 'text-ink' : 'text-ink3'}`}>
           {baseline ? (baseline.label || baseline.id.slice(0, 8)) : 'no baseline pinned'}
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{
-          width: 16, height: 16, borderRadius: 4, display: 'inline-flex',
-          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          background: 'color-mix(in oklch, var(--accent) 30%, var(--surface))',
-          color: 'var(--accent-ink)', fontSize: 10, fontWeight: 700,
-        }}>+</span>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 11,
-          color: compare ? 'var(--ink)' : 'var(--ink3)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-        }}>
+      <div className="flex items-center gap-1.5">
+        <span className="w-4 h-4 rounded inline-flex items-center justify-center shrink-0 bg-[color-mix(in_oklch,var(--accent)_30%,var(--surface))] text-accent-ink text-[10px] font-bold">+</span>
+        <span className={`font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 ${compare ? 'text-ink' : 'text-ink3'}`}>
           {compare ? (compare.label || compare.id.slice(0, 8)) : 'pick a session'}
         </span>
       </div>
@@ -552,48 +478,26 @@ function CompareBar({ baseline, compare }: { baseline?: Session; compare?: Sessi
   }
 
   return (
-    <div style={{
-      borderTop: '1px solid var(--line)',
-      background: 'var(--surface)',
-      padding: '10px 18px',
-      display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0,
-    }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)',
-        textTransform: 'uppercase', letterSpacing: '0.14em',
-      }}>
+    <div className="border-t border-line bg-surface px-[18px] py-2.5 flex items-center gap-3.5 shrink-0">
+      <div className="font-mono text-[11px] text-ink3 uppercase tracking-[0.14em]">
         diff
       </div>
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
-        padding: '4px 10px', borderRadius: 6,
-        background: 'color-mix(in oklch, var(--warn) 18%, var(--surface))',
-        color: 'var(--warn-ink)',
-        border: '1px solid color-mix(in oklch, var(--warn) 35%, transparent)',
-      }}>
+      <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-[color-mix(in_oklch,var(--warn)_18%,var(--surface))] text-warn-ink border border-[color-mix(in_oklch,var(--warn)_35%,transparent)]">
         ★ {baseline ? (baseline.label || baseline.id.slice(0, 8)) : '— pick baseline —'}
       </span>
-      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--ink3)' }}>→</span>
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
-        padding: '4px 10px', borderRadius: 6,
-        background: 'color-mix(in oklch, var(--accent) 16%, var(--surface))',
-        color: 'var(--accent-ink)',
-        border: '1px solid color-mix(in oklch, var(--accent) 35%, transparent)',
-      }}>
+      <span className="font-mono text-ink3">→</span>
+      <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-[color-mix(in_oklch,var(--accent)_16%,var(--surface))] text-accent-ink border border-[color-mix(in_oklch,var(--accent)_35%,transparent)]">
         + {compare ? (compare.label || compare.id.slice(0, 8)) : '— pick comparison —'}
       </span>
-      <div style={{ flex: 1 }} />
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)' }}>
+      <div className="flex-1" />
+      <span className="font-mono text-[10px] text-ink3">
         or run{' '}
-        <span style={{
-          background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4, color: 'var(--ink2)',
-        }}>
+        <span className="bg-surface2 px-1.5 py-px rounded text-ink2">
           spaniel diff --baseline {baseline ? (baseline.label || 'main') : 'main'}
         </span>
       </span>
       <Btn tone="primary" disabled={!canDiff} onClick={handleCompare}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ display: 'block' }}>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="block">
           <path d="M2.5 4h5M5 2l-2.5 2L5 6" stroke="currentColor" strokeWidth="1.4"
             strokeLinecap="round" strokeLinejoin="round" />
           <path d="M11.5 10h-5M9 8l2.5 2L9 12" stroke="currentColor" strokeWidth="1.4"
@@ -697,29 +601,20 @@ export default function Sessions() {
   const compare = sessions.find(s => s.id === compareId)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex flex-col h-full overflow-hidden">
       {showImport && (
         <ImportModal onClose={() => setShowImport(false)} onImported={load} />
       )}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div className="flex-1 flex min-h-0">
 
         {/* sidebar */}
-        <aside style={{
-          width: 200, padding: '18px 14px',
-          borderRight: '1px solid var(--line)',
-          background: 'var(--surface2)',
-          display: 'flex', flexDirection: 'column', gap: 18,
-          fontFamily: 'var(--font-sans)', flexShrink: 0,
-        }}>
+        <aside className="w-[200px] px-3.5 py-[18px] border-r border-line bg-surface2 flex flex-col gap-[18px] font-sans shrink-0">
           {/* filter tabs */}
           <div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
-              letterSpacing: '0.14em', color: 'var(--ink3)', marginBottom: 8,
-            }}>
+            <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink3 mb-2">
               filter
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <div className="flex flex-col gap-px">
               {([
                 { key: 'all', label: 'all sessions', dot: 'var(--ink3)', count: sessions.length },
                 { key: 'branches', label: 'branches', dot: 'var(--accent)', count: branchCount },
@@ -731,72 +626,48 @@ export default function Sessions() {
                   type="button"
                   data-testid={`filter-${item.key}`}
                   onClick={() => setFilter(item.key)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 7,
-                    width: '100%', textAlign: 'left',
-                    padding: '5px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                    background: filter === item.key ? 'var(--surface)' : 'transparent',
-                    fontFamily: 'var(--font-mono)', fontSize: 11,
-                    color: filter === item.key ? 'var(--ink)' : 'var(--ink2)',
-                    fontWeight: filter === item.key ? 600 : 400,
-                  }}
+                  className={`flex items-center gap-[7px] w-full text-left px-2 py-[5px] rounded-md border-0 cursor-pointer font-mono text-[11px] ${
+                    filter === item.key ? 'bg-surface text-ink font-semibold' : 'bg-transparent text-ink2 font-normal'
+                  }`}
                 >
-                  <span style={{ width: 7, height: 7, borderRadius: 7, background: item.dot, flexShrink: 0 }} />
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: item.dot }} />
+                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                     {item.label}
                   </span>
-                  <span style={{ color: 'var(--ink3)', fontSize: 10 }}>{item.count}</span>
+                  <span className="text-ink3 text-[10px]">{item.count}</span>
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
-              letterSpacing: '0.14em', color: 'var(--ink3)', marginBottom: 8,
-            }}>
+            <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink3 mb-2">
               actions
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div className="flex flex-col gap-0.5">
               <div
                 role="button"
                 onClick={!creating ? handleNew : undefined}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '5px 8px', borderRadius: 6,
-                  fontSize: 12, color: 'var(--accent-ink)',
-                  cursor: creating ? 'default' : 'pointer',
-                  userSelect: 'none',
-                  fontWeight: 600,
-                }}
+                className={`flex items-center gap-2 px-2 py-[5px] rounded-md text-xs text-accent-ink select-none font-semibold ${creating ? 'cursor-default' : 'cursor-pointer'}`}
               >
-                <span style={{ width: 7, height: 7, borderRadius: 7, background: 'var(--accent)' }} />
+                <span className="w-[7px] h-[7px] rounded-full bg-[var(--accent)]" />
                 {creating ? 'creating…' : '+ new session'}
               </div>
               <div
                 role="button"
                 onClick={() => setShowImport(true)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '5px 8px', borderRadius: 6,
-                  fontSize: 12, color: 'var(--ink2)',
-                  cursor: 'pointer', userSelect: 'none',
-                }}
+                className="flex items-center gap-2 px-2 py-[5px] rounded-md text-xs text-ink2 cursor-pointer select-none"
               >
-                <span style={{ display: 'inline-flex', color: 'var(--ink3)' }}><ImportIcon /></span>
+                <span className="inline-flex text-ink3"><ImportIcon /></span>
                 import trace
               </div>
             </div>
           </div>
 
-          <div style={{ flex: 1 }} />
+          <div className="flex-1" />
 
           <div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
-              letterSpacing: '0.14em', color: 'var(--ink3)', marginBottom: 8,
-            }}>
+            <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink3 mb-2">
               diff selection
             </div>
             <DiffSelectionMini baseline={baseline} compare={compare} />
@@ -804,62 +675,44 @@ export default function Sessions() {
         </aside>
 
         {/* main */}
-        <div style={{ flex: 1, overflow: 'hidden auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
 
           {/* page header */}
-          <div style={{ padding: '22px 24px 0' }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink3)',
-              textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6,
-            }}>
+          <div className="pt-[22px] px-6">
+            <div className="font-mono text-[10px] text-ink3 uppercase tracking-[0.18em] mb-1.5">
               spaniel sessions
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-              <h1 style={{
-                margin: 0, fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 600,
-                letterSpacing: '-0.02em', color: 'var(--ink)',
-              }}>
+            <div className="flex items-baseline gap-3.5">
+              <h1 className="m-0 font-serif text-[28px] font-semibold tracking-[-0.02em] text-ink">
                 Sessions
               </h1>
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink2)' }}>
+              <span className="font-sans text-[13px] text-ink2">
                 Named windows of telemetry. Each branch usually gets its own.
               </span>
             </div>
           </div>
 
           {/* diff workflow explainer */}
-          <div style={{ padding: '18px 24px 4px' }}>
+          <div className="px-6 pt-[18px] pb-1">
             <HowToDiff />
           </div>
 
           {/* sessions table */}
-          <div style={{ padding: '4px 24px' }}>
+          <div className="px-6 py-1">
             {/* column header */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '34px minmax(0,1fr) 100px 64px 64px 168px',
-              gap: 10, padding: '8px 14px',
-              fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink3)',
-              textTransform: 'uppercase', letterSpacing: '0.14em',
-              background: 'var(--surface2)',
-              borderRadius: '10px 10px 0 0',
-              border: '1px solid var(--line)',
-            }}>
+            <div
+              className="grid gap-2.5 px-3.5 py-2 font-mono text-[9px] text-ink3 uppercase tracking-[0.14em] bg-surface2 rounded-t-[10px] border border-line"
+              style={{ gridTemplateColumns: '34px minmax(0,1fr) 100px 64px 64px 168px' }}
+            >
               <div title="Mark baseline">★</div>
               <div>session · created</div>
               <div>traces</div>
               <div>spans</div>
-              <div style={{ gridColumn: 'span 2', textAlign: 'right' }}>actions</div>
+              <div className="col-span-2 text-right">actions</div>
             </div>
 
             {loading ? (
-              <div style={{
-                padding: '24px 16px',
-                fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
-                background: 'var(--surface)',
-                border: '1px solid var(--line)', borderTop: 'none',
-                borderRadius: '0 0 10px 10px',
-              }}>
+              <div className="px-4 py-6 font-mono text-xs text-ink3 bg-surface border border-line border-t-0 rounded-b-[10px]">
                 loading…
               </div>
             ) : filteredSessions.length === 0 ? (
@@ -878,24 +731,14 @@ export default function Sessions() {
                   }
                 />
               ) : (
-                <div style={{
-                  padding: '32px 16px', textAlign: 'center',
-                  fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--line)', borderTop: 'none',
-                  borderRadius: '0 0 10px 10px',
-                }}>
+                <div className="px-4 py-8 text-center font-mono text-xs text-ink3 bg-surface border border-line border-t-0 rounded-b-[10px]">
                   no sessions match this filter
                 </div>
               )
             ) : (
               <div
                 data-testid="sessions-table-body"
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--line)', borderTop: 'none',
-                  borderRadius: '0 0 10px 10px', overflow: 'hidden',
-                }}
+                className="bg-surface border border-line border-t-0 rounded-b-[10px] overflow-hidden"
               >
                 {filteredSessions.map(s => (
                   <SessionRow
@@ -916,58 +759,55 @@ export default function Sessions() {
 
           {/* recent diffs */}
           {diffHistory.length > 0 && (
-            <div style={{ padding: '18px 24px 4px' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-                <h2 style={{
-                  margin: 0, fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 600, color: 'var(--ink)',
-                }}>Recent diffs</h2>
-                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--ink2)' }}>
+            <div className="px-6 pt-[18px] pb-1">
+              <div className="flex items-baseline gap-2.5 mb-2">
+                <h2 className="m-0 font-serif text-base font-semibold text-ink">Recent diffs</h2>
+                <span className="font-sans text-[11px] text-ink2">
                   cached locally · re-open any to compare again
                 </span>
               </div>
-              <div style={{
-                background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10,
-                overflow: 'hidden',
-              }}>
+              <div className="bg-surface border border-line rounded-[10px] overflow-hidden">
                 {diffHistory.map((d, i) => (
-                  <div key={i} style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0,1fr) 80px 80px 80px',
-                    gap: 12, padding: '10px 16px', alignItems: 'center',
-                    borderBottom: i < diffHistory.length - 1 ? '1px solid var(--line2)' : 'none',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink2)' }}>
+                  <div
+                    key={i}
+                    className="grid gap-3 px-4 py-2.5 items-center"
+                    style={{
+                      gridTemplateColumns: 'minmax(0,1fr) 80px 80px 80px',
+                      borderBottom: i < diffHistory.length - 1 ? '1px solid var(--line2)' : 'none',
+                    }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-[11.5px] text-ink2">
                         {d.baselineLabel}
                       </span>
-                      <span style={{ color: 'var(--ink3)' }}>→</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, fontWeight: 600, color: 'var(--ink)' }}>
+                      <span className="text-ink3">→</span>
+                      <span className="font-mono text-[11.5px] font-semibold text-ink">
                         {d.compareLabel}
                       </span>
                       <a
                         href={`/diff?baseline=${d.baselineId}&compare=${d.compareId}`}
-                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent-ink)', marginLeft: 4 }}
+                        className="font-mono text-[10px] text-accent-ink ml-1"
                       >
                         re-open
                       </a>
                     </div>
                     {d.deltaMs !== undefined ? (
-                      <span style={{
-                        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
-                        color: d.deltaMs < 0 ? '#3e6a3e' : d.deltaMs > 0 ? 'var(--danger-ink)' : 'var(--ink3)',
-                      }}>
+                      <span
+                        className="font-mono text-xs font-semibold"
+                        style={{ color: d.deltaMs < 0 ? '#3e6a3e' : d.deltaMs > 0 ? 'var(--danger-ink)' : 'var(--ink3)' }}
+                      >
                         {fmtDeltaMs(d.deltaMs * 1_000_000)}
                       </span>
                     ) : <span />}
                     {d.deltaSpans !== undefined ? (
-                      <span style={{
-                        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
-                        color: d.deltaSpans < 0 ? '#3e6a3e' : d.deltaSpans > 0 ? 'var(--danger-ink)' : 'var(--ink3)',
-                      }}>
+                      <span
+                        className="font-mono text-xs font-semibold"
+                        style={{ color: d.deltaSpans < 0 ? '#3e6a3e' : d.deltaSpans > 0 ? 'var(--danger-ink)' : 'var(--ink3)' }}
+                      >
                         {(d.deltaSpans > 0 ? '+' : '') + d.deltaSpans} spans
                       </span>
                     ) : <span />}
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--ink3)' }}>
+                    <span className="font-mono text-[10.5px] text-ink3">
                       {fmtRelativeMs(d.at)}
                     </span>
                   </div>
@@ -976,7 +816,7 @@ export default function Sessions() {
             </div>
           )}
 
-          <div style={{ height: 80 }} />
+          <div className="h-20" />
         </div>
       </div>
 

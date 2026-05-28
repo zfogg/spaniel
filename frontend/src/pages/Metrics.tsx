@@ -43,13 +43,10 @@ function MetricKindTag({ type }: { type: MetricType }) {
     type === 'counter' ? { fg: '#3e6a3e', bd: '#88b29a', bg: '#dee9de' } :
     { fg: '#7a3a23', bd: '#c89a86', bg: '#ecd9cf' }
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      padding: '1px 7px', borderRadius: 5,
-      fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
-      color: tone.fg, background: tone.bg, border: `1px solid ${tone.bd}`,
-      letterSpacing: '0.08em', textTransform: 'uppercase',
-    }}>
+    <span
+      className="inline-flex items-center gap-1 px-[7px] py-px rounded-[5px] font-mono text-[9px] font-bold tracking-[0.08em] uppercase border"
+      style={{ color: tone.fg, background: tone.bg, borderColor: tone.bd }}
+    >
       <MtIcon type={type} />
       {type}
     </span>
@@ -67,7 +64,7 @@ function Spark({ series, color }: { series: number[]; color: string }) {
     `${(i / Math.max(1, series.length - 1)) * w},${h - ((v - min) / span) * (h - 2) - 1}`
   ).join(' ')
   return (
-    <svg width={w} height={h} style={{ flex: '0 0 auto', overflow: 'visible' }}>
+    <svg width={w} height={h} className="flex-none overflow-visible">
       <polyline points={pts} fill="none" stroke={color} strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
@@ -105,10 +102,10 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
   const [hoverI, setHoverI] = useState<number | null>(null)
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="relative">
       <svg
         viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
-        style={{ display: 'block', cursor: 'crosshair' }}
+        className="block cursor-crosshair"
         onMouseLeave={() => setHoverI(null)}
         onMouseMove={(e) => {
           const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
@@ -180,31 +177,24 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
       </svg>
 
       {hoverI != null && (
-        <div style={{
-          position: 'absolute',
-          left: `calc(${(xAt(hoverI) / W) * 100}% + 14px)`, top: 30,
-          background: 'var(--foreground)', color: 'var(--background)',
-          fontFamily: 'var(--font-mono)', fontSize: 11,
-          padding: '8px 10px', borderRadius: 6, minWidth: 160,
-          boxShadow: '0 8px 18px -8px rgba(0,0,0,.32)', pointerEvents: 'none',
-        }}>
+        <div
+          className="absolute top-[30px] bg-foreground text-background font-mono text-[11px] px-2.5 py-2 rounded-md min-w-[160px] pointer-events-none shadow-[0_8px_18px_-8px_rgba(0,0,0,.32)]"
+          style={{ left: `calc(${(xAt(hoverI) / W) * 100}% + 14px)` }}
+        >
           {series.map((s, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '1px 0' }}>
-              <span style={{ width: 8, height: 8, borderRadius: 8, background: COLORS[i], display: 'inline-block' }} />
-              <span style={{ flex: 1, opacity: 0.7 }}>{LABELS[i]}</span>
-              <span style={{ fontWeight: 700 }}>{fmtVal(s[hoverI], metric.unit)}</span>
+            <div key={i} className="flex gap-2 items-baseline py-px">
+              <span className="w-2 h-2 rounded-lg inline-block" style={{ background: COLORS[i] }} />
+              <span className="flex-1 opacity-70">{LABELS[i]}</span>
+              <span className="font-bold">{fmtVal(s[hoverI], metric.unit)}</span>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px 0', flexWrap: 'wrap' }}>
+      <div className="flex items-center gap-[18px] pt-2.5 px-4 flex-wrap">
         {LABELS.map((L, i) => (
-          <span key={i} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)',
-          }}>
-            <span style={{ width: 18, height: 2.4, background: COLORS[i] }} />
+          <span key={i} className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+            <span className="w-[18px] h-[2.4px]" style={{ background: COLORS[i] }} />
             {L}
           </span>
         ))}
@@ -217,17 +207,17 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
 
 function StatBox({ s }: { s: Stat }) {
   return (
-    <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border)' }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-        textTransform: 'uppercase', letterSpacing: '0.14em',
-      }}>{s.label}</div>
-      <div style={{
-        fontFamily: 'var(--font-serif, serif)', fontSize: 26, fontWeight: 600, lineHeight: 1.05, marginTop: 4,
-        color: s.tone === 'danger' ? '#9a3b3b' : s.tone === 'ok' ? '#3e6a3e' : 'var(--foreground)',
-      }}>{s.value}</div>
+    <div className="px-[18px] py-3.5 border-r border-border">
+      <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">{s.label}</div>
+      <div
+        className="text-[26px] font-semibold leading-[1.05] mt-1"
+        style={{
+          fontFamily: 'var(--font-serif, serif)',
+          color: s.tone === 'danger' ? '#9a3b3b' : s.tone === 'ok' ? '#3e6a3e' : 'var(--foreground)',
+        }}
+      >{s.value}</div>
       {s.sub && (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)', marginTop: 4 }}>{s.sub}</div>
+        <div className="font-mono text-[10px] text-muted-foreground mt-1">{s.sub}</div>
       )}
     </div>
   )
@@ -285,8 +275,7 @@ export default function Metrics() {
 
   if (loading) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+      <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">
         Loading metrics…
       </div>
     )
@@ -309,98 +298,71 @@ export default function Metrics() {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+    <div className="flex-1 flex min-h-0 overflow-hidden">
       {/* left rail */}
-      <div style={{
-        width: 320, borderRight: '1px solid var(--border)',
-        background: 'var(--surface, var(--background))',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      }}>
-        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 7,
-            background: 'var(--muted)', border: '1px solid var(--border)',
-            borderRadius: 6, padding: '0 10px', height: 28,
-          }}>
+      <div className="w-[320px] border-r border-border bg-surface flex flex-col overflow-hidden">
+        <div className="px-3 py-2.5 border-b border-border flex flex-col gap-2">
+          <span className="inline-flex items-center gap-[7px] bg-muted border border-border rounded-md px-2.5 h-7">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
               <circle cx="6" cy="6" r="4" stroke="var(--muted-foreground)" strokeWidth="1.4" />
               <line x1="9.2" y1="9.2" x2="12" y2="12" stroke="var(--muted-foreground)" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
             <input value={query} onChange={e => setQuery(e.target.value)}
               placeholder="search metrics…"
-              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--foreground)' }} />
+              className="flex-1 border-none outline-none bg-transparent font-mono text-[11.5px] text-foreground" />
           </span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div className="flex gap-1.5 flex-wrap">
             {(['gauge', 'counter', 'histogram'] as const).map(t => {
               const on = typeSel === t
               return (
-                <button key={t} type="button" onClick={() => setTypeSel(on ? null : t)} style={{
-                  cursor: 'pointer', outline: 'none',
-                  padding: '3px 9px', borderRadius: 5,
-                  fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-                  letterSpacing: '0.06em', textTransform: 'uppercase',
-                  background: on ? 'var(--accent, var(--muted))' : 'var(--muted)',
-                  color: on ? 'var(--accent-foreground, var(--foreground))' : 'var(--muted-foreground)',
-                  border: '1px solid var(--border)',
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                }}>
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTypeSel(on ? null : t)}
+                  className={`cursor-pointer outline-none px-[9px] py-[3px] rounded-[5px] font-mono text-[10px] font-semibold tracking-[0.06em] uppercase border border-border inline-flex items-center gap-[5px] ${on ? 'bg-[var(--accent,var(--muted))] text-[var(--accent-foreground,var(--foreground))]' : 'bg-muted text-muted-foreground'}`}
+                >
                   <MtIcon type={t} />{t}
                 </button>
               )
             })}
-            <span style={{ flex: 1 }} />
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)', alignSelf: 'center' }}>
+            <span className="flex-1" />
+            <span className="font-mono text-[10px] text-muted-foreground self-center">
               {filtered.length} metrics
             </span>
           </div>
         </div>
 
-        <div style={{ flex: 1, overflow: 'hidden auto' }}>
+        <div className="flex-1 overflow-x-hidden overflow-y-auto">
           {Object.entries(groups).map(([svc, list]) => {
             const c = svcColor(svc).fg
             return (
               <div key={svc}>
-                <div style={{
-                  padding: '10px 12px 4px',
-                  fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted-foreground)',
-                  textTransform: 'uppercase', letterSpacing: '0.14em',
-                  background: 'var(--surface, var(--background))', position: 'sticky', top: 0,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 6, background: c }} />
+                <div className="pt-2.5 px-3 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-surface sticky top-0 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-md" style={{ background: c }} />
                   {svc}
-                  <span style={{ flex: 1 }} />
-                  <span style={{ color: 'var(--foreground)' }}>{list.length}</span>
+                  <span className="flex-1" />
+                  <span className="text-foreground">{list.length}</span>
                 </div>
                 {list.map(m => {
                   const isSel = selected?.name === m.name && selected?.service === m.service_name
                   return (
-                    <button key={m.service_name + '/' + m.name} type="button"
+                    <button
+                      key={m.service_name + '/' + m.name}
+                      type="button"
                       onClick={() => setSelected({ name: m.name, service: m.service_name })}
+                      className={`w-full px-3 py-2 border-none cursor-pointer outline-none text-left border-b border-border grid gap-2.5 items-center border-l-2 ${isSel ? 'bg-muted' : 'bg-transparent border-l-transparent'}`}
                       style={{
-                        width: '100%', padding: '8px 12px',
-                        border: 'none', cursor: 'pointer', outline: 'none', textAlign: 'left',
-                        background: isSel ? 'var(--muted)' : 'transparent',
-                        borderLeft: isSel ? `2px solid ${c}` : '2px solid transparent',
-                        borderBottom: '1px solid var(--border)',
-                        display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 60px',
-                        gap: 10, alignItems: 'center',
-                      }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{
-                          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--foreground)',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>{m.name}</div>
-                        <div style={{ marginTop: 3 }}>
+                        gridTemplateColumns: 'minmax(0,1fr) 60px',
+                        borderLeftColor: isSel ? c : undefined,
+                      }}
+                    >
+                      <div className="min-w-0">
+                        <div className="font-mono text-[11px] font-semibold text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{m.name}</div>
+                        <div className="mt-[3px]">
                           <MetricKindTag type={m.type} />
                         </div>
                       </div>
-                      <span style={{
-                        fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)',
-                        textAlign: 'right',
-                      }}>{m.sample_count} pts</span>
+                      <span className="font-mono text-[10px] text-muted-foreground text-right">{m.sample_count} pts</span>
                     </button>
                   )
                 })}
@@ -411,12 +373,9 @@ export default function Metrics() {
       </div>
 
       {/* main panel */}
-      <div style={{ flex: 1, overflow: 'hidden auto', display: 'flex', flexDirection: 'column' }}>
+      <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
         {series && selected ? <MainPanel series={series} /> : (
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: 13,
-          }}>Select a metric</div>
+          <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Select a metric</div>
         )}
       </div>
     </div>
@@ -429,48 +388,40 @@ function MainPanel({ series }: { series: MetricSeries }) {
 
   return (
     <>
-      <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-              color: svcColor(series.service_name).fg,
-              background: svcColor(series.service_name).bg,
-              padding: '1px 7px', borderRadius: 4,
-            }}>{series.service_name}</span>
+      <div className="pt-[18px] px-6 pb-3.5 border-b border-border flex items-start gap-3.5">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="font-mono text-[10px] font-semibold px-[7px] py-px rounded-[4px]"
+              style={{
+                color: svcColor(series.service_name).fg,
+                background: svcColor(series.service_name).bg,
+              }}
+            >{series.service_name}</span>
             <MetricKindTag type={series.type} />
             {series.unit && (
-              <span style={{
-                padding: '2px 7px', borderRadius: 5,
-                background: 'var(--muted)', color: 'var(--muted-foreground)',
-                border: '1px solid var(--border)',
-                fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-              }}>unit · {series.unit}</span>
+              <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">unit · {series.unit}</span>
             )}
           </div>
-          <h1 style={{
-            margin: '8px 0 4px', fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
-            letterSpacing: '-0.01em', color: 'var(--foreground)', wordBreak: 'break-all',
-          }}>{series.name}</h1>
+          <h1 className="mx-0 mt-2 mb-1 font-mono text-xl font-bold tracking-[-0.01em] text-foreground break-all">{series.name}</h1>
           {series.description && (
-            <div style={{
-              fontFamily: 'var(--font-serif, serif)', fontStyle: 'italic', fontSize: 13,
-              color: 'var(--muted-foreground)', maxWidth: 720,
-            }}>{series.description}</div>
+            <div
+              className="italic text-[13px] text-muted-foreground max-w-[720px]"
+              style={{ fontFamily: 'var(--font-serif, serif)' }}
+            >{series.description}</div>
           )}
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: '1px solid var(--border)' }}>
+      <div className="grid grid-cols-4 border-b border-border">
         {stats.map((s, i) => <StatBox key={i} s={s} />)}
       </div>
 
-      <div style={{ padding: '18px 16px 22px' }}>
+      <div className="pt-[18px] px-4 pb-[22px]">
         <Chart metric={series} bucketed={bucketed} traces={series.traces ?? []} />
       </div>
 
-      <div style={{ padding: '4px 24px 22px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted-foreground)' }}>
+      <div className="pt-1 px-6 pb-[22px] font-mono text-[11px] text-muted-foreground">
         {series.points.length} raw points · bucketed into 60 bins
       </div>
 

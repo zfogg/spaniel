@@ -159,76 +159,46 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className={`grid items-center h-7 border-b border-line2 px-2 gap-1.5 cursor-pointer transition-[background] duration-[70ms] ${selected ? 'border-l-2 border-l-accent-d' : 'border-l-2 border-l-transparent'}`}
       style={{
-        display: 'grid',
         gridTemplateColumns: '90px 52px 130px 1fr 22px',
-        alignItems: 'center',
-        height: 28,
         background: rowBg,
-        borderBottom: '1px solid var(--line2)',
-        borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent',
-        paddingLeft: 8,
-        paddingRight: 8,
-        gap: 6,
-        transition: 'background 0.07s',
-        cursor: 'pointer',
       }}
     >
       {/* timestamp */}
       <div
         title={fmtAbsolute(log.timestamp_ns)}
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          color: 'var(--ink3)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          flexShrink: 0,
-        }}
+        className="font-mono text-[11px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap shrink-0"
       >
         {fmtRelative(log.timestamp_ns, nowMs)}
       </div>
 
       {/* severity badge */}
-      <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div className="flex items-center">
         <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
       </div>
 
       {/* service chip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', minWidth: 0 }}>
-        <span style={{
-          width: 5, height: 5,
-          borderRadius: '50%',
-          background: c.fg,
-          flexShrink: 0,
-        }} />
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
-          color: 'var(--ink3)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
+      <div className="flex items-center gap-[5px] overflow-hidden min-w-0">
+        <span
+          className="w-[5px] h-[5px] rounded-full shrink-0"
+          style={{ background: c.fg }}
+        />
+        <span className="font-mono text-[10.5px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap">
           {log.service_name}
         </span>
       </div>
 
       {/* body */}
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        color: sevBodyColor(log.severity),
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}>
+      <div
+        className="font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
+        style={{ color: sevBodyColor(log.severity) }}
+      >
         {log.body}
       </div>
 
       {/* trace link */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="flex items-center justify-center">
         {hasTrace && (
           <button
             type="button"
@@ -238,19 +208,7 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
               navigate(`/traces/${log.trace_id}${q}`)
             }}
             title={`view trace ${log.trace_id}`}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '2px 3px',
-              borderRadius: 3,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              color: 'var(--accent)',
-              lineHeight: 1,
-              display: 'flex',
-              alignItems: 'center',
-            }}
+            className="bg-none border-none cursor-pointer py-0.5 px-[3px] rounded-[3px] font-mono text-[9px] text-accent-d leading-none flex items-center"
           >
             →
           </button>
@@ -283,86 +241,54 @@ function LogInspector({ log, onClose, navigate }: {
   return (
     <aside
       aria-label="Log details"
-      style={{
-        width: 360,
-        flexShrink: 0,
-        borderLeft: '1px solid var(--border)',
-        background: 'var(--surface)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}
+      className="w-[360px] shrink-0 border-l border-line bg-surface flex flex-col overflow-hidden"
     >
-      <header style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '10px 14px',
-        borderBottom: '1px solid var(--line)',
-        flexShrink: 0,
-      }}>
+      <header className="flex items-center gap-2 px-[14px] py-2.5 border-b border-line shrink-0">
         <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink2)' }}>
+        <span className="font-mono text-[11px] text-ink2">
           {fmtAbsolute(log.timestamp_ns)}
         </span>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button
           type="button"
           onClick={onClose}
           aria-label="Close inspector"
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--ink3)', fontSize: 14, lineHeight: 1, padding: '2px 6px',
-          }}
+          className="bg-none border-none cursor-pointer text-ink3 text-sm leading-none px-1.5 py-0.5"
         >
           ×
         </button>
       </header>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+      <div className="flex-1 overflow-y-auto px-[14px] py-3">
         {/* service chip */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.fg, flexShrink: 0 }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink2)' }}>
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: c.fg }} />
+          <span className="font-mono text-[11px] text-ink2">
             {log.service_name || '—'}
           </span>
         </div>
 
         {/* body (full, wrapped) */}
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11.5,
-          lineHeight: 1.5,
-          color: sevBodyColor(log.severity),
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          background: 'var(--surface2)',
-          border: '1px solid var(--line)',
-          borderRadius: 5,
-          padding: '8px 10px',
-          marginBottom: 14,
-        }}>
+        <div
+          className="font-mono text-[11.5px] leading-[1.5] whitespace-pre-wrap break-words bg-surface2 border border-line rounded-[5px] px-2.5 py-2 mb-3.5"
+          style={{ color: sevBodyColor(log.severity) }}
+        >
           {log.body || '(empty)'}
         </div>
 
         {/* attributes */}
-        <div style={{
-          fontFamily: 'var(--font-mono)', fontSize: 9,
-          color: 'var(--ink3)', letterSpacing: '0.1em', textTransform: 'uppercase',
-          marginBottom: 6,
-        }}>
+        <div className="font-mono text-[9px] text-ink3 tracking-[0.1em] uppercase mb-1.5">
           attributes
         </div>
         {attrEntries.length === 0 ? (
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)' }}>
+          <div className="font-mono text-[11px] text-ink3">
             none
           </div>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto 1fr',
-            gap: '3px 10px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-          }}>
+          <div
+            className="grid gap-y-[3px] gap-x-2.5 font-mono text-[11px]"
+            style={{ gridTemplateColumns: 'auto 1fr' }}
+          >
             {attrEntries.map(([k, v]) => (
               <Attribute key={k} k={k} v={v} />
             ))}
@@ -371,45 +297,27 @@ function LogInspector({ log, onClose, navigate }: {
 
         {/* trace + span IDs */}
         {(hasTrace || log.span_id) && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: 'var(--ink3)', letterSpacing: '0.1em', textTransform: 'uppercase',
-              marginBottom: 6,
-            }}>
+          <div className="mt-3.5">
+            <div className="font-mono text-[9px] text-ink3 tracking-[0.1em] uppercase mb-1.5">
               ids
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px',
-              fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-              {hasTrace && (<><span style={{ color: 'var(--ink3)' }}>trace</span><span style={{ color: 'var(--ink2)', wordBreak: 'break-all' }}>{log.trace_id}</span></>)}
-              {log.span_id && !/^0+$/.test(log.span_id) && (<><span style={{ color: 'var(--ink3)' }}>span</span><span style={{ color: 'var(--ink2)', wordBreak: 'break-all' }}>{log.span_id}</span></>)}
+            <div
+              className="grid gap-y-[3px] gap-x-2.5 font-mono text-[11px]"
+              style={{ gridTemplateColumns: 'auto 1fr' }}
+            >
+              {hasTrace && (<><span className="text-ink3">trace</span><span className="text-ink2 break-all">{log.trace_id}</span></>)}
+              {log.span_id && !/^0+$/.test(log.span_id) && (<><span className="text-ink3">span</span><span className="text-ink2 break-all">{log.span_id}</span></>)}
             </div>
           </div>
         )}
       </div>
 
       {hasTrace && (
-        <footer style={{
-          padding: '10px 14px',
-          borderTop: '1px solid var(--line)',
-          flexShrink: 0,
-          background: 'var(--surface)',
-        }}>
+        <footer className="px-[14px] py-2.5 border-t border-line shrink-0 bg-surface">
           <button
             type="button"
             onClick={openTrace}
-            style={{
-              width: '100%',
-              padding: '7px 12px',
-              borderRadius: 5,
-              border: '1px solid var(--accent)',
-              background: 'var(--accent-bg)',
-              color: 'var(--accent-ink)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className="w-full px-3 py-[7px] rounded-[5px] border border-accent-d bg-accent-bg text-accent-ink font-mono text-[11px] font-semibold cursor-pointer"
           >
             Open trace →
           </button>
@@ -423,8 +331,8 @@ function Attribute({ k, v }: { k: string; v: unknown }) {
   const text = typeof v === 'string' ? v : JSON.stringify(v)
   return (
     <>
-      <span style={{ color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{k}</span>
-      <span style={{ color: 'var(--ink2)', wordBreak: 'break-word' }}>{text}</span>
+      <span className="text-ink3 whitespace-nowrap">{k}</span>
+      <span className="text-ink2 break-words">{text}</span>
     </>
   )
 }
@@ -514,18 +422,9 @@ export default function LogViewer() {
   })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex flex-col h-full overflow-hidden">
       {/* filter bar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '8px 14px',
-        background: 'var(--surface)',
-        borderBottom: '1px solid var(--line)',
-        flexShrink: 0,
-        flexWrap: 'wrap',
-      }}>
+      <div className="flex items-center gap-2.5 px-[14px] py-2 bg-surface border-b border-line shrink-0 flex-wrap">
         {/* search */}
         <input
           type="text"
@@ -533,43 +432,21 @@ export default function LogViewer() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           data-shortcut="search"
-          style={{
-            width: 260,
-            height: 28,
-            background: 'var(--surface2)',
-            border: '1px solid var(--line)',
-            borderRadius: 5,
-            padding: '0 10px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--ink)',
-            outline: 'none',
-          }}
+          className="w-[260px] h-7 bg-surface2 border border-line rounded-[5px] px-2.5 font-mono text-[11px] text-ink outline-none"
         />
 
         {/* service filter */}
         <select
           value={filterService}
           onChange={e => setFilterService(e.target.value)}
-          style={{
-            height: 28,
-            background: 'var(--surface2)',
-            border: '1px solid var(--line)',
-            borderRadius: 5,
-            padding: '0 8px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--ink)',
-            cursor: 'pointer',
-            outline: 'none',
-          }}
+          className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none"
         >
           <option value="all">all services</option>
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
         {/* severity chips — ALL + one per present severity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div className="flex items-center gap-1">
           {(['ALL', ...presentSevFilters(logs)] as SevFilter[]).map(chip => (
             <button
               key={chip}
@@ -582,26 +459,19 @@ export default function LogViewer() {
           ))}
         </div>
 
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
 
         {/* log count */}
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'var(--ink3)',
-        }}>
+        <span className="font-mono text-[10px] text-ink3">
           {filtered.length} logs
         </span>
       </div>
 
       {/* body (list + optional right inspector) */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex flex-col min-w-0">
           {loading ? (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink3)',
-            }}>
+            <div className="flex items-center justify-center flex-1 font-mono text-xs text-ink3">
               loading…
             </div>
           ) : filtered.length === 0 ? (
@@ -620,33 +490,19 @@ export default function LogViewer() {
           ) : (
             <>
               {/* column header */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '90px 52px 130px 1fr 22px',
-                alignItems: 'center',
-                height: 24,
-                paddingLeft: 10,
-                paddingRight: 8,
-                gap: 6,
-                background: 'var(--surface)',
-                borderBottom: '1px solid var(--line)',
-                flexShrink: 0,
-              }}>
+              <div
+                className="grid items-center h-6 pl-2.5 pr-2 gap-1.5 bg-surface border-b border-line shrink-0"
+                style={{ gridTemplateColumns: '90px 52px 130px 1fr 22px' }}
+              >
                 {['time', 'level', 'service', 'body', ''].map((h, i) => (
-                  <div key={i} style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.12em',
-                    color: 'var(--ink3)',
-                  }}>
+                  <div key={i} className="font-mono text-[9px] uppercase tracking-[0.12em] text-ink3">
                     {h}
                   </div>
                 ))}
               </div>
 
               {/* rows */}
-              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+              <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {filtered.map((log, i) => {
                   const k = logKey(log)
                   return (

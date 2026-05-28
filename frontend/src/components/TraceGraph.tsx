@@ -43,41 +43,28 @@ function SpanNode({ data }: NodeProps<SpanNodeData>) {
   return (
     <div
       title={`${span.name}\n${span.service_name}\n${fmtNs(span.duration_ns)}`}
+      className="flex flex-col justify-between rounded-lg bg-surface px-2.5 py-1.5 cursor-pointer box-border"
       style={{
         width,
         height: NODE_H,
-        background: 'var(--surface)',
         border: `${borderWidth}px solid ${borderColor}`,
-        borderRadius: 8,
-        padding: '6px 10px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
         boxShadow: selected ? '0 0 0 3px var(--accent-soft, rgba(99,102,241,0.18))' : 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
       }}
     >
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
-        color: 'var(--foreground)',
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-      }}>
+      <div className="truncate font-mono text-xs font-semibold text-foreground">
         {span.name}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-          color: svc.fg, background: svc.bg,
-          padding: '1px 6px', borderRadius: 4,
-          maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+      <div className="flex items-center justify-between gap-1.5">
+        <span
+          className="max-w-[60%] truncate rounded-[4px] px-1.5 py-px font-mono text-[10px] font-semibold"
+          style={{ color: svc.fg, background: svc.bg }}
+        >
           {span.service_name}
         </span>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-          color: onCritical ? CRITICAL : 'var(--muted-foreground)',
-        }}>
+        <span
+          className="font-mono text-[10px] font-semibold"
+          style={{ color: onCritical ? CRITICAL : 'var(--muted-foreground)' }}
+        >
           {fmtNs(span.duration_ns)}
         </span>
       </div>
@@ -113,18 +100,14 @@ export default function TraceGraph({ spans, selectedId, onSelect }: Props) {
 
   if (spans.length === 0) {
     return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100%', color: 'var(--muted-foreground)',
-        fontFamily: 'var(--font-mono)', fontSize: 13,
-      }}>
+      <div className="flex h-full items-center justify-center font-mono text-[13px] text-muted-foreground">
         No spans
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, height: '100%', position: 'relative' }}>
+    <div className="relative h-full flex-1">
       <ReactFlow
         nodes={nodes}
         edges={edges}

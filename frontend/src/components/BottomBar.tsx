@@ -44,49 +44,30 @@ export default function BottomBar() {
   }, [])
 
   return (
-    <footer
-      style={{
-        height: 24,
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        padding: '0 12px',
-        borderTop: '1px solid var(--border)',
-        background: 'var(--surface)',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10,
-        color: 'var(--ink2)',
-        letterSpacing: '0.02em',
-        userSelect: 'none',
-      }}
-    >
+    <footer className="h-6 shrink-0 flex items-center gap-[14px] px-3 border-t border-border bg-surface font-mono text-[10px] text-ink2 tracking-[0.02em] select-none">
       <Stat label="db"     value={stats ? fmtBytes(stats.db_size) : '—'} />
       <Stat label="spans"  value={stats ? fmtCount(stats.span_count) : '—'} />
       <Stat label="traces" value={stats ? fmtCount(stats.trace_count) : '—'} />
       <Stat label="logs"   value={stats ? fmtCount(stats.log_count) : '—'} />
       {spansPerSec > 0 && <Stat label="rate" value={`${spansPerSec.toFixed(1)}/s`} />}
 
-      <div style={{ flex: 1 }} />
+      <div className="flex-1" />
 
       {active?.id && (
         <Stat label="session" value={active.label || active.id.slice(0, 8)} />
       )}
 
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      <div className="inline-flex items-center gap-[5px]">
         <span
           aria-hidden
+          className={`w-[7px] h-[7px] rounded-full ${connected ? 'bg-ok' : 'bg-danger'}`}
           style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: connected ? 'var(--ok)' : 'var(--danger)',
             boxShadow: connected
               ? '0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent)'
               : 'none',
           }}
         />
-        <span style={{ color: 'var(--ink2)' }}>
+        <span className="text-ink2">
           {connected ? 'live' : 'disconnected'}
         </span>
       </div>
@@ -96,9 +77,9 @@ export default function BottomBar() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
-      <span style={{ color: 'var(--ink3)' }}>{label}</span>
-      <span style={{ color: 'var(--ink)' }}>{value}</span>
+    <span className="inline-flex items-baseline gap-[5px]">
+      <span className="text-ink3">{label}</span>
+      <span className="text-ink">{value}</span>
     </span>
   )
 }

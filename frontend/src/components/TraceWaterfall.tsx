@@ -20,58 +20,35 @@ const STEPS = 6
 
 function Ruler({ traceDurNs, spanCount }: { traceDurNs: number; spanCount: number }) {
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: `${NAME_W}px 1fr ${DUR_W}px`,
-      alignItems: 'center',
-      borderBottom: '1px solid var(--border)',
-      background: 'var(--muted)',
-      flexShrink: 0,
-    }}>
-      <div style={{
-        padding: '7px 14px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9,
-        textTransform: 'uppercase' as const,
-        letterSpacing: '0.14em',
-        color: 'var(--muted-foreground)',
-      }}>
+    <div
+      className="grid items-center border-b border-border bg-muted shrink-0"
+      style={{ gridTemplateColumns: `${NAME_W}px 1fr ${DUR_W}px` }}
+    >
+      <div className="px-3.5 py-[7px] font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
         span · {spanCount}
       </div>
-      <div style={{
-        position: 'relative' as const,
-        height: 24,
-        marginLeft: 8,
-        marginRight: 8,
-        borderLeft: '1px solid var(--border)',
-      }}>
-        {Array.from({ length: STEPS + 1 }).map((_, i) => (
-          <span key={i} style={{
-            position: 'absolute' as const,
-            left: `${(i / STEPS) * 100}%`,
-            top: 0,
-            height: '100%',
-            borderLeft: i === 0 ? 'none' : '1px solid var(--border)',
-            transform: 'translateX(-1px)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            color: 'var(--muted-foreground)',
-            padding: '7px 4px',
-            whiteSpace: 'nowrap' as const,
-          }}>
-            {i === 0 ? '' : fmtNs((traceDurNs / STEPS) * i)}
-          </span>
-        ))}
+      <div className="relative h-6 mx-2 border-l border-border">
+        {Array.from({ length: STEPS + 1 }).map((_, i) => {
+          // The rightmost tick (i===STEPS) sits at left: 100%, so its text
+          // would overflow into the DUR header column to the right of the
+          // timeline. Anchor that one tick's text to flow leftward instead.
+          const isLast = i === STEPS
+          return (
+            <span
+              key={i}
+              className={[
+                'absolute top-0 h-full whitespace-nowrap px-1 py-[7px] font-mono text-[9px] text-[var(--muted-foreground)]',
+                i === 0 ? '' : 'border-l border-[var(--border)]',
+                isLast ? 'text-right translate-x-[calc(-100%+1px)]' : '-translate-x-px',
+              ].join(' ')}
+              style={{ left: `${(i / STEPS) * 100}%` }}
+            >
+              {i === 0 ? '' : fmtNs((traceDurNs / STEPS) * i)}
+            </span>
+          )
+        })}
       </div>
-      <div style={{
-        padding: '7px 10px 7px 0',
-        textAlign: 'right' as const,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9,
-        color: 'var(--muted-foreground)',
-        textTransform: 'uppercase' as const,
-        letterSpacing: '0.14em',
-      }}>
+      <div className="pl-0 pr-2.5 py-[7px] text-right font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
         dur
       </div>
     </div>
@@ -91,21 +68,8 @@ function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
   const zWidth = ((zEnd - zStart) / traceDurNs) * 100
 
   return (
-    <div style={{
-      height: 54,
-      padding: '10px 16px',
-      background: 'var(--muted)',
-      borderBottom: '1px solid var(--border)',
-      position: 'relative' as const,
-      flexShrink: 0,
-    }}>
-      <div style={{
-        position: 'absolute' as const,
-        left: 16, right: 16, top: 14, bottom: 10,
-        background: 'var(--background)',
-        borderRadius: 3,
-        overflow: 'hidden' as const,
-      }}>
+    <div className="relative h-[54px] px-4 py-2.5 bg-muted border-b border-border shrink-0">
+      <div className="absolute left-4 right-4 top-3.5 bottom-2.5 bg-background rounded-[3px] overflow-hidden">
         {flatSpans.map(({ span, depth }) => {
           const c = svcColor(span.service_name)
           return (
@@ -162,87 +126,46 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
       onClick={onSelect}
       onMouseEnter={() => onHover(span.span_id)}
       onMouseLeave={() => onHover(null)}
+      className="grid items-center cursor-pointer border-b border-border transition-[background] duration-[80ms]"
       style={{
-        display: 'grid',
         gridTemplateColumns: `${NAME_W}px 1fr ${DUR_W}px`,
-        alignItems: 'center',
         height: ROW_H,
-        cursor: 'pointer',
         background: selected
           ? `${ACCENT}1a`
           : hovered ? `${ACCENT}0d` : 'transparent',
         borderLeft: selected ? `2px solid ${ACCENT}` : '2px solid transparent',
-        borderBottom: '1px solid var(--border)',
-        transition: 'background 0.08s',
       }}
       title={`${span.name}\n${span.service_name}\n${fmtNs(span.duration_ns)}`}
     >
       {/* name column */}
-      <div style={{
-        paddingLeft: 14 + depth * 16,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 7,
-        minWidth: 0,
-        overflow: 'hidden',
-      }}>
+      <div
+        className="flex items-center gap-[7px] min-w-0 overflow-hidden"
+        style={{ paddingLeft: 14 + depth * 16 }}
+      >
         {depth > 0 && (
-          <span style={{
-            width: 8, height: 1,
-            background: 'var(--border)',
-            flex: '0 0 auto',
-            marginLeft: -7,
-          }} />
+          <span className="w-2 h-px bg-border shrink-0 -ml-[7px]" />
         )}
-        {orphan && <AlertTriangle size={10} color="#f59e0b" style={{ flexShrink: 0 }} />}
-        <span style={{
-          width: 9, height: 9,
-          borderRadius: 2,
-          background: c.fg,
-          opacity: 0.85,
-          flex: '0 0 auto',
-        }} />
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          color: isError ? '#ef4444' : 'var(--foreground)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          flex: '1 1 auto',
-          minWidth: 0,
-        }}>
+        {orphan && <AlertTriangle size={10} color="#f59e0b" className="shrink-0" />}
+        <span
+          className="w-[9px] h-[9px] rounded-sm opacity-85 shrink-0"
+          style={{ background: c.fg }}
+        />
+        <span
+          className="font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0"
+          style={{ color: isError ? '#ef4444' : 'var(--foreground)' }}
+        >
           {span.name}
         </span>
         {isN1 && (
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            fontWeight: 700,
-            color: 'var(--warn-ink)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            flex: '0 0 auto',
-            padding: '1px 4px',
-            borderRadius: 3,
-            background: 'var(--warn-bg)',
-          }}>
+          <span className="font-mono text-[9px] font-bold text-warn-ink uppercase tracking-[0.08em] shrink-0 px-1 py-px rounded-[3px] bg-warn-bg">
             n+1
           </span>
         )}
         {!isN1 && tag && (
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            fontWeight: 700,
-            color: tagColor,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            flex: '0 0 auto',
-            padding: '1px 4px',
-            borderRadius: 3,
-            background: tagColor + '22',
-          }}>
+          <span
+            className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] shrink-0 px-1 py-px rounded-[3px]"
+            style={{ color: tagColor, background: tagColor + '22' }}
+          >
             {tag}
           </span>
         )}
@@ -250,13 +173,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           <span
             data-testid="span-link-badge"
             title="span has links"
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              flex: '0 0 auto',
-              color: 'var(--accent)',
-              opacity: 0.8,
-            }}
+            className="font-mono text-[9px] shrink-0 text-[var(--accent)] opacity-80"
           >
             ⛓
           </span>
@@ -264,14 +181,14 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
       </div>
 
       {/* timeline column */}
-      <div style={{ position: 'relative', height: 18, marginLeft: 8, marginRight: 8 }}>
+      <div className="relative h-[18px] mx-2">
         {/* dashed grid lines */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+        <div className="absolute inset-0 flex">
           {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{
-              flex: 1,
-              borderLeft: i === 0 ? 'none' : '1px dashed var(--border)',
-            }} />
+            <div
+              key={i}
+              className={`flex-1 ${i === 0 ? '' : 'border-l border-dashed border-border'}`}
+            />
           ))}
         </div>
         {/* span bar */}
@@ -302,13 +219,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
       </div>
 
       {/* duration column */}
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10,
-        color: 'var(--muted-foreground)',
-        textAlign: 'right',
-        paddingRight: 10,
-      }}>
+      <div className="font-mono text-[10px] text-muted-foreground text-right pr-2.5">
         {fmtNs(span.duration_ns)}
       </div>
     </div>
@@ -350,25 +261,15 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
   const hovFlat = hoveredId ? flatSpans.find(f => f.span.span_id === hoveredId) : null
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="flex flex-1 flex-col overflow-hidden">
       {/* tick ruler */}
-      <div style={{
-        position: 'relative', height: 24,
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--muted)',
-        flexShrink: 0,
-      }}>
+      <div className="relative h-6 border-b border-border bg-muted shrink-0">
         {ticks.map(t => (
-          <span key={t} style={{
-            position: 'absolute',
-            left: `${((t - zStart) / zDur) * 100}%`,
-            top: 0, bottom: 0,
-            borderLeft: '1px solid var(--border)',
-            fontFamily: 'var(--font-mono)', fontSize: 9,
-            color: 'var(--muted-foreground)',
-            padding: '7px 4px', whiteSpace: 'nowrap',
-            transform: 'translateX(-1px)',
-          }}>
+          <span
+            key={t}
+            className="absolute top-0 bottom-0 border-l border-border font-mono text-[9px] text-muted-foreground py-[7px] px-1 whitespace-nowrap -translate-x-px"
+            style={{ left: `${((t - zStart) / zDur) * 100}%` }}
+          >
             +{fmtNs(t - traceStartNs)}
           </span>
         ))}
@@ -377,10 +278,8 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
       {/* flame canvas */}
       <div
         onMouseLeave={() => onHover(null)}
-        style={{
-          position: 'relative', flex: 1, overflow: 'auto',
-          minHeight: totalH + 12, padding: '6px 0',
-        }}
+        className="relative flex-1 overflow-auto py-1.5"
+        style={{ minHeight: totalH + 12 }}
       >
         {visible.map(({ span, depth }) => {
           const c = svcColor(span.service_name)
@@ -406,8 +305,8 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
                 onZoom([span.start_ns, span.end_ns])
               }}
               onMouseEnter={() => onHover(span.span_id)}
+              className="absolute rounded-[3px] px-[5px] font-mono text-[10px] font-semibold text-left cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap transition-[background] duration-[80ms] outline-none"
               style={{
-                position: 'absolute',
                 left: `${left}%`, width: `${width}%`,
                 top, height: FLAME_ROW - 4,
                 background: isSel || isHov
@@ -415,23 +314,15 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
                   : isError ? '#ef444418' : c.bg,
                 color: c.fg,
                 border: hot ? '1px solid #ef4444' : isSel ? `1px solid ${c.fg}` : '1px solid transparent',
-                borderRadius: 3,
-                padding: '0 5px',
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                fontWeight: 600, textAlign: 'left',
-                cursor: 'pointer',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 boxShadow: isSel ? `inset 0 0 0 1px ${c.fg}` : 'none',
-                transition: 'background 0.08s',
                 transform: isHov ? 'translateY(-1px)' : 'none',
                 zIndex: isHov || isSel ? 2 : 1,
-                outline: 'none',
               }}
               title={`${span.name} · ${fmtNs(span.duration_ns)}`}
             >
               {width > 5 ? (
                 <>
-                  <span style={{ opacity: 0.65 }}>{span.service_name.replace(/-service$/, '')}</span>
+                  <span className="opacity-[0.65]">{span.service_name.replace(/-service$/, '')}</span>
                   {' · '}
                   <span>{span.name}</span>
                 </>
@@ -448,31 +339,28 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
           const leftPct = ((span.start_ns - zStart) / zDur) * 100
           const top = 6 + depth * FLAME_ROW + (FLAME_ROW - 4) + 6
           return (
-            <div style={{
-              position: 'absolute',
-              left: `clamp(8px, ${leftPct}%, calc(100% - 248px))`,
-              top, zIndex: 5,
-              background: 'var(--foreground)', color: 'var(--background)',
-              fontFamily: 'var(--font-mono)', fontSize: 11,
-              padding: '8px 10px', borderRadius: 6,
-              minWidth: 220, maxWidth: 280,
-              pointerEvents: 'none',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ width: 6, height: 6, background: c.fg, borderRadius: 6 }} />
-                <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.14em', opacity: 0.65 }}>
+            <div
+              className="absolute z-[5] bg-foreground text-background font-mono text-[11px] px-2.5 py-2 rounded-md min-w-[220px] max-w-[280px] pointer-events-none"
+              style={{
+                left: `clamp(8px, ${leftPct}%, calc(100% - 248px))`,
+                top,
+              }}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.fg }} />
+                <span className="text-[9px] uppercase tracking-[0.14em] opacity-[0.65]">
                   {span.service_name}
                 </span>
                 {tag && (
-                  <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: '#ff9b8a', textTransform: 'uppercase' }}>
+                  <span className="ml-auto text-[9px] font-bold text-[#ff9b8a] uppercase">
                     {tag}
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 12, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div className="text-xs mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap">
                 {span.name}
               </div>
-              <div style={{ display: 'flex', gap: 10, opacity: 0.8 }}>
+              <div className="flex gap-2.5 opacity-80">
                 <span>dur <strong>{fmtNs(span.duration_ns)}</strong></span>
                 <span>at <strong>+{fmtNs(span.start_ns - traceStartNs)}</strong></span>
               </div>
@@ -482,17 +370,10 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
       </div>
 
       {/* footer hint */}
-      <div style={{
-        padding: '5px 14px',
-        borderTop: '1px solid var(--border)',
-        background: 'var(--muted)',
-        fontFamily: 'var(--font-mono)', fontSize: 9.5,
-        color: 'var(--muted-foreground)',
-        display: 'flex', gap: 16, flexShrink: 0,
-      }}>
+      <div className="px-3.5 py-[5px] border-t border-border bg-muted font-mono text-[9.5px] text-muted-foreground flex gap-4 shrink-0">
         <span>click → zoom & select</span>
         <span>esc → reset zoom</span>
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <span>
           {fmtNs(zStart - traceStartNs)}–{fmtNs(zEnd - traceStartNs)} · {visible.length}/{flatSpans.length} spans
         </span>
@@ -540,7 +421,7 @@ function SpanLogs({ spanId }: { spanId: string }) {
 
   if (loading) {
     return (
-      <div style={{ padding: '14px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)' }}>
+      <div className="px-4 py-3.5 font-mono text-[11px] text-ink3">
         …
       </div>
     )
@@ -548,47 +429,30 @@ function SpanLogs({ spanId }: { spanId: string }) {
 
   if (logs.length === 0) {
     return (
-      <div style={{ padding: '14px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink3)' }}>
+      <div className="px-4 py-3.5 font-mono text-[11px] text-ink3">
         no logs for this span
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, overflow: 'auto' }}>
+    <div className="flex-1 overflow-auto">
       {logs.map((log, i) => (
-        <div key={i} style={{
-          padding: '4px 10px',
-          display: 'flex', alignItems: 'flex-start', gap: 7,
-          borderBottom: '1px solid var(--line2)',
-        }}>
+        <div key={i} className="px-2.5 py-1 flex items-start gap-[7px] border-b border-[var(--line2)]">
           {/* severity dot */}
-          <span style={{
-            width: 5, height: 5,
-            borderRadius: '50%',
-            background: inspSevColor(log.severity),
-            flexShrink: 0,
-            marginTop: 4,
-          }} />
+          <span
+            className="w-[5px] h-[5px] rounded-full shrink-0 mt-1"
+            style={{ background: inspSevColor(log.severity) }}
+          />
           {/* timestamp */}
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            color: 'var(--ink3)',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-          }}>
+          <span className="font-mono text-[10px] text-ink3 shrink-0 whitespace-nowrap">
             {inspFmtRelative(log.timestamp_ns)}
           </span>
           {/* body */}
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10.5,
-            color: inspBodyColor(log.severity),
-            lineHeight: 1.4,
-            wordBreak: 'break-word',
-            minWidth: 0,
-          }}>
+          <span
+            className="font-mono text-[10.5px] leading-[1.4] break-words min-w-0"
+            style={{ color: inspBodyColor(log.severity) }}
+          >
             {log.body}
           </span>
         </div>
@@ -812,71 +676,45 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
   }
 
   return (
-    <aside style={{
-      width: 320,
-      borderLeft: '1px solid var(--border)',
-      background: 'var(--background)',
-      display: 'flex', flexDirection: 'column',
-      overflow: 'hidden', flexShrink: 0,
-    }}>
+    <aside className="w-[320px] border-l border-border bg-background flex flex-col overflow-hidden shrink-0">
       {/* header */}
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ width: 9, height: 9, borderRadius: 2, background: c.fg, opacity: 0.85 }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: c.fg }}>
+      <div className="px-4 py-3.5 border-b border-border">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-[9px] h-[9px] rounded-sm opacity-85" style={{ background: c.fg }} />
+          <span className="font-mono text-[10px]" style={{ color: c.fg }}>
             {span.service_name}
           </span>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9,
-            color: 'var(--muted-foreground)',
-            textTransform: 'uppercase', letterSpacing: '0.12em',
-          }}>
+          <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.12em]">
             {kind}
           </span>
-          <div style={{ flex: 1 }} />
+          <div className="flex-1" />
           <button
             onClick={onClose}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--muted-foreground)', padding: 2, borderRadius: 3,
-              display: 'flex', alignItems: 'center',
-            }}
+            className="bg-transparent border-none cursor-pointer text-muted-foreground p-0.5 rounded-[3px] flex items-center"
           >
             <X size={13} />
           </button>
         </div>
-        <div style={{
-          fontFamily: 'var(--font-mono)', fontSize: 12,
-          color: isError ? '#ef4444' : 'var(--foreground)',
-          lineHeight: 1.4, wordBreak: 'break-word', marginBottom: 12,
-        }}>
+        <div
+          className="font-mono text-xs leading-[1.4] break-words mb-3"
+          style={{ color: isError ? '#ef4444' : 'var(--foreground)' }}
+        >
           {span.name}
         </div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'baseline' }}>
+        <div className="flex gap-4 items-baseline">
           <div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: 'var(--muted-foreground)',
-              textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 2,
-            }}>
+            <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-0.5">
               duration
             </div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 19,
-              fontWeight: 600, color: 'var(--foreground)',
-            }}>
+            <div className="font-mono text-[19px] font-semibold text-foreground">
               {fmtNs(span.duration_ns)}
             </div>
           </div>
           <div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: 'var(--muted-foreground)',
-              textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 2,
-            }}>
+            <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-0.5">
               started
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--foreground)' }}>
+            <div className="font-mono text-xs text-foreground">
               +{fmtNs(span.start_ns - traceStartNs)}
             </div>
           </div>
@@ -929,25 +767,20 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
 
       {/* warning callouts */}
       {spanWarnings.length > 0 && (
-        <div style={{ margin: '12px 14px 0' }}>
+        <div className="mx-3.5 mt-3">
           {spanWarnings.map((w, i) => (
-            <div key={i} style={{
-              padding: '10px 12px',
-              marginBottom: i < spanWarnings.length - 1 ? 6 : 0,
-              background: 'color-mix(in oklch, #ef4444 10%, var(--background))',
-              border: '1px solid color-mix(in oklch, #ef4444 30%, var(--background))',
-              borderRadius: 7,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: 6, background: '#ef4444', flexShrink: 0 }} />
-                <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 9.5,
-                  fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em',
-                }}>
+            <div
+              key={i}
+              className="px-3 py-2.5 rounded-[7px] bg-[color-mix(in_oklch,#ef4444_10%,var(--background))] border border-[color-mix(in_oklch,#ef4444_30%,var(--background))]"
+              style={{ marginBottom: i < spanWarnings.length - 1 ? 6 : 0 }}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444] shrink-0" />
+                <span className="font-mono text-[9.5px] font-bold text-[#ef4444] tracking-[0.06em]">
                   {w.rule_id}
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--foreground)', lineHeight: 1.45 }}>
+              <div className="text-[11px] text-foreground leading-[1.45]">
                 {w.message}
               </div>
             </div>
@@ -956,46 +789,27 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
       )}
 
       {/* tab bar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        borderBottom: '1px solid var(--line)',
-        padding: '0 14px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        flexShrink: 0,
-      }}>
+      <div className="flex items-center border-b border-line px-3.5 font-mono text-[11px] shrink-0">
         <button type="button" onClick={() => setActiveTab('attrs')} style={tabStyle('attrs')}>attrs</button>
         <button type="button" onClick={() => setActiveTab('logs')}  style={tabStyle('logs')}>logs</button>
       </div>
 
       {/* attrs tab */}
       {activeTab === 'attrs' && (
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="flex-1 overflow-auto flex flex-col">
           {attrEntries.length > 0 && (
             <>
-              <div style={{
-                padding: '12px 14px 5px',
-                display: 'flex', alignItems: 'center',
-                fontFamily: 'var(--font-mono)', fontSize: 9,
-                textTransform: 'uppercase', letterSpacing: '0.14em',
-                color: 'var(--muted-foreground)',
-              }}>
+              <div className="px-3.5 pt-3 pb-[5px] flex items-center font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
                 attributes
-                <span style={{ flex: 1 }} />
-                <span style={{ textTransform: 'none', letterSpacing: 0 }}>{attrEntries.length}</span>
+                <span className="flex-1" />
+                <span className="normal-case tracking-normal">{attrEntries.length}</span>
               </div>
               <AttrGrid entries={attrEntries} />
             </>
           )}
           {resEntries.length > 0 && (
             <>
-              <div style={{
-                padding: '12px 14px 5px',
-                fontFamily: 'var(--font-mono)', fontSize: 9,
-                textTransform: 'uppercase', letterSpacing: '0.14em',
-                color: 'var(--muted-foreground)',
-              }}>
+              <div className="px-3.5 pt-3 pb-[5px] font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
                 resource
               </div>
               <AttrGrid entries={resEntries} />
@@ -1004,11 +818,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
           <SpanEventsList spanId={span.span_id} spanStartNs={span.start_ns} />
           <SpanLinksList spanId={span.span_id} traceId={span.trace_id} />
           {attrEntries.length === 0 && resEntries.length === 0 && (
-            <div style={{
-              padding: '18px 16px',
-              fontFamily: 'var(--font-mono)', fontSize: 11,
-              color: 'var(--muted-foreground)',
-            }}>
+            <div className="px-4 py-[18px] font-mono text-[11px] text-muted-foreground">
               no attributes
             </div>
           )}
@@ -1025,24 +835,18 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
 
 function AttrGrid({ entries }: { entries: [string, unknown][] }) {
   return (
-    <div style={{ padding: '0 6px 6px' }}>
+    <div className="px-1.5 pb-1.5">
       {entries.map(([k, v]) => (
-        <div key={k} style={{
-          display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 8,
-          padding: '4px 8px', borderRadius: 4,
-        }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10.5,
-            color: 'var(--muted-foreground)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+        <div
+          key={k}
+          className="grid gap-2 px-2 py-1 rounded"
+          style={{ gridTemplateColumns: '1fr 1.4fr' }}
+        >
+          <div className="font-mono text-[10.5px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
             {k}
           </div>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10.5,
-            color: 'var(--foreground)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}
+          <div
+            className="font-mono text-[10.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
             title={String(v)}
           >
             {String(v)}
@@ -1073,42 +877,24 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
   const isZoomed = zoom[0] > traceStartNs || zoom[1] < traceEndNs
 
   return (
-    <div style={{
-      padding: '12px 18px',
-      borderBottom: '1px solid var(--border)',
-      background: 'var(--background)',
-      display: 'flex', alignItems: 'center', gap: 16,
-      flexShrink: 0,
-    }}>
-      <div style={{ minWidth: 0, flex: '1 1 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600,
-            color: 'var(--foreground)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+    <div className="px-[18px] py-3 border-b border-border bg-background flex items-center gap-4 shrink-0">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-mono text-[13px] font-semibold text-foreground overflow-hidden text-ellipsis whitespace-nowrap">
             {rootName}
           </span>
           {errorCount > 0 && (
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
-              color: '#ef4444', background: '#ef444420',
-              padding: '1px 5px', borderRadius: 3, textTransform: 'uppercase',
-            }}>
+            <span className="font-mono text-[9px] font-bold text-[#ef4444] bg-[#ef444420] px-[5px] py-px rounded-[3px] uppercase">
               error
             </span>
           )}
           {lintCount > 0 && (
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: '#f59e0b', background: '#f59e0b20',
-              padding: '1px 5px', borderRadius: 3, textTransform: 'uppercase',
-            }}>
+            <span className="font-mono text-[9px] text-[#f59e0b] bg-[#f59e0b20] px-[5px] py-px rounded-[3px] uppercase">
               {lintCount} lint
             </span>
           )}
         </div>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted-foreground)' }}>
+        <div className="font-mono text-[10px] text-muted-foreground">
           {traceId}
         </div>
       </div>
@@ -1119,23 +905,16 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
       <StatBox label="svcs"   value={String(serviceCount)} />
 
       {/* view toggle pill */}
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        background: 'var(--muted)', borderRadius: 8,
-        padding: 3, border: '1px solid var(--border)', gap: 2,
-      }}>
+      <div className="flex items-center bg-muted rounded-lg p-[3px] border border-border gap-0.5">
         {(['waterfall', 'flame', 'graph'] as const).map(v => {
           const active = view === v
           return (
-            <button key={v} type="button" onClick={() => onView(v)} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '4px 10px', borderRadius: 6,
-              background: active ? 'var(--background)' : 'transparent',
-              color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
-              border: active ? '1px solid var(--border)' : '1px solid transparent',
-              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
-              cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
-            }}>
+            <button
+              key={v}
+              type="button"
+              onClick={() => onView(v)}
+              className={`inline-flex items-center gap-[5px] px-2.5 py-1 rounded-md font-sans text-xs font-medium cursor-pointer outline-none whitespace-nowrap border ${active ? 'bg-background text-foreground border-border' : 'bg-transparent text-muted-foreground border-transparent'}`}
+            >
               {v === 'waterfall' ? <WaterfallIcon /> : v === 'flame' ? <FlameIcon /> : <GraphIcon />}
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
@@ -1145,14 +924,16 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
 
       {/* reset zoom */}
       {isZoomed && (
-        <button type="button" onClick={onResetZoom} style={{
-          padding: '4px 10px', borderRadius: 6,
-          background: `${ACCENT}18`,
-          border: `1px solid ${ACCENT}`,
-          color: ACCENT,
-          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-          cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
-        }}>
+        <button
+          type="button"
+          onClick={onResetZoom}
+          className="px-2.5 py-1 rounded-md font-mono text-[11px] font-semibold cursor-pointer outline-none whitespace-nowrap"
+          style={{
+            background: `${ACCENT}18`,
+            border: `1px solid ${ACCENT}`,
+            color: ACCENT,
+          }}
+        >
           ↺ reset zoom
         </button>
       )}
@@ -1162,19 +943,11 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
 
 function StatBox({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ flexShrink: 0 }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9,
-        textTransform: 'uppercase', letterSpacing: '0.14em',
-        color: 'var(--muted-foreground)',
-      }}>
+    <div className="shrink-0">
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </div>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontWeight: 600,
-        fontSize: 14, color: 'var(--foreground)',
-        lineHeight: 1.1, marginTop: 2,
-      }}>
+      <div className="font-mono font-semibold text-sm text-foreground leading-[1.1] mt-0.5">
         {value}
       </div>
     </div>
@@ -1221,29 +994,19 @@ function N1Banner({ issues }: { issues: { fingerprint: string; count: number; wa
   const top = issues[0]
   const fp = top.fingerprint.length > 60 ? top.fingerprint.slice(0, 57) + '…' : top.fingerprint
   return (
-    <div style={{
-      margin: '0 0 0 0',
-      padding: '9px 16px',
-      borderBottom: '1px solid var(--border)',
-      background: 'var(--warn-bg)',
-      borderLeft: '3px solid var(--warn)',
-      display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
-    }}>
-      <AlertTriangle size={13} color="var(--warn)" style={{ flexShrink: 0 }} />
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 11,
-        color: 'var(--warn-ink)', flex: 1, minWidth: 0,
-      }}>
+    <div className="px-4 py-[9px] border-b border-border bg-warn-bg border-l-[3px] border-l-warn flex items-center gap-2.5 shrink-0">
+      <AlertTriangle size={13} color="var(--warn)" className="shrink-0" />
+      <span className="font-mono text-[11px] text-warn-ink flex-1 min-w-0">
         <strong>N+1 detected</strong>
         {' — '}
-        <span style={{ opacity: 0.85 }}>{fp}</span>
+        <span className="opacity-85">{fp}</span>
         {' called '}
         <strong>{top.count}×</strong>
         {' — '}
         <strong>{fmtNs(top.wastedNs)}</strong>
         {' wasted'}
         {issues.length > 1 && (
-          <span style={{ marginLeft: 8, opacity: 0.7 }}>+{issues.length - 1} more</span>
+          <span className="ml-2 opacity-70">+{issues.length - 1} more</span>
         )}
       </span>
     </div>
@@ -1321,14 +1084,14 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
 
   if (spans.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+      <div className="flex items-center justify-center h-full text-muted-foreground font-mono text-[13px]">
         No spans
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex flex-col h-full overflow-hidden">
       <TraceMeta
         rootName={rootSpan?.name ?? traceId}
         traceId={traceId}
@@ -1352,20 +1115,22 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
         zoom={zoom}
       />
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="flex-1 flex overflow-hidden">
         {/* left: waterfall or flame */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="flex-1 flex flex-col overflow-hidden">
           {view === 'waterfall' ? (
             <>
               <Ruler traceDurNs={traceDurNs} spanCount={spans.length} />
-              <div ref={parentRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-                <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+              <div ref={parentRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+                <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
                   {virtualizer.getVirtualItems().map(vRow => {
                     const flat = flatSpans[vRow.index]
                     return (
-                      <div key={flat.span.span_id} style={{
-                        position: 'absolute', top: vRow.start, left: 0, right: 0, height: ROW_H,
-                      }}>
+                      <div
+                        key={flat.span.span_id}
+                        className="absolute left-0 right-0"
+                        style={{ top: vRow.start, height: ROW_H }}
+                      >
                         <SpanRow
                           flat={flat}
                           traceStartNs={traceStartNs}

@@ -195,10 +195,21 @@
   --color-ink2:       var(--ink2);
   --color-ink3:       var(--ink3);
   --color-line:       var(--line);
+  --color-line2:      var(--line2);
   --color-accent-d:   var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-bg:  var(--accent-bg);
   --color-warn:       var(--warn);
+  --color-warn-ink:   var(--warn-ink);
+  --color-warn-bg:    var(--warn-bg);
   --color-danger:     var(--danger);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-bg:  var(--danger-bg);
   --color-ok:         var(--ok);
+  --color-ok-ink:     var(--ok-ink);
+  --color-ok-bg:      var(--ok-bg);
+  --color-chip-bg:    var(--chip-bg);
+  --color-chip-ink:   var(--chip-ink);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
