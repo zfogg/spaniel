@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/zfogg/spaniel/internal/storage"
 )
@@ -377,5 +381,59 @@ func TestPrintSummary_SlowestURL(t *testing.T) {
 	})
 	if !strings.Contains(buf.String(), "slowest trace") {
 		t.Errorf("expected 'slowest trace' in output: %q", buf.String())
+	}
+}
+
+func TestRun_ShutsDownCleanlyOnSignal(t *testing.T) {
+	// Find a free port so the test doesn't collide with other processes.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	dbPath := filepath.Join(t.TempDir(), "test.duckdb")
+
+	cfg := runConfig{
+		Port:          port,
+		DBPath:        dbPath,
+		NoBrowser:     true,
+		BindAddressV4: "127.0.0.1",
+		OTLPGRPCPort:  0,
+		OTLPHTTPPort:  0,
+		SampleAlwaysKeep: "error",
+	}
+
+	errc := make(chan error, 1)
+	go func() { errc <- run(cfg) }()
+
+	// Wait until the server is accepting connections.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/health", port))
+		if err == nil {
+			resp.Body.Close()
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// Send SIGINT to ourselves — signal.NotifyContext in run() should catch it.
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatalf("FindProcess: %v", err)
+	}
+	if err := p.Signal(syscall.SIGINT); err != nil {
+		t.Fatalf("Signal: %v", err)
+	}
+
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Errorf("run() returned non-nil error on clean shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("run() did not stop within 5s after SIGINT")
 	}
 }

@@ -1,7 +1,12 @@
 package ingestion
 
 import (
+	"context"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/storage"
 )
@@ -127,6 +132,12 @@ var rules = []LintRule{
 }
 
 func lintSpan(s *storage.Span, sessionID string, store *storage.DB) {
+	_, lspan := otel.Tracer("spaniel/ingestion").Start(context.Background(), "lintSpan",
+		trace.WithAttributes(
+			attribute.String("span_id", s.SpanID),
+			attribute.String("service.name", s.ServiceName),
+		))
+	defer lspan.End()
 	for _, rule := range rules {
 		msg, fired := rule.Check(s)
 		if !fired {

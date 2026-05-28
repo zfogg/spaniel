@@ -1,9 +1,13 @@
 package ingestion
 
 import (
+	"context"
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"vitess.io/vitess/go/vt/sqlparser"
 
 	"github.com/zfogg/spaniel/internal/storage"
@@ -44,6 +48,9 @@ func fallbackFingerprint(stmt string) string {
 
 // runDetectors runs all post-ingestion trace analysis after the 500ms quiet window.
 func runDetectors(traceID string, store *storage.DB, hub *ws.Hub) {
+	_, dspan := otel.Tracer("spaniel/ingestion").Start(context.Background(), "runDetectors",
+		trace.WithAttributes(attribute.String("trace_id", traceID)))
+	defer dspan.End()
 	detectN1(traceID, store, hub)
 }
 

@@ -215,13 +215,14 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 		}
 	}
 	p.ingestCounter.Add(ctx, int64(spansSeen), metric.WithAttributes(attribute.String("signal", "traces")))
+	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", spansSeen))
 	return nil
 }
 
 func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
-	ctx, span := p.tracer.Start(ctx, "IngestLogs",
+	ctx, ingestSpan := p.tracer.Start(ctx, "IngestLogs",
 		trace.WithAttributes(attribute.Int("otel.log_record_count", logs.LogRecordCount())))
-	defer span.End()
+	defer ingestSpan.End()
 
 	sessionID := p.store.ActiveSessionID()
 
@@ -254,9 +255,14 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 					ReceivedAt:  time.Now().UnixNano(),
 				}
 
+				t0 := time.Now()
 				if err := p.store.InsertLog(l); err != nil {
+					ingestSpan.RecordError(err)
+					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
 				}
+				p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
+					metric.WithAttributes(attribute.String("op", "insert_log")))
 				logsSeen++
 				p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
 					TraceID:     l.TraceID,
@@ -270,14 +276,22 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 		}
 	}
 	p.ingestCounter.Add(ctx, int64(logsSeen), metric.WithAttributes(attribute.String("signal", "logs")))
+	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", logsSeen))
 	return nil
 }
 
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
-	ctx, span := p.tracer.Start(ctx, "IngestMetrics",
+	ctx, ingestSpan := p.tracer.Start(ctx, "IngestMetrics",
 		trace.WithAttributes(attribute.Int("otel.metric_point_count", md.DataPointCount())))
-	defer span.End()
+	defer ingestSpan.End()
+	t0 := time.Now()
 	err := p.ingestMetricsTree(md, p.store.ActiveSessionID())
+	p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
+		metric.WithAttributes(attribute.String("op", "insert_metrics")))
+	if err != nil {
+		ingestSpan.RecordError(err)
+		ingestSpan.SetStatus(codes.Error, err.Error())
+	}
 	p.ingestCounter.Add(ctx, int64(md.DataPointCount()), metric.WithAttributes(attribute.String("signal", "metrics")))
 	return err
 }

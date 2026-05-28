@@ -153,6 +153,19 @@ async function stubBackend(page: Page, fx: Fixture) {
       return json(r, (fx.logs ?? []).filter(l => !spanId || l.span_id === spanId))
     }
 
+    // Export endpoint — returns a minimal OTLP JSON attachment.
+    const exportMatch = pathname.match(/^\/api\/traces\/(.+)\/export$/)
+    if (exportMatch) {
+      return r.fulfill({
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'content-disposition': `attachment; filename="trace-${exportMatch[1].slice(0, 8)}.json"`,
+        },
+        body: JSON.stringify({ resourceSpans: [] }),
+      })
+    }
+
     return r.continue()
   })
 }
@@ -462,5 +475,58 @@ test.describe('Trace detail page', () => {
 
     await page.getByRole('button', { name: '←' }).click()
     await expect(page).not.toHaveURL(new RegExp(`/traces/${TRACE_ID}$`))
+  })
+
+  test('share button copies permalink with ?span= and ?view= to clipboard', async ({ page }) => {
+    await stubBackend(page, makeTrace())
+    await page.goto(`/traces/${TRACE_ID}`)
+
+    // Inject a clipboard spy before any interaction.
+    await page.evaluate(() => {
+      (window as unknown as Record<string, unknown>).__clipboard = ''
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: (t: string) => { (window as unknown as Record<string, unknown>).__clipboard = t; return Promise.resolve() } },
+        configurable: true,
+      })
+    })
+
+    // Select a span so ?span= appears in the URL.
+    await page.getByText('GET /cart').first().click()
+    await expect(page).toHaveURL(/span=root/)
+
+    await page.getByTestId('btn-share').click()
+
+    const clipText = await page.evaluate(() =>
+      (window as unknown as Record<string, unknown>).__clipboard as string
+    )
+    expect(clipText).toContain('span=root')
+    expect(clipText).toContain('view=')
+
+    // Toast should briefly appear.
+    await expect(page.getByTestId('share-toast')).toBeVisible()
+  })
+
+  test('download button triggers a file download', async ({ page }) => {
+    await stubBackend(page, makeTrace())
+    await page.goto(`/traces/${TRACE_ID}`)
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('btn-download').click(),
+    ])
+
+    expect(download.suggestedFilename()).toMatch(/^trace-[a-z0-9]{8}\.json$/)
+  })
+
+  test('?span= and ?view= from URL seed the inspector and view on load', async ({ page }) => {
+    await stubBackend(page, makeTrace())
+    await page.goto(`/traces/${TRACE_ID}?span=db1&view=flame`)
+
+    // Flame view should be active (the toggle pill shows "Flame" as selected).
+    await expect(page.getByRole('button', { name: /Flame/i })).toHaveAttribute('class', /bg-background/)
+
+    // The inspector for db1 (SELECT items) should be pre-loaded.
+    await expect(page.getByText('postgres').first()).toBeVisible()
+    await expect(page.getByText('db.statement').first()).toBeVisible()
   })
 })

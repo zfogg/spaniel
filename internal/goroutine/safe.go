@@ -3,17 +3,16 @@ package goroutine
 
 import (
 	"fmt"
+	"log/slog"
 	"runtime/debug"
-
-	"github.com/zfogg/spaniel/internal/logger"
 )
 
 // Go launches fn in a new goroutine. If fn panics the panic is recovered,
-// logged at ERROR level via the logger package (never re-panicked), and the
+// logged at ERROR level via slog.Default() (never re-panicked), and the
 // goroutine exits cleanly.
 //
-// labels are optional key=value strings that appear in the log record as
-// "goroutine" fields for filtering (e.g. Go(fn, "subsystem", "ingestion")).
+// labels are optional key=value strings attached to the log record for
+// filtering (e.g. Go(fn, "subsystem", "ingestion")).
 func Go(fn func(), labels ...string) {
 	go func() {
 		defer func() {
@@ -26,7 +25,7 @@ func Go(fn func(), labels ...string) {
 					"panic", fmt.Sprintf("%v", r),
 					"stack", string(debug.Stack()),
 				)
-				logger.Error("goroutine panic recovered", args...)
+				slog.Default().Error("goroutine panic recovered", args...)
 			}
 		}()
 		fn()

@@ -354,3 +354,29 @@ func TestListLintEmpty(t *testing.T) {
 		t.Errorf("expected empty array, got %d items", len(data))
 	}
 }
+
+func TestErrorIncludesRequestID(t *testing.T) {
+	handler, _ := setupRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/nonexistent", nil)
+	req.Header.Set("X-Request-ID", "test-req-id-123")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+	if got := w.Header().Get("X-Request-ID"); got != "test-req-id-123" {
+		t.Errorf("X-Request-ID header = %q, want test-req-id-123", got)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body["request_id"] != "test-req-id-123" {
+		t.Errorf("request_id in body = %v, want test-req-id-123", body["request_id"])
+	}
+	if _, ok := body["error"]; !ok {
+		t.Errorf("error field missing from body: %v", body)
+	}
+}

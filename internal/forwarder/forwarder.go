@@ -2,6 +2,7 @@ package forwarder
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"math/rand/v2"
@@ -10,6 +11,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
 )
@@ -67,7 +70,7 @@ func New(urls []string, sample float64) *Forwarder {
 	}
 	return &Forwarder{
 		upstreams: ups,
-		client:    &http.Client{Timeout: 5 * time.Second},
+		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil)},
 		sample:    sample,
 		rand:      rand.Float64,
 	}
@@ -100,7 +103,7 @@ func NewWithSpool(urls []string, sample float64, sc SpoolConfig) *Forwarder {
 
 	f := &Forwarder{
 		upstreams: ups,
-		client:    &http.Client{Timeout: 5 * time.Second},
+		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil)},
 		sample:    sample,
 		rand:      rand.Float64,
 	}
@@ -135,7 +138,7 @@ func (f *Forwarder) Forward(path, contentType string, body []byte) {
 // send is the fire-and-forget path (no spool).
 func (f *Forwarder) send(up *upstream, path, contentType string, body []byte) {
 	target := up.url + path
-	req, err := http.NewRequest(http.MethodPost, target, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
 		up.errors.Add(1)
 		up.lastErr.Store(err.Error())
@@ -163,7 +166,7 @@ func (f *Forwarder) send(up *upstream, path, contentType string, body []byte) {
 // sendRecord sends a single spool record and returns any delivery error.
 func (f *Forwarder) sendRecord(up *upstream, rec *spoolRecord) error {
 	target := up.url + rec.path
-	req, err := http.NewRequest(http.MethodPost, target, bytes.NewReader(rec.body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, target, bytes.NewReader(rec.body))
 	if err != nil {
 		return err
 	}
