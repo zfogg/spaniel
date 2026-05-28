@@ -24,8 +24,8 @@ function svcColor(name: string): { fg: string; bg: string } {
 
 const NODE_W = 148
 const NODE_H = 48
-const GAP_X  = 72
-const GAP_Y  = 22
+const GAP_X  = 168 // wide enough to fit the "N calls · Xms avg" edge label between layers
+const GAP_Y  = 34
 const PAD    = 40
 
 function computeLayout(
@@ -107,7 +107,13 @@ function SvgEdge({ edge, pos, hot, dim, onHover }: {
 
   const x1 = A.x + NODE_W, y1 = A.y + NODE_H / 2
   const x2 = B.x,          y2 = B.y + NODE_H / 2
-  const mx = (x1 + x2) / 2
+  // Anchor the label in the empty inter-layer gap just past the source node so
+  // it never lands on top of an intermediate node (which renders above edges).
+  const dir = Math.sign(x2 - x1) || 1
+  const lx  = x1 + dir * (GAP_X / 2)
+  const t   = x2 !== x1 ? Math.min(0.5, (GAP_X / 2) / Math.abs(x2 - x1)) : 0.5
+  const my  = y1 + (y2 - y1) * t - 4
+  const mx  = (x1 + x2) / 2
   const hasError = edge.error_count > 0
   const stroke = hasError ? '#ef4444' : hot ? '#f59e0b' : 'var(--muted-foreground)'
   const sw = Math.min(4, 0.8 + edge.call_count * 0.6)
@@ -147,17 +153,34 @@ function SvgEdge({ edge, pos, hot, dim, onHover }: {
         opacity={opacity}
         markerEnd={`url(#${markerId})`}
       />
-      <text
-        x={mx} y={(y1 + y2) / 2 - 4}
-        textAnchor="middle"
-        fontFamily="var(--font-mono)" fontSize="9"
-        fill={hasError ? '#ef4444' : 'var(--muted-foreground)'}
-        opacity={dim ? 0.4 : 1}
-        pointerEvents="none"
-      >
-        {edge.call_count} calls · {fmtNs(edge.avg_duration_ns)} avg
-        {hasError ? ` · ${edge.error_count} err` : ''}
-      </text>
+      {(() => {
+        const label =
+          `${edge.call_count} calls · ${fmtNs(edge.avg_duration_ns)} avg` +
+          (hasError ? ` · ${edge.error_count} err` : '')
+        const labelW = label.length * 5.0 + 10 // approx mono-9px width + padding
+        return (
+          <>
+            <rect
+              x={lx - labelW / 2} y={my - 9}
+              width={labelW} height={13}
+              rx="3" ry="3"
+              fill="var(--background)"
+              opacity={dim ? 0.4 : 0.92}
+              pointerEvents="none"
+            />
+            <text
+              x={lx} y={my}
+              textAnchor="middle"
+              fontFamily="var(--font-mono)" fontSize="9"
+              fill={hasError ? '#ef4444' : 'var(--muted-foreground)'}
+              opacity={dim ? 0.4 : 1}
+              pointerEvents="none"
+            >
+              {label}
+            </text>
+          </>
+        )
+      })()}
     </g>
   )
 }
