@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { api, Span, Session } from '@/lib/api'
-import { fmtNs, svcColor } from '@/lib/span-utils'
+import { api, type Span, type Session } from '@/lib/api'
+import { fmtNs, svcColor, flatten } from '@/lib/span-utils'
+import { diffStatusFor, layoutSpan, columnWindow, sharedWindowNs, type DiffStatus } from '@/lib/diff-layout'
 import { updateDiffHistoryDeltas } from '@/lib/diff-history'
 import EmptyState from '@/components/EmptyState'
 
@@ -126,105 +127,98 @@ function Badge({ tone, children }: { tone: 'accent' | 'ok'; children: React.Reac
   )
 }
 
-// ── SpanRow ───────────────────────────────────────────────────────────────────
+// ── WaterfallRow ──────────────────────────────────────────────────────────────
 
-function SpanRow({
-  ds,
-  side,
+function WaterfallRow({
+  span,
+  depth,
+  status,
+  leftPct,
+  widthPct,
 }: {
-  ds: DiffSpan
-  side: 'baseline' | 'compare'
+  span: Span
+  depth: number
+  status: DiffStatus
+  leftPct: number
+  widthPct: number
 }) {
-  const dur = side === 'baseline' ? ds.baseline_duration_ns : ds.compare_duration_ns
+  const color = svcColor(span.service_name)
 
-  let rowBg = 'transparent'
-  if (side === 'baseline') {
-    if (ds.status === 'removed') {
-      rowBg = 'color-mix(in oklch, var(--danger) 10%, var(--surface))'
-    }
-  } else {
-    if (ds.status === 'added') {
-      rowBg = 'color-mix(in oklch, var(--ok) 10%, var(--surface))'
-    } else if (ds.status === 'changed' && ds.delta_pct > 5) {
-      rowBg = 'color-mix(in oklch, var(--danger) 10%, var(--surface))'
-    } else if (ds.status === 'changed' && ds.delta_pct < -5) {
-      rowBg = 'color-mix(in oklch, var(--ok) 10%, var(--surface))'
-    }
+  const rowBg: Record<DiffStatus, string> = {
+    removed:   'color-mix(in oklch, var(--danger) 10%, var(--surface))',
+    added:     'color-mix(in oklch, var(--ok)     10%, var(--surface))',
+    changed:   'color-mix(in oklch, var(--warn)   10%, var(--surface))',
+    unchanged: 'transparent',
   }
 
-  const color = svcColor(ds.service_name)
-
-  const showDelta = side === 'compare' && ds.status === 'changed' && Math.abs(ds.delta_pct) > 0
-  const deltaPositive = ds.delta_pct > 0
+  const namePos = Math.min(leftPct + widthPct + 0.6, 70)
 
   return (
     <div
-      className="grid gap-2 items-center px-2 py-0.5 border-b border-line2"
-      style={{
-        gridTemplateColumns: '94px minmax(0,1fr) auto',
-        background: rowBg,
-      }}
+      data-status={status}
+      className="grid items-center px-2 py-0.5 border-b border-line2"
+      style={{ gridTemplateColumns: '94px minmax(0,1fr) 50px', gap: 8, background: rowBg[status] }}
     >
-      {/* service */}
-      <div
-        className="flex items-center gap-[5px] min-w-0"
-        style={{ paddingLeft: ds.depth * 8 }}
-      >
-        <span
-          className="w-[5px] h-[5px] rounded-[5px] opacity-85 flex-none"
-          style={{ background: color.fg }}
-        />
+      {/* service chip */}
+      <div className="flex items-center gap-[5px] min-w-0" style={{ paddingLeft: depth * 8 }}>
+        <span className="w-[6px] h-[6px] rounded-full opacity-85 flex-none" style={{ background: color.fg }} />
         <span
           className="font-mono text-[9.5px] font-semibold tracking-[-0.01em] overflow-hidden text-ellipsis whitespace-nowrap"
           style={{ color: color.fg }}
         >
-          {ds.service_name.replace(/-service$/, '')}
+          {span.service_name.replace(/-service$/, '')}
         </span>
       </div>
 
-      {/* span name */}
-      <span
-        className="font-mono text-[9.5px] text-ink2 overflow-hidden text-ellipsis whitespace-nowrap"
-        style={{ paddingLeft: ds.depth * 8 }}
-      >
-        {ds.name}
-      </span>
-
-      {/* duration + optional delta badge */}
-      <div className="flex items-center gap-[5px] justify-end shrink-0">
-        <span className="font-mono text-[9.5px] text-ink2 text-right whitespace-nowrap">
-          {fmtNs(dur)}
+      {/* proportional bar + name label */}
+      <div className="relative h-[14px]" style={{ marginLeft: depth * 8 }}>
+        <div
+          className="absolute rounded-[2px]"
+          style={{
+            top: 3, height: 8,
+            left: `${leftPct}%`, width: `${widthPct}%`,
+            background: color.bg,
+            boxShadow: `inset 2px 0 0 ${color.fg}`,
+            opacity: status === 'removed' ? 0.45 : 1,
+          }}
+        />
+        <span
+          className={`absolute top-0 font-mono text-[9.5px] text-ink2 whitespace-nowrap overflow-hidden text-ellipsis${status === 'removed' ? ' line-through opacity-60' : ''}`}
+          style={{ left: `${namePos}%`, maxWidth: '100%' }}
+        >
+          {span.name}
         </span>
-        {showDelta && (
-          <span
-            className="font-mono text-[9px] font-semibold whitespace-nowrap"
-            style={{ color: deltaPositive ? 'var(--danger-ink)' : '#3e6a3e' }}
-          >
-            {deltaPositive ? '+' : '−'}{Math.abs(Math.round(ds.delta_pct))}%
-          </span>
-        )}
+      </div>
+
+      {/* duration */}
+      <div className="font-mono text-[9.5px] text-ink2 text-right whitespace-nowrap">
+        {fmtNs(span.duration_ns)}
       </div>
     </div>
   )
 }
 
-// ── SpanColumn ────────────────────────────────────────────────────────────────
+// ── WaterfallColumn ───────────────────────────────────────────────────────────
 
-function SpanColumn({
+function WaterfallColumn({
   side,
   label,
   totalDurNs,
   spans,
+  diffSpans,
+  startNs,
+  windowNs,
 }: {
   side: 'baseline' | 'compare'
   label: string
   totalDurNs: number
-  spans: DiffSpan[]
+  spans: Span[]
+  diffSpans: DiffSpan[]
+  startNs: number
+  windowNs: number
 }) {
   const isBaseline = side === 'baseline'
-  const visibleSpans = spans.filter(ds =>
-    isBaseline ? ds.baseline_duration_ns > 0 : ds.compare_duration_ns > 0
-  )
+  const flatSpans = useMemo(() => flatten(spans), [spans])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-surface">
@@ -240,24 +234,29 @@ function SpanColumn({
         <Badge tone={isBaseline ? 'accent' : 'ok'}>
           {isBaseline ? 'baseline' : 'compare'}
         </Badge>
-        <span className="font-mono text-[11px] text-ink flex-1">
-          {label}
-        </span>
-        <span className="font-serif text-lg font-semibold text-ink">
-          {fmtNs(totalDurNs)}
-        </span>
+        <span className="font-mono text-[11px] text-ink flex-1">{label}</span>
+        <span className="font-serif text-lg font-semibold text-ink">{fmtNs(totalDurNs)}</span>
       </div>
 
-      {/* span rows */}
+      {/* waterfall rows */}
       <div className="flex-1 overflow-y-auto">
-        {visibleSpans.length === 0 ? (
-          <div className="px-4 py-6 text-center font-mono text-[11px] text-ink3">
-            no spans
-          </div>
+        {flatSpans.length === 0 ? (
+          <div className="px-4 py-6 text-center font-mono text-[11px] text-ink3">no spans</div>
         ) : (
-          visibleSpans.map((ds, i) => (
-            <SpanRow key={`${ds.name}-${ds.service_name}-${i}`} ds={ds} side={side} />
-          ))
+          flatSpans.map(({ span, depth }) => {
+            const status = diffStatusFor(span, diffSpans)
+            const { leftPct, widthPct } = layoutSpan(span, startNs, windowNs)
+            return (
+              <WaterfallRow
+                key={span.span_id}
+                span={span}
+                depth={depth}
+                status={status}
+                leftPct={leftPct}
+                widthPct={widthPct}
+              />
+            )
+          })
         )}
       </div>
     </div>
@@ -330,6 +329,20 @@ export default function DiffPage() {
 
   const baselineSess = sessions.find(s => s.id === baselineId)
   const compareSess = sessions.find(s => s.id === compareId)
+
+  // Shared time scale so both columns' bars are proportionally comparable.
+  const windowNs = useMemo(
+    () => diff ? sharedWindowNs(diff.baseline_spans, diff.compare_spans) : 0,
+    [diff],
+  )
+  const baseStartNs = useMemo(
+    () => diff?.baseline_spans.length ? columnWindow(diff.baseline_spans).startNs : 0,
+    [diff],
+  )
+  const cmpStartNs = useMemo(
+    () => diff?.compare_spans.length ? columnWindow(diff.compare_spans).startNs : 0,
+    [diff],
+  )
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -446,18 +459,24 @@ export default function DiffPage() {
           </div>
         ) : (
           <>
-            <SpanColumn
+            <WaterfallColumn
               side="baseline"
               label={diff.baseline.label}
               totalDurNs={diff.baseline.total_duration_ns}
-              spans={diff.spans}
+              spans={diff.baseline_spans}
+              diffSpans={diff.spans}
+              startNs={baseStartNs}
+              windowNs={windowNs}
             />
             <div className="w-px bg-line shrink-0" />
-            <SpanColumn
+            <WaterfallColumn
               side="compare"
               label={diff.compare.label}
               totalDurNs={diff.compare.total_duration_ns}
-              spans={diff.spans}
+              spans={diff.compare_spans}
+              diffSpans={diff.spans}
+              startNs={cmpStartNs}
+              windowNs={windowNs}
             />
           </>
         )}

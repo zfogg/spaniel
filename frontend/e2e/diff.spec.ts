@@ -15,6 +15,18 @@ const SESSIONS = [
   { id: 'c1', label: 'compare-session',  created_at: 1, is_baseline: false, is_imported: false, span_count: 12, trace_count: 2, services: 'api' },
 ]
 
+function makeSpan(o: Record<string, unknown>) {
+  return {
+    span_id: 'x', trace_id: 't', parent_span_id: '',
+    service_name: 'svc', name: 'op', kind: 1,
+    start_ns: 0, end_ns: 100_000_000, duration_ns: 100_000_000,
+    status_code: 1, status_message: '', attributes: '{}', resource: '{}',
+    session_id: 'sid', session_label: 'lbl', received_at: 0,
+    events: [], links: [],
+    ...o,
+  }
+}
+
 const DIFF_RESULT = {
   baseline: { session_id: 'b1', label: 'baseline-session', total_duration_ns: 1_000_000_000, span_count: 10, db_calls: 3 },
   compare:  { session_id: 'c1', label: 'compare-session',  total_duration_ns: 1_200_000_000, span_count: 12, db_calls: 4 },
@@ -26,12 +38,18 @@ const DIFF_RESULT = {
     db_call_delta: 1,
   },
   spans: [
-    { name: 'GET /users',  service_name: 'api', status: 'same',    baseline_duration_ns: 500_000_000, compare_duration_ns: 600_000_000, delta_pct:  20, depth: 0 },
-    { name: 'SELECT *',    service_name: 'db',  status: 'removed', baseline_duration_ns: 200_000_000, compare_duration_ns: 0,           delta_pct:   0, depth: 1 },
-    { name: 'INSERT INTO', service_name: 'db',  status: 'added',   baseline_duration_ns: 0,           compare_duration_ns: 150_000_000, delta_pct:   0, depth: 1 },
+    { name: 'GET /users',  service_name: 'api', status: 'unchanged', baseline_duration_ns: 500_000_000, compare_duration_ns: 600_000_000, delta_pct:  20, depth: 0 },
+    { name: 'SELECT *',    service_name: 'db',  status: 'removed',   baseline_duration_ns: 200_000_000, compare_duration_ns: 0,           delta_pct:   0, depth: 1 },
+    { name: 'INSERT INTO', service_name: 'db',  status: 'added',     baseline_duration_ns: 0,           compare_duration_ns: 150_000_000, delta_pct:   0, depth: 1 },
   ],
-  baseline_spans: [],
-  compare_spans:  [],
+  baseline_spans: [
+    makeSpan({ span_id: 'b-root', service_name: 'api', name: 'GET /users', start_ns: 0,          end_ns: 500_000_000, duration_ns: 500_000_000, session_id: 'b1' }),
+    makeSpan({ span_id: 'b-db',   service_name: 'db',  name: 'SELECT *',   start_ns: 50_000_000, end_ns: 250_000_000, duration_ns: 200_000_000, session_id: 'b1', parent_span_id: 'b-root' }),
+  ],
+  compare_spans: [
+    makeSpan({ span_id: 'c-root', service_name: 'api', name: 'GET /users',  start_ns: 0,          end_ns: 600_000_000, duration_ns: 600_000_000, session_id: 'c1' }),
+    makeSpan({ span_id: 'c-db',   service_name: 'db',  name: 'INSERT INTO', start_ns: 50_000_000, end_ns: 200_000_000, duration_ns: 150_000_000, session_id: 'c1', parent_span_id: 'c-root' }),
+  ],
 }
 
 async function stubDiff(page: Page, diffResult: unknown = DIFF_RESULT) {
@@ -95,22 +113,31 @@ test.describe('DiffPage', () => {
     await expect(page.getByText(/spans added/)).toBeVisible()
   })
 
-  test('a removed span only appears in the baseline column (has baseline_duration_ns > 0)', async ({ page }) => {
+  test('a removed span renders in the baseline column', async ({ page }) => {
     await stubDiff(page)
     await page.goto('/diff?baseline=b1&compare=c1')
 
-    // 'SELECT *' is removed — baseline_duration_ns=200ms, compare_duration_ns=0
-    // The compare SpanColumn filters out spans with compare_duration_ns===0,
-    // so 'SELECT *' must appear at least once (in baseline) but the compare col must not show it
+    // 'SELECT *' is in baseline_spans only (removed) — must be visible
     await expect(page.getByText('SELECT *').first()).toBeVisible()
   })
 
-  test('an added span only appears in the compare column (has compare_duration_ns > 0)', async ({ page }) => {
+  test('an added span renders in the compare column', async ({ page }) => {
     await stubDiff(page)
     await page.goto('/diff?baseline=b1&compare=c1')
 
-    // 'INSERT INTO' is added — baseline_duration_ns=0, compare_duration_ns=150ms
+    // 'INSERT INTO' is in compare_spans only (added) — must be visible
     await expect(page.getByText('INSERT INTO').first()).toBeVisible()
+  })
+
+  test('waterfall rows carry the correct data-status attribute', async ({ page }) => {
+    await stubDiff(page)
+    await page.goto('/diff?baseline=b1&compare=c1')
+
+    // Baseline column: SELECT * row must be marked removed
+    await expect(page.locator('[data-status="removed"]').first()).toBeVisible()
+
+    // Compare column: INSERT INTO row must be marked added
+    await expect(page.locator('[data-status="added"]').first()).toBeVisible()
   })
 
   test('the ← back button navigates to the previous page', async ({ page }) => {
