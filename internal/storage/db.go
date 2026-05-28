@@ -1158,18 +1158,10 @@ type SessionSize struct {
 func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	out := &StorageBreakdown{}
 
-	// DuckDB does not expose per-table compressed sizes through its catalog in
-	// this version (duckdb_tables().estimated_size is row count; pragma_storage_info
-	// lacks a size field). The strategy: checkpoint the database so WAL is flushed
-	// and the main file reflects current data, read the actual file size, then
-	// distribute it proportionally using uncompressed payload lengths (SUM(LENGTH))
-	// as weights. This ensures per-table values are proportional to real content
-	// and sum to the actual on-disk file size.
-	if d.path != "" && d.path != ":memory:" {
-		_ = d.gorm.Exec("CHECKPOINT").Error
-	}
-
-	// Actual on-disk file size after checkpoint.
+	// DuckDB does not expose per-table compressed sizes in this version.
+	// Distribute the actual on-disk file size proportionally using uncompressed
+	// payload lengths (SUM(LENGTH)) as weights per table. No CHECKPOINT — calling
+	// it while ingestion is running causes a DuckDB segfault.
 	var fileBytes int64
 	if d.path != "" && d.path != ":memory:" {
 		if fi, err := os.Stat(d.path); err == nil {
