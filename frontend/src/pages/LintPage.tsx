@@ -182,8 +182,14 @@ export default function LintPage() {
         </div>
       </div>
 
-      {/* summary band */}
-      <div className="px-[18px] py-3.5 flex gap-3 shrink-0 bg-surface border-b border-line overflow-x-auto">
+      {/* summary band — 2-row grid, fills column-by-column */}
+      <div className="px-[18px] py-3.5 grid grid-rows-[repeat(2,auto)] grid-flow-col auto-cols-fr gap-3 shrink-0 bg-surface border-b border-line">
+        <SummaryStat
+          tone="ok"
+          big={warnings.length}
+          label="total lint warnings"
+          sub={loading ? 'loading…' : `${warnings.length} total`}
+        />
         <SummaryStat
           tone="danger"
           big={reqAttr}
@@ -205,12 +211,6 @@ export default function LintPage() {
             sub={first?.example_span_id ? first.example_span_id.slice(0, 10) + '…' : 'trace'}
           />
         ))}
-        <SummaryStat
-          tone="ok"
-          big={warnings.length}
-          label="total lint warnings"
-          sub={loading ? 'loading…' : `${warnings.length} total`}
-        />
       </div>
 
       {/* warning list */}

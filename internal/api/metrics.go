@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,13 +24,19 @@ func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 	respond(w, entries, len(entries), 1)
 }
 
-// MetricSeriesResponse is the shape returned by GET /api/metrics/series.
-// Histogram percentiles arrive bucketed into p50/p95/p99 slices on the
-// client; gauge/counter populate only Value.
+// MetricSeriesPoint represents one metric data point with optional exemplars.
+// Histogram percentiles arrive bucketed into p50/p95/p99 slices on the client;
+// gauge/counter populate only Value. Exemplars link to traces via trace_id/span_id.
 type MetricSeriesPoint struct {
-	TimestampNs int64   `json:"timestamp_ns"`
-	Value       float64 `json:"value"`
-	Percentile  string  `json:"percentile,omitempty"`
+	TimestampNs int64                `json:"timestamp_ns"`
+	Value       float64              `json:"value"`
+	Percentile  string               `json:"percentile,omitempty"`
+	Exemplars   []MetricSeriesExemplar `json:"exemplars,omitempty"`
+}
+
+type MetricSeriesExemplar struct {
+	TraceID string `json:"trace_id"`
+	SpanID  string `json:"span_id"`
 }
 
 type MetricSeriesResponse struct {
@@ -85,6 +92,13 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 		p := MetricSeriesPoint{TimestampNs: m.TimestampNs, Value: m.Value}
 		if m.Type == "histogram" {
 			p.Percentile = extractPercentile(m.Attributes)
+		}
+		// Extract exemplars if present
+		if m.Exemplars != "" {
+			var exemplars []MetricSeriesExemplar
+			if err := json.Unmarshal([]byte(m.Exemplars), &exemplars); err == nil {
+				p.Exemplars = exemplars
+			}
 		}
 		out.Points = append(out.Points, p)
 	}

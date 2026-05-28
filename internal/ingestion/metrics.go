@@ -73,6 +73,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 				TimestampNs: int64(dp.Timestamp()),
 				Value:       numericValue(dp),
 				Attributes:  mapToJSON(dp.Attributes()),
+				Exemplars:   exemplarsToJSON(dp.Exemplars()),
 				ServiceName: svc,
 				SessionID:   sessionID,
 			}
@@ -98,6 +99,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 				TimestampNs: int64(dp.Timestamp()),
 				Value:       numericValue(dp),
 				Attributes:  mapToJSON(dp.Attributes()),
+				Exemplars:   exemplarsToJSON(dp.Exemplars()),
 				ServiceName: svc,
 				SessionID:   sessionID,
 			}
@@ -117,6 +119,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 			dp := m.Histogram().DataPoints().At(i)
 			bounds := boundsToFloat(dp.ExplicitBounds())
 			counts := countsToInt(dp.BucketCounts())
+			exemplars := exemplarsToJSON(dp.Exemplars())
 			for _, pct := range []float64{0.50, 0.95, 0.99} {
 				var v float64
 				if len(bounds) == 0 {
@@ -136,6 +139,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 					TimestampNs: int64(dp.Timestamp()),
 					Value:       v,
 					Attributes:  attrs,
+					Exemplars:   exemplars,
 					ServiceName: svc,
 					SessionID:   sessionID,
 				}
@@ -199,6 +203,36 @@ func attrsWithPercentile(attrs pcommon.Map, p float64) string {
 		raw["percentile"] = "p99"
 	}
 	b, _ := json.Marshal(raw)
+	return string(b)
+}
+
+// exemplarsToJSON extracts exemplars (trace links) from a data point and encodes them as JSON.
+// Returns empty string if no exemplars are present.
+func exemplarsToJSON(exemplars pmetric.ExemplarSlice) string {
+	if exemplars.Len() == 0 {
+		return ""
+	}
+	type exemplar struct {
+		TraceID string `json:"trace_id"`
+		SpanID  string `json:"span_id"`
+	}
+	out := make([]exemplar, 0, exemplars.Len())
+	for i := 0; i < exemplars.Len(); i++ {
+		ex := exemplars.At(i)
+		// Extract trace_id and span_id from the exemplar's span context
+		traceID := ex.TraceID()
+		spanID := ex.SpanID()
+		if len(traceID) > 0 {
+			out = append(out, exemplar{
+				TraceID: traceID.String(),
+				SpanID:  spanID.String(),
+			})
+		}
+	}
+	if len(out) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(out)
 	return string(b)
 }
 

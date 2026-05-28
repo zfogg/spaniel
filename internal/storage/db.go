@@ -195,6 +195,7 @@ type Metric struct {
 	TimestampNs int64   `json:"timestamp_ns"`
 	Value       float64 `json:"value"`
 	Attributes  string  `json:"attributes"`
+	Exemplars   string  `json:"exemplars"`      // JSON array of {trace_id, span_id}
 	ServiceName string  `json:"service_name"`
 	SessionID   string  `json:"session_id"`
 }

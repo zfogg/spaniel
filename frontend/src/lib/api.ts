@@ -161,6 +161,12 @@ export interface MetricSeriesPoint {
   timestamp_ns: number
   value: number
   percentile?: 'p50' | 'p95' | 'p99'
+  exemplars?: MetricSeriesExemplar[]
+}
+
+export interface MetricSeriesExemplar {
+  trace_id: string
+  span_id: string
 }
 
 export interface TraceOverlay {
