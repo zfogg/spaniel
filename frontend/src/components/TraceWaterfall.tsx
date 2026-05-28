@@ -151,6 +151,14 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           style={{ background: c.fg }}
         />
         <span
+          className="font-mono text-[10px] shrink-0 max-w-[90px] overflow-hidden text-ellipsis whitespace-nowrap opacity-75"
+          style={{ color: c.fg }}
+          title={span.service_name}
+        >
+          {span.service_name}
+        </span>
+        <span className="text-[10px] text-muted-foreground shrink-0 opacity-50">/</span>
+        <span
           className="font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0"
           style={{ color: isError ? '#ef4444' : 'var(--foreground)' }}
         >
