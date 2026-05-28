@@ -53,8 +53,8 @@ var registry = []Detector{
 
 // runDetectors runs all registered detectors on the trace identified by traceID,
 // persists any issues, and broadcasts WS events for each new finding.
-func runDetectors(traceID string, store *storage.DB, hub *ws.Hub) {
-	_, dspan := otel.Tracer("spaniel/ingestion").Start(context.Background(), "runDetectors",
+func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.Tracer) {
+	_, dspan := tracer.Start(context.Background(), "runDetectors",
 		trace.WithAttributes(attribute.String("trace_id", traceID)))
 	defer dspan.End()
 

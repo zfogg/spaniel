@@ -149,8 +149,8 @@ var rules = []LintRule{
 	},
 }
 
-func lintSpan(s *storage.Span, sessionID string, store *storage.DB) {
-	_, lspan := otel.Tracer("spaniel/ingestion").Start(context.Background(), "lintSpan",
+func lintSpan(s *storage.Span, sessionID string, store *storage.DB, tracer trace.Tracer) {
+	_, lspan := tracer.Start(context.Background(), "lintSpan",
 		trace.WithAttributes(
 			attribute.String("span_id", s.SpanID),
 			attribute.String("service.name", s.ServiceName),

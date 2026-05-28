@@ -262,7 +262,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					p.dbLatency.Record(ctx, float64(time.Since(t1).Milliseconds()),
 						metric.WithAttributes(attribute.String("op", "insert_span_links")))
 				}
-				goroutine.Go(func() { lintSpan(s, sessionID, p.store) }, "subsystem", "linter")
+				goroutine.Go(func() { lintSpan(s, sessionID, p.store, p.tracer) }, "subsystem", "linter")
 				p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 					TraceID:     s.TraceID,
 					SpanID:      s.SpanID,
@@ -380,7 +380,7 @@ func (p *Pipeline) scheduleDetectors(traceID string) {
 		if p.sampler.NeedsBuffer() {
 			p.flushBuffer(traceID)
 		} else {
-			runDetectors(traceID, p.store, p.hub)
+			runDetectors(traceID, p.store, p.hub, p.tracer)
 		}
 		p.debounceMu.Lock()
 		delete(p.debounce, traceID)
@@ -466,7 +466,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 			_ = p.store.InsertSpanLinks(e.links)
 		}
 		sp := e.span // capture for goroutine closure
-		goroutine.Go(func() { lintSpan(sp, sp.SessionID, p.store) }, "subsystem", "linter")
+		goroutine.Go(func() { lintSpan(sp, sp.SessionID, p.store, p.tracer) }, "subsystem", "linter")
 		p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 			TraceID:     e.span.TraceID,
 			SpanID:      e.span.SpanID,
