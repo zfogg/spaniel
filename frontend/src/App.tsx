@@ -18,6 +18,7 @@ import Coverage from './pages/Coverage'
 import Settings from './pages/Settings'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
+import RouteErrorBoundary from './components/RouteErrorBoundary'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { useQuery } from '@tanstack/react-query'
 import { qk, useLiveInvalidation } from './lib/query'
@@ -218,6 +219,7 @@ function AppShell() {
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       <Chrome />
       <main className="flex-1 overflow-hidden flex flex-col">
+        <RouteErrorBoundary>
         <Routes>
           <Route path="/"                  element={<TraceList />}   />
           <Route path="/spans"             element={<Spans />}       />
@@ -231,6 +233,7 @@ function AppShell() {
           <Route path="/sessions"          element={<Sessions />}    />
           <Route path="/diff"              element={<DiffPage />}    />
         </Routes>
+        </RouteErrorBoundary>
       </main>
       <BottomBar />
       <IssueToast />
