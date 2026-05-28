@@ -79,6 +79,10 @@ func main() {
 	sessionCmd := &cobra.Command{
 		Use:   "session",
 		Short: "Manage spaniel sessions",
+		// CLI session ops don't benefit from usage dumps on every server-side
+		// refusal (e.g. "cannot delete the active session" 400). The error
+		// itself is the human-facing signal.
+		SilenceUsage: true,
 	}
 	sessionCmd.PersistentFlags().StringVar(&apiBase, "api", "http://localhost:8080", "Spaniel API base URL")
 
@@ -95,6 +99,59 @@ func main() {
 		},
 	}
 	sessionCmd.AddCommand(sessionNewCmd)
+
+	sessionListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all sessions (active is marked with *)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return sessionList(apiBase, cmd.OutOrStdout())
+		},
+	}
+	sessionCmd.AddCommand(sessionListCmd)
+
+	sessionActivateCmd := &cobra.Command{
+		Use:   "activate <id|label>",
+		Short: "Activate a session by id or label",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return sessionActivate(apiBase, args[0], cmd.OutOrStdout())
+		},
+	}
+	sessionCmd.AddCommand(sessionActivateCmd)
+
+	sessionBaselineCmd := &cobra.Command{
+		Use:   "baseline [id|label]",
+		Short: "Toggle the is_baseline flag on a session (defaults to active)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ref := ""
+			if len(args) > 0 {
+				ref = args[0]
+			}
+			return sessionBaseline(apiBase, ref, cmd.OutOrStdout())
+		},
+	}
+	sessionCmd.AddCommand(sessionBaselineCmd)
+
+	sessionDeleteCmd := &cobra.Command{
+		Use:   "delete <id|label>",
+		Short: "Delete a session (cannot delete the active session)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return sessionDelete(apiBase, args[0], cmd.OutOrStdout())
+		},
+	}
+	sessionCmd.AddCommand(sessionDeleteCmd)
+
+	// cobra's SilenceUsage on the parent doesn't cascade to subcommand RunE
+	// errors, so flip it on each leaf explicitly. Server-side refusals are
+	// self-explanatory; we don't need a usage dump every time.
+	for _, c := range []*cobra.Command{
+		sessionListCmd, sessionActivateCmd, sessionBaselineCmd, sessionDeleteCmd, sessionNewCmd,
+	} {
+		c.SilenceUsage = true
+	}
+
 	root.AddCommand(sessionCmd)
 
 	// import subcommand
@@ -149,6 +206,7 @@ Examples:
 	root.AddCommand(configSubcommand(v))
 	root.AddCommand(ciSubcommand())
 	root.AddCommand(diffSubcommand())
+	root.AddCommand(doctorSubcommand(v))
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

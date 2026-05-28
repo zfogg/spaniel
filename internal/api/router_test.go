@@ -246,6 +246,85 @@ func TestListForwardersWithUpstreams(t *testing.T) {
 	}
 }
 
+func TestGetSpanReturnsLinks(t *testing.T) {
+	handler, store := setupRouter(t)
+
+	span := &storage.Span{
+		TraceID:      "trace-link-test",
+		SpanID:       "span-link-test",
+		ServiceName:  "svc",
+		Name:         "kafka.consume",
+		Kind:         5,
+		StartNs:      1_000_000_000,
+		EndNs:        2_000_000_000,
+		StatusCode:   1,
+		Attributes:   "{}",
+		Resource:     "{}",
+		SessionID:    "sess-1",
+		SessionLabel: "live",
+		ReceivedAt:   0,
+	}
+	if err := store.InsertSpan(span); err != nil {
+		t.Fatalf("InsertSpan: %v", err)
+	}
+
+	links := []*storage.SpanLink{
+		{
+			SpanID:         "span-link-test",
+			TraceID:        "trace-link-test",
+			SessionID:      "sess-1",
+			LinkedTraceID:  "producer-trace-aaa",
+			LinkedSpanID:   "producer-span-bbb",
+			TraceState:     "",
+			Attributes:     `{"messaging.operation":"process"}`,
+		},
+		{
+			SpanID:         "span-link-test",
+			TraceID:        "trace-link-test",
+			SessionID:      "sess-1",
+			LinkedTraceID:  "producer-trace-ccc",
+			LinkedSpanID:   "producer-span-ddd",
+			TraceState:     "",
+			Attributes:     "{}",
+		},
+	}
+	if err := store.InsertSpanLinks(links); err != nil {
+		t.Fatalf("InsertSpanLinks: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spans/span-link-test", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("parse data: %v", err)
+	}
+	rawLinks, ok := data["links"]
+	if !ok {
+		t.Fatal("response data missing 'links' field")
+	}
+	linkSlice, ok := rawLinks.([]any)
+	if !ok {
+		t.Fatalf("'links' is not an array, got %T", rawLinks)
+	}
+	if len(linkSlice) != 2 {
+		t.Fatalf("expected 2 links, got %d", len(linkSlice))
+	}
+	first := linkSlice[0].(map[string]any)
+	if first["linked_trace_id"] != "producer-trace-aaa" {
+		t.Errorf("unexpected linked_trace_id: %v", first["linked_trace_id"])
+	}
+}
+
 func TestListLintEmpty(t *testing.T) {
 	handler, _ := setupRouter(t)
 

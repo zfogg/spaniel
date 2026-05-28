@@ -444,6 +444,28 @@ func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
 	return out, rows.Err()
 }
 
+// ListLinksByTrace returns all span_links whose trace_id matches — used to
+// bulk-attach links to spans when serving GET /api/traces/:id so the
+// waterfall can show the link badge without a per-span round-trip.
+func (d *DB) ListLinksByTrace(traceID string) ([]*SpanLink, error) {
+	rows, err := d.db.Query(`
+		SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR
+		FROM span_links WHERE trace_id = ?`, traceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+	var out []*SpanLink
+	for rows.Next() {
+		l := &SpanLink{}
+		if err := rows.Scan(&l.SpanID, &l.TraceID, &l.SessionID, &l.LinkedTraceID, &l.LinkedSpanID, &l.TraceState, &l.Attributes); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
 func (d *DB) InsertLog(l *Log) error {
 	_, err := d.db.Exec(`
 		INSERT INTO logs (timestamp_ns, trace_id, span_id, severity, body, attributes, service_name, session_id, received_at)

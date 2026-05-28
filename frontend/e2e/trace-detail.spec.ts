@@ -116,8 +116,17 @@ async function stubBackend(page: Page, fx: Fixture) {
     }
 
     // Trace detail — must be checked before the list fallback.
-    if (pathname === `/api/traces/${TRACE_ID}`)
-      return json(r, fx.spans ?? [])
+    // Merge spanLinks into the span objects so the waterfall badge works.
+    if (pathname === `/api/traces/${TRACE_ID}`) {
+      const spansWithLinks = (fx.spans ?? []).map(s => ({
+        ...s,
+        links: (fx.spanLinks?.[s.span_id] ?? []).map(l => ({
+          span_id: s.span_id, trace_id: s.trace_id, session_id: s.session_id,
+          trace_state: '', attributes: '{}', ...l,
+        })),
+      }))
+      return json(r, spansWithLinks)
+    }
     if (pathname === '/api/traces')
       return json(r, [])
 
@@ -429,6 +438,19 @@ test.describe('Trace detail page', () => {
     await expect(links).toBeVisible()
     await expect(links.getByText('incoming links', { exact: true })).toBeVisible()
     await expect(links.getByText('←', { exact: true })).toBeVisible()
+  })
+
+  test('a span with links shows the chain badge on its waterfall row', async ({ page }) => {
+    const fx = makeTrace() as Fixture
+    fx.spanLinks = {
+      db1: [{ linked_trace_id: 'producer-trace-id', linked_span_id: 'producer-span-id', trace_state: '', attributes: '{}' }],
+    }
+    await stubBackend(page, fx)
+    await page.goto(`/traces/${TRACE_ID}`)
+    await expect(page.getByText('SELECT items', { exact: true })).toBeVisible()
+
+    // db1 has a link — its row should show the badge; other rows should not.
+    await expect(page.getByTestId('span-link-badge')).toHaveCount(1)
   })
 
   test('back button navigates away from the trace detail page', async ({ page }) => {

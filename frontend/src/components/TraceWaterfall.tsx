@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
-import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, FlatSpan } from '@/lib/span-utils'
+import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, hasLinks, FlatSpan } from '@/lib/span-utils'
 import { computeLayout, detectN1SpanIds, n1BannerEntries, n1IssueForSpan } from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
 import TraceGraph from '@/components/TraceGraph'
@@ -138,7 +138,7 @@ function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
 
 // ── SpanRow ───────────────────────────────────────────────────────────────────
 
-function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1, onSelect, onHover }: {
+function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1, linked, onSelect, onHover }: {
   flat: FlatSpan
   traceStartNs: number
   traceDurNs: number
@@ -146,6 +146,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
   hovered: boolean
   tag: string | undefined
   isN1: boolean
+  linked: boolean
   onSelect: () => void
   onHover: (id: string | null) => void
 }) {
@@ -243,6 +244,21 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
             background: tagColor + '22',
           }}>
             {tag}
+          </span>
+        )}
+        {linked && (
+          <span
+            data-testid="span-link-badge"
+            title="span has links"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9,
+              flex: '0 0 auto',
+              color: 'var(--accent)',
+              opacity: 0.8,
+            }}
+          >
+            ⛓
           </span>
         )}
       </div>
@@ -1358,6 +1374,7 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
                           hovered={flat.span.span_id === hoveredId}
                           tag={tags.get(flat.span.span_id)}
                           isN1={n1SpanIds.has(flat.span.span_id)}
+                          linked={hasLinks(flat.span)}
                           onSelect={() => handleSelect(flat.span.span_id)}
                           onHover={setHoveredId}
                         />

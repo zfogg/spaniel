@@ -142,6 +142,25 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 	if spans == nil {
 		spans = []*storage.Span{}
 	}
+	// Bulk-attach links so the waterfall can show the link badge without a
+	// per-span round-trip. Group by span_id into a map, then attach.
+	if links, err := r.store.ListLinksByTrace(traceID); err == nil && len(links) > 0 {
+		bySpan := make(map[string][]*storage.SpanLink, len(links))
+		for _, l := range links {
+			bySpan[l.SpanID] = append(bySpan[l.SpanID], l)
+		}
+		for _, s := range spans {
+			if sl := bySpan[s.SpanID]; sl != nil {
+				s.Links = sl
+			} else {
+				s.Links = []*storage.SpanLink{}
+			}
+		}
+	} else {
+		for _, s := range spans {
+			s.Links = []*storage.SpanLink{}
+		}
+	}
 	respond(w, spans, len(spans), 1)
 }
 
