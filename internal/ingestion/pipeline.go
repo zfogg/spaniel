@@ -89,6 +89,27 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					}
 				}
 
+				// Persist span links — references to other spans/traces this
+				// span was caused by (fan-out batches, async retries, etc.).
+				if span.Links().Len() > 0 {
+					links := make([]*storage.SpanLink, 0, span.Links().Len())
+					for li := 0; li < span.Links().Len(); li++ {
+						ln := span.Links().At(li)
+						links = append(links, &storage.SpanLink{
+							SpanID:        s.SpanID,
+							TraceID:       s.TraceID,
+							SessionID:     sessionID,
+							LinkedTraceID: ln.TraceID().String(),
+							LinkedSpanID:  ln.SpanID().String(),
+							TraceState:    ln.TraceState().AsRaw(),
+							Attributes:    mapToJSON(ln.Attributes()),
+						})
+					}
+					if err := p.store.InsertSpanLinks(links); err != nil {
+						return err
+					}
+				}
+
 				go lintSpan(s, sessionID, p.store)
 
 				p.hub.Broadcast(&ws.SpanEvent{

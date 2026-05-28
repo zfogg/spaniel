@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
@@ -656,6 +657,95 @@ function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStar
   )
 }
 
+// ── SpanLinksList — outbound + incoming links section for the Inspector ─────
+
+function SpanLinksList({ spanId, traceId }: { spanId: string; traceId: string }) {
+  const [outbound, setOutbound] = useState<import('@/lib/api').SpanLink[]>([])
+  const [incoming, setIncoming] = useState<import('@/lib/api').SpanLink[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancel = false
+    setLoading(true)
+    setOutbound([])
+    setIncoming([])
+    api.spans.get(spanId)
+      .then(r => { if (!cancel) setOutbound(r.data?.links ?? []) })
+      .catch(() => { /* leave empty */ })
+      .finally(() => { if (!cancel) setLoading(false) })
+    // Reverse lookup: who else links into this trace?
+    fetch(`/api/traces/${encodeURIComponent(traceId)}/incoming-links`)
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then(j => { if (!cancel) setIncoming((j?.data as import('@/lib/api').SpanLink[]) ?? []) })
+      .catch(() => { /* leave empty */ })
+    return () => { cancel = true }
+  }, [spanId, traceId])
+
+  if (loading) {
+    return <div className="px-3.5 py-1.5 font-mono text-[10px] text-[var(--ink3)]">…</div>
+  }
+  if (outbound.length === 0 && incoming.length === 0) return null
+
+  return (
+    <div data-testid="span-links">
+      {outbound.length > 0 && (
+        <>
+          <div className="flex items-center px-3.5 pt-3 pb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+            <span>links</span>
+            <span className="flex-1" />
+            <span className="normal-case tracking-normal">{outbound.length}</span>
+          </div>
+          <div className="px-3.5 pb-2">
+            {outbound.map((l, i) => (
+              <SpanLinkRow key={`out-${i}`} link={l} last={i === outbound.length - 1} />
+            ))}
+          </div>
+        </>
+      )}
+      {incoming.length > 0 && (
+        <>
+          <div className="flex items-center px-3.5 pt-3 pb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+            <span>incoming links</span>
+            <span className="flex-1" />
+            <span className="normal-case tracking-normal">{incoming.length}</span>
+          </div>
+          <div className="px-3.5 pb-3">
+            {incoming.map((l, i) => (
+              <SpanLinkRow key={`in-${i}`} link={l} incoming last={i === incoming.length - 1} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function SpanLinkRow({ link, last, incoming }: {
+  link: import('@/lib/api').SpanLink
+  last: boolean
+  incoming?: boolean
+}) {
+  const targetTrace = incoming ? link.trace_id : link.linked_trace_id
+  const targetSpan  = incoming ? link.span_id  : link.linked_span_id
+  const short = targetTrace.length > 12
+    ? `${targetTrace.slice(0, 4)}…${targetTrace.slice(-5)}`
+    : targetTrace
+  return (
+    <Link
+      to={`/traces/${encodeURIComponent(targetTrace)}`}
+      className={`flex items-baseline gap-2 py-1 no-underline ${last ? '' : 'border-b border-[var(--line2)]'}`}
+      data-testid="span-link-row"
+    >
+      <span className="font-mono text-[10px] text-[var(--accent)]">{incoming ? '←' : '→'}</span>
+      <span className="font-mono text-[11px] text-[var(--foreground)]">{short}</span>
+      <span className="font-mono text-[10px] text-[var(--muted-foreground)]">·</span>
+      <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--muted-foreground)]" title={targetSpan}>
+        span {targetSpan.length > 10 ? `${targetSpan.slice(0, 6)}…` : targetSpan}
+      </span>
+    </Link>
+  )
+}
+
 // ── Inspector ─────────────────────────────────────────────────────────────────
 
 function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClose }: {
@@ -896,6 +986,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
             </>
           )}
           <SpanEventsList spanId={span.span_id} spanStartNs={span.start_ns} />
+          <SpanLinksList spanId={span.span_id} traceId={span.trace_id} />
           {attrEntries.length === 0 && resEntries.length === 0 && (
             <div style={{
               padding: '18px 16px',

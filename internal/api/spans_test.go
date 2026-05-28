@@ -302,3 +302,109 @@ func TestGetSpan_IncludesEvents(t *testing.T) {
 		t.Errorf("expected exception.stacktrace in event attrs, got %q", attrs)
 	}
 }
+
+// TestGetSpan_LinksIsEmptyArrayWhenNone — the links field is always [] on
+// the wire, mirroring the events guarantee, so the frontend can type it as
+// a non-optional SpanLink[].
+func TestGetSpan_LinksIsEmptyArrayWhenNone(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-noli", "span-noli", "", "svc", "noop")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spans/span-noli", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `"links":[]`) {
+		t.Errorf("expected `\"links\":[]` in response, got: %s", w.Body.String())
+	}
+}
+
+// TestGetSpan_IncludesLinks: GET /api/spans/:id surfaces the span's links
+// in insertion order with attributes + trace_state round-tripped.
+func TestGetSpan_IncludesLinks(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-li", "span-li", "", "svc", "kafka.consume")
+
+	if err := store.InsertSpanLinks([]*storage.SpanLink{
+		{SpanID: "span-li", TraceID: "trace-li", SessionID: "sess-1",
+			LinkedTraceID: "trace-prod-a", LinkedSpanID: "span-prod-a",
+			TraceState: "rojo=00f067aa0ba902b7",
+			Attributes:  `{"messaging.operation":"process"}`},
+		{SpanID: "span-li", TraceID: "trace-li", SessionID: "sess-1",
+			LinkedTraceID: "trace-prod-b", LinkedSpanID: "span-prod-b",
+			Attributes:  "{}"},
+	}); err != nil {
+		t.Fatalf("InsertSpanLinks: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spans/span-li", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			Links []map[string]any `json:"links"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(resp.Data.Links) != 2 {
+		t.Fatalf("links: want 2, got %d (%v)", len(resp.Data.Links), resp.Data.Links)
+	}
+	if got, _ := resp.Data.Links[0]["linked_trace_id"].(string); got != "trace-prod-a" {
+		t.Errorf("links[0].linked_trace_id: want trace-prod-a, got %q", got)
+	}
+	if got, _ := resp.Data.Links[0]["trace_state"].(string); got != "rojo=00f067aa0ba902b7" {
+		t.Errorf("links[0].trace_state lost: %q", got)
+	}
+	if attrs := fmt.Sprint(resp.Data.Links[0]["attributes"]); !strings.Contains(attrs, "messaging.operation") {
+		t.Errorf("links[0].attributes lost: %q", attrs)
+	}
+}
+
+// TestListIncomingLinks: GET /api/traces/:id/incoming-links returns spans
+// whose link targets the given trace.
+func TestListIncomingLinks(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-caller", "span-caller", "", "svc", "consume")
+	if err := store.InsertSpanLinks([]*storage.SpanLink{
+		{SpanID: "span-caller", TraceID: "trace-caller", SessionID: "sess-1",
+			LinkedTraceID: "trace-target", LinkedSpanID: "span-target", Attributes: "{}"},
+	}); err != nil {
+		t.Fatalf("InsertSpanLinks: %v", err)
+	}
+
+	// match
+	req := httptest.NewRequest(http.MethodGet, "/api/traces/trace-target/incoming-links", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", w.Code)
+	}
+	var resp struct {
+		Data []map[string]any `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp.Data) != 1 {
+		t.Fatalf("want 1 incoming link, got %d", len(resp.Data))
+	}
+	if got, _ := resp.Data[0]["span_id"].(string); got != "span-caller" {
+		t.Errorf("incoming link's span_id: want span-caller, got %q", got)
+	}
+
+	// non-matching trace id → empty array
+	req = httptest.NewRequest(http.MethodGet, "/api/traces/trace-nobody/incoming-links", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `"data":[]`) {
+		t.Errorf("expected empty data array, got: %s", w.Body.String())
+	}
+}

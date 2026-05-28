@@ -43,6 +43,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Get("/api/health", r.health)
 	mux.Get("/api/traces", r.listTraces)
 	mux.Get("/api/traces/{traceId}", r.getTrace)
+	mux.Get("/api/traces/{traceId}/incoming-links", r.listIncomingLinks)
 	mux.Get("/api/spans", r.listSpans)
 	mux.Get("/api/spans/{spanId}", r.getSpan)
 	mux.Get("/api/logs", r.listLogs)
@@ -181,7 +182,26 @@ func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 	if events, err := r.store.ListEventsBySpan(span.SpanID); err == nil && events != nil {
 		span.Events = events
 	}
+	span.Links = []*storage.SpanLink{}
+	if links, err := r.store.ListLinksBySpan(span.SpanID); err == nil && links != nil {
+		span.Links = links
+	}
 	respond(w, span, 1, 1)
+}
+
+// listIncomingLinks returns every span_link whose linked_trace_id matches
+// the trace_id URL param — the "who links into this trace?" reverse lookup.
+func (r *Router) listIncomingLinks(w http.ResponseWriter, req *http.Request) {
+	traceID := chi.URLParam(req, "traceId")
+	links, err := r.store.ListIncomingLinks(traceID)
+	if err != nil {
+		respondErr(w, 500, err.Error())
+		return
+	}
+	if links == nil {
+		links = []*storage.SpanLink{}
+	}
+	respond(w, links, len(links), 1)
 }
 
 func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {

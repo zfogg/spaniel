@@ -254,3 +254,88 @@ func TestPipelineIngestTraces_SpanEventsPersisted(t *testing.T) {
 		t.Errorf("event[2] (exception) wrong: %+v", events[2])
 	}
 }
+
+func TestPipelineIngestTraces_SpanLinksPersisted(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("links-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	p := NewPipeline(db, ws.NewHub())
+	// Two link targets: (linkedTrace1, linkedSpan1) + (linkedTrace2, linkedSpan2).
+	td := makeTraces("svc", func(ss ptrace.ScopeSpans) {
+		s := ss.Spans().AppendEmpty()
+		var tid pcommon.TraceID
+		var sid pcommon.SpanID
+		copy(tid[:], []byte(strings.Repeat("l", 16))[:16])
+		copy(sid[:], []byte(strings.Repeat("L", 8))[:8])
+		s.SetTraceID(tid)
+		s.SetSpanID(sid)
+		s.SetName("kafka.consume")
+		s.SetKind(ptrace.SpanKindConsumer)
+		s.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+		s.SetEndTimestamp(pcommon.Timestamp(1_500_000_000))
+
+		// Link #1 — references a producer span in another trace.
+		l1 := s.Links().AppendEmpty()
+		var lt1 pcommon.TraceID
+		var ls1 pcommon.SpanID
+		copy(lt1[:], []byte(strings.Repeat("p", 16))[:16])
+		copy(ls1[:], []byte(strings.Repeat("P", 8))[:8])
+		l1.SetTraceID(lt1)
+		l1.SetSpanID(ls1)
+		l1.TraceState().FromRaw("rojo=00f067aa0ba902b7")
+		l1.Attributes().PutStr("messaging.operation", "process")
+
+		// Link #2 — references a different producer.
+		l2 := s.Links().AppendEmpty()
+		var lt2 pcommon.TraceID
+		var ls2 pcommon.SpanID
+		copy(lt2[:], []byte(strings.Repeat("q", 16))[:16])
+		copy(ls2[:], []byte(strings.Repeat("Q", 8))[:8])
+		l2.SetTraceID(lt2)
+		l2.SetSpanID(ls2)
+	})
+	if err := p.IngestTraces(context.Background(), td); err != nil {
+		t.Fatalf("IngestTraces: %v", err)
+	}
+
+	spanIDStr := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SpanID().String()
+	links, err := db.ListLinksBySpan(spanIDStr)
+	if err != nil {
+		t.Fatalf("ListLinksBySpan: %v", err)
+	}
+	if len(links) != 2 {
+		t.Fatalf("want 2 links, got %d", len(links))
+	}
+	// Order in DB is insertion order; both targets should be present.
+	gotTargets := map[string]string{}
+	for _, l := range links {
+		gotTargets[l.LinkedTraceID] = l.LinkedSpanID
+	}
+	if len(gotTargets) != 2 {
+		t.Errorf("expected 2 distinct linked trace IDs, got %+v", gotTargets)
+	}
+	// Trace state + attribute round-trip on link #1.
+	var first *storage.SpanLink
+	for _, l := range links {
+		if strings.Contains(l.TraceState, "rojo") {
+			first = l
+		}
+	}
+	if first == nil {
+		t.Fatal("expected at least one link to carry the trace_state")
+	}
+	if !strings.Contains(first.Attributes, `"messaging.operation":"process"`) {
+		t.Errorf("link attributes lost: %q", first.Attributes)
+	}
+
+	// Reverse lookup: ListIncomingLinks for one of the linked traces returns
+	// this span as the caller.
+	rev, err := db.ListIncomingLinks(first.LinkedTraceID)
+	if err != nil {
+		t.Fatalf("ListIncomingLinks: %v", err)
+	}
+	if len(rev) != 1 || rev[0].SpanID != spanIDStr {
+		t.Errorf("incoming-link reverse lookup wrong: %+v", rev)
+	}
+}

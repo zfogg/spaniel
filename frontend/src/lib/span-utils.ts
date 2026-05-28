@@ -71,3 +71,17 @@ export function buildTagMap(warnings: LintWarning[]): Map<string, string> {
   }
   return m
 }
+
+// hasLinks: true when the span carries at least one OTel span link. The
+// waterfall uses this to render the chain-icon badge.
+export function hasLinks(span: { links?: { linked_trace_id?: string }[] } | null | undefined): boolean {
+  if (!span || !span.links) return false
+  return span.links.length > 0
+}
+
+// shortTraceId returns the standard "9ef3…d19eb" abbreviation used in
+// the link rows and several inspector affordances.
+export function shortTraceId(id: string): string {
+  if (!id || id.length < 12) return id
+  return `${id.slice(0, 4)}…${id.slice(-5)}`
+}

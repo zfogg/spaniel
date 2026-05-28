@@ -82,6 +82,11 @@ interface Fixture {
   }>
   // Optional events keyed by span_id; the /api/spans/:id stub merges them in.
   spanEvents?: Record<string, Array<{ time_ns: number; name: string; attributes: string }>>
+  // Optional outbound links keyed by span_id; the /api/spans/:id stub merges them in.
+  spanLinks?: Record<string, Array<{ linked_trace_id: string; linked_span_id: string; trace_state?: string; attributes?: string }>>
+  // Optional reverse links keyed by trace_id; served from
+  // GET /api/traces/:id/incoming-links.
+  incomingLinks?: Record<string, Array<{ span_id: string; trace_id: string; linked_trace_id: string; linked_span_id: string; trace_state?: string; attributes?: string }>>
 }
 
 async function stubBackend(page: Page, fx: Fixture) {
@@ -103,13 +108,20 @@ async function stubBackend(page: Page, fx: Fixture) {
     if (pathname === '/api/services')
       return json(r, ['api'])
 
+    // Incoming-links reverse lookup — checked before the trace-detail catch.
+    const incomingMatch = pathname.match(/^\/api\/traces\/(.+)\/incoming-links$/)
+    if (incomingMatch) {
+      const tid = incomingMatch[1]
+      return json(r, fx.incomingLinks?.[tid] ?? [])
+    }
+
     // Trace detail — must be checked before the list fallback.
     if (pathname === `/api/traces/${TRACE_ID}`)
       return json(r, fx.spans ?? [])
     if (pathname === '/api/traces')
       return json(r, [])
 
-    // GET /api/spans/:id — used by the inspector to fetch span events.
+    // GET /api/spans/:id — used by the inspector to fetch span events + links.
     if (pathname.startsWith('/api/spans/')) {
       const id = pathname.slice('/api/spans/'.length)
       const base = (fx.spans ?? []).find(s => s.span_id === id)
@@ -117,7 +129,11 @@ async function stubBackend(page: Page, fx: Fixture) {
       const events = (fx.spanEvents?.[id] ?? []).map(e => ({
         span_id: id, trace_id: base.trace_id, session_id: base.session_id, ...e,
       }))
-      return json(r, { ...base, events })
+      const links = (fx.spanLinks?.[id] ?? []).map(l => ({
+        span_id: id, trace_id: base.trace_id, session_id: base.session_id,
+        trace_state: '', attributes: '{}', ...l,
+      }))
+      return json(r, { ...base, events, links })
     }
     if (pathname.startsWith('/api/lint'))
       return json(r, fx.warnings ?? [])
@@ -353,6 +369,66 @@ test.describe('Trace detail page', () => {
     // Inspector for db1 (SELECT items) appears without any user click.
     await expect(page.getByText('postgres').first()).toBeVisible()
     await expect(page.getByText('db.statement').first()).toBeVisible()
+  })
+
+  test('selecting a span with links shows the inspector links section', async ({ page }) => {
+    const fx = makeTrace() as Fixture
+    fx.spanLinks = {
+      db1: [{
+        linked_trace_id: 'producer-trace-id',
+        linked_span_id:  'producer-span-id',
+        trace_state: '',
+        attributes: '{}',
+      }],
+    }
+    await stubBackend(page, fx)
+    await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
+
+    const links = page.getByTestId('span-links')
+    await expect(links).toBeVisible()
+    // section header reads "links" + count 1
+    await expect(links.getByText('links', { exact: true })).toBeVisible()
+    await expect(links.getByText('1', { exact: true })).toBeVisible()
+    // row shows the abbreviated linked trace id with the → glyph
+    await expect(links.getByText('→', { exact: true })).toBeVisible()
+    await expect(links.getByText('prod…ce-id', { exact: false })).toBeVisible()
+  })
+
+  test('clicking an inspector link navigates to the linked trace', async ({ page }) => {
+    const fx = makeTrace() as Fixture
+    fx.spanLinks = {
+      db1: [{ linked_trace_id: 'linked-trace-id', linked_span_id: 'linked-span-id', trace_state: '', attributes: '{}' }],
+    }
+    await stubBackend(page, fx)
+    await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
+
+    await page.getByTestId('span-link-row').first().click()
+    await expect(page).toHaveURL(/\/traces\/linked-trace-id/)
+  })
+
+  test('a span with no links does NOT render the links section', async ({ page }) => {
+    await stubBackend(page, makeTrace())  // no spanLinks fixture
+    await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
+    // Wait for the inspector itself to mount via the events section call.
+    await expect(page.getByText('db.statement').first()).toBeVisible()
+    await expect(page.getByTestId('span-links')).toHaveCount(0)
+  })
+
+  test('incoming links section appears when /incoming-links returns results', async ({ page }) => {
+    const fx = makeTrace() as Fixture
+    fx.incomingLinks = {
+      [TRACE_ID]: [{
+        span_id: 'caller-span', trace_id: 'caller-trace',
+        linked_trace_id: TRACE_ID, linked_span_id: 'db1',
+      }],
+    }
+    await stubBackend(page, fx)
+    await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
+
+    const links = page.getByTestId('span-links')
+    await expect(links).toBeVisible()
+    await expect(links.getByText('incoming links', { exact: true })).toBeVisible()
+    await expect(links.getByText('←', { exact: true })).toBeVisible()
   })
 
   test('back button navigates away from the trace detail page', async ({ page }) => {
