@@ -1,6 +1,10 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useReactTable, getCoreRowModel, getFilteredRowModel,
+  type ColumnDef, type ColumnFiltersState,
+} from "@tanstack/react-table";
 import { qk } from "@/lib/query";
 import { api, Session } from "@/lib/api";
 import {
@@ -805,12 +809,39 @@ export default function Sessions() {
     );
   }
 
-  const filteredSessions = sessions.filter((s) => {
-    if (filter === "branches") return isBranchLabel(s.label);
-    if (filter === "adhoc") return !isBranchLabel(s.label);
-    if (filter === "hot") return s.n1_count > 0 || s.error_count > 0;
-    return true;
+  // Headless react-table owns the category filter (all/branches/adhoc/hot). The
+  // single `category` column carries a filterFn keyed off the active tab; the
+  // rich per-row actions stay in <SessionRow>.
+  const columns = useMemo<ColumnDef<Session>[]>(() => [
+    {
+      id: "category",
+      accessorFn: (s) => s,
+      filterFn: (row, _id, val) => {
+        const s = row.original;
+        if (val === "branches") return isBranchLabel(s.label);
+        if (val === "adhoc") return !isBranchLabel(s.label);
+        if (val === "hot") return s.n1_count > 0 || s.error_count > 0;
+        return true;
+      },
+    },
+  ], []);
+
+  const columnFilters = useMemo<ColumnFiltersState>(
+    () => (filter === "all" ? [] : [{ id: "category", value: filter }]),
+    [filter],
+  );
+
+  const table = useReactTable({
+    data: sessions,
+    columns,
+    state: { columnFilters },
+    onColumnFiltersChange: () => {}, // driven by the filter tabs
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    manualSorting: true,
   });
+
+  const filteredSessions = table.getRowModel().rows.map((r) => r.original);
 
   const branchCount = sessions.filter((s) => isBranchLabel(s.label)).length;
   const adhocCount = sessions.filter((s) => !isBranchLabel(s.label)).length;

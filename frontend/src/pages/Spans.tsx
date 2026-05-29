@@ -1,11 +1,29 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import {
+  useReactTable, getCoreRowModel, getFilteredRowModel,
+  type ColumnDef, type ColumnFiltersState, type Row,
+} from '@tanstack/react-table'
 import { qk } from '@/lib/query'
 import { api, type SpanRow } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
+
+// Global search: matches a span on its name, service, trace/span id, or any
+// attribute key/value. Used as the react-table globalFilterFn.
+function spanGlobalFilter(row: Row<SpanRow>, _columnId: string, filterValue: string): boolean {
+  const q = String(filterValue).trim().toLowerCase()
+  if (!q) return true
+  const s = row.original
+  const attrs = parseAttrs(s.attributes)
+  const hay = [
+    s.name, s.service_name, s.trace_id, s.span_id,
+    ...Object.keys(attrs), ...Object.values(attrs).map(String),
+  ].join(' ').toLowerCase()
+  return hay.includes(q)
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -270,24 +288,37 @@ export default function Spans() {
     return c
   }, [spans])
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return spans.filter(s => {
-      if (svcSel && s.service_name !== svcSel) return false
-      if (kindSel && KIND_LABELS[s.kind] !== kindSel) return false
-      if (tagSel && s.tag !== tagSel) return false
-      if (q) {
-        const attrs = parseAttrs(s.attributes)
-        const hay = [
-          s.name, s.service_name, s.trace_id, s.span_id,
-          ...Object.keys(attrs), ...Object.values(attrs).map(String),
-        ].join(' ').toLowerCase()
-        if (!hay.includes(q)) return false
-      }
-      return true
-    })
-  }, [spans, svcSel, kindSel, tagSel, query])
+  // Headless react-table owns the multi-filter (service/kind/tag column filters
+  // + global search). Sorting stays server-side (the sort dropdown drives the
+  // query key) because the backend's ORDER BY + 500-row cap means "duration"
+  // returns the slowest overall, not just the slowest of the loaded page.
+  const columns = useMemo<ColumnDef<SpanRow>[]>(() => [
+    { id: 'service', accessorFn: s => s.service_name, filterFn: 'equals' },
+    { id: 'kind', accessorFn: s => KIND_LABELS[s.kind] ?? 'unknown', filterFn: 'equals' },
+    { id: 'tag', accessorFn: s => s.tag ?? '', filterFn: 'equals' },
+  ], [])
 
+  const columnFilters = useMemo<ColumnFiltersState>(() => {
+    const f: ColumnFiltersState = []
+    if (svcSel) f.push({ id: 'service', value: svcSel })
+    if (kindSel) f.push({ id: 'kind', value: kindSel })
+    if (tagSel) f.push({ id: 'tag', value: tagSel })
+    return f
+  }, [svcSel, kindSel, tagSel])
+
+  const table = useReactTable({
+    data: spans,
+    columns,
+    state: { globalFilter: query, columnFilters },
+    onGlobalFilterChange: setQuery,
+    onColumnFiltersChange: () => {}, // filters are driven by the sidebar selections
+    globalFilterFn: spanGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    manualSorting: true,
+  })
+
+  const filtered = table.getRowModel().rows.map(r => r.original)
   const selected = filtered.find(s => s.span_id === selectedId) ?? null
 
   const activeFilters: { label: string; clear: () => void }[] = []
