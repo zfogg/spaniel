@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -13,6 +14,29 @@ import (
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/ingestion"
 )
+
+// maxOTLPBodyBytes caps a single OTLP/HTTP export request body, matching the
+// 64 MB ceiling the JSON import endpoint uses. Without it, io.ReadAll would
+// buffer an unbounded payload and a single oversized (or malicious) request
+// could exhaust process memory.
+const maxOTLPBodyBytes = 64 << 20
+
+// readBody reads the request body with a hard size cap. On failure it writes
+// the response (413 when the cap is exceeded, 400 for any other read error)
+// and reports ok=false so the caller can return immediately.
+func readBody(w http.ResponseWriter, r *http.Request) (body []byte, ok bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxOTLPBodyBytes)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			http.Error(w, "request body exceeds 64 MB limit", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "read body", http.StatusBadRequest)
+		}
+		return nil, false
+	}
+	return body, true
+}
 
 type HTTPReceiver struct {
 	pipeline  *ingestion.Pipeline
@@ -28,12 +52,12 @@ func (h *HTTPReceiver) SetForwarder(f *forwarder.Forwarder) {
 }
 
 func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "read body", http.StatusBadRequest)
+	body, ok := readBody(w, r)
+	if !ok {
 		return
 	}
 	req := ptraceotlp.NewExportRequest()
+	var err error
 	if isJSON(r.Header.Get("Content-Type")) {
 		err = req.UnmarshalJSON(body)
 	} else {
@@ -54,12 +78,12 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "read body", http.StatusBadRequest)
+	body, ok := readBody(w, r)
+	if !ok {
 		return
 	}
 	req := plogotlp.NewExportRequest()
+	var err error
 	if isJSON(r.Header.Get("Content-Type")) {
 		err = req.UnmarshalJSON(body)
 	} else {
@@ -80,12 +104,12 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "read body", http.StatusBadRequest)
+	body, ok := readBody(w, r)
+	if !ok {
 		return
 	}
 	req := pmetricotlp.NewExportRequest()
+	var err error
 	if isJSON(r.Header.Get("Content-Type")) {
 		err = req.UnmarshalJSON(body)
 	} else {

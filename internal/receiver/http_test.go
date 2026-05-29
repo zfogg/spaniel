@@ -68,6 +68,17 @@ func TestHandleTracesBadBody(t *testing.T) {
 	}
 }
 
+func TestHandleTracesBodyTooLarge(t *testing.T) {
+	rcv, _ := newTestReceiver(t)
+	// One byte past the cap: MaxBytesReader should reject it rather than let
+	// io.ReadAll buffer an unbounded payload.
+	oversized := make([]byte, maxOTLPBodyBytes+1)
+	w := post(rcv.HandleTraces, "application/json", oversized)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected 413 for oversized body, got %d", w.Code)
+	}
+}
+
 // ── Logs ──────────────────────────────────────────────────────────────────────
 
 const logsJSON = `{
