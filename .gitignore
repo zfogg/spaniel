@@ -46,3 +46,5 @@ frontend/.playwright/
 # .vscode/
 
 .playwright-mcp/
+
+test-results/
