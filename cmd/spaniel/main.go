@@ -808,7 +808,20 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("ui/api listen: %w", err)
 	}
 
-	srv := &http.Server{Handler: mainHandler}
+	srv := &http.Server{
+		Handler: mainHandler,
+		// ReadHeaderTimeout bounds how long a client may take to send request
+		// headers — the standard slowloris mitigation. IdleTimeout reaps idle
+		// keep-alive connections.
+		//
+		// ReadTimeout/WriteTimeout are deliberately left unset: this server also
+		// carries the long-lived WebSocket (/ws) and long-running pprof profiles
+		// (/debug/pprof/profile), which a whole-request deadline would sever. OTLP
+		// ingest runs on a separate listener (see startOTLPHTTP), so these
+		// timeouts never touch ingest payloads.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
 	// On signal: trigger graceful HTTP drain, then run shutdown tasks.
 	go func() {
