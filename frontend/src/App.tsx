@@ -19,6 +19,7 @@ import Settings from './pages/Settings'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
 import RouteErrorBoundary from './components/RouteErrorBoundary'
+import { Toaster } from 'sonner'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { useQuery } from '@tanstack/react-query'
 import { qk, useLiveInvalidation } from './lib/query'
@@ -237,6 +238,7 @@ function AppShell() {
       </main>
       <BottomBar />
       <IssueToast />
+      <Toaster position="bottom-right" offset={44} visibleToasts={3} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )
