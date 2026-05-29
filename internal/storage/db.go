@@ -425,7 +425,7 @@ type TraceFilter struct {
 }
 
 func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
-	if f.Limit <= 0 {
+	if f.Limit <= 0 || f.Limit > 1000 {
 		f.Limit = 100
 	}
 	if f.Page < 1 {
@@ -647,7 +647,7 @@ type LogFilter struct {
 }
 
 func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
-	if f.Limit <= 0 {
+	if f.Limit <= 0 || f.Limit > 1000 {
 		f.Limit = 500
 	}
 	if f.Page < 1 {

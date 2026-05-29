@@ -384,6 +384,34 @@ func TestListTracesPagination(t *testing.T) {
 	}
 }
 
+// An absurd Limit must be clamped to the default page size rather than honored,
+// so a single request can't trigger an unbounded scan.
+func TestListTracesLimitClamped(t *testing.T) {
+	db := openTestDB(t)
+
+	for i := range 150 {
+		span := rootSpan(
+			fmt.Sprintf("trace-%d", i),
+			fmt.Sprintf("span-%d", i),
+			"svc",
+			"",
+			"",
+			int64(1000*(i+1)),
+		)
+		if err := db.InsertSpan(span); err != nil {
+			t.Fatalf("InsertSpan %d: %v", i, err)
+		}
+	}
+
+	traces, err := db.ListTraces(TraceFilter{Limit: 1_000_000_000})
+	if err != nil {
+		t.Fatalf("ListTraces: %v", err)
+	}
+	if len(traces) != 100 {
+		t.Errorf("expected oversized limit to clamp to default 100, got %d", len(traces))
+	}
+}
+
 func TestGetSpanFound(t *testing.T) {
 	db := openTestDB(t)
 
