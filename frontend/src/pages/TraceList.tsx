@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useQueryState, parseAsStringLiteral } from 'nuqs'
 import { useQuery } from '@tanstack/react-query'
 import { DurBar } from '@/components/DurBar'
 import { qk } from '../lib/query'
@@ -332,10 +333,10 @@ function SbMore({ count }: { count: number }) {
 type QuickFilter = 'lint' | 'slow' | 'errors'
 
 export default function TraceList() {
-  const [searchParams] = useSearchParams()
-  const [filterService, setFilterService] = useState(searchParams.get('service') ?? 'all')
-  const [filterSession, setFilterSession] = useState<string | null>(null)
-  const [quickFilter, setQuickFilter] = useState<QuickFilter | null>(null)
+  // Filters live in the URL (typed, via nuqs) so they're shareable/bookmarkable.
+  const [filterService, setFilterService] = useQueryState('service', { defaultValue: 'all' })
+  const [filterSession, setFilterSession] = useQueryState('session')
+  const [quickFilter, setQuickFilter] = useQueryState('status', parseAsStringLiteral(['lint', 'slow', 'errors'] as const))
   const navigate = useNavigate()
 
   // Live refresh is driven centrally by useLiveInvalidation() in App.tsx, which

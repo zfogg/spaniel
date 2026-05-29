@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQueryState } from 'nuqs'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { api, type Span, type Session } from '@/lib/api'
@@ -268,11 +269,12 @@ function WaterfallColumn({
 // ── DiffPage ──────────────────────────────────────────────────────────────────
 
 export default function DiffPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  const [baselineId, setBaselineId] = useState(searchParams.get('baseline') ?? '')
-  const [compareId, setCompareId] = useState(searchParams.get('compare') ?? '')
+  // baseline/compare ids live in the URL (typed, via nuqs); setting them updates
+  // the query string and the diff query refetches off these keys.
+  const [baselineId, setBaselineId] = useQueryState('baseline', { defaultValue: '' })
+  const [compareId, setCompareId] = useQueryState('compare', { defaultValue: '' })
 
   // sessions list for the selectors
   const { data: sessions = [] } = useQuery({
@@ -302,10 +304,6 @@ export default function DiffPage() {
   function updateIds(newBaseline: string, newCompare: string) {
     setBaselineId(newBaseline)
     setCompareId(newCompare)
-    const params: Record<string, string> = {}
-    if (newBaseline) params.baseline = newBaseline
-    if (newCompare) params.compare = newCompare
-    setSearchParams(params)
   }
 
   function handleSwap() {

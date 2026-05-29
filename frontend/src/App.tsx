@@ -20,6 +20,7 @@ import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
 import RouteErrorBoundary from './components/RouteErrorBoundary'
 import { Toaster } from 'sonner'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { useQuery } from '@tanstack/react-query'
 import { qk, useLiveInvalidation } from './lib/query'
@@ -248,7 +249,9 @@ export default function App() {
   return (
     <TooltipProvider delay={300}>
       <BrowserRouter>
-        <AppShell />
+        <NuqsAdapter>
+          <AppShell />
+        </NuqsAdapter>
       </BrowserRouter>
     </TooltipProvider>
   )
