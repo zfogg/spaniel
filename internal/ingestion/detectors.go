@@ -3,23 +3,22 @@ package ingestion
 import (
 	"strings"
 
-	"vitess.io/vitess/go/vt/sqlparser"
+	"github.com/xwb1989/sqlparser"
 )
 
 // fingerprintSQL normalises a SQL statement by replacing all literal values
-// with ? using the Vitess SQL parser. Falls back to raw statement on parse error.
+// with ? using a lightweight SQL parser. Falls back to whitespace
+// normalisation on parse error (non-standard dialects, truncated statements,
+// non-SQL input). The parser exposes package-level Parse, so there is no
+// per-call parser construction.
 func fingerprintSQL(stmt string) string {
-	parser, err := sqlparser.New(sqlparser.Options{})
-	if err != nil {
-		return fallbackFingerprint(stmt)
-	}
-	parsed, err := parser.Parse(stmt)
+	parsed, err := sqlparser.Parse(stmt)
 	if err != nil {
 		return fallbackFingerprint(stmt)
 	}
 	buf := sqlparser.NewTrackedBuffer(func(buf *sqlparser.TrackedBuffer, node sqlparser.SQLNode) {
 		switch node.(type) {
-		case *sqlparser.Literal:
+		case *sqlparser.SQLVal:
 			buf.WriteString("?")
 		case sqlparser.ListArg:
 			buf.WriteString("(?)")
