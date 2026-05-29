@@ -78,6 +78,10 @@ func TestBroadcastReachesConnectedClient(t *testing.T) {
 	defer srv.Close()
 	defer conn.CloseNow() //nolint:errcheck
 
+	// Dial returns once the handshake completes, which can race the server's
+	// client registration; wait for it before broadcasting.
+	waitClients(t, h, 1)
+
 	ev := NewSpanEvent(&SpanPayload{
 		TraceID:     "trace-1",
 		SpanID:      "span-1",
@@ -152,6 +156,8 @@ func TestBroadcast_TypedEvents(t *testing.T) {
 	conn, srv := dialHub(t, h)
 	defer srv.Close()
 	defer conn.CloseNow() //nolint:errcheck
+
+	waitClients(t, h, 1)
 
 	events := []*Event{
 		NewSpanEvent(&SpanPayload{TraceID: "t1", SpanID: "s1"}),
