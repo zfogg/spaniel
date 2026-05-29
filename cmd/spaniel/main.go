@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -897,31 +898,31 @@ func wrapTLS(lns []net.Listener, tlsCfg *tls.Config) []net.Listener {
 	return wrapped
 }
 
-// serveHTTP serves h on every listener, blocking until the first one returns.
+// serveHTTP serves h on every listener, returning the first error once all
+// listeners have stopped (they are closed together on shutdown / port swap).
 func serveHTTP(lns []net.Listener, h http.Handler) error {
-	errc := make(chan error, len(lns))
+	var g errgroup.Group
 	for _, ln := range lns {
-		go func(ln net.Listener) { errc <- http.Serve(ln, h) }(ln)
+		g.Go(func() error { return http.Serve(ln, h) })
 	}
-	return <-errc
+	return g.Wait()
 }
 
-// serveAll serves srv on every listener, blocking until all return.  This is
-// the graceful-shutdown variant: callers drive shutdown via srv.Shutdown(ctx)
-// rather than closing listeners directly.
+// serveAll serves srv on every listener, returning the first error once all
+// listeners have stopped. This is the graceful-shutdown variant: callers drive
+// shutdown via srv.Shutdown(ctx) rather than closing listeners directly, so
+// the expected http.ErrServerClosed is treated as a clean stop.
 func serveAll(lns []net.Listener, srv *http.Server) error {
-	errc := make(chan error, len(lns))
+	var g errgroup.Group
 	for _, ln := range lns {
-		ln := ln
-		go func() { errc <- srv.Serve(ln) }()
+		g.Go(func() error {
+			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+				return err
+			}
+			return nil
+		})
 	}
-	var first error
-	for range lns {
-		if err := <-errc; err != nil && err != http.ErrServerClosed && first == nil {
-			first = err
-		}
-	}
-	return first
+	return g.Wait()
 }
 
 func printBanner(cfg runConfig) {
