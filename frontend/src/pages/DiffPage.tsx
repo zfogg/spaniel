@@ -8,6 +8,7 @@ import { fmtNs, svcColor, flatten } from '@/lib/span-utils'
 import { diffStatusFor, layoutSpan, columnWindow, sharedWindowNs, type DiffStatus } from '@/lib/diff-layout'
 import { updateDiffHistoryDeltas } from '@/lib/diff-history'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -283,11 +284,12 @@ export default function DiffPage() {
   })
 
   // diff refetches automatically whenever both ids are set (they're in the key)
-  const { data: diff = null, isFetching: loading } = useQuery({
+  const { data: diff = null, isFetching: loading, isError, error, refetch } = useQuery({
     queryKey: ['diff', baselineId, compareId],
     enabled: !!baselineId && !!compareId,
     queryFn: async () => {
       const res = await fetch(`/api/diff?baseline=${baselineId}&compare=${compareId}`)
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
       const json = await res.json()
       const result = json.data as DiffResult | null
       if (result?.summary) {
@@ -426,6 +428,8 @@ export default function DiffPage() {
           <div className="flex-1 flex items-center justify-center font-mono text-[13px] text-ink3">
             computing diff…
           </div>
+        ) : isError ? (
+          <ErrorState what="the diff" error={error} onRetry={() => refetch()} />
         ) : !baselineId || !compareId ? (
           <EmptyState
             title="No diff yet"

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
@@ -336,7 +337,7 @@ export default function LogViewer() {
   // Logs + services come from queries; live log events refresh them via
   // useLiveInvalidation() in App.tsx (throttled), replacing the old initial
   // load + 3s poll + WebSocket-push + client-side dedup machinery.
-  const { data: logs = [], isLoading: loading } = useQuery({
+  const { data: logs = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.logs({}),
     queryFn: () => api.logs.list({}).then(r => r.data ?? []),
   })
@@ -421,6 +422,8 @@ export default function LogViewer() {
             <div className="flex items-center justify-center flex-1 font-mono text-xs text-ink3">
               loading…
             </div>
+          ) : isError ? (
+            <ErrorState what="logs" error={error} onRetry={() => refetch()} />
           ) : filtered.length === 0 ? (
             <EmptyState
               title="No logs yet"

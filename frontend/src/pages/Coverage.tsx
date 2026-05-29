@@ -4,6 +4,7 @@ import { qk } from '@/lib/query'
 import { api, ServiceCoverage, CoverageRoute } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 
 type Filter = 'all' | 'dark' | 'observed'
 
@@ -268,7 +269,7 @@ export default function Coverage() {
   const [selected, setSelected] = useState<{ svc: string; route: CoverageRoute } | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
-  const { data: report = null, isLoading: loading } = useQuery({
+  const { data: report = null, isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.coverage(),
     queryFn: () => api.coverage.get().then(r => r.data),
   })
@@ -279,6 +280,10 @@ export default function Coverage() {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Loading coverage…</div>
     )
+  }
+
+  if (isError) {
+    return <ErrorState what="coverage" error={error} onRetry={() => refetch()} />
   }
 
   if (!report || report.services.length === 0) {

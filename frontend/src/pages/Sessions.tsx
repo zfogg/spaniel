@@ -13,6 +13,7 @@ import {
   readDiffHistory,
 } from "@/lib/diff-history";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import { isBranchLabel, fmtSessionSize, fmtP95 } from "@/lib/session-utils";
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -748,7 +749,7 @@ export default function Sessions() {
   // mount — the route remounts on navigation, so revisiting re-reads it.
   const [diffHistory] = useState<DiffHistoryEntry[]>(() => readDiffHistory());
 
-  const { data: sessions = [], isLoading: loading } = useQuery({
+  const { data: sessions = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.sessions(),
     queryFn: () => api.sessions.list().then((r) => r.data ?? []),
   });
@@ -997,6 +998,12 @@ export default function Sessions() {
               ? (
                 <div className="px-4 py-6 font-mono text-xs text-ink3 bg-surface border border-line border-t-0 rounded-b-[10px]">
                   loading…
+                </div>
+              )
+              : isError
+              ? (
+                <div className="bg-surface border border-line border-t-0 rounded-b-[10px]">
+                  <ErrorState what="sessions" error={error} onRetry={() => refetch()} />
                 </div>
               )
               : filteredSessions.length === 0

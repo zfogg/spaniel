@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { api } from '@/lib/api'
 import TraceWaterfall from '@/components/TraceWaterfall'
+import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 
 function ShareIcon() {
   return (
@@ -51,7 +53,7 @@ export default function TraceDetail() {
   const [copied, setCopied]     = useState(false)
   const copiedTimer             = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { data: spans = [], isLoading: loading } = useQuery({
+  const { data: spans = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.trace(traceId ?? ''),
     queryFn: () => api.traces.get(traceId!).then(r => r.data ?? []),
     enabled: !!traceId,
@@ -126,6 +128,13 @@ export default function TraceDetail() {
         <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">
           Loading…
         </div>
+      ) : isError ? (
+        <ErrorState what="this trace" error={error} onRetry={() => refetch()} />
+      ) : spans.length === 0 ? (
+        <EmptyState
+          title="Trace not found"
+          hint="This trace has no spans — it may have aged out of retention, or the id is wrong."
+        />
       ) : (
         <div className="flex-1 overflow-hidden">
           <TraceWaterfall

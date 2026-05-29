@@ -4,6 +4,7 @@ import { qk } from '@/lib/query'
 import { useNavigate } from 'react-router-dom'
 import { api, ServiceMapNode, ServiceMapEdge, SourceStats } from '@/lib/api'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 
 // ── palette (same hash as TraceWaterfall) ─────────────────────────────────────
 
@@ -501,7 +502,7 @@ export default function ServiceMap() {
 
   // sessionId is part of the request (in the key); span events refresh the map
   // via useLiveInvalidation() in App.tsx. Sources keep their own 2s poll.
-  const { data = { nodes: [], edges: [] }, isLoading: loading } = useQuery({
+  const { data = { nodes: [], edges: [] }, isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.serviceMap(sessionId || undefined),
     queryFn: () => api.serviceMap.get(sessionId || undefined).then(r => r.data ?? { nodes: [], edges: [] }),
   })
@@ -684,6 +685,10 @@ export default function ServiceMap() {
           {loading ? (
             <div className="absolute inset-0 flex items-center justify-center font-mono text-[13px] text-muted-foreground">
               Loading…
+            </div>
+          ) : isError ? (
+            <div className="absolute inset-0">
+              <ErrorState what="the service map" error={error} onRetry={() => refetch()} />
             </div>
           ) : nodes.length === 0 ? (
             <Empty />

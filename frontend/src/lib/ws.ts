@@ -45,7 +45,12 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
         const ev = JSON.parse(e.data)
         if (typeof ev?.type !== 'string') return
         onEvent(ev as WsEvent)
-      } catch {}
+      } catch (err) {
+        // A malformed frame is a backend bug, not something to silently eat —
+        // log it (with a snippet of the payload) so it's debuggable, but keep
+        // the socket alive so one bad frame doesn't kill the live stream.
+        console.error('[ws] dropping malformed message', err, String(e.data).slice(0, 200))
+      }
     }
 
     ws.onclose = () => {

@@ -10,6 +10,7 @@ import { api, type SpanRow } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 
 // Global search: matches a span on its name, service, trace/span id, or any
@@ -231,7 +232,7 @@ export default function Spans() {
 
   // sort is part of the server request, so it goes in the query key; live span
   // events refresh this via useLiveInvalidation() in App.tsx.
-  const { data: spans = [], isLoading: loading } = useQuery({
+  const { data: spans = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.spans({ sort: sortBy }),
     queryFn: () => api.spans.list({ sort: sortBy }).then(r => r.data),
   })
@@ -424,6 +425,8 @@ export default function Spans() {
         <div className="flex-1 overflow-x-hidden overflow-y-auto">
           {loading ? (
             <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">loading…</div>
+          ) : isError ? (
+            <ErrorState what="spans" error={error} onRetry={() => refetch()} />
           ) : filtered.length === 0 ? (
             spans.length === 0 ? (
               <EmptyState

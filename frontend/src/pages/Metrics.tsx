@@ -8,6 +8,7 @@ import { bucketPoints, type BucketedSeries, type MetricType } from '@/lib/metric
 import { fmtVal, statsFor, type Stat } from '@/lib/metrics-format'
 import { xPosForTrace, valueAtBin } from '@/lib/metrics-correlate'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 
 // ── icons ────────────────────────────────────────────────────────────────────
 
@@ -306,7 +307,7 @@ export default function Metrics() {
   const [typeSel, setTypeSel] = useState<MetricType | null>(null)
   const [range, setRange] = useState<TimeRange>('1h')
 
-  const { data: catalog = [], isLoading: loading } = useQuery({
+  const { data: catalog = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.metrics(),
     queryFn: () => api.metrics.list().then(r => r.data ?? []),
   })
@@ -349,6 +350,10 @@ export default function Metrics() {
         Loading metrics…
       </div>
     )
+  }
+
+  if (isError) {
+    return <ErrorState what="metrics" error={error} onRetry={() => refetch()} />
   }
 
   if (catalog.length === 0) {

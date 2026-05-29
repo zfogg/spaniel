@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { api, LintWarning, TraceIssue } from '@/lib/api'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ function kindLabel(kind: string): string {
 }
 
 export default function LintPage() {
-  const { data: warnings = [], isLoading: lintLoading } = useQuery({
+  const { data: warnings = [], isLoading: lintLoading, isError: lintError, error: lintErr, refetch } = useQuery({
     queryKey: qk.lint(),
     queryFn: () => api.lint.list().then(r => r.data ?? []),
   })
@@ -208,7 +209,10 @@ export default function LintPage() {
         {loading && (
           <div className="px-[18px] py-8 font-mono text-xs text-ink3">Loading…</div>
         )}
-        {!loading && warnings.length === 0 && (
+        {!loading && lintError && (
+          <ErrorState what="lint results" error={lintErr} onRetry={() => refetch()} />
+        )}
+        {!loading && !lintError && warnings.length === 0 && (
           <EmptyState
             title="All clean!"
             hint="No semconv violations or N+1s detected."

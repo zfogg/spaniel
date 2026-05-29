@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryState, parseAsStringLiteral } from 'nuqs'
 import { useQuery } from '@tanstack/react-query'
 import { DurBar } from '@/components/DurBar'
+import ErrorState from '@/components/ErrorState'
 import { qk } from '../lib/query'
 import { api, TraceRow } from '../lib/api'
 import { traceTag } from '../lib/trace-tag'
@@ -342,7 +343,7 @@ export default function TraceList() {
   // Live refresh is driven centrally by useLiveInvalidation() in App.tsx, which
   // invalidates the 'traces' key on span events (throttled), so this query
   // re-fetches automatically instead of optimistically prepending rows here.
-  const { data: traces = [], isLoading: loading } = useQuery({
+  const { data: traces = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.traces(),
     queryFn: () => api.traces.list().then(r => r.data ?? []),
   })
@@ -386,6 +387,14 @@ export default function TraceList() {
 
   if (loading) {
     return <div className="p-8 text-muted-foreground text-sm">Loading…</div>
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-full flex-col">
+        <ErrorState what="traces" error={error} onRetry={() => refetch()} />
+      </div>
+    )
   }
 
   if (traces.length === 0) {
