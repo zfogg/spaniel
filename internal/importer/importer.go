@@ -52,9 +52,14 @@ func Import(store *storage.DB, label string, format Format, data []byte) (*Resul
 	}
 
 	for _, s := range spans {
-		if err := store.InsertSpan(s); err != nil {
+		if err := store.AppendSpan(s); err != nil {
 			return nil, fmt.Errorf("insert span: %w", err)
 		}
+	}
+	// Flush the batched appends so the imported spans are durable before we
+	// return — the caller reads back session stats immediately.
+	if err := store.FlushBatch(); err != nil {
+		return nil, fmt.Errorf("flush spans: %w", err)
 	}
 
 	traceIDs := make(map[string]struct{}, len(spans))
