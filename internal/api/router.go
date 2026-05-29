@@ -430,10 +430,12 @@ func (r *Router) listSessions(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) createSession(w http.ResponseWriter, req *http.Request) {
 	var body struct {
-		Label      string `json:"label"`
+		Label      string `json:"label" validate:"max=200"`
 		IsBaseline bool   `json:"is_baseline"`
 	}
-	json.NewDecoder(req.Body).Decode(&body) //nolint:errcheck
+	if !decodeAndValidate(w, req, &body) {
+		return
+	}
 	sess, err := r.store.CreateSession(body.Label, body.IsBaseline)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -459,11 +461,10 @@ func (r *Router) getSession(w http.ResponseWriter, req *http.Request) {
 func (r *Router) patchSession(w http.ResponseWriter, req *http.Request) {
 	sessionID := chi.URLParam(req, "sessionId")
 	var body struct {
-		Label *string `json:"label"`
-		Note  *string `json:"note"`
+		Label *string `json:"label" validate:"omitempty,max=200"`
+		Note  *string `json:"note" validate:"omitempty,max=10000"`
 	}
-	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-		respondErr(w, req, 400, "invalid JSON")
+	if !decodeAndValidate(w, req, &body) {
 		return
 	}
 	if err := r.store.UpdateSession(sessionID, storage.SessionPatch{
@@ -512,7 +513,9 @@ func (r *Router) baselineSession(w http.ResponseWriter, req *http.Request) {
 	var body struct {
 		IsBaseline bool `json:"is_baseline"`
 	}
-	json.NewDecoder(req.Body).Decode(&body) //nolint:errcheck
+	if !decodeAndValidate(w, req, &body) {
+		return
+	}
 	if err := r.store.SetBaseline(sessionID, body.IsBaseline); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
