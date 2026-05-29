@@ -11,6 +11,7 @@ require (
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-gormigrate/gormigrate/v2 v2.1.6
 	github.com/go-playground/validator/v10 v10.30.2
+	github.com/goccy/go-json v0.10.6
 	github.com/google/uuid v1.6.0
 	github.com/marcboeker/go-duckdb v1.8.5
 	github.com/spf13/cobra v1.10.2
@@ -59,7 +60,6 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect

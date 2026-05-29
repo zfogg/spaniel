@@ -1,11 +1,11 @@
 package ingestion
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 
+	json "github.com/goccy/go-json"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 

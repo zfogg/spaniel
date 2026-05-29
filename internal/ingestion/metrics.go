@@ -1,9 +1,9 @@
 package ingestion
 
 import (
-	"encoding/json"
 	"time"
 
+	json "github.com/goccy/go-json"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
