@@ -7,6 +7,7 @@ import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtN
 import { computeLayout, detectN1SpanIds, n1BannerEntries, n1IssueForSpan } from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
 import TraceGraph from '@/components/TraceGraph'
+import JsonView from '@/components/JsonView'
 
 // ── layout constants ──────────────────────────────────────────────────────────
 
@@ -854,7 +855,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
                 <span className="flex-1" />
                 <span className="normal-case tracking-normal">{attrEntries.length}</span>
               </div>
-              <AttrGrid entries={attrEntries} />
+              <JsonView data={attrs} />
             </>
           )}
           {resEntries.length > 0 && (
@@ -862,7 +863,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
               <div className="px-3.5 pt-3 pb-[5px] font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
                 resource
               </div>
-              <AttrGrid entries={resEntries} />
+              <JsonView data={Object.fromEntries(resEntries)} />
             </>
           )}
           <SpanEventsList spanId={span.span_id} spanStartNs={span.start_ns} />
@@ -880,30 +881,6 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
         <SpanLogs spanId={span.span_id} />
       )}
     </aside>
-  )
-}
-
-function AttrGrid({ entries }: { entries: [string, unknown][] }) {
-  return (
-    <div className="px-1.5 pb-1.5">
-      {entries.map(([k, v]) => (
-        <div
-          key={k}
-          className="grid gap-2 px-2 py-1 rounded"
-          style={{ gridTemplateColumns: '1fr 1.4fr' }}
-        >
-          <div className="font-mono text-[10.5px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
-            {k}
-          </div>
-          <div
-            className="font-mono text-[10.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
-            title={String(v)}
-          >
-            {String(v)}
-          </div>
-        </div>
-      ))}
-    </div>
   )
 }
 

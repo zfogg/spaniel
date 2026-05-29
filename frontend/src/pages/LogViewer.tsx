@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
+import JsonView from '@/components/JsonView'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
@@ -286,14 +287,7 @@ function LogInspector({ log, onClose, navigate }: {
             none
           </div>
         ) : (
-          <div
-            className="grid gap-y-[3px] gap-x-2.5 font-mono text-[11px]"
-            style={{ gridTemplateColumns: 'auto 1fr' }}
-          >
-            {attrEntries.map(([k, v]) => (
-              <Attribute key={k} k={k} v={v} />
-            ))}
-          </div>
+          <JsonView data={attrs} />
         )}
 
         {/* trace + span IDs */}
@@ -328,15 +322,6 @@ function LogInspector({ log, onClose, navigate }: {
   )
 }
 
-function Attribute({ k, v }: { k: string; v: unknown }) {
-  const text = typeof v === 'string' ? v : JSON.stringify(v)
-  return (
-    <>
-      <span className="text-ink3 whitespace-nowrap">{k}</span>
-      <span className="text-ink2 break-words">{text}</span>
-    </>
-  )
-}
 
 // ── LogViewer ─────────────────────────────────────────────────────────────────
 

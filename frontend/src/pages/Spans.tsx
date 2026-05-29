@@ -10,6 +10,7 @@ import { api, type SpanRow } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
+import JsonView from '@/components/JsonView'
 
 // Global search: matches a span on its name, service, trace/span id, or any
 // attribute key/value. Used as the react-table globalFilterFn.
@@ -206,37 +207,11 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
             {entries.length} keys
           </span>
         </div>
-        <div className="pt-1 px-2.5 pb-3.5">
-          {entries.map(([k, v]) => {
-            const isError = k === 'error' && v
-            const valueColor =
-              typeof v === 'boolean'
-                ? (v ? '#3e6a3e' : 'var(--muted-foreground)')
-                : typeof v === 'number'
-                  ? 'var(--accent, #6366f1)'
-                  : 'var(--foreground)'
-            return (
-              <div
-                key={k}
-                className="grid gap-2 px-2 py-[5px] rounded-[5px] items-baseline"
-                style={{ gridTemplateColumns: 'minmax(120px, 0.9fr) minmax(0, 1.1fr)' }}
-              >
-                <div className="font-mono text-[10.5px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">{k}</div>
-                <div
-                  className="font-mono text-[10.5px] overflow-hidden text-ellipsis whitespace-nowrap py-px px-1 rounded-[3px] justify-self-start"
-                  style={{
-                    color: valueColor,
-                    background: isError ? 'color-mix(in oklch, var(--destructive, #c0392b) 14%, transparent)' : 'transparent',
-                  }}
-                  title={String(v)}
-                >
-                  {typeof v === 'string' ? `"${v}"` : String(v)}
-                </div>
-              </div>
-            )
-          })}
-          {entries.length === 0 && (
-            <div className="px-2 py-3 font-mono text-[10.5px] text-muted-foreground">no attributes</div>
+        <div className="pt-1 pb-3.5">
+          {entries.length > 0 ? (
+            <JsonView data={attrs} />
+          ) : (
+            <div className="px-4 py-3 font-mono text-[10.5px] text-muted-foreground">no attributes</div>
           )}
         </div>
       </div>

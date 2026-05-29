@@ -41,6 +41,7 @@
     "react-dom": "^18.3.1",
     "react-error-boundary": "^6.1.2",
     "react-hook-form": "^7.76.1",
+    "react-json-view-lite": "^2.5.0",
     "react-router-dom": "^7.1.1",
     "reactflow": "^11.11.4",
     "shadcn": "^4.8.0",
