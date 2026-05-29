@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -8,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 )
 
 func TestConcurrentBroadcast(t *testing.T) {
@@ -20,22 +21,22 @@ func TestConcurrentBroadcast(t *testing.T) {
 
 	const numClients = 3
 	conns := make([]*websocket.Conn, numClients)
-	for i := 0; i < numClients; i++ {
-		c, _, err := websocket.DefaultDialer.Dial(wsBase, nil)
+	for i := range numClients {
+		c, _, err := websocket.Dial(context.Background(), wsBase, nil)
 		if err != nil {
 			t.Fatalf("dial client %d: %v", i, err)
 		}
 		conns[i] = c
-		defer c.Close()
+		defer c.CloseNow() //nolint:errcheck
 	}
 
-	// Wait briefly for hub to register all clients.
-	time.Sleep(50 * time.Millisecond)
+	// Wait for the hub to register all clients.
+	waitClients(t, h, numClients)
 
 	const numBroadcasts = 10
 	var wg sync.WaitGroup
 	wg.Add(numBroadcasts)
-	for i := 0; i < numBroadcasts; i++ {
+	for i := range numBroadcasts {
 		idx := i
 		go func() {
 			defer wg.Done()
@@ -46,16 +47,16 @@ func TestConcurrentBroadcast(t *testing.T) {
 	}
 	wg.Wait()
 
-	for i, c := range conns {
-		c.SetReadDeadline(time.Now().Add(200 * time.Millisecond)) //nolint:errcheck
+	for _, c := range conns {
 		for {
-			_, _, err := c.ReadMessage()
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			_, _, err := c.Read(ctx)
+			cancel()
 			if err != nil {
 				// Timeout or close is expected once messages are drained.
 				break
 			}
 		}
-		_ = i
 	}
 }
 
@@ -65,25 +66,9 @@ func TestBroadcastAfterAllClientsGone(t *testing.T) {
 	conn, srv := dialHub(t, h)
 	defer srv.Close()
 
-	conn.Close()
+	conn.CloseNow() //nolint:errcheck
 
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		h.mu.RLock()
-		n := len(h.clients)
-		h.mu.RUnlock()
-		if n == 0 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	h.mu.RLock()
-	n := len(h.clients)
-	h.mu.RUnlock()
-	if n != 0 {
-		t.Fatalf("expected 0 clients after disconnect, got %d", n)
-	}
+	waitClients(t, h, 0)
 
 	h.Broadcast(NewSpanEvent(&SpanPayload{TraceID: "after-gone"}))
 }

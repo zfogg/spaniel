@@ -7,14 +7,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
+const (
+	// clientSendBuffer is how many queued messages a single client may fall
+	// behind by before it is considered too slow and dropped. Sized to absorb
+	// short bursts without unbounded memory growth.
+	clientSendBuffer = 256
+	// writeTimeout bounds a single frame write so one stalled client cannot
+	// wedge its writer goroutine forever.
+	writeTimeout = 5 * time.Second
+)
 
 // Typed payload structs
 
@@ -101,9 +107,20 @@ func NewThroughputEvent(p *ThroughputPayload) *Event {
 	return &Event{Type: "throughput", Timestamp: time.Now().UnixNano(), Payload: p}
 }
 
+// client is one connected WebSocket peer. Each has a buffered send channel
+// drained by a dedicated writer goroutine, so a slow consumer never blocks
+// Broadcast (and therefore never blocks the ingestion goroutines that call it).
+// cancel tears the connection down — invoked when the buffer overflows, a write
+// fails, or the peer disconnects.
+type client struct {
+	conn   *websocket.Conn
+	send   chan []byte
+	cancel context.CancelFunc
+}
+
 type Hub struct {
 	mu      sync.RWMutex
-	clients map[*websocket.Conn]struct{}
+	clients map[*client]struct{}
 
 	bytesSent     metric.Int64Counter
 	bytesReceived metric.Int64Counter
@@ -120,7 +137,7 @@ func NewHub() *Hub {
 		metric.WithUnit("By"),
 	)
 	h := &Hub{
-		clients:       make(map[*websocket.Conn]struct{}),
+		clients:       make(map[*client]struct{}),
 		bytesSent:     sent,
 		bytesReceived: received,
 	}
@@ -138,29 +155,73 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		// spaniel is a local dev tool; accept any origin (mirrors the previous
+		// gorilla CheckOrigin → true).
+		InsecureSkipVerify: true,
+	})
 	if err != nil {
 		return
 	}
+
+	// Connection lifetime is governed by this context, independent of the HTTP
+	// request (which coder/websocket detaches after Accept).
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &client{
+		conn:   conn,
+		send:   make(chan []byte, clientSendBuffer),
+		cancel: cancel,
+	}
+
 	h.mu.Lock()
-	h.clients[conn] = struct{}{}
+	h.clients[c] = struct{}{}
 	h.mu.Unlock()
 
-	go func() {
-		defer func() {
-			h.mu.Lock()
-			delete(h.clients, conn)
-			h.mu.Unlock()
-			conn.Close()
-		}()
-		for {
-			_, msg, err := conn.ReadMessage()
-			if err != nil {
-				break
-			}
-			h.bytesReceived.Add(context.Background(), int64(len(msg)))
+	// The writer goroutine owns all writes (coder/websocket forbids concurrent
+	// writes). readPump blocks here for the connection's lifetime, keeping the
+	// HTTP handler alive until the peer disconnects or the client is dropped.
+	go h.writePump(ctx, c)
+	h.readPump(ctx, c)
+
+	cancel()
+	h.mu.Lock()
+	delete(h.clients, c)
+	h.mu.Unlock()
+	_ = conn.CloseNow()
+}
+
+// readPump drains inbound frames (clients don't send anything meaningful; this
+// is for byte accounting and to observe the close handshake) until the
+// connection errors or ctx is canceled.
+func (h *Hub) readPump(ctx context.Context, c *client) {
+	for {
+		_, data, err := c.conn.Read(ctx)
+		if err != nil {
+			return
 		}
-	}()
+		h.bytesReceived.Add(ctx, int64(len(data)))
+	}
+}
+
+// writePump is the single writer for a client, draining its send buffer. A
+// write failure (or canceled ctx) cancels the client so readPump unblocks and
+// ServeWS tears the connection down.
+func (h *Hub) writePump(ctx context.Context, c *client) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case data := <-c.send:
+			writeCtx, cancel := context.WithTimeout(ctx, writeTimeout)
+			err := c.conn.Write(writeCtx, websocket.MessageText, data)
+			cancel()
+			if err != nil {
+				c.cancel()
+				return
+			}
+			h.bytesSent.Add(ctx, int64(len(data)))
+		}
+	}
 }
 
 func (h *Hub) Broadcast(ev *Event) {
@@ -168,10 +229,17 @@ func (h *Hub) Broadcast(ev *Event) {
 	if err != nil {
 		return
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for conn := range h.clients {
-		conn.WriteMessage(websocket.TextMessage, data) //nolint:errcheck
+	// RLock: broadcasts run concurrently and only enqueue into per-client
+	// buffered channels — they never write to the socket directly, so a slow
+	// client can't stall this loop. A client whose buffer is full is dropped
+	// (cancel triggers async teardown) rather than blocking everyone.
+	h.mu.RLock()
+	for c := range h.clients {
+		select {
+		case c.send <- data:
+		default:
+			c.cancel()
+		}
 	}
-	h.bytesSent.Add(context.Background(), int64(len(data))*int64(len(h.clients)))
+	h.mu.RUnlock()
 }

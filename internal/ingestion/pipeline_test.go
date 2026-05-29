@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
@@ -25,7 +25,7 @@ func dialPipelineHub(t *testing.T, h *ws.Hub) (*websocket.Conn, *httptest.Server
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(h.ServeWS))
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, _, err := websocket.Dial(context.Background(), wsURL, nil)
 	if err != nil {
 		srv.Close()
 		t.Fatalf("dial ws: %v", err)
@@ -384,7 +384,7 @@ func TestPipeline_BroadcastsLog(t *testing.T) {
 	hub := ws.NewHub()
 	conn, srv := dialPipelineHub(t, hub)
 	defer srv.Close()
-	defer conn.Close()
+	defer conn.CloseNow() //nolint:errcheck
 
 	p := NewPipeline(db, hub)
 
@@ -400,9 +400,10 @@ func TestPipeline_BroadcastsLog(t *testing.T) {
 	}
 
 	// Read frames until we find a "log" event (span broadcasts may arrive first)
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	readCtx, readCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer readCancel()
 	for {
-		_, msg, err := conn.ReadMessage()
+		_, msg, err := conn.Read(readCtx)
 		if err != nil {
 			t.Fatalf("read message: %v", err)
 		}
@@ -433,7 +434,7 @@ func TestPipeline_BroadcastsMetric(t *testing.T) {
 	hub := ws.NewHub()
 	conn, srv := dialPipelineHub(t, hub)
 	defer srv.Close()
-	defer conn.Close()
+	defer conn.CloseNow() //nolint:errcheck
 
 	p := NewPipeline(db, hub)
 
@@ -451,9 +452,10 @@ func TestPipeline_BroadcastsMetric(t *testing.T) {
 		t.Fatalf("IngestMetrics: %v", err)
 	}
 
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	readCtx, readCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer readCancel()
 	for {
-		_, msg, err := conn.ReadMessage()
+		_, msg, err := conn.Read(readCtx)
 		if err != nil {
 			t.Fatalf("read message: %v", err)
 		}

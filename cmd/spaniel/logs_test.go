@@ -9,27 +9,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 )
 
-// newWSPusher returns a server that upgrades and immediately pushes the given
-// frames. Shared with watch_test.go — the streaming subcommands all consume
-// the same WS shape.
+// newWSPusher returns a server that accepts a WS connection and immediately
+// pushes the given frames. Shared with watch_test.go — the streaming
+// subcommands all consume the same WS shape.
 func newWSPusher(t *testing.T, frames []map[string]any) (*httptest.Server, *sync.WaitGroup) {
 	t.Helper()
 	var wg sync.WaitGroup
 	wg.Add(1)
-	up := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer wg.Done()
-		conn, err := up.Upgrade(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer conn.CloseNow() //nolint:errcheck
 		for _, f := range frames {
 			data, _ := json.Marshal(f)
-			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			if err := conn.Write(r.Context(), websocket.MessageText, data); err != nil {
 				return
 			}
 		}

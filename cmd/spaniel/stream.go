@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 )
 
 // streamEvent mirrors ws.Event with raw payload bytes so each subcommand can
@@ -27,28 +27,27 @@ func streamWS(ctx context.Context, apiBase string) (<-chan streamEvent, <-chan e
 	if err != nil {
 		return nil, nil, err
 	}
-	dialer := websocket.DefaultDialer
-	dialer.HandshakeTimeout = 5 * time.Second
-
-	conn, _, err := dialer.DialContext(ctx, wsURL+"/ws", nil)
+	// coder/websocket uses the dial context only for the handshake; bound it
+	// with a 5s timeout, then read with the long-lived stream context.
+	dialCtx, dialCancel := context.WithTimeout(ctx, 5*time.Second)
+	conn, _, err := websocket.Dial(dialCtx, wsURL+"/ws", nil)
+	dialCancel()
 	if err != nil {
 		return nil, nil, fmt.Errorf("dial %s: %w", wsURL, err)
 	}
+	conn.SetReadLimit(-1) // server events (large attribute JSON, log bodies) may exceed the 32KB default
 
 	out := make(chan streamEvent, 64)
 	errCh := make(chan error, 1)
 
 	go func() {
-		<-ctx.Done()
-		conn.Close()
-	}()
-
-	go func() {
 		defer close(out)
 		defer close(errCh)
-		defer conn.Close()
+		defer conn.CloseNow()
+		// conn.Read returns once ctx is canceled, so no separate closer goroutine
+		// is needed.
 		for {
-			_, data, err := conn.ReadMessage()
+			_, data, err := conn.Read(ctx)
 			if err != nil {
 				if ctx.Err() == nil {
 					errCh <- err

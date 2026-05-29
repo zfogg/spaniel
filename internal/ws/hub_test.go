@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 )
 
 func TestNewHub(t *testing.T) {
@@ -31,7 +32,7 @@ func dialHub(t *testing.T, h *Hub) (*websocket.Conn, *httptest.Server) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(h.ServeWS))
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, _, err := websocket.Dial(context.Background(), wsURL, nil)
 	if err != nil {
 		srv.Close()
 		t.Fatalf("dial ws: %v", err)
@@ -39,11 +40,43 @@ func dialHub(t *testing.T, h *Hub) (*websocket.Conn, *httptest.Server) {
 	return conn, srv
 }
 
+// readMsg reads one message with a 1s deadline, failing the test on error.
+func readMsg(t *testing.T, conn *websocket.Conn) []byte {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, msg, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("read message: %v", err)
+	}
+	return msg
+}
+
+// waitClients blocks until the hub reports exactly n clients, or fails after
+// 500ms.
+func waitClients(t *testing.T, h *Hub, n int) {
+	t.Helper()
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		h.mu.RLock()
+		got := len(h.clients)
+		h.mu.RUnlock()
+		if got == n {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	h.mu.RLock()
+	got := len(h.clients)
+	h.mu.RUnlock()
+	t.Fatalf("expected %d clients, got %d", n, got)
+}
+
 func TestBroadcastReachesConnectedClient(t *testing.T) {
 	h := NewHub()
 	conn, srv := dialHub(t, h)
 	defer srv.Close()
-	defer conn.Close()
+	defer conn.CloseNow() //nolint:errcheck
 
 	ev := NewSpanEvent(&SpanPayload{
 		TraceID:     "trace-1",
@@ -55,11 +88,7 @@ func TestBroadcastReachesConnectedClient(t *testing.T) {
 	})
 	h.Broadcast(ev)
 
-	conn.SetReadDeadline(time.Now().Add(time.Second)) //nolint:errcheck
-	_, msg, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("read message: %v", err)
-	}
+	msg := readMsg(t, conn)
 
 	var got struct {
 		Type    string      `json:"type"`
@@ -83,27 +112,25 @@ func TestBroadcastReachesMultipleClients(t *testing.T) {
 	h := NewHub()
 	conn1, srv := dialHub(t, h)
 	defer srv.Close()
-	defer conn1.Close()
+	defer conn1.CloseNow() //nolint:errcheck
 
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
-	conn2, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn2, _, err := websocket.Dial(context.Background(), wsURL, nil)
 	if err != nil {
 		t.Fatalf("dial second client: %v", err)
 	}
-	defer conn2.Close()
+	defer conn2.CloseNow() //nolint:errcheck
+
+	// Wait for both clients to register before broadcasting.
+	waitClients(t, h, 2)
 
 	h.Broadcast(NewSpanEvent(&SpanPayload{TraceID: "multi"}))
 
 	for _, c := range []*websocket.Conn{conn1, conn2} {
-		c.SetReadDeadline(time.Now().Add(time.Second)) //nolint:errcheck
-		_, msg, err := c.ReadMessage()
-		if err != nil {
-			t.Fatalf("client read: %v", err)
-		}
 		var got struct {
 			Payload SpanPayload `json:"payload"`
 		}
-		json.Unmarshal(msg, &got) //nolint:errcheck
+		json.Unmarshal(readMsg(t, c), &got) //nolint:errcheck
 		if got.Payload.TraceID != "multi" {
 			t.Errorf("expected TraceID=multi, got %q", got.Payload.TraceID)
 		}
@@ -115,26 +142,16 @@ func TestClientRemovedOnDisconnect(t *testing.T) {
 	conn, srv := dialHub(t, h)
 	defer srv.Close()
 
-	conn.Close()
+	conn.CloseNow() //nolint:errcheck
 
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		h.mu.RLock()
-		n := len(h.clients)
-		h.mu.RUnlock()
-		if n == 0 {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Error("client not removed from hub after disconnect")
+	waitClients(t, h, 0)
 }
 
 func TestBroadcast_TypedEvents(t *testing.T) {
 	h := NewHub()
 	conn, srv := dialHub(t, h)
 	defer srv.Close()
-	defer conn.Close()
+	defer conn.CloseNow() //nolint:errcheck
 
 	events := []*Event{
 		NewSpanEvent(&SpanPayload{TraceID: "t1", SpanID: "s1"}),
@@ -150,20 +167,43 @@ func TestBroadcast_TypedEvents(t *testing.T) {
 	for i, ev := range events {
 		h.Broadcast(ev)
 
-		conn.SetReadDeadline(time.Now().Add(time.Second)) //nolint:errcheck
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			t.Fatalf("read message %d: %v", i, err)
-		}
-
 		var got struct {
 			Type string `json:"type"`
 		}
-		if err := json.Unmarshal(msg, &got); err != nil {
+		if err := json.Unmarshal(readMsg(t, conn), &got); err != nil {
 			t.Fatalf("unmarshal message %d: %v", i, err)
 		}
 		if got.Type != expectedTypes[i] {
 			t.Errorf("event %d: expected type=%q, got %q", i, expectedTypes[i], got.Type)
 		}
 	}
+}
+
+// TestSlowClientDropped verifies that a client which never reads is dropped
+// (its send buffer fills) instead of blocking Broadcast forever.
+func TestSlowClientDropped(t *testing.T) {
+	h := NewHub()
+	conn, srv := dialHub(t, h)
+	defer srv.Close()
+	defer conn.CloseNow() //nolint:errcheck
+
+	waitClients(t, h, 1)
+
+	// The client never reads. Flood far past the send buffer; Broadcast must not
+	// block, and the hub must eventually drop the unresponsive client.
+	done := make(chan struct{})
+	go func() {
+		for range clientSendBuffer * 4 {
+			h.Broadcast(NewSpanEvent(&SpanPayload{TraceID: "flood"}))
+		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Broadcast blocked on a slow client")
+	}
+
+	waitClients(t, h, 0)
 }
