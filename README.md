@@ -40,7 +40,7 @@
 **Local OpenTelemetry viewer. Postman for your traces.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/go-1.22+-00ADD8?logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![OpenTelemetry](https://img.shields.io/badge/OTel-native-f5a800?logo=opentelemetry)](https://opentelemetry.io)
 
 </div>
@@ -52,6 +52,10 @@ You run `docker compose up`. You hit an endpoint. It takes 800ms. You have no id
 **spaniel** is a single binary that receives OpenTelemetry traces, logs, and metrics from your local services and shows them in a beautiful UI — with automatic N+1 detection, a semantic convention linter, and session diffing so you can see exactly what your code change made better or worse.
 
 No Docker required. No cloud account. Nothing leaves your machine.
+
+<!-- TODO before launch: drop a screenshot/GIF of the trace waterfall + N+1 banner here.
+     A UI tool with no visuals above the fold loses most of its appeal on first glance.
+     e.g. ![spaniel trace waterfall](assets/screenshot.png) -->
 
 ---
 
@@ -86,6 +90,22 @@ export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 **3. Hit an endpoint. Traces appear live.**
 
 That's it. No config files, no API keys, no YAML pipelines.
+
+### Even faster: `spaniel run`
+
+Don't want to export env vars or start the server separately? Wrap any
+OpenTelemetry-instrumented command — spaniel boots itself if it isn't already
+running, injects the OTLP endpoint, runs your process in a fresh session, and
+prints a trace summary when it exits:
+
+```bash
+spaniel run -- pytest tests/integration/
+spaniel run -- npm test
+spaniel run -- ./my-server
+```
+
+Use `spaniel record -- <cmd>` to also mark the run as a baseline and pop open
+the diff view when it finishes.
 
 ---
 
@@ -142,6 +162,27 @@ No config. spaniel builds a live dependency graph from your span data — which 
 
 Full log viewer with severity filtering and free-text search. If a log has a `trace_id`, click it to jump directly to that trace in the waterfall. From any span, see the logs emitted during its execution window.
 
+### 📈 Metrics with trace exemplars
+
+spaniel ingests OTLP metrics too — gauges, counters, and histograms — and charts them with p50/p95/p99 percentile bands. When a metric point carries an exemplar, click it to jump straight to the trace that produced the outlier.
+
+### 🎯 Instrumentation coverage
+
+See which of your HTTP routes have ever been traced. Point spaniel at an OpenAPI/proto spec with `--routes-file` and it computes a coverage percentage and lists the **dark routes** — endpoints in your spec that no trace has ever exercised.
+
+### ⌨️ Works in the terminal too
+
+Not everything needs a browser. spaniel ships a full set of TUI commands for the keyboard-first:
+
+```bash
+spaniel tui              # all-in-one dashboard: spans + logs + issues, live
+spaniel watch            # live span/issue ticker (table on a TTY, line-stream in a pipe)
+spaniel logs tail        # follow logs with severity/service/trace filters
+spaniel trace <id>       # open an interactive waterfall for one trace
+```
+
+On a pipe these stream plain lines, so they compose with `grep`, `jq`, and friends.
+
 ### 📡 OTLP proxy mode
 
 Already sending traces to Grafana Tempo or Datadog? Run spaniel as a transparent proxy — it stores locally and forwards to your upstream simultaneously. Zero changes to your existing OTel pipeline.
@@ -169,7 +210,12 @@ your app  ──OTLP──►  spaniel :4317/:4318
                     React UI  :8080
 ```
 
-Data retention defaults to 7 days and 500MB. Configure with `~/.spaniel/config.yaml` or flags.
+Data retention defaults to 7 days and 500 MB; old sessions are pruned automatically. Configure with `~/.spaniel/config.yaml` or flags.
+
+A few things for the paranoid and the high-volume:
+
+- **Local-only by default**, but you can require a bearer token (`--bearer-token`, or `SPANIEL_BEARER_TOKEN`) and serve over TLS (`--tls-cert` / `--tls-key`) if you expose it on a network.
+- **Back-pressure built in** — optional per-source rate limiting (`--source-rps`) and sampling (`--sample-rate`) keep a chatty service from filling your disk, while always keeping errors, N+1s, and slow traces.
 
 ---
 
@@ -179,22 +225,24 @@ Run spaniel in GitHub Actions to catch regressions before they merge.
 
 ```yaml
 - name: Start spaniel
-  run: spaniel serve --ci &
+  run: spaniel --no-browser &
 
 - name: Run integration tests
-  run: pytest tests/integration/
+  run: pytest tests/integration/   # send OTLP to http://localhost:4318
 
 - name: Check for regressions
   run: spaniel ci check --baseline ./spaniel-baseline.json --threshold 20
 ```
 
-Commit `spaniel-baseline.json` to your repo. spaniel fails the build if p95 latency regresses more than 20%, new N+1s are introduced, or spans with ERROR status appear that weren't in the baseline.
+Commit `spaniel-baseline.json` to your repo. `spaniel ci check` exits non-zero (failing the build) when p95 / root-duration regresses past `--threshold` percent, or when a fingerprint repeats more than `--n1-threshold` extra times — i.e. a new or worse N+1.
 
-Export a new baseline after intentional changes:
+Generate the baseline once from a known-good run and commit it; regenerate it after intentional changes:
 
 ```bash
 spaniel ci export --output ./spaniel-baseline.json
 ```
+
+> **Tip:** `spaniel run -- <your test command>` does the boot-server + fresh-session dance in one step, which is often cleaner than backgrounding the server yourself.
 
 ---
 
@@ -205,30 +253,77 @@ spaniel ci export --output ./spaniel-baseline.json
 port: 8080
 db_path: ~/.spaniel/spaniel.duckdb
 retention_days: 7
+max_sessions: 50
 max_db_size_mb: 500
 no_browser: false
 forward:
-  - url: http://tempo:4318
+  - http://tempo:4318
+  - http://otelcollector:4318
 ```
 
-Or use a per-project `.spaniel.yaml` in your repo root. CLI flags always take precedence.
+Settings resolve **highest priority first**:
+
+1. **CLI flags** (`--port`, `--forward`, …)
+2. **`SPANIEL_*` environment variables** (e.g. `SPANIEL_PORT`, `SPANIEL_DB_PATH`, `SPANIEL_BEARER_TOKEN`)
+3. **Project `.spaniel.yaml`** in your repo root — commit per-project defaults
+4. **Global `~/.spaniel/config.yaml`**
+5. Built-in defaults
+
+`spaniel config` prints the effective, fully-resolved config; `spaniel config path` shows which file is active; `spaniel config set <key> <value>` edits the global file.
 
 ---
 
 ## CLI reference
 
+**Server**
 ```
-spaniel                          start the server (opens browser)
-spaniel session new [label]      create and activate a new session
-spaniel session list             list all sessions
-spaniel session baseline [id]    mark a session as the diff baseline
-spaniel import <file>            import a trace from OTLP/Jaeger JSON as a baseline
-spaniel ci check                 compare current session against baseline (for CI)
-spaniel ci export                export current session as a baseline JSON file
-spaniel prune                    delete sessions older than retention period
-spaniel reset                    wipe all data
-spaniel config                   show current effective config
+spaniel                              start the server + UI (opens browser)
+spaniel --no-browser                 ... without opening a browser (CI/servers)
+spaniel --forward <url>              also forward OTLP upstream (repeatable)
 ```
+
+**Sessions**
+```
+spaniel session new [label]          create and activate a new session
+spaniel session list                 interactive picker (activate / baseline / delete)
+spaniel session activate <id|label>  switch the active session
+spaniel session baseline [id|label]  toggle a session's diff-baseline flag
+spaniel session delete <id|label>    delete a session
+spaniel import <name> <file>         import OTLP/Jaeger JSON as a baseline session
+                                     (use '-' to read from stdin)
+```
+
+**Diff & CI**
+```
+spaniel diff -b <a> -c <b>           diff two sessions (TUI, or --json for piping)
+spaniel ci export -o <file>          export the active session as a baseline JSON
+spaniel ci check -b <file>           compare active session vs baseline; exit 1 on regression
+```
+
+**Run instrumented commands**
+```
+spaniel run -- <cmd> [args...]       run a command wired to spaniel, print a trace summary
+spaniel record -- <cmd> [args...]    same, but save as a baseline and open the diff view
+```
+
+**Terminal viewers**
+```
+spaniel tui                          all-in-one live dashboard
+spaniel watch                        live span/issue ticker
+spaniel logs tail                    follow logs (--service / --trace / --severity filters)
+spaniel trace <id|short-id>          interactive waterfall for one trace
+```
+
+**Maintenance**
+```
+spaniel config [show|path|set]       show / locate / edit configuration
+spaniel doctor                       diagnose ports, DB, config, embed, upstreams
+spaniel prune                        apply the retention policy now
+spaniel compact                      CHECKPOINT + VACUUM the database
+spaniel reset --yes                  wipe all data and start fresh
+```
+
+Run `spaniel <command> --help` for the full flag list on any command.
 
 ---
 
@@ -282,18 +377,22 @@ spaniel is specifically built for the **local development loop**, not production
 
 ## Roadmap
 
-- [x] OTLP receiver (gRPC + HTTP)
-- [x] DuckDB storage
+- [x] OTLP receiver (gRPC + HTTP) — traces, logs, **and metrics**
+- [x] DuckDB storage with automatic retention
 - [x] Trace waterfall + flame graph
 - [x] N+1 query detection
 - [x] Semantic convention linter
 - [x] Session diff
 - [x] Service map
 - [x] Log correlation
+- [x] Metrics with trace exemplars
 - [x] OTLP proxy mode
-- [ ] Production baseline import (Tempo, Jaeger export)
-- [ ] Instrumentation coverage heatmap
-- [ ] CI regression detection (`spaniel ci`)
+- [x] Baseline import from OTLP / Jaeger JSON (`spaniel import`)
+- [x] Instrumentation coverage (`--routes-file`)
+- [x] CI regression detection (`spaniel ci`)
+- [x] Terminal UI (`spaniel tui` / `watch` / `logs tail`)
+- [ ] Live import from a running Tempo / Jaeger backend
+- [ ] More detectors (connection-pool exhaustion, retry storms)
 - [ ] Cloud baseline sync (team feature)
 
 ---
@@ -303,9 +402,18 @@ spaniel is specifically built for the **local development loop**, not production
 ```bash
 git clone https://github.com/zfogg/spaniel
 cd spaniel
-make dev      # starts Go backend + Vite dev server with hot reload
-make build    # builds production binary with embedded frontend
-make test     # runs Go tests
+make setup    # point git at the repo's pre-commit hooks (one-time)
+make dev      # Go backend + Vite dev server with hot reload
+make build    # production binary with the frontend embedded via go:embed
+make test     # Go test suite
+```
+
+Frontend tests live in `frontend/`:
+
+```bash
+cd frontend
+pnpm test     # vitest unit tests
+pnpm e2e      # Playwright end-to-end tests
 ```
 
 Issues and PRs welcome.
