@@ -1,7 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { FormProvider, useForm, useFormContext, useFormState } from 'react-hook-form'
+// zod 4 implements the Standard Schema spec, so we use the standard-schema
+// resolver (the default zodResolver entry still targets zod 3 typings).
+import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
 import { qk } from '@/lib/query'
+import { SettingsFormSchema, pickFormValues, type SettingsFormValues } from '@/lib/settings-form'
 import { api, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown, type UpdateCheckResult } from '@/lib/api'
+
+// Inline validation message for an editable settings field. Reads RHF's
+// per-field error (populated by the zod resolver) via context, so the section
+// components don't need the form threaded through them. `basis-full` drops it
+// onto its own line below the input within the flex-wrap Row.
+function FieldError({ name }: { name: keyof SettingsFormValues }) {
+  const { control } = useFormContext<SettingsFormValues>()
+  const { errors } = useFormState({ control, name })
+  const msg = errors[name]?.message
+  if (!msg) return null
+  return (
+    <span data-testid={`err-${name}`} className="basis-full font-mono text-[11px] text-danger">
+      {String(msg)}
+    </span>
+  )
+}
 
 // ── atoms ────────────────────────────────────────────────────────────────────
 
@@ -294,6 +315,7 @@ function NetworkSection({ s, mutate, hidden }: {
         {s.otlp_grpc_port > 0
           ? <Pill tone="ok">● listening :{s.runtime.otlp_grpc_port}</Pill>
           : <Pill>stopped</Pill>}
+        <FieldError name="otlp_grpc_port" />
       </Row>
       <Row label="OTLP HTTP receiver"
         hint="The :4318 listener that speaks both protobuf and JSON. Set port = 0 to disable."
@@ -304,6 +326,7 @@ function NetworkSection({ s, mutate, hidden }: {
         {s.otlp_http_port > 0
           ? <Pill tone="ok">● listening :{s.runtime.otlp_http_port}</Pill>
           : <Pill>stopped</Pill>}
+        <FieldError name="otlp_http_port" />
       </Row>
       <Row label="IPv4 bind address"
         hint="IPv4 address the UI and OTLP receivers listen on. 127.0.0.1 = localhost; 0.0.0.0 = all interfaces (LAN / docker). Leave blank to disable IPv4."
@@ -314,6 +337,7 @@ function NetworkSection({ s, mutate, hidden }: {
           ariaLabel="ipv4 bind address" placeholder="127.0.0.1"
         />
         <Pill>{bindAddressLabel(s.bind_address_v4)}</Pill>
+        <FieldError name="bind_address_v4" />
       </Row>
       <Row label="IPv6 bind address"
         hint="IPv6 address the UI and OTLP receivers listen on. ::1 = localhost; :: = all interfaces. Served alongside IPv4 (dual-stack). Leave blank to disable IPv6."
@@ -324,6 +348,7 @@ function NetworkSection({ s, mutate, hidden }: {
           ariaLabel="ipv6 bind address" placeholder="::1"
         />
         <Pill>{bindAddressLabel(s.bind_address_v6)}</Pill>
+        <FieldError name="bind_address_v6" />
       </Row>
       <Row label="Forward sampling"
         hint="Fraction of received payloads to forward upstream (1.0 = everything, 0.1 = 10%)."
@@ -341,12 +366,14 @@ function NetworkSection({ s, mutate, hidden }: {
         <Pill tone="accent">
           {s.forward_sample >= 1 ? 'everything' : `${Math.round(s.forward_sample * 100)}% of spans`}
         </Pill>
+        <FieldError name="forward_sample" />
       </Row>
       <Row label="UI / API port"
         hint="HTTP port the spaniel UI and JSON API are served on. Restart required."
         testid="row-port">
         <NumberBox value={s.port} onChange={v => mutate({ port: v })}
           min={1} max={65535} ariaLabel="ui port" suffix=":port" />
+        <FieldError name="port" />
       </Row>
       <Row label="Upstream OTLP endpoint(s)"
         hint="If set, every received OTLP payload is forwarded to these URLs after being stored locally."
@@ -359,6 +386,7 @@ function NetworkSection({ s, mutate, hidden }: {
         {(s.forward ?? []).length > 0
           ? <Pill tone="accent">forwarding to {s.forward.length} upstream{s.forward.length === 1 ? '' : 's'}</Pill>
           : <Pill>off</Pill>}
+        <FieldError name="forward" />
       </Row>
       <ForwarderStatusRows />
       <Row label="Auto-open browser on startup"
@@ -418,12 +446,14 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
       <Row label="Database file" hint="The single .duckdb file that holds all of spaniel's local data."
         testid="row-dbpath">
         <TextBox value={s.db_path} onChange={v => mutate({ db_path: v })} w={420} ariaLabel="db path" />
+        <FieldError name="db_path" />
       </Row>
       <Row label="Max database size"
         hint="Retention drops the oldest sessions when the file grows past this cap. 0 = unlimited."
         testid="row-maxsize">
         <NumberBox value={s.max_db_size_mb} onChange={v => mutate({ max_db_size_mb: v })}
           min={0} max={102400} suffix="MB" w={130} ariaLabel="max db size mb" />
+        <FieldError name="max_db_size_mb" />
       </Row>
       <Row label="Retention"
         hint="How long to keep spans before they're dropped. Lower = less disk pressure."
@@ -439,12 +469,14 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         <span data-testid="retention-pill">
           <Pill>≈ {humanRetention(s.retention_days, retUnit)}</Pill>
         </span>
+        <FieldError name="retention_days" />
       </Row>
       <Row label="Max sessions"
         hint="Cap the number of sessions kept on disk. Oldest are dropped first. 0 = unlimited."
         testid="row-maxsessions">
         <NumberBox value={s.max_sessions} onChange={v => mutate({ max_sessions: v })}
           min={0} max={10000} ariaLabel="max sessions" w={120} />
+        <FieldError name="max_sessions" />
       </Row>
       <Row label="Per-source rate limit"
         hint="Max spans/sec accepted per service.name. Excess spans are dropped and counted in the Sources panel. 0 = unlimited."
@@ -452,6 +484,7 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         <NumberBox value={s.source_rps} onChange={v => mutate({ source_rps: v })}
           min={0} max={1000000} step={0.1} ariaLabel="source rps" w={120} />
         <span className="font-mono text-[11px] text-muted-foreground">spans / s&nbsp;&nbsp;(0 = unlimited)</span>
+        <FieldError name="source_rps" />
       </Row>
       <Row label="Per-source burst"
         hint="Token bucket capacity per service. Allows short spikes above the rate limit. 0 = rate limit × 5."
@@ -459,6 +492,7 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         <NumberBox value={s.source_burst} onChange={v => mutate({ source_burst: v })}
           min={0} max={1000000} ariaLabel="source burst" w={120} />
         <span className="font-mono text-[11px] text-muted-foreground">spans&nbsp;&nbsp;(0 = rps × 5)</span>
+        <FieldError name="source_burst" />
       </Row>
       <Row label="Self-monitor"
         hint="Send Spaniel's own traces and metrics to itself via its OTLP gRPC port. Enables the dogfood loop: see Spaniel's request latency, DB query times, and ingest spans in the Traces and Metrics tabs. Takes effect immediately."
@@ -693,6 +727,19 @@ export default function Settings() {
     queryFn: () => api.storage.get().then(r => r.data),
   })
 
+  // Advisory validation: the form mirrors the (optimistically-updated) server
+  // data, so editing a field reflects into RHF and surfaces inline zod errors.
+  // Saving still goes through `mutate` unconditionally — the server remains the
+  // source of truth for rejections.
+  const formValues = useMemo(() => (data ? pickFormValues(data) : undefined), [data])
+  const form = useForm<SettingsFormValues>({
+    resolver: standardSchemaResolver(SettingsFormSchema),
+    values: formValues,
+    mode: 'onChange',
+  })
+  // Re-validate whenever the synced values change so errors track the inputs.
+  useEffect(() => { if (formValues) form.trigger() }, [formValues, form])
+
   const mutate = useCallback(async (patch: SettingsUpdate) => {
     if (!data) return
     // Optimistic cache update so toggles & inputs feel snappy.
@@ -778,6 +825,7 @@ export default function Settings() {
   }
 
   return (
+    <FormProvider {...form}>
     <div className="flex-1 flex min-h-0 overflow-hidden">
       {/* sidebar */}
       <div className="w-[220px] border-r border-border bg-muted py-3.5 px-3 flex flex-col gap-4 shrink-0">
@@ -840,5 +888,6 @@ export default function Settings() {
         <AboutSection s={data} hidden={section !== 'about'} />
       </div>
     </div>
+    </FormProvider>
   )
 }
