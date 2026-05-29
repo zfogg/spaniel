@@ -61,6 +61,12 @@ func migrations() []*gormigrate.Migration {
 				return execMigrationFile(tx, "0004_metrics_exemplars.sql")
 			},
 		},
+		{
+			ID: "0005_json_to_varchar",
+			Migrate: func(tx *gorm.DB) error {
+				return execMigrationFile(tx, "0005_json_to_varchar.sql")
+			},
+		},
 	}
 }
 

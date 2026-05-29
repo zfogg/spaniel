@@ -17,6 +17,7 @@ import (
 
 type DB struct {
 	gorm               *gorm.DB
+	batcher            *Batcher
 	path               string
 	activeSessionID    string
 	activeSessionLabel string
@@ -268,8 +269,33 @@ func Open(path string) (*DB, error) {
 	}
 	_ = g.Use(newGORMPlugin())
 	registerDBSizeGauge(path)
+
+	// Hot-path inserts (spans, logs, metrics) go through the columnar Appender
+	// API rather than per-row INSERTs. Must run after migrate() so the tables
+	// exist for the appenders to bind to.
+	b, err := newBatcher(sqlDB)
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("init batcher: %w", err)
+	}
+	d.batcher = b
 	return d, nil
 }
+
+// AppendSpan buffers a span for batched insertion via the columnar Appender.
+// Rows become durable on the next flush; ingest callers flush at the end of
+// each request, so reads-after-ingest within a request observe the row.
+func (d *DB) AppendSpan(s *Span) error { return d.batcher.AppendSpan(s) }
+
+// AppendLog buffers a log record for batched insertion.
+func (d *DB) AppendLog(l *Log) error { return d.batcher.AppendLog(l) }
+
+// AppendMetric buffers a metric data point for batched insertion.
+func (d *DB) AppendMetric(m *Metric) error { return d.batcher.AppendMetric(m) }
+
+// FlushBatch flushes all buffered hot-path rows so they are visible to readers.
+// Ingest paths call this at the end of a request and before running detectors.
+func (d *DB) FlushBatch() error { return d.batcher.Flush() }
 
 func (d *DB) CreateSession(label string, isBaseline bool) (*Session, error) {
 	return d.createSession(label, isBaseline, false)
@@ -1126,6 +1152,11 @@ func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
 }
 
 func (d *DB) Close() error {
+	// Flush and release appenders (and their pinned connections) before closing
+	// the pool, so buffered rows are persisted on graceful shutdown.
+	if d.batcher != nil {
+		_ = d.batcher.Close()
+	}
 	sqlDB, err := d.gorm.DB()
 	if err != nil {
 		return err

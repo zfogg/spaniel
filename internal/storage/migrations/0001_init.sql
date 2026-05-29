@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS spans (
     duration_ns     BIGINT GENERATED ALWAYS AS (end_ns - start_ns),
     status_code     INTEGER,
     status_message  TEXT,
-    attributes      JSON,
-    resource        JSON,
+    attributes      VARCHAR,
+    resource        VARCHAR,
     session_id      TEXT,
     session_label   TEXT,
     received_at     BIGINT,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS logs (
     span_id       TEXT,
     severity      INTEGER,
     body          TEXT,
-    attributes    JSON,
+    attributes    VARCHAR,
     service_name  TEXT,
     session_id    TEXT,
     received_at   BIGINT
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     type         TEXT,
     timestamp_ns BIGINT,
     value        DOUBLE,
-    attributes   JSON,
+    attributes   VARCHAR,
     exemplars    TEXT,
     service_name TEXT,
     session_id   TEXT
@@ -97,3 +97,15 @@ CREATE TABLE IF NOT EXISTS meta (
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_activity_ns BIGINT DEFAULT 0;
+-- sampled is added by migration 0003. Ensure it here too so pre-gormigrate
+-- databases (which reach the schema via InitSchema, not the numbered
+-- migrations) have the full current spans schema the Appender writes to.
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS sampled BOOLEAN DEFAULT TRUE;
+-- The hot-path columns are VARCHAR (see 0005) so the Appender stores serialized
+-- JSON verbatim. These ALTERs are idempotent (VARCHAR→VARCHAR is a no-op) and
+-- ensure pre-gormigrate databases — which reach this file via InitSchema and so
+-- never run migration 0005 — are also converted.
+ALTER TABLE spans ALTER attributes TYPE VARCHAR;
+ALTER TABLE spans ALTER resource TYPE VARCHAR;
+ALTER TABLE logs ALTER attributes TYPE VARCHAR;
+ALTER TABLE metrics ALTER attributes TYPE VARCHAR;

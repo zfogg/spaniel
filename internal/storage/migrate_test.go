@@ -82,4 +82,23 @@ func TestMigrateLegacyDB(t *testing.T) {
 	if err := db.gorm.Raw(`SELECT COUNT(*) FROM meta`).Scan(&n).Error; err != nil {
 		t.Fatalf("meta table missing after migrate: %v", err)
 	}
+
+	// A pre-gormigrate DB created its spans table with JSON columns and reaches
+	// the schema via InitSchema (so migration 0005 is stamped but never run).
+	// The init DDL's idempotent ALTERs must still have converted the columns to
+	// VARCHAR — otherwise the Appender would double-encode attributes. Verify a
+	// round-trip through the batched write path returns the JSON verbatim.
+	if err := db.AppendSpan(&Span{TraceID: "t2", SpanID: "s2", Attributes: `{"k":"v"}`, Resource: `{}`}); err != nil {
+		t.Fatalf("AppendSpan after legacy migrate: %v", err)
+	}
+	if err := db.FlushBatch(); err != nil {
+		t.Fatalf("FlushBatch: %v", err)
+	}
+	got, err := db.GetTrace("t2")
+	if err != nil || len(got) != 1 {
+		t.Fatalf("GetTrace(t2): err=%v rows=%d", err, len(got))
+	}
+	if got[0].Attributes != `{"k":"v"}` {
+		t.Fatalf("legacy JSON column not converted to VARCHAR: attributes=%q (want verbatim, not double-encoded)", got[0].Attributes)
+	}
 }

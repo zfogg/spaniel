@@ -234,7 +234,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				}
 
 				t0 := time.Now()
-				if err := p.store.InsertSpan(s); err != nil {
+				if err := p.store.AppendSpan(s); err != nil {
 					ingestSpan.RecordError(err)
 					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
@@ -274,6 +274,13 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				p.scheduleDetectors(s.TraceID)
 			}
 		}
+	}
+	// Persist this request's buffered rows before returning so reads-after-ingest
+	// (API queries, the post-debounce detectors) observe them.
+	if err := p.store.FlushBatch(); err != nil {
+		ingestSpan.RecordError(err)
+		ingestSpan.SetStatus(codes.Error, err.Error())
+		return err
 	}
 	p.ingestCounter.Add(ctx, int64(spansSeen), metric.WithAttributes(attribute.String("signal", "traces")))
 	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", spansSeen))
@@ -329,7 +336,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 				}
 
 				t0 := time.Now()
-				if err := p.store.InsertLog(l); err != nil {
+				if err := p.store.AppendLog(l); err != nil {
 					ingestSpan.RecordError(err)
 					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
@@ -348,6 +355,11 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 			}
 		}
 	}
+	if err := p.store.FlushBatch(); err != nil {
+		ingestSpan.RecordError(err)
+		ingestSpan.SetStatus(codes.Error, err.Error())
+		return err
+	}
 	p.ingestCounter.Add(ctx, int64(logsSeen), metric.WithAttributes(attribute.String("signal", "logs")))
 	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", logsSeen))
 	return nil
@@ -359,6 +371,9 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	defer ingestSpan.End()
 	t0 := time.Now()
 	err := p.ingestMetricsTree(md, p.store.ActiveSessionID())
+	if err == nil {
+		err = p.store.FlushBatch()
+	}
 	p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
 		metric.WithAttributes(attribute.String("op", "insert_metrics")))
 	if err != nil {
@@ -455,7 +470,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 
 	// Accept: store all spans.
 	for _, e := range entries {
-		if err := p.store.InsertSpan(e.span); err != nil {
+		if err := p.store.AppendSpan(e.span); err != nil {
 			continue
 		}
 		p.tp.addSpans(1)
@@ -476,6 +491,10 @@ func (p *Pipeline) flushBuffer(traceID string) {
 			StatusCode:  e.span.StatusCode,
 		}))
 	}
+
+	// This runs in a debounce callback rather than an ingest request, so flush
+	// the appended spans here to make them durable and queryable.
+	_ = p.store.FlushBatch()
 
 	// Store N+1 issues and broadcast.
 	for _, issue := range issues {

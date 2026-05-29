@@ -77,7 +77,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 				ServiceName: svc,
 				SessionID:   sessionID,
 			}
-			if err := p.store.InsertMetric(row); err != nil {
+			if err := p.store.AppendMetric(row); err != nil {
 				return err
 			}
 			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
@@ -103,7 +103,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 				ServiceName: svc,
 				SessionID:   sessionID,
 			}
-			if err := p.store.InsertMetric(row); err != nil {
+			if err := p.store.AppendMetric(row); err != nil {
 				return err
 			}
 			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
@@ -143,7 +143,7 @@ func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64)
 					ServiceName: svc,
 					SessionID:   sessionID,
 				}
-				if err := p.store.InsertMetric(row); err != nil {
+				if err := p.store.AppendMetric(row); err != nil {
 					return err
 				}
 				p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
