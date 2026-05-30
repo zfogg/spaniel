@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -17,17 +18,17 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"syscall"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -36,6 +37,7 @@ import (
 	"github.com/zfogg/spaniel/internal/api"
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
+	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/ingestion"
 	"github.com/zfogg/spaniel/internal/receiver"
 	"github.com/zfogg/spaniel/internal/storage"
@@ -87,16 +89,16 @@ func main() {
 
 	var (
 		// flag variables — overrides over config file values when explicitly set
-		port          int
-		dev           bool
-		dbPath        string
-		noBrowser     bool
-		apiBase       string
-		retentionDays int
-		maxSessions   int
-		maxDBSizeMB   int
-		forwardURLs   []string
-		routesFile    string
+		port              int
+		dev               bool
+		dbPath            string
+		noBrowser         bool
+		apiBase           string
+		retentionDays     int
+		maxSessions       int
+		maxDBSizeMB       int
+		forwardURLs       []string
+		routesFile        string
 		tlsCert           string
 		tlsKey            string
 		bearerToken       string
@@ -313,61 +315,61 @@ Examples:
 
 // runConfig holds all resolved runtime parameters.
 type runConfig struct {
-	Port          int
-	Dev           bool
-	DBPath        string
-	NoBrowser     bool
-	RetentionDays int
-	MaxSessions   int
-	MaxDBSizeMB   int
-	ForwardURLs   []string
-	ForwardSample float64
-	RoutesFile    string
-	OTLPGRPCPort  int
-	OTLPHTTPPort  int
-	BindAddressV4 string
-	BindAddressV6 string
-	TLSCert           string
-	TLSKey            string
-	BearerToken       string
-	SampleRate        int     // 0 = unlimited
-	SampleAlwaysKeep  string  // comma list: error,n_plus_one,slow
-	SourceRPS         float64 // per-source rate limit; 0 = unlimited
-	SourceBurst       int     // per-source burst; 0 = RPS*5
-	ForwardSpoolDir        string
-	ForwardMaxSpoolMB      int
-	ForwardRetryMax        time.Duration
-	SelfTelemetryEndpoint  string
-	SelfTelemetryService   string
-	SelfTelemetryInsecure  bool
-	SelfMonitor            bool
-	Debug                  bool
-	Viper                  *viper.Viper
+	Port                  int
+	Dev                   bool
+	DBPath                string
+	NoBrowser             bool
+	RetentionDays         int
+	MaxSessions           int
+	MaxDBSizeMB           int
+	ForwardURLs           []string
+	ForwardSample         float64
+	RoutesFile            string
+	OTLPGRPCPort          int
+	OTLPHTTPPort          int
+	BindAddressV4         string
+	BindAddressV6         string
+	TLSCert               string
+	TLSKey                string
+	BearerToken           string
+	SampleRate            int     // 0 = unlimited
+	SampleAlwaysKeep      string  // comma list: error,n_plus_one,slow
+	SourceRPS             float64 // per-source rate limit; 0 = unlimited
+	SourceBurst           int     // per-source burst; 0 = RPS*5
+	ForwardSpoolDir       string
+	ForwardMaxSpoolMB     int
+	ForwardRetryMax       time.Duration
+	SelfTelemetryEndpoint string
+	SelfTelemetryService  string
+	SelfTelemetryInsecure bool
+	SelfMonitor           bool
+	Debug                 bool
+	Viper                 *viper.Viper
 }
 
 // resolveConfig merges viper config with any explicitly-set CLI flags.
 // CLI flags win if they were actually changed from their zero-value sentinel.
 func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPath string, noBrowser bool, retentionDays, maxSessions, maxDBSizeMB int, forwardURLs []string, tlsCert, tlsKey, bearerToken string) runConfig {
 	cfg := runConfig{
-		Port:          v.GetInt("port"),
-		Dev:           dev,
-		DBPath:        expandHome(v.GetString("db_path")),
-		NoBrowser:     v.GetBool("no_browser"),
-		RetentionDays: v.GetInt("retention_days"),
-		MaxSessions:   v.GetInt("max_sessions"),
-		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
-		ForwardURLs:       v.GetStringSlice("forward"),
-		ForwardSample:     v.GetFloat64("forward_sample"),
-		ForwardSpoolDir:   v.GetString("forward_spool_dir"),
-		ForwardMaxSpoolMB: v.GetInt("forward_max_spool_mb"),
-		ForwardRetryMax:   v.GetDuration("forward_retry_max"),
-		OTLPGRPCPort:  v.GetInt("otlp_grpc_port"),
-		OTLPHTTPPort:  v.GetInt("otlp_http_port"),
-		BindAddressV4: v.GetString("bind_address_v4"),
-		BindAddressV6: v.GetString("bind_address_v6"),
-		TLSCert:          v.GetString("tls_cert"),
-		TLSKey:           v.GetString("tls_key"),
-		BearerToken:      v.GetString("bearer_token"),
+		Port:                  v.GetInt("port"),
+		Dev:                   dev,
+		DBPath:                expandHome(v.GetString("db_path")),
+		NoBrowser:             v.GetBool("no_browser"),
+		RetentionDays:         v.GetInt("retention_days"),
+		MaxSessions:           v.GetInt("max_sessions"),
+		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
+		ForwardURLs:           v.GetStringSlice("forward"),
+		ForwardSample:         v.GetFloat64("forward_sample"),
+		ForwardSpoolDir:       v.GetString("forward_spool_dir"),
+		ForwardMaxSpoolMB:     v.GetInt("forward_max_spool_mb"),
+		ForwardRetryMax:       v.GetDuration("forward_retry_max"),
+		OTLPGRPCPort:          v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:          v.GetInt("otlp_http_port"),
+		BindAddressV4:         v.GetString("bind_address_v4"),
+		BindAddressV6:         v.GetString("bind_address_v6"),
+		TLSCert:               v.GetString("tls_cert"),
+		TLSKey:                v.GetString("tls_key"),
+		BearerToken:           v.GetString("bearer_token"),
 		SampleRate:            v.GetInt("sample_rate"),
 		SampleAlwaysKeep:      v.GetString("sample_always_keep"),
 		SourceRPS:             v.GetFloat64("source_rps"),
@@ -514,7 +516,11 @@ func run(cfg runConfig) error {
 	}
 	store.SetActiveSession(sess.ID, sess.Label)
 
-	go runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB), sess.ID)
+	// Panic-safe: a bare `go` here means a single panic silently kills
+	// auto-pruning for the rest of the process lifetime and the disk fills up.
+	goroutine.Go(func() {
+		runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB), sess.ID)
+	}, "subsystem", "retention")
 
 	hub := ws.NewHub()
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
@@ -545,6 +551,15 @@ func run(cfg runConfig) error {
 		fwd = forwarder.NewWithSpool(cfg.ForwardURLs, cfg.ForwardSample, sc)
 	}
 
+	// A half-configured TLS pair is almost always a mistake that would
+	// silently leave the server plaintext — refuse to start instead.
+	if (cfg.TLSCert == "") != (cfg.TLSKey == "") {
+		set, missing := "--tls-cert", "--tls-key"
+		if cfg.TLSKey != "" {
+			set, missing = "--tls-key", "--tls-cert"
+		}
+		return fmt.Errorf("TLS misconfigured: %s is set but %s is missing — both are required to enable TLS", set, missing)
+	}
 	// Load TLS if both cert and key are configured.
 	var tlsCfg *tls.Config
 	if cfg.TLSCert != "" && cfg.TLSKey != "" {
@@ -611,13 +626,26 @@ func run(cfg runConfig) error {
 		}
 		return nil
 	}
+	// Track per-receiver bind success across the requested OTLP receivers so we
+	// can fail fast if none of them come up — otherwise the process keeps
+	// running, looks healthy, and silently ingests nothing.
+	rcvRequested, rcvUp := 0, 0
+	if cfg.OTLPGRPCPort != 0 {
+		rcvRequested++
+	}
 	if err := startGRPC(cfg.OTLPGRPCPort); err != nil {
 		slog.Error("grpc receiver listen failed", "err", err)
+	} else if cfg.OTLPGRPCPort != 0 {
+		rcvUp++
 	}
 
-	// Now that gRPC receiver is running, set up real telemetry if needed
-	if err := setupOTel(cfg.SelfTelemetryEndpoint); err != nil {
-		slog.Warn("self-telemetry setup failed", "err", err)
+	// Now that gRPC receiver is running, set up real telemetry if needed. An
+	// explicitly configured endpoint that fails to set up is a hard error — a
+	// silent warning here means self-telemetry is misconfigured but invisible.
+	if cfg.SelfTelemetryEndpoint != "" {
+		if err := setupOTel(cfg.SelfTelemetryEndpoint); err != nil {
+			return fmt.Errorf("self-telemetry setup (endpoint %q): %w", cfg.SelfTelemetryEndpoint, err)
+		}
 	}
 
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
@@ -653,8 +681,20 @@ func run(cfg runConfig) error {
 		}()
 		return nil
 	}
+	if cfg.OTLPHTTPPort != 0 {
+		rcvRequested++
+	}
 	if err := startOTLPHTTP(cfg.OTLPHTTPPort); err != nil {
 		slog.Error("otlp http receiver listen failed", "err", err)
+	} else if cfg.OTLPHTTPPort != 0 {
+		rcvUp++
+	}
+
+	// If every configured OTLP receiver failed to bind, there is no way to
+	// ingest telemetry — refuse to start rather than masquerade as healthy.
+	if rcvRequested > 0 && rcvUp == 0 {
+		return fmt.Errorf("all OTLP receivers failed to bind (gRPC :%d, HTTP :%d) — no telemetry can be ingested; check the ports are free (lsof -i :%d)",
+			cfg.OTLPGRPCPort, cfg.OTLPHTTPPort, cfg.OTLPGRPCPort)
 	}
 
 	var manifests *coverage.Manifests
@@ -881,6 +921,12 @@ func listenAll(hosts []string, port int) ([]net.Listener, error) {
 	if len(lns) == 0 {
 		if firstErr == nil {
 			firstErr = fmt.Errorf("no bind addresses configured")
+		}
+		// A port already in use is the overwhelmingly common failure here and
+		// the bare OS string ("bind: address already in use") gives no next
+		// step — point at the likely cause and how to find the culprit.
+		if errors.Is(firstErr, syscall.EADDRINUSE) {
+			return nil, fmt.Errorf("port %d already in use — another spaniel may be running (lsof -i :%d): %w", port, port, firstErr)
 		}
 		return nil, firstErr
 	}

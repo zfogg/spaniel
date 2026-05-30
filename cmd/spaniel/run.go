@@ -295,7 +295,18 @@ func runSubcommand() *cobra.Command {
 injected so any OpenTelemetry-instrumented binary sends traces to spaniel
 automatically. A fresh session is created for the run; stats are printed
 when the command exits. spaniel is started automatically if it's not already
-running.`,
+running.
+
+Always put the '--' separator before your command, otherwise spaniel
+swallows your command's own flags (e.g. the '-v' below).`,
+		Example: `  # Trace a test run
+  spaniel run -- go test ./...
+
+  # Flags after -- belong to your command, not spaniel
+  spaniel run -- pytest -v tests/
+
+  # Point at a non-default spaniel
+  spaniel run --api http://localhost:9090 -- ./myserver --port 8000`,
 		Args:         cobra.MinimumNArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -325,7 +336,18 @@ func recordSubcommand() *cobra.Command {
 		Use:   "record -- <cmd> [args...]",
 		Short: "Run a command, store traces as a baseline session, open browser diff",
 		Long: `Like 'spaniel run' but also marks the session as a baseline and opens
-the browser to the session diff page when the command finishes.`,
+the browser to the session diff page when the command finishes.
+
+Always put the '--' separator before your command, otherwise spaniel
+swallows your command's own flags.`,
+		Example: `  # Record a baseline to diff future runs against
+  spaniel record -- go test ./...
+
+  # Flags after -- belong to your command, not spaniel
+  spaniel record -- pytest -v tests/
+
+  # Record without opening the browser
+  spaniel record --no-browser -- ./myserver --port 8000`,
 		Args:         cobra.MinimumNArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -37,11 +37,14 @@ Both --baseline and --compare accept either a session id or its label.
 With --json the full DiffResult is printed verbatim for piping into jq.
 Without --json the result is shown in an interactive TUI (requires a TTY).
 Exits 1 when duration_delta_pct > --threshold OR spans_added > 0.`,
-		SilenceUsage:  true,
-		SilenceErrors: true,
+		SilenceUsage: true,
+		// SilenceErrors is intentionally left off: the regression gate exits via
+		// os.Exit(1) below before its sentinel error can reach cobra, so the only
+		// errors cobra prints are genuine failures (bad flags, connect errors) —
+		// which the user needs to see, along with their hints.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if baseline == "" || compare == "" {
-				return fmt.Errorf("both --baseline and --compare are required")
+				return fmt.Errorf("both --baseline and --compare are required — run `spaniel session list` to find session ids or labels")
 			}
 			if !asJSON && !isTerminal(os.Stdout) {
 				return fmt.Errorf("non-TTY output requires --json (interactive mode needs a terminal)")
@@ -211,4 +214,3 @@ func fmtNs(ns int64) string {
 	}
 	return fmt.Sprintf("%.2fs", float64(ns)/1_000_000_000)
 }
-

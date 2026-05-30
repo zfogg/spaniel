@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -66,14 +67,14 @@ type UpdateCheckResult struct {
 // SettingsResponse is the JSON shape returned by GET /api/settings.
 // Persistable fields live at the top level; read-only info is under Runtime.
 type SettingsResponse struct {
-	Port          int      `json:"port"`
-	DBPath        string   `json:"db_path"`
-	RetentionDays int      `json:"retention_days"`
-	MaxSessions   int      `json:"max_sessions"`
-	MaxDBSizeMB   int      `json:"max_db_size_mb"`
-	OTLPGRPCPort      int      `json:"otlp_grpc_port"`
-	OTLPHTTPPort      int      `json:"otlp_http_port"`
-	NoBrowser     bool     `json:"no_browser"`
+	Port           int      `json:"port"`
+	DBPath         string   `json:"db_path"`
+	RetentionDays  int      `json:"retention_days"`
+	MaxSessions    int      `json:"max_sessions"`
+	MaxDBSizeMB    int      `json:"max_db_size_mb"`
+	OTLPGRPCPort   int      `json:"otlp_grpc_port"`
+	OTLPHTTPPort   int      `json:"otlp_http_port"`
+	NoBrowser      bool     `json:"no_browser"`
 	Forward        []string `json:"forward"`
 	BindAddressV4  string   `json:"bind_address_v4"`
 	BindAddressV6  string   `json:"bind_address_v6"`
@@ -107,8 +108,8 @@ type SettingsUpdate struct {
 	RetentionDays *int      `json:"retention_days,omitempty"`
 	MaxSessions   *int      `json:"max_sessions,omitempty"`
 	MaxDBSizeMB   *int      `json:"max_db_size_mb,omitempty"`
-	OTLPGRPCPort      *int      `json:"otlp_grpc_port,omitempty"`
-	OTLPHTTPPort      *int      `json:"otlp_http_port,omitempty"`
+	OTLPGRPCPort  *int      `json:"otlp_grpc_port,omitempty"`
+	OTLPHTTPPort  *int      `json:"otlp_http_port,omitempty"`
 	NoBrowser     *bool     `json:"no_browser,omitempty"`
 	Forward       *[]string `json:"forward,omitempty"`
 	BindAddressV4 *string   `json:"bind_address_v4,omitempty"`
@@ -166,15 +167,15 @@ func (r *Router) buildSettings() SettingsResponse {
 	v := s.Viper
 
 	resp := SettingsResponse{
-		Port:          v.GetInt("port"),
-		DBPath:        v.GetString("db_path"),
-		RetentionDays: v.GetInt("retention_days"),
-		MaxSessions:   v.GetInt("max_sessions"),
-		MaxDBSizeMB:   v.GetInt("max_db_size_mb"),
-		OTLPGRPCPort:      v.GetInt("otlp_grpc_port"),
-		OTLPHTTPPort:      v.GetInt("otlp_http_port"),
-		NoBrowser:     v.GetBool("no_browser"),
-		Forward:       nonNilStrings(v.GetStringSlice("forward")),
+		Port:           v.GetInt("port"),
+		DBPath:         v.GetString("db_path"),
+		RetentionDays:  v.GetInt("retention_days"),
+		MaxSessions:    v.GetInt("max_sessions"),
+		MaxDBSizeMB:    v.GetInt("max_db_size_mb"),
+		OTLPGRPCPort:   v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:   v.GetInt("otlp_http_port"),
+		NoBrowser:      v.GetBool("no_browser"),
+		Forward:        nonNilStrings(v.GetStringSlice("forward")),
 		BindAddressV4:  v.GetString("bind_address_v4"),
 		BindAddressV6:  v.GetString("bind_address_v6"),
 		ForwardSample:  v.GetFloat64("forward_sample"),
@@ -343,7 +344,21 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {
 		return fmt.Errorf("ensure config dir: %w", err)
 	}
-	return out.WriteConfig()
+	// Write to a sibling temp file and atomically rename into place so a
+	// failed/partial write can never truncate the live config — a torn write
+	// would leave on-disk config out of sync with the in-memory state we
+	// already mutated above. The temp name keeps the real extension (e.g.
+	// config.tmp.yaml) because viper.WriteConfigAs derives the format from it.
+	ext := filepath.Ext(s.ConfigPath)
+	tmp := strings.TrimSuffix(s.ConfigPath, ext) + ".tmp" + ext
+	if err := out.WriteConfigAs(tmp); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+	if err := os.Rename(tmp, s.ConfigPath); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("commit config: %w", err)
+	}
+	return nil
 }
 
 func parentDir(p string) string {

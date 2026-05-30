@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -29,11 +30,11 @@ type SpoolConfig struct {
 }
 
 type upstream struct {
-	url        string
-	sent       atomic.Int64
-	errors     atomic.Int64
-	skipped    atomic.Int64
-	lastErr    atomic.Value // stores string
+	url     string
+	sent    atomic.Int64
+	errors  atomic.Int64
+	skipped atomic.Int64
+	lastErr atomic.Value // stores string
 	// spool is non-nil when disk-backed retry is enabled for this upstream.
 	sp         *spool
 	lastFailAt atomic.Int64 // unix ns of last send failure (0 = never)
@@ -119,6 +120,12 @@ func NewWithSpool(urls []string, sample float64, sc SpoolConfig) *Forwarder {
 		up := &upstream{url: u}
 		if sp, err := openSpool(sc.Dir, urlHash(u), sc.MaxBytes); err == nil {
 			up.sp = sp
+		} else {
+			// Without a spool, delivery silently degrades to fire-and-forget
+			// with no disk-backed retry — surface it instead of pretending
+			// durable forwarding is in effect.
+			slog.Warn("forwarder spool unavailable, falling back to no-retry delivery",
+				"upstream", u, "dir", sc.Dir, "err", err)
 		}
 		ups[i] = up
 	}
@@ -262,10 +269,10 @@ func (f *Forwarder) Status() []Status {
 			s.LastErr = v
 		}
 		if up.sp != nil {
-			s.PendingBytes  = up.sp.pendingBytes()
-			s.DroppedSpool  = up.sp.dropped.Load()
+			s.PendingBytes = up.sp.pendingBytes()
+			s.DroppedSpool = up.sp.dropped.Load()
 			s.LastFailureAt = up.lastFailAt.Load()
-			s.BackoffNs     = up.backoffNs.Load()
+			s.BackoffNs = up.backoffNs.Load()
 		}
 		out[i] = s
 	}

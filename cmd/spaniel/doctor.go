@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -342,6 +343,12 @@ func checkDBWritable(path string) checkResult {
 		r.Status = checkFail
 		r.Detail = path
 		r.Hint = err.Error()
+		// A locked database almost always means another spaniel instance is
+		// already running against this file — the raw SQLite string doesn't
+		// say so.
+		if msg := strings.ToLower(err.Error()); strings.Contains(msg, "locked") || strings.Contains(msg, "busy") {
+			r.Hint = "database is locked — another spaniel instance is probably already running against this db (" + err.Error() + ")"
+		}
 		return r
 	}
 	defer db.Close() //nolint:errcheck
