@@ -69,6 +69,11 @@ export default function TraceDetail() {
     queryFn: () => api.issues.get(traceId!).then(r => r.data ?? []),
     enabled: !!traceId,
   })
+  const { data: logs = [] } = useQuery({
+    queryKey: qk.logs({ traceId: traceId ?? '' }),
+    queryFn: () => api.logs.list({ traceId: traceId! }).then(r => r.data ?? []),
+    enabled: !!traceId,
+  })
 
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
 
@@ -141,6 +146,7 @@ export default function TraceDetail() {
             spans={spans}
             warnings={warnings}
             issues={issues}
+            logs={logs}
             traceId={traceId}
           />
         </div>

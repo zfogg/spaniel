@@ -884,6 +884,164 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
   )
 }
 
+// ── LogsView ──────────────────────────────────────────────────────────────────
+
+function LogsView({ logs }: { logs: Log[] }) {
+  const [search, setSearch] = useState('')
+  const [filterSev, setFilterSev] = useState<'ALL' | 'FATAL' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'TRACE'>('ALL')
+
+  const sevLabel = (n: number) => {
+    if (n >= 21) return 'FATAL'
+    if (n >= 17) return 'ERROR'
+    if (n >= 13) return 'WARN'
+    if (n >= 9)  return 'INFO'
+    if (n >= 5)  return 'DEBUG'
+    return 'TRACE'
+  }
+
+  const matchesSevFilter = (severity: number, filter: typeof filterSev) => {
+    if (filter === 'ALL')   return true
+    if (filter === 'FATAL') return severity >= 21
+    if (filter === 'ERROR') return severity >= 17 && severity < 21
+    if (filter === 'WARN')  return severity >= 13 && severity < 17
+    if (filter === 'INFO')  return severity >= 9  && severity < 13
+    if (filter === 'DEBUG') return severity >= 5  && severity < 9
+    if (filter === 'TRACE') return severity < 5
+    return true
+  }
+
+  const filtered = logs.filter(l => {
+    if (!matchesSevFilter(l.severity, filterSev)) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+
+  const sevBadgeStyle = (n: number): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      borderRadius: 3,
+      padding: '1px 5px',
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+      fontFamily: 'var(--font-mono)',
+      flexShrink: 0,
+      display: 'inline-block',
+    }
+    if (n >= 21) return { ...base, color: '#fff',         background: 'var(--danger)' }
+    if (n >= 17) return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)' }
+    if (n >= 13) return { ...base, color: 'var(--warn)',   background: 'var(--warn-bg)' }
+    if (n >= 9)  return { ...base, color: 'var(--ink2)',   background: 'transparent' }
+    if (n >= 5)  return { ...base, color: 'var(--ink3)',   background: 'transparent' }
+    return       { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
+  }
+
+  const sevBodyColor = (n: number): string => {
+    if (n >= 13) return 'var(--ink)'
+    if (n >= 9)  return 'var(--ink2)'
+    return 'var(--ink3)'
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* filter bar */}
+      <div className="flex items-center gap-2.5 px-3 py-2 bg-muted border-b border-border shrink-0 flex-wrap">
+        <input
+          type="text"
+          placeholder="search logs…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-[220px] h-7 bg-background border border-border rounded-[5px] px-2.5 font-mono text-[11px] text-foreground outline-none"
+        />
+        <div className="flex items-center gap-1">
+          {(['ALL', 'TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] as const).map(chip => (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => setFilterSev(chip)}
+              className="transition-colors"
+              style={{
+                padding: '3px 10px',
+                borderRadius: 12,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: filterSev === chip ? 700 : 600,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                border: filterSev === chip ? '1px solid var(--border)' : '1px solid transparent',
+                background: filterSev === chip ? 'var(--background)' : 'transparent',
+                color: filterSev === chip ? 'var(--foreground)' : 'var(--muted-foreground)',
+              }}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1" />
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {filtered.length} logs
+        </span>
+      </div>
+
+      {/* logs list */}
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground font-mono text-[13px]">
+            {logs.length === 0 ? 'No logs in this trace' : 'No logs matching filters'}
+          </div>
+        ) : (
+          filtered.map((log, i) => {
+            const c = svcColor(log.service_name)
+            return (
+              <div
+                key={`${log.timestamp_ns}:${log.span_id}:${log.body.slice(0, 40)}`}
+                className="grid items-center h-7 border-b border-line2 px-2 gap-1.5"
+                style={{
+                  gridTemplateColumns: '90px 52px 130px 1fr',
+                  background: i % 2 === 0 ? 'var(--background)' : 'var(--muted)',
+                }}
+              >
+                {/* timestamp */}
+                <div className="font-mono text-[11px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap shrink-0">
+                  {new Date(log.timestamp_ns / 1_000_000).toLocaleTimeString()}
+                </div>
+
+                {/* severity badge */}
+                <div className="flex items-center">
+                  <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
+                </div>
+
+                {/* service chip */}
+                <div className="flex items-center gap-[5px] overflow-hidden min-w-0">
+                  <span
+                    className="w-[5px] h-[5px] rounded-full shrink-0"
+                    style={{ background: c.fg }}
+                  />
+                  <span title={log.service_name} className="font-mono text-[10.5px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
+                    {log.service_name}
+                  </span>
+                </div>
+
+                {/* body */}
+                <div
+                  className="font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
+                  style={{ color: sevBodyColor(log.severity) }}
+                >
+                  {log.body}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── TraceMeta ─────────────────────────────────────────────────────────────────
 
 function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, errorCount, lintCount, view, onView, zoom, traceStartNs, traceEndNs, onResetZoom }: {
@@ -894,8 +1052,8 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
   serviceCount: number
   errorCount: number
   lintCount: number
-  view: 'waterfall' | 'flame' | 'graph'
-  onView: (v: 'waterfall' | 'flame' | 'graph') => void
+  view: 'waterfall' | 'flame' | 'graph' | 'logs'
+  onView: (v: 'waterfall' | 'flame' | 'graph' | 'logs') => void
   zoom: [number, number]
   traceStartNs: number
   traceEndNs: number
@@ -933,7 +1091,7 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
 
       {/* view toggle pill */}
       <div className="flex items-center bg-muted rounded-lg p-[3px] border border-border gap-0.5">
-        {(['waterfall', 'flame', 'graph'] as const).map(v => {
+        {(['waterfall', 'flame', 'graph', 'logs'] as const).map(v => {
           const active = view === v
           return (
             <button
@@ -942,7 +1100,7 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
               onClick={() => onView(v)}
               className={`inline-flex items-center gap-[5px] px-2.5 py-1 rounded-md font-sans text-xs font-medium cursor-pointer outline-none whitespace-nowrap border ${active ? 'bg-background text-foreground border-border' : 'bg-transparent text-muted-foreground border-transparent'}`}
             >
-              {v === 'waterfall' ? <WaterfallIcon /> : v === 'flame' ? <FlameIcon /> : <GraphIcon />}
+              {v === 'waterfall' ? <WaterfallIcon /> : v === 'flame' ? <FlameIcon /> : v === 'graph' ? <GraphIcon /> : <LogsIcon />}
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
           )
@@ -1014,6 +1172,17 @@ function FlameIcon() {
   )
 }
 
+function LogsIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <line x1="2" y1="2" x2="10" y2="2" stroke="currentColor" strokeWidth="1" opacity="0.85" />
+      <line x1="2" y1="5" x2="10" y2="5" stroke="currentColor" strokeWidth="1" opacity="0.75" />
+      <line x1="2" y1="8" x2="8" y2="8" stroke="currentColor" strokeWidth="1" opacity="0.65" />
+      <line x1="2" y1="11" x2="6" y2="11" stroke="currentColor" strokeWidth="1" opacity="0.55" />
+    </svg>
+  )
+}
+
 // ── N+1 Issue Banner ──────────────────────────────────────────────────────────
 
 function N1Banner({ issues }: { issues: { fingerprint: string; count: number; wastedNs: number }[] }) {
@@ -1046,10 +1215,11 @@ interface Props {
   spans: Span[]
   warnings?: LintWarning[]
   issues?: TraceIssue[]
+  logs?: Log[]
   traceId?: string
 }
 
-export default function TraceWaterfall({ spans, warnings = [], issues = [], traceId = '' }: Props) {
+export default function TraceWaterfall({ spans, warnings = [], issues = [], logs = [], traceId = '' }: Props) {
   const traceStartNs = spans.reduce((m, s) => Math.min(m, s.start_ns), Infinity)
   const traceEndNs   = spans.reduce((m, s) => Math.max(m, s.end_ns), 0)
   const traceDurNs   = traceEndNs - traceStartNs
@@ -1058,10 +1228,10 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
   const urlParams = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search) : new URLSearchParams()
   const initialSelected = urlParams.get('span') ?? urlParams.get('spanId')
-  const initialView = (['waterfall', 'flame', 'graph'] as const)
+  const initialView = (['waterfall', 'flame', 'graph', 'logs'] as const)
     .find(v => v === urlParams.get('view')) ?? 'waterfall'
 
-  const [view,       setView]       = useState<'waterfall' | 'flame' | 'graph'>(initialView)
+  const [view,       setView]       = useState<'waterfall' | 'flame' | 'graph' | 'logs'>(initialView)
   const [selectedId, setSelectedId] = useState<string | null>(initialSelected)
   const [hoveredId,  setHoveredId]  = useState<string | null>(null)
   const [zoom,       setZoom]       = useState<[number, number]>([traceStartNs, traceEndNs])
@@ -1202,17 +1372,19 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], trac
               zoom={zoom}
               onZoom={setZoom}
             />
-          ) : (
+          ) : view === 'graph' ? (
             <TraceGraph
               spans={spans}
               selectedId={selectedId}
               onSelect={handleSelect}
             />
+          ) : (
+            <LogsView logs={logs} />
           )}
         </div>
 
-        {/* right: inspector */}
-        {selectedSpan && (() => {
+        {/* right: inspector — hidden for logs view */}
+        {view !== 'logs' && selectedSpan && (() => {
           const selIsN1 = n1SpanIds.has(selectedSpan.span_id)
           // Compute count for the selected span's db.statement
           let selN1Count = 0
