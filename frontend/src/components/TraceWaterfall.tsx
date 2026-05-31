@@ -118,7 +118,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
   const { span, depth, orphan } = flat
   const c = svcColor(span.service_name)
   const isError = span.status_code === 2
-  const tagColor = isN1 ? 'var(--warn)' : tag === 'n+1' ? '#ef4444' : '#f59e0b'
+  const tagColor = isN1 ? 'var(--warn)' : tag === 'n+1' ? 'var(--danger)' : 'var(--warn)'
 
   const { leftPct: left, widthPct: width } = computeLayout(span, traceStartNs, traceDurNs)
 
@@ -146,7 +146,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
         {depth > 0 && (
           <span className="w-2 h-px bg-border shrink-0 -ml-[7px]" />
         )}
-        {orphan && <AlertTriangle size={10} color="#f59e0b" className="shrink-0" />}
+        {orphan && <AlertTriangle size={10} color="var(--warn)" className="shrink-0" />}
         <span
           className="w-[9px] h-[9px] rounded-sm opacity-85 shrink-0"
           style={{ background: c.fg }}
@@ -161,7 +161,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
         <span className="text-[10px] text-muted-foreground shrink-0 opacity-50">/</span>
         <span
           className="font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0"
-          style={{ color: isError ? '#ef4444' : 'var(--foreground)' }}
+          style={{ color: isError ? 'var(--danger)' : 'var(--foreground)' }}
         >
           {span.name}
         </span>
@@ -173,7 +173,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
         {!isN1 && tag && (
           <span
             className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] shrink-0 px-1 py-px rounded-[3px]"
-            style={{ color: tagColor, background: tagColor + '22' }}
+            style={{ color: tagColor, background: `color-mix(in oklch, ${tagColor} 13%, transparent)` }}
           >
             {tag}
           </span>
@@ -206,10 +206,10 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           top: 4, height: 10,
           left: `${left}%`,
           width: `${width}%`,
-          background: isError ? '#ef444418' : c.bg,
+          background: isError ? 'var(--danger-bg)' : c.bg,
           borderRadius: 3,
           boxShadow: isError
-            ? `inset 0 0 0 1px #ef444460, inset 2px 0 0 #ef4444`
+            ? `inset 0 0 0 1px color-mix(in oklch, var(--danger) 38%, transparent), inset 2px 0 0 var(--danger)`
             : `inset 0 0 0 1px ${c.fg}30, inset 2px 0 0 ${c.fg}`,
         }} />
         {/* warning outline for n+1 */}
@@ -220,8 +220,8 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
             left: `${left}%`,
             width: `${width}%`,
             borderRadius: 3,
-            border: isN1 ? '1px solid var(--warn)' : '1px solid #ef4444',
-            boxShadow: isN1 ? '0 0 0 2px var(--warn-bg)' : '0 0 0 2px #ef444430',
+            border: isN1 ? '1px solid var(--warn)' : '1px solid var(--danger)',
+            boxShadow: isN1 ? '0 0 0 2px var(--warn-bg)' : '0 0 0 2px var(--danger-bg)',
             pointerEvents: 'none',
           }} />
         )}
@@ -320,9 +320,9 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
                 top, height: FLAME_ROW - 4,
                 background: isSel || isHov
                   ? `color-mix(in oklch, ${c.fg} 35%, ${c.bg})`
-                  : isError ? '#ef444418' : c.bg,
+                  : isError ? 'var(--danger-bg)' : c.bg,
                 color: c.fg,
-                border: hot ? '1px solid #ef4444' : isSel ? `1px solid ${c.fg}` : '1px solid transparent',
+                border: hot ? '1px solid var(--danger)' : isSel ? `1px solid ${c.fg}` : '1px solid transparent',
                 boxShadow: isSel ? `inset 0 0 0 1px ${c.fg}` : 'none',
                 transform: isHov ? 'translateY(-1px)' : 'none',
                 zIndex: isHov || isSel ? 2 : 1,
@@ -361,7 +361,7 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
                   {span.service_name}
                 </span>
                 {tag && (
-                  <span className="ml-auto text-[9px] font-bold text-[#ff9b8a] uppercase">
+                  <span className="ml-auto text-[9px] font-bold text-danger uppercase">
                     {tag}
                   </span>
                 )}
@@ -523,12 +523,12 @@ function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStar
   return (
     <div className={`py-1 ${last ? '' : 'border-b border-[var(--line2)]'}`}>
       <div className="flex items-baseline gap-2.5">
-        <span className={`w-[60px] shrink-0 font-mono text-[10px] ${isException ? 'text-[#ef4444]' : 'text-[var(--accent)]'}`}>
+        <span className={`w-[60px] shrink-0 font-mono text-[10px] ${isException ? 'text-danger' : 'text-[var(--accent)]'}`}>
           {fmtRelMs(event.time_ns, spanStartNs)}
         </span>
-        <span className={`min-w-0 flex-1 break-words font-mono text-[11px] ${isException ? 'text-[#ef4444]' : 'text-[var(--ink)]'}`}>
+        <span className={`min-w-0 flex-1 break-words font-mono text-[11px] ${isException ? 'text-danger' : 'text-[var(--ink)]'}`}>
           {isException && (
-            <span className="mr-1.5 inline-block size-1.5 rounded-full bg-[#ef4444] align-middle" />
+            <span className="mr-1.5 inline-block size-1.5 rounded-full bg-danger align-middle" />
           )}
           {event.name}
           {isException && excType && (
@@ -540,7 +540,7 @@ function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStar
         )}
       </div>
       {isException && excStack && (
-        <pre className="mx-0 mb-0.5 mt-1.5 max-h-[220px] overflow-auto whitespace-pre-wrap break-words rounded-[5px] border border-[color-mix(in_oklch,#ef4444_25%,var(--background))] bg-[color-mix(in_oklch,#ef4444_8%,var(--background))] px-2.5 py-1.5 font-mono text-[10px] text-[var(--ink)]">{excStack}</pre>
+        <pre className="mx-0 mb-0.5 mt-1.5 max-h-[220px] overflow-auto whitespace-pre-wrap break-words rounded-[5px] border border-[color-mix(in_oklch,var(--danger)_25%,var(--background))] bg-[color-mix(in_oklch,var(--danger)_8%,var(--background))] px-2.5 py-1.5 font-mono text-[10px] text-[var(--ink)]">{excStack}</pre>
       )}
     </div>
   )
@@ -746,7 +746,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
         </div>
         <div
           className="font-mono text-xs leading-[1.4] break-words mb-3"
-          style={{ color: isError ? '#ef4444' : 'var(--foreground)' }}
+          style={{ color: isError ? 'var(--danger)' : 'var(--foreground)' }}
         >
           {span.name}
         </div>
@@ -822,12 +822,12 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
           {spanWarnings.map((w, i) => (
             <div
               key={i}
-              className="px-3 py-2.5 rounded-[7px] bg-[color-mix(in_oklch,#ef4444_10%,var(--background))] border border-[color-mix(in_oklch,#ef4444_30%,var(--background))]"
+              className="px-3 py-2.5 rounded-[7px] bg-[color-mix(in_oklch,var(--danger)_10%,var(--background))] border border-[color-mix(in_oklch,var(--danger)_30%,var(--background))]"
               style={{ marginBottom: i < spanWarnings.length - 1 ? 6 : 0 }}
             >
               <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444] shrink-0" />
-                <span className="font-mono text-[9.5px] font-bold text-[#ef4444] tracking-[0.06em]">
+                <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
+                <span className="font-mono text-[9.5px] font-bold text-danger tracking-[0.06em]">
                   {w.rule_id}
                 </span>
               </div>
@@ -911,12 +911,12 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
             {rootName}
           </span>
           {errorCount > 0 && (
-            <span className="font-mono text-[9px] font-bold text-[#ef4444] bg-[#ef444420] px-[5px] py-px rounded-[3px] uppercase">
+            <span className="font-mono text-[9px] font-bold text-danger bg-danger-bg px-[5px] py-px rounded-[3px] uppercase">
               error
             </span>
           )}
           {lintCount > 0 && (
-            <span className="font-mono text-[9px] text-[#f59e0b] bg-[#f59e0b20] px-[5px] py-px rounded-[3px] uppercase">
+            <span className="font-mono text-[9px] text-warn bg-warn-bg px-[5px] py-px rounded-[3px] uppercase">
               {lintCount} lint
             </span>
           )}

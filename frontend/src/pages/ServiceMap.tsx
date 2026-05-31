@@ -247,7 +247,7 @@ function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
 
   const { x1, y1, x2, y2, mx } = edgeGeom(A, B, srcOff, dstOff)
   const hasError = edge.error_count > 0
-  const stroke = hasError ? '#ef4444' : hot ? '#f59e0b' : 'var(--muted-foreground)'
+  const stroke = hasError ? 'var(--danger)' : hot ? 'var(--warn)' : 'var(--muted-foreground)'
   const sw = Math.min(4, 0.8 + edge.call_count * 0.6)
   const baseOpacity = hasError ? 0.9 : hot ? 0.8 : 0.5
   const opacity = dim ? 0.2 : baseOpacity
@@ -299,7 +299,7 @@ function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
             x={label.x} y={label.y}
             textAnchor="middle"
             fontFamily="var(--font-mono)" fontSize="9"
-            fill={hasError ? '#ef4444' : 'var(--muted-foreground)'}
+            fill={hasError ? 'var(--danger)' : 'var(--muted-foreground)'}
             opacity={dim ? 0.4 : 1}
             pointerEvents="none"
           >
@@ -324,7 +324,7 @@ function SvgNode({ node, pos, selected, highlighted, dim, onClick }: {
   const c = svcColor(node.id)
   const hasError = node.error_count > 0
   const errRate = node.span_count > 0 ? node.error_count / node.span_count : 0
-  const borderColor = hasError ? '#ef4444' : c.fg
+  const borderColor = hasError ? 'var(--danger)' : c.fg
   const borderWidth = selected ? 2.5 : hasError ? 2 : highlighted ? 2 : 1.5
   const opacity = dim ? 0.35 : 1
 
@@ -367,7 +367,7 @@ function SvgNode({ node, pos, selected, highlighted, dim, onClick }: {
       </text>
       {/* error dot */}
       {hasError && (
-        <circle cx={NODE_W - 10} cy="10" r="4" fill="#ef4444" opacity="0.85" />
+        <circle cx={NODE_W - 10} cy="10" r="4" fill="var(--danger)" opacity="0.85" />
       )}
     </g>
   )
@@ -654,7 +654,7 @@ export default function ServiceMap() {
                             data-testid="rate-limited-badge"
                           />
                         )}
-                        <span className="truncate max-w-[220px]">{s.service}</span>
+                        <span title={s.service} className="truncate max-w-[220px]">{s.service}</span>
                       </td>
                       <td className="px-3 py-2 text-right text-ok">{fmtSourceRate(s.accepted_per_sec)}</td>
                       <td className={`px-3 py-2 text-right ${rateLimited ? 'text-danger font-semibold' : 'text-ink3'}`}>
@@ -745,11 +745,11 @@ export default function ServiceMap() {
       {/* footer legend */}
       <footer className="flex shrink-0 items-center gap-[18px] border-t border-border bg-background px-4 py-2 font-mono text-[10.5px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-3.5 bg-[#ef4444]" />
+          <span className="inline-block h-0.5 w-3.5 bg-danger" />
           edge has errors
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-3.5 bg-[#f59e0b]" />
+          <span className="inline-block h-0.5 w-3.5 bg-warn" />
           avg &gt; 200ms
         </span>
         <span className="inline-flex items-center gap-1.5">

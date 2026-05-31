@@ -7,6 +7,7 @@ import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
+import { fmtClock, fmtRelative } from '@/lib/fmt-relative'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
@@ -47,26 +48,6 @@ function sevBodyColor(n: number): string {
 
 function isZeroTraceId(id: string): boolean {
   return !id || /^0+$/.test(id)
-}
-
-// ── timestamp helpers ─────────────────────────────────────────────────────────
-
-function fmtAbsolute(ns: number): string {
-  const d = new Date(ns / 1_000_000)
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  const ss = String(d.getSeconds()).padStart(2, '0')
-  const ms = String(d.getMilliseconds()).padStart(3, '0')
-  return `${hh}:${mm}:${ss}.${ms}`
-}
-
-function fmtRelative(ns: number, nowMs: number): string {
-  const diffMs = nowMs - ns / 1_000_000
-  if (diffMs < 0) return 'just now'
-  if (diffMs < 1000) return `${Math.round(diffMs)}ms ago`
-  if (diffMs < 60_000) return `${Math.round(diffMs / 1000)}s ago`
-  if (diffMs < 3_600_000) return `${Math.round(diffMs / 60_000)}m ago`
-  return `${Math.round(diffMs / 3_600_000)}h ago`
 }
 
 // ── severity filter chip levels ───────────────────────────────────────────────
@@ -170,7 +151,7 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
     >
       {/* timestamp */}
       <div
-        title={fmtAbsolute(log.timestamp_ns)}
+        title={fmtClock(log.timestamp_ns)}
         className="font-mono text-[11px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap shrink-0"
       >
         {fmtRelative(log.timestamp_ns, nowMs)}
@@ -187,7 +168,7 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
           className="w-[5px] h-[5px] rounded-full shrink-0"
           style={{ background: c.fg }}
         />
-        <span className="font-mono text-[10.5px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap">
+        <span title={log.service_name} className="font-mono text-[10.5px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap">
           {log.service_name}
         </span>
       </div>
@@ -249,7 +230,7 @@ function LogInspector({ log, onClose, navigate }: {
       <header className="flex items-center gap-2 px-[14px] py-2.5 border-b border-line shrink-0">
         <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
         <span className="font-mono text-[11px] text-ink2">
-          {fmtAbsolute(log.timestamp_ns)}
+          {fmtClock(log.timestamp_ns)}
         </span>
         <div className="flex-1" />
         <button
@@ -400,6 +381,7 @@ export default function LogViewer() {
               key={chip}
               type="button"
               onClick={() => setFilterSev(chip)}
+              className="transition-colors"
               style={filterSev === chip ? chipActiveStyle(chip) : chipInactiveStyle()}
             >
               {chip}

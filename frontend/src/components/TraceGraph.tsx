@@ -19,7 +19,7 @@ const NODE_W_MIN = 160
 const NODE_W_MAX = 320
 const NODE_H = 64
 
-const CRITICAL = '#f59e0b'
+const CRITICAL = 'var(--warn)'
 
 interface SpanNodeData {
   span: Span
@@ -35,7 +35,7 @@ function SpanNode({ data }: NodeProps<SpanNodeData>) {
 
   const borderColor =
     onCritical ? CRITICAL
-    : isError ? '#ef4444'
+    : isError ? 'var(--danger)'
     : selected ? 'var(--accent)'
     : 'var(--border)'
   const borderWidth = (onCritical || isError || selected) ? 2 : 1

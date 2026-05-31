@@ -232,6 +232,16 @@
   }
 }
 
+/* ── keyboard focus ring ───────────────────────────────────────────────────────
+   Many interactive elements set `outline-none` for mouse aesthetics, which also
+   hides the keyboard focus indicator. This unlayered rule wins over Tailwind's
+   layered utilities, so keyboard users always get a visible, on-brand ring.
+   `:focus-visible` only matches keyboard focus, so mouse clicks stay clean. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ── scrollbars ────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

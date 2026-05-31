@@ -15,38 +15,11 @@ import {
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import { isBranchLabel, fmtSessionSize, fmtP95 } from "@/lib/session-utils";
+import { fmtRelative, fmtRelativeMs, fmtDeltaMs, fmtDateTime } from "@/lib/fmt-relative";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
 type SessionFilter = "all" | "branches" | "adhoc" | "hot";
-
-function fmtDeltaMs(ns: number): string {
-  const ms = Math.round(ns / 1_000_000);
-  return (ms > 0 ? "+" : "") + ms + "ms";
-}
-
-function fmtRelativeMs(atMs: number): string {
-  const diff = Date.now() - atMs;
-  if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`;
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
-  return `${Math.round(diff / 86_400_000)}d ago`;
-}
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function fmtRelative(ns: number): string {
-  const diffMs = Date.now() - ns / 1_000_000;
-  if (diffMs < 5_000) return "just now";
-  if (diffMs < 60_000) return `${Math.round(diffMs / 1000)}s ago`;
-  if (diffMs < 3_600_000) return `${Math.round(diffMs / 60_000)}m ago`;
-  if (diffMs < 86_400_000) return `${Math.round(diffMs / 3_600_000)}h ago`;
-  return `${Math.round(diffMs / 86_400_000)}d ago`;
-}
-
-function fmtAbsolute(ns: number): string {
-  return new Date(ns / 1_000_000).toLocaleString(undefined, { hour12: false });
-}
 
 // ── atom components ───────────────────────────────────────────────────────────
 
@@ -58,6 +31,8 @@ function StarButton(
       type="button"
       onClick={onClick}
       title={title}
+      aria-label={title}
+      aria-pressed={on}
       className={`w-7 h-7 rounded-md p-0 cursor-pointer outline-none inline-flex items-center justify-center shrink-0 ${
         on
           ? "bg-[color-mix(in_oklch,var(--warn)_30%,var(--surface))] border border-warn"
@@ -364,6 +339,7 @@ function ImportModal(
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
+            disabled={status === "loading"}
             placeholder={file
               ? file.name.replace(/\.[^.]+$/, "")
               : "prod-baseline"}
@@ -379,6 +355,7 @@ function ImportModal(
           <select
             value={format}
             onChange={(e) => setFormat(e.target.value)}
+            disabled={status === "loading"}
             className={inputClass}
           >
             <option value="auto">Auto-detect</option>
@@ -574,7 +551,7 @@ function SessionRow({
         <div className="font-mono text-[11px] text-ink">
           {s.last_activity_ns > 0 ? fmtRelative(s.last_activity_ns) : "—"}
         </div>
-        <div className="font-mono text-[10px] text-ink3" title={fmtAbsolute(s.created_at)}>
+        <div className="font-mono text-[10px] text-ink3" title={fmtDateTime(s.created_at)}>
           created {fmtRelative(s.created_at)}
         </div>
       </div>
@@ -896,7 +873,7 @@ export default function Sessions() {
                   type="button"
                   data-testid={`filter-${item.key}`}
                   onClick={() => setFilter(item.key)}
-                  className={`flex items-center gap-[7px] w-full text-left px-2 py-[5px] rounded-md border-0 cursor-pointer font-mono text-[11px] ${
+                  className={`flex items-center gap-[7px] w-full text-left px-2 py-[5px] rounded-md border-0 cursor-pointer font-mono text-[11px] transition-colors ${
                     filter === item.key
                       ? "bg-surface text-ink font-semibold"
                       : "bg-transparent text-ink2 font-normal"
@@ -920,26 +897,25 @@ export default function Sessions() {
               actions
             </div>
             <div className="flex flex-col gap-0.5">
-              <div
-                role="button"
-                onClick={!creating ? handleNew : undefined}
-                className={`flex items-center gap-2 px-2 py-[5px] rounded-md text-xs text-accent-ink select-none font-semibold ${
-                  creating ? "cursor-default" : "cursor-pointer"
-                }`}
+              <button
+                type="button"
+                onClick={handleNew}
+                disabled={creating}
+                className="flex w-full appearance-none items-center gap-2 border-0 px-2 py-[5px] rounded-md text-xs text-left text-accent-ink select-none font-semibold cursor-pointer bg-transparent disabled:cursor-default disabled:opacity-70"
               >
-                <span className="w-[7px] h-[7px] rounded-full bg-[var(--accent)]" />
+                <span className={`w-[7px] h-[7px] rounded-full bg-[var(--accent)] ${creating ? "pulse-dot" : ""}`} />
                 {creating ? "creating…" : "+ new session"}
-              </div>
-              <div
-                role="button"
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowImport(true)}
-                className="flex items-center gap-2 px-2 py-[5px] rounded-md text-xs text-ink2 cursor-pointer select-none"
+                className="flex w-full appearance-none items-center gap-2 border-0 px-2 py-[5px] rounded-md text-xs text-left text-ink2 cursor-pointer bg-transparent select-none"
               >
                 <span className="inline-flex text-ink3">
                   <ImportIcon />
                 </span>
                 import trace
-              </div>
+              </button>
             </div>
           </div>
 

@@ -72,6 +72,7 @@ function ThemeToggle() {
       type="button"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent border border-border text-muted-foreground cursor-pointer outline-none transition-colors shrink-0 hover:bg-muted hover:text-foreground"
     >
       {isDark ? <Sun size={14} /> : <Moon size={14} />}

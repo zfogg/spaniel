@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Spaniel">
+  <!-- Drift palette: sky #7aa3c4, sand #d6b46a, ear #b8925a, navy #0c1622, cream #f5e9d4 -->
+  <rect width="64" height="64" rx="14" fill="#7aa3c4"/>
+  <!-- floppy ears (drawn first so they sit behind the head) -->
+  <g fill="#b8925a">
+    <path d="M19 22 C7 24 6 42 14 50 C20 44 21 32 24 26 Z"/>
+    <path d="M45 22 C57 24 58 42 50 50 C44 44 43 32 40 26 Z"/>
+  </g>
+  <!-- head -->
+  <ellipse cx="32" cy="32" rx="15" ry="14" fill="#d6b46a"/>
+  <!-- muzzle -->
+  <ellipse cx="32" cy="40" rx="9" ry="8" fill="#f5e9d4"/>
+  <!-- eyes -->
+  <circle cx="25" cy="30" r="2.4" fill="#0c1622"/>
+  <circle cx="39" cy="30" r="2.4" fill="#0c1622"/>
+  <!-- nose -->
+  <ellipse cx="32" cy="37" rx="3" ry="2.4" fill="#0c1622"/>
+  <!-- mouth -->
+  <path d="M32 39 V43 M32 43 C29 46 26 45 25 43 M32 43 C35 46 38 45 39 43"
+        fill="none" stroke="#0c1622" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- top tuft -->
+  <path d="M28 19 C30 15 34 15 36 19 C34 18 30 18 28 19 Z" fill="#b8925a"/>
+</svg>

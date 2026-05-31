@@ -300,23 +300,28 @@ function SbItem({
   dot?: string
   onClick?: () => void
 }) {
-  return (
-    <div
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      className={[
-        'flex select-none items-center gap-2 rounded-md px-2 py-[5px] text-xs',
-        onClick ? 'cursor-pointer' : 'cursor-default',
-        active
-          ? 'bg-[var(--surface)] font-semibold text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)]'
-          : 'bg-transparent font-medium text-[var(--ink2)]',
-      ].join(' ')}
-    >
+  const cls = [
+    'flex select-none items-center gap-2 rounded-md px-2 py-[5px] text-xs transition-colors',
+    onClick ? 'cursor-pointer' : 'cursor-default',
+    active
+      ? 'bg-[var(--surface)] font-semibold text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)]'
+      : 'bg-transparent font-medium text-[var(--ink2)]',
+  ].join(' ')
+  const inner = (
+    <>
       {dot && <span className="size-[7px] shrink-0 rounded-full" style={{ background: dot }} />}
       <span className="flex-1 truncate">{children}</span>
       {count != null && <span className="font-mono text-[10px] text-[var(--ink3)]">{count}</span>}
-    </div>
+    </>
+  )
+  // Render a real <button> when clickable so keyboard/AT get native semantics
+  // and the global focus-visible ring; a plain <div> for the decorative case.
+  return onClick ? (
+    <button type="button" onClick={onClick} className={`w-full appearance-none border-0 text-left ${cls}`}>
+      {inner}
+    </button>
+  ) : (
+    <div className={cls}>{inner}</div>
   )
 }
 

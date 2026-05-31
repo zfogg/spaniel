@@ -12,6 +12,7 @@ import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
+import { fmtDuration, fmtClock } from '@/lib/fmt-relative'
 
 // Global search: matches a span on its name, service, trace/span id, or any
 // attribute key/value. Used as the react-table globalFilterFn.
@@ -28,22 +29,6 @@ function spanGlobalFilter(row: Row<SpanRow>, _columnId: string, filterValue: str
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-function fmtNs(ns: number): string {
-  if (ns >= 1_000_000_000) return (ns / 1_000_000_000).toFixed(2) + 's'
-  if (ns >= 1_000_000) return (ns / 1_000_000).toFixed(1) + 'ms'
-  if (ns >= 1_000) return (ns / 1_000).toFixed(0) + 'µs'
-  return ns + 'ns'
-}
-
-function fmtTime(ns: number): string {
-  const d = new Date(ns / 1_000_000)
-  const h = d.getHours().toString().padStart(2, '0')
-  const m = d.getMinutes().toString().padStart(2, '0')
-  const s = d.getSeconds().toString().padStart(2, '0')
-  const ms = d.getMilliseconds().toString().padStart(3, '0')
-  return `${h}:${m}:${s}.${ms}`
-}
 
 function parseAttrs(raw: string): Record<string, unknown> {
   try { return JSON.parse(raw) } catch { return {} }
@@ -104,6 +89,7 @@ function FilterChip({ label, onClear }: { label: string; onClear: () => void }) 
       <button
         type="button"
         onClick={onClear}
+        aria-label="Clear filter"
         className="bg-transparent border-none cursor-pointer text-inherit text-sm leading-none p-0 ml-0.5"
       >×</button>
     </span>
@@ -163,6 +149,7 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close inspector"
             className="bg-transparent border-none cursor-pointer text-muted-foreground text-base leading-none p-0"
           >×</button>
         </div>
@@ -176,11 +163,11 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
                 fontFamily: 'Georgia, serif',
                 color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)',
               }}
-            >{fmtNs(span.duration_ns)}</div>
+            >{fmtDuration(span.duration_ns)}</div>
           </div>
           <div>
             <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">started</div>
-            <div className="font-mono text-[13px] text-foreground mt-1.5">{fmtTime(span.start_ns)}</div>
+            <div className="font-mono text-[13px] text-foreground mt-1.5">{fmtClock(span.start_ns)}</div>
           </div>
         </div>
       </div>
@@ -454,7 +441,7 @@ export default function Spans() {
                 type="button"
                 data-testid={`span-row-${s.span_id}`}
                 onClick={() => setSelectedId(isSel ? null : s.span_id)}
-                className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
+                className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
                 style={{
                   gridTemplateColumns: 'minmax(0,1.6fr) 130px 80px 70px 130px 60px',
                   background: isSel
@@ -462,14 +449,14 @@ export default function Spans() {
                     : undefined,
                 }}
               >
-                <div className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{s.name}</div>
+                <div title={s.name} className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{s.name}</div>
                 <div><SvcChip name={s.service_name} /></div>
                 <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.08em]">{kindLabel}</div>
                 <div
                   className="text-right font-mono text-[11.5px] font-semibold"
                   style={{ color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)' }}
-                >{fmtNs(s.duration_ns)}</div>
-                <div className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">{s.trace_id}</div>
+                >{fmtDuration(s.duration_ns)}</div>
+                <div title={s.trace_id} className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">{s.trace_id}</div>
                 <div className="text-right">
                   <TagBadge tag={s.tag} />
                 </div>
