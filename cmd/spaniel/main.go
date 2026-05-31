@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -49,6 +50,51 @@ import (
 // The Makefile sets it from `git describe --tags`. When unset (e.g. `go run`),
 // init() falls back to the VCS metadata Go embeds in the binary.
 var version = "dev"
+
+// spaHandler serves a React SPA with client-side routing.
+// Falls back to index.html for any request that doesn't match a static asset.
+type spaHandler struct {
+	distFS fs.FS
+}
+
+func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/")
+
+	// If root, serve index.html
+	if path == "" {
+		path = "index.html"
+	}
+
+	// For assets with extensions (js, css, svg, png, jpg, woff, etc.), check if they exist
+	if strings.Contains(path, ".") {
+		if _, err := fs.Stat(h.distFS, path); err == nil {
+			// File exists, serve it with FileServer
+			fileServer := http.FileServer(http.FS(h.distFS))
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		// Asset not found, still fall back to index.html for SPA
+	}
+
+	// For routes (no extension) or missing assets, serve index.html for SPA routing
+	indexFile, err := h.distFS.Open("index.html")
+	if err != nil {
+		http.Error(w, "index.html not found", http.StatusNotFound)
+		return
+	}
+	defer indexFile.Close()
+
+	// Read and serve index.html
+	indexData, err := io.ReadAll(indexFile)
+	if err != nil {
+		http.Error(w, "error reading index.html", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(indexData)
+}
 
 func init() {
 	if version != "dev" {
@@ -768,7 +814,8 @@ func run(cfg runConfig) error {
 		if err != nil {
 			return fmt.Errorf("frontend FS: %w", err)
 		}
-		uiHandler = http.FileServer(http.FS(distFS))
+		// SPA fallback: serve index.html for client-side routes
+		uiHandler = &spaHandler{distFS: distFS}
 	}
 
 	mainMux := http.NewServeMux()
