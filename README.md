@@ -53,9 +53,7 @@ You run `docker compose up`. You hit an endpoint. It takes 800ms. You have no id
 
 No Docker required. No cloud account. Nothing leaves your machine.
 
-<!-- TODO before launch: drop a screenshot/GIF of the trace waterfall + N+1 banner here.
-     A UI tool with no visuals above the fold loses most of its appeal on first glance.
-     e.g. ![spaniel trace waterfall](assets/screenshot.png) -->
+![spaniel demo: traces, spans, logs, metrics, services, lint, sessions](spaniel-demo.gif)
 
 ---
 
