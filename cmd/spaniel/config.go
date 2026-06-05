@@ -29,6 +29,8 @@ max_sessions: 50
 # Retention: shrink DB to at most N MB (0 = unlimited)
 max_db_size_mb: 500
 
+# OTLP receiver ports. 0 disables that receiver; at least one of the two must
+# stay enabled or spaniel will refuse to start (there'd be no way to ingest).
 # OTLP gRPC receiver port (default 4317; 0 = disabled)
 otlp_grpc_port: 4317
 
@@ -73,6 +75,14 @@ forward_sample: 1.0
 
 # Per-source burst capacity (0 = source_rps * 5)
 # source_burst: 0
+
+# MCP server: expose telemetry to MCP clients (Claude Code/Desktop) at /mcp.
+mcp_enabled: true
+
+# Allow MCP clients to mutate state (create/activate sessions, set baseline,
+# prune). When false, the write tools are not registered and won't appear in
+# the MCP tool list. Override per-run with --mcp-allow-writes.
+mcp_allow_writes: false
 `
 
 // globalConfigPath returns the path to ~/.spaniel/config.yaml.
@@ -113,6 +123,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("self_telemetry_service", "spaniel")
 	v.SetDefault("self_telemetry_insecure", true)
 	v.SetDefault("self_monitor", true)
+	v.SetDefault("mcp_enabled", true)
+	v.SetDefault("mcp_allow_writes", false)
 
 	// ENV: SPANIEL_PORT, SPANIEL_DB_PATH, etc.
 	v.SetEnvPrefix("SPANIEL")
