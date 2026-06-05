@@ -88,6 +88,7 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	}, h.getServerInfo)
 
 	h.registerTraceTools(s)
+	h.registerDiagnosticTools(s)
 
 	if h.opts.AllowWrites {
 		h.registerWriteTools(s)
