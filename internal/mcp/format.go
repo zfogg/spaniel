@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/zfogg/spaniel/internal/storage"
@@ -59,6 +60,33 @@ func severityString(sev int) string {
 		return "TRACE"
 	default:
 		return "UNSET"
+	}
+}
+
+// severityNum maps a severity name (case-insensitive) to its minimum OTel
+// severity number, or a numeric string to itself. Returns 0 (no threshold) for
+// empty or unrecognized input.
+func severityNum(name string) int {
+	switch strings.ToUpper(strings.TrimSpace(name)) {
+	case "":
+		return 0
+	case "TRACE":
+		return 1
+	case "DEBUG":
+		return 5
+	case "INFO":
+		return 9
+	case "WARN", "WARNING":
+		return 13
+	case "ERROR":
+		return 17
+	case "FATAL":
+		return 21
+	default:
+		if n, err := strconv.Atoi(strings.TrimSpace(name)); err == nil {
+			return n
+		}
+		return 0
 	}
 }
 
