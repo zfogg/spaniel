@@ -87,6 +87,8 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, h.getServerInfo)
 
+	h.registerTraceTools(s)
+
 	if h.opts.AllowWrites {
 		h.registerWriteTools(s)
 	}
