@@ -35,6 +35,68 @@ type Pipeline struct {
 	tracer        trace.Tracer
 	ingestCounter metric.Int64Counter
 	dbLatency     metric.Float64Histogram
+
+	// selfService is the service.name Spaniel uses for its own self-telemetry.
+	// Batches from it are stored "quietly" (no instrumentation spans, linter, or
+	// detectors) so self-monitoring doesn't feed back on itself. Empty disables.
+	selfService string
+}
+
+// SetSelfService configures the service.name treated as Spaniel's own
+// self-telemetry; ingests from it are stored without generating new spans.
+func (p *Pipeline) SetSelfService(name string) { p.selfService = name }
+
+// isSelfTraces reports whether every resource in the batch is Spaniel's own
+// self-telemetry, in which case it's stored without re-instrumentation.
+func (p *Pipeline) isSelfTraces(traces ptrace.Traces) bool {
+	if p.selfService == "" {
+		return false
+	}
+	rss := traces.ResourceSpans()
+	if rss.Len() == 0 {
+		return false
+	}
+	for i := 0; i < rss.Len(); i++ {
+		v, ok := rss.At(i).Resource().Attributes().Get("service.name")
+		if !ok || v.Str() != p.selfService {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *Pipeline) isSelfLogs(logs plog.Logs) bool {
+	if p.selfService == "" {
+		return false
+	}
+	rls := logs.ResourceLogs()
+	if rls.Len() == 0 {
+		return false
+	}
+	for i := 0; i < rls.Len(); i++ {
+		v, ok := rls.At(i).Resource().Attributes().Get("service.name")
+		if !ok || v.Str() != p.selfService {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *Pipeline) isSelfMetrics(md pmetric.Metrics) bool {
+	if p.selfService == "" {
+		return false
+	}
+	rms := md.ResourceMetrics()
+	if rms.Len() == 0 {
+		return false
+	}
+	for i := 0; i < rms.Len(); i++ {
+		v, ok := rms.At(i).Resource().Attributes().Get("service.name")
+		if !ok || v.Str() != p.selfService {
+			return false
+		}
+	}
+	return true
 }
 
 func NewPipeline(store *storage.DB, hub *ws.Hub) *Pipeline {
@@ -98,7 +160,10 @@ func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
 // flush persists this request's buffered rows, wrapped in a db.flush span so the
 // DuckDB columnar write shows up in the ingestion trace (the Appender bypasses
 // GORM, so it isn't covered by the storage OTel plugin).
-func (p *Pipeline) flush(ctx context.Context) error {
+func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
+	if !instrument {
+		return p.store.FlushBatch()
+	}
 	_, span := p.tracer.Start(ctx, "db.flush",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String("db.system", "duckdb")),
@@ -113,41 +178,51 @@ func (p *Pipeline) flush(ctx context.Context) error {
 }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
-	// Build OTel links to the root span of every received trace so this
-	// processing span is causally connected to the application spans it handles.
-	// Navigating to the ingestSpan from the app trace (or vice versa) shows the
-	// full picture: app span → Spaniel collected it → stored it.
-	var receivedLinks []trace.Link
-	for i := 0; i < traces.ResourceSpans().Len(); i++ {
-		rs := traces.ResourceSpans().At(i)
-		for j := 0; j < rs.ScopeSpans().Len(); j++ {
-			ss := rs.ScopeSpans().At(j)
-			for k := 0; k < ss.Spans().Len(); k++ {
-				span := ss.Spans().At(k)
-				if !span.ParentSpanID().IsEmpty() {
-					continue
-				}
-				sc := trace.NewSpanContext(trace.SpanContextConfig{
-					TraceID:    trace.TraceID(span.TraceID()),
-					SpanID:     trace.SpanID(span.SpanID()),
-					TraceFlags: trace.FlagsSampled,
-					Remote:     true,
-				})
-				if sc.IsValid() {
-					receivedLinks = append(receivedLinks, trace.Link{SpanContext: sc})
+	// Spaniel's own self-telemetry is stored "quietly" — no instrumentation
+	// span, linter, or detectors — so self-monitoring doesn't generate new spans
+	// from ingesting its own spans (which would feed back on itself).
+	self := p.isSelfTraces(traces)
+
+	var ingestSpan trace.Span
+	if self {
+		ingestSpan = trace.SpanFromContext(context.Background()) // no-op span
+		ctx = storage.WithoutTracing(ctx)
+	} else {
+		// Build OTel links to the root span of every received trace so this
+		// processing span is causally connected to the application spans it
+		// handles. Navigating from the ingestSpan to the app trace (or vice
+		// versa) shows the full picture: app span → Spaniel collected → stored.
+		var receivedLinks []trace.Link
+		for i := 0; i < traces.ResourceSpans().Len(); i++ {
+			rs := traces.ResourceSpans().At(i)
+			for j := 0; j < rs.ScopeSpans().Len(); j++ {
+				ss := rs.ScopeSpans().At(j)
+				for k := 0; k < ss.Spans().Len(); k++ {
+					span := ss.Spans().At(k)
+					if !span.ParentSpanID().IsEmpty() {
+						continue
+					}
+					sc := trace.NewSpanContext(trace.SpanContextConfig{
+						TraceID:    trace.TraceID(span.TraceID()),
+						SpanID:     trace.SpanID(span.SpanID()),
+						TraceFlags: trace.FlagsSampled,
+						Remote:     true,
+					})
+					if sc.IsValid() {
+						receivedLinks = append(receivedLinks, trace.Link{SpanContext: sc})
+					}
 				}
 			}
 		}
+		ctx, ingestSpan = p.tracer.Start(ctx, "IngestTraces",
+			trace.WithAttributes(attribute.Int("otel.span_count", traces.SpanCount())),
+			trace.WithLinks(receivedLinks...),
+		)
 	}
-
-	ctx, ingestSpan := p.tracer.Start(ctx, "IngestTraces",
-		trace.WithAttributes(attribute.Int("otel.span_count", traces.SpanCount())),
-		trace.WithLinks(receivedLinks...),
-	)
 	defer ingestSpan.End()
 
 	// ctx-bound store so the per-span gorm writes (events, links) nest under
-	// this ingest span as db.* spans.
+	// this ingest span as db.* spans (suppressed for self-telemetry above).
 	store := p.store.WithContext(ctx)
 
 	sessionID := p.store.ActiveSessionID()
@@ -235,20 +310,22 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 
 				// Per-source rate limit (tracks stats regardless of RPS setting).
 				spanBytes := int64(len(s.Attributes) + len(s.Resource) + len(s.Name))
-				if !p.limiter.Allow(svcName, s.StatusCode == 2, spanBytes) {
+				// Self-telemetry bypasses rate-limiting, buffering, and sampling —
+				// it's always stored, quietly.
+				if !self && !p.limiter.Allow(svcName, s.StatusCode == 2, spanBytes) {
 					p.sampler.Counters.bumpSpans(1)
 					droppedRateLimit++
 					continue
 				}
 
-				if p.sampler.NeedsBuffer() {
+				if !self && p.sampler.NeedsBuffer() {
 					p.bufferSpan(s.TraceID, s, events, links)
 					p.scheduleDetectors(s.TraceID)
 					continue
 				}
 
 				// Fast path: per-span decision.
-				if !p.sampler.DecideSpan(s) {
+				if !self && !p.sampler.DecideSpan(s) {
 					p.sampler.Counters.bumpSpans(1)
 					droppedSampled++
 					continue
@@ -283,7 +360,9 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					p.dbLatency.Record(ctx, float64(time.Since(t1).Milliseconds()),
 						metric.WithAttributes(attribute.String("op", "insert_span_links")))
 				}
-				goroutine.Go(func() { lintSpan(s, sessionID, p.store, p.tracer) }, "subsystem", "linter")
+				if !self {
+					goroutine.Go(func() { lintSpan(s, sessionID, p.store, p.tracer) }, "subsystem", "linter")
+				}
 				p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 					TraceID:     s.TraceID,
 					SpanID:      s.SpanID,
@@ -292,13 +371,15 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					DurationNs:  s.EndNs - s.StartNs,
 					StatusCode:  s.StatusCode,
 				}))
-				p.scheduleDetectors(s.TraceID)
+				if !self {
+					p.scheduleDetectors(s.TraceID)
+				}
 			}
 		}
 	}
 	// Persist this request's buffered rows before returning so reads-after-ingest
 	// (API queries, the post-debounce detectors) observe them.
-	if err := p.flush(ctx); err != nil {
+	if err := p.flush(ctx, !self); err != nil {
 		ingestSpan.RecordError(err)
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
@@ -321,8 +402,15 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 }
 
 func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
-	ctx, ingestSpan := p.tracer.Start(ctx, "IngestLogs",
-		trace.WithAttributes(attribute.Int("otel.log_record_count", logs.LogRecordCount())))
+	self := p.isSelfLogs(logs)
+	var ingestSpan trace.Span
+	if self {
+		ingestSpan = trace.SpanFromContext(context.Background())
+		ctx = storage.WithoutTracing(ctx)
+	} else {
+		ctx, ingestSpan = p.tracer.Start(ctx, "IngestLogs",
+			trace.WithAttributes(attribute.Int("otel.log_record_count", logs.LogRecordCount())))
+	}
 	defer ingestSpan.End()
 
 	sessionID := p.store.ActiveSessionID()
@@ -339,7 +427,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 			for k := 0; k < sl.LogRecords().Len(); k++ {
 				lr := sl.LogRecords().At(k)
 
-				if !p.sampler.DecideLog() {
+				if !self && !p.sampler.DecideLog() {
 					p.sampler.Counters.bumpLogs(1)
 					continue
 				}
@@ -376,7 +464,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 			}
 		}
 	}
-	if err := p.flush(ctx); err != nil {
+	if err := p.flush(ctx, !self); err != nil {
 		ingestSpan.RecordError(err)
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
@@ -387,13 +475,20 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 }
 
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
-	ctx, ingestSpan := p.tracer.Start(ctx, "IngestMetrics",
-		trace.WithAttributes(attribute.Int("otel.metric_point_count", md.DataPointCount())))
+	self := p.isSelfMetrics(md)
+	var ingestSpan trace.Span
+	if self {
+		ingestSpan = trace.SpanFromContext(context.Background())
+		ctx = storage.WithoutTracing(ctx)
+	} else {
+		ctx, ingestSpan = p.tracer.Start(ctx, "IngestMetrics",
+			trace.WithAttributes(attribute.Int("otel.metric_point_count", md.DataPointCount())))
+	}
 	defer ingestSpan.End()
 	t0 := time.Now()
 	err := p.ingestMetricsTree(md, p.store.ActiveSessionID())
 	if err == nil {
-		err = p.flush(ctx)
+		err = p.flush(ctx, !self)
 	}
 	p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
 		metric.WithAttributes(attribute.String("op", "insert_metrics")))

@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -56,6 +57,47 @@ func TestIngestTraces_NestedSpans(t *testing.T) {
 	}
 	if flush.Parent().SpanID() != ingest.SpanContext().SpanID() {
 		t.Errorf("db.flush not nested under IngestTraces")
+	}
+}
+
+// TestIngestTraces_SelfTelemetryQuiet proves the self-monitor feedback fix:
+// ingesting Spaniel's own self-telemetry (service.name == selfService) stores
+// the spans but generates NO new instrumentation spans (IngestTraces, db.flush,
+// db.*, lintSpan), so self-monitoring can't feed back on itself.
+func TestIngestTraces_SelfTelemetryQuiet(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("s", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	p := NewPipeline(db, ws.NewHub())
+	p.SetSelfService("spaniel")
+
+	td := makeTraces("spaniel", func(ss ptrace.ScopeSpans) { // service.name == self
+		putSpan(ss, "a", "1", "", "GET /thing", ptrace.SpanKindServer, nil)
+	})
+	pre := len(sr.Ended()) // ignore spans from test setup (CreateSession, etc.)
+	if err := p.IngestTraces(context.Background(), td); err != nil {
+		t.Fatalf("IngestTraces: %v", err)
+	}
+
+	// No instrumentation spans should have been produced by the self ingest.
+	for _, s := range sr.Ended()[pre:] {
+		n := s.Name()
+		if n == "IngestTraces" || n == "db.flush" || n == "lintSpan" || strings.HasPrefix(n, "db.") {
+			t.Errorf("self-telemetry ingest produced instrumentation span %q (should be quiet)", n)
+		}
+	}
+
+	// But the data must still be stored.
+	tid := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID().String()
+	spans, err := db.GetTrace(tid)
+	if err != nil || len(spans) != 1 {
+		t.Fatalf("self-telemetry span not stored: got %d spans, err=%v", len(spans), err)
 	}
 }
 

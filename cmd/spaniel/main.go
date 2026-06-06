@@ -601,6 +601,9 @@ func run(cfg runConfig) error {
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
 	limiter := ingestion.NewSourceLimiter(cfg.SourceRPS, cfg.SourceBurst)
 	pipeline := ingestion.NewPipelineFull(store, hub, sampler, limiter)
+	// Store Spaniel's own self-telemetry quietly (no instrumentation/lint/
+	// detectors) so self-monitoring doesn't feed back on itself.
+	pipeline.SetSelfService(cfg.SelfTelemetryService)
 
 	// Seed drop counters from last run.
 	if dSpans, dLogs, dMetrics, err := store.LoadDropCounters(); err == nil {

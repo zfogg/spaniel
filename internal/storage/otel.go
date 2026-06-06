@@ -14,6 +14,25 @@ import (
 	"gorm.io/gorm"
 )
 
+// skipTracingKey marks a context whose GORM operations must NOT be traced. Used
+// when storing Spaniel's own self-telemetry so persisting it doesn't generate
+// new "db.*" spans (which would feed back into the self-monitor loop).
+type skipTracingKey struct{}
+
+// WithoutTracing returns ctx with GORM span creation suppressed for the storage
+// OTel plugin. See pipeline self-telemetry handling.
+func WithoutTracing(ctx context.Context) context.Context {
+	return context.WithValue(ctx, skipTracingKey{}, true)
+}
+
+func skipTracing(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v, _ := ctx.Value(skipTracingKey{}).(bool)
+	return v
+}
+
 // gormOTelPlugin instruments every GORM operation with an OTel span.
 // It stores the span in the Statement.Context so after callbacks can
 // retrieve it via trace.SpanFromContext — no extra map key needed.
@@ -71,6 +90,9 @@ func (p *gormOTelPlugin) before(op string) func(*gorm.DB) {
 		if ctx == nil {
 			ctx = context.Background()
 		}
+		if skipTracing(ctx) {
+			return
+		}
 		ctx, _ = p.tracer.Start(ctx, "db."+op,
 			trace.WithSpanKind(trace.SpanKindClient),
 			trace.WithAttributes(
@@ -84,6 +106,9 @@ func (p *gormOTelPlugin) before(op string) func(*gorm.DB) {
 }
 
 func (p *gormOTelPlugin) after(db *gorm.DB) {
+	if db.Statement != nil && skipTracing(db.Statement.Context) {
+		return
+	}
 	span := trace.SpanFromContext(db.Statement.Context)
 	defer span.End()
 
