@@ -40,6 +40,7 @@ import (
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/ingestion"
+	"github.com/zfogg/spaniel/internal/mcp"
 	"github.com/zfogg/spaniel/internal/receiver"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
@@ -156,6 +157,8 @@ func main() {
 		forwardMaxSpoolMB int
 		forwardRetryMax   time.Duration
 		debugMode         bool
+		mcpEnabled        bool
+		mcpAllowWrites    bool
 	)
 
 	root := &cobra.Command{
@@ -185,6 +188,12 @@ func main() {
 			if f := cmd.Flags().Lookup("debug"); f != nil && f.Changed {
 				cfg.Debug = debugMode
 			}
+			if f := cmd.Flags().Lookup("mcp-enabled"); f != nil && f.Changed {
+				cfg.MCPEnabled = mcpEnabled
+			}
+			if f := cmd.Flags().Lookup("mcp-allow-writes"); f != nil && f.Changed {
+				cfg.MCPAllowWrites = mcpAllowWrites
+			}
 			return run(cfg)
 		},
 	}
@@ -209,6 +218,8 @@ func main() {
 	root.Flags().Float64Var(&sourceRPS, "source-rps", 0, "Max spans/sec per service.name source (0 = unlimited)")
 	root.Flags().IntVar(&sourceBurst, "source-burst", 0, "Per-source burst capacity (0 = source-rps * 5)")
 	root.Flags().BoolVar(&debugMode, "debug", false, "Mount /debug/pprof profiling endpoints")
+	root.Flags().BoolVar(&mcpEnabled, "mcp-enabled", true, "Serve the MCP endpoint at /mcp for Claude Code/Desktop")
+	root.Flags().BoolVar(&mcpAllowWrites, "mcp-allow-writes", false, "Allow MCP clients to mutate state (create/activate sessions, set baseline, prune)")
 
 	// session subcommand
 	sessionCmd := &cobra.Command{
@@ -390,6 +401,8 @@ type runConfig struct {
 	SelfTelemetryInsecure bool
 	SelfMonitor           bool
 	Debug                 bool
+	MCPEnabled            bool
+	MCPAllowWrites        bool
 	Viper                 *viper.Viper
 }
 
@@ -424,6 +437,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		SelfTelemetryService:  v.GetString("self_telemetry_service"),
 		SelfTelemetryInsecure: v.GetBool("self_telemetry_insecure"),
 		SelfMonitor:           v.GetBool("self_monitor"),
+		MCPEnabled:            v.GetBool("mcp_enabled"),
+		MCPAllowWrites:        v.GetBool("mcp_allow_writes"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -475,12 +490,9 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 	if cfg.DBPath == "" {
 		cfg.DBPath = defaultDBPath()
 	}
-	if cfg.OTLPGRPCPort == 0 {
-		cfg.OTLPGRPCPort = 4317
-	}
-	if cfg.OTLPHTTPPort == 0 {
-		cfg.OTLPHTTPPort = 4318
-	}
+	// OTLP ports: 0 means "disabled" (not "use default"). The viper defaults
+	// (4317/4318) already supply the on-by-default behavior, so an explicit 0 in
+	// config/env/flags genuinely turns a receiver off.
 	if cfg.BindAddressV4 == "" && cfg.BindAddressV6 == "" {
 		cfg.BindAddressV4 = "127.0.0.1"
 		cfg.BindAddressV6 = "::1"
@@ -505,7 +517,23 @@ func expandHome(p string) string {
 	return p
 }
 
+// receiverConfigError reports why telemetry could never be ingested with the
+// given OTLP receiver ports (both disabled), or nil if at least one is enabled.
+// A live OTLP receiver is the only ingest path, so run() refuses to start
+// without one rather than masquerade as a viewer that can never receive data.
+func receiverConfigError(grpcPort, httpPort int) error {
+	if grpcPort == 0 && httpPort == 0 {
+		return fmt.Errorf("no OTLP receiver enabled (otlp_grpc_port and otlp_http_port are both 0) — spaniel needs at least one live ingest path; enable one in %s or via SPANIEL_OTLP_GRPC_PORT / SPANIEL_OTLP_HTTP_PORT", globalConfigPath())
+	}
+	return nil
+}
+
 func run(cfg runConfig) error {
+	// Fail fast before any side effects (DB open, goroutines) if there's no way
+	// to ingest telemetry.
+	if err := receiverConfigError(cfg.OTLPGRPCPort, cfg.OTLPHTTPPort); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0o755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
 	}
@@ -672,13 +700,11 @@ func run(cfg runConfig) error {
 		}
 		return nil
 	}
-	// Track per-receiver bind success across the requested OTLP receivers so we
-	// can fail fast if none of them come up — otherwise the process keeps
-	// running, looks healthy, and silently ingests nothing.
-	rcvRequested, rcvUp := 0, 0
-	if cfg.OTLPGRPCPort != 0 {
-		rcvRequested++
-	}
+	// Track per-receiver bind success so we can fail fast if none of the
+	// configured receivers come up — otherwise the process keeps running, looks
+	// healthy, and silently ingests nothing. (The both-disabled case is already
+	// rejected at the top of run() via receiverConfigError.)
+	rcvUp := 0
 	if err := startGRPC(cfg.OTLPGRPCPort); err != nil {
 		slog.Error("grpc receiver listen failed", "err", err)
 	} else if cfg.OTLPGRPCPort != 0 {
@@ -727,9 +753,6 @@ func run(cfg runConfig) error {
 		}()
 		return nil
 	}
-	if cfg.OTLPHTTPPort != 0 {
-		rcvRequested++
-	}
 	if err := startOTLPHTTP(cfg.OTLPHTTPPort); err != nil {
 		slog.Error("otlp http receiver listen failed", "err", err)
 	} else if cfg.OTLPHTTPPort != 0 {
@@ -738,7 +761,7 @@ func run(cfg runConfig) error {
 
 	// If every configured OTLP receiver failed to bind, there is no way to
 	// ingest telemetry — refuse to start rather than masquerade as healthy.
-	if rcvRequested > 0 && rcvUp == 0 {
+	if rcvUp == 0 {
 		return fmt.Errorf("all OTLP receivers failed to bind (gRPC :%d, HTTP :%d) — no telemetry can be ingested; check the ports are free (lsof -i :%d)",
 			cfg.OTLPGRPCPort, cfg.OTLPHTTPPort, cfg.OTLPGRPCPort)
 	}
@@ -766,6 +789,8 @@ func run(cfg runConfig) error {
 		OTLPHTTPPort:   cfg.OTLPHTTPPort,
 		TLSEnabled:     tlsCfg != nil,
 		BearerTokenSet: cfg.BearerToken != "",
+		MCPEnabled:     cfg.MCPEnabled,
+		MCPAllowWrites: cfg.MCPAllowWrites,
 		LiveGRPCPort: func() int {
 			grpcLS.mu.Lock()
 			defer grpcLS.mu.Unlock()
@@ -821,6 +846,14 @@ func run(cfg runConfig) error {
 	mainMux := http.NewServeMux()
 	mainMux.Handle("/api/", apiRouter)
 	mainMux.Handle("/ws", apiRouter)
+	if cfg.MCPEnabled {
+		mcpHandler := mcp.NewHandler(store, mcp.Options{
+			Version:     version,
+			AllowWrites: cfg.MCPAllowWrites,
+		})
+		mainMux.Handle("/mcp", mcpHandler)
+		mainMux.Handle("/mcp/", mcpHandler)
+	}
 	if cfg.Debug {
 		mainMux.HandleFunc("/debug/pprof/", pprof.Index)
 		mainMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -1045,11 +1078,35 @@ func printBanner(cfg runConfig) {
 	if cfg.BearerToken != "" {
 		fmt.Printf("  Auth      →  bearer token required\n")
 	}
+	if cfg.MCPEnabled {
+		writes := "read-only"
+		if cfg.MCPAllowWrites {
+			writes = "read+write"
+		}
+		fmt.Printf("  MCP       →  %s://%s:%d/mcp  (%s)\n", scheme, displayHost(cfg), cfg.Port, writes)
+	}
 	fmt.Printf("  DB        →  %s\n", cfg.DBPath)
 	for _, u := range cfg.ForwardURLs {
 		fmt.Printf("  Forward   →  %s\n", u)
 	}
 	fmt.Println()
+}
+
+// displayHost returns the host to print in URLs. Loopback and wildcard binds
+// resolve to "localhost" (the address a local client uses); an explicit
+// non-loopback bind (e.g. a LAN IP) is shown as-is, since "localhost" would be
+// wrong for reaching it.
+func displayHost(cfg runConfig) string {
+	h := cfg.BindAddressV4
+	if h == "" {
+		h = cfg.BindAddressV6
+	}
+	switch h {
+	case "", "0.0.0.0", "::", "127.0.0.1", "::1":
+		return "localhost"
+	default:
+		return h
+	}
 }
 
 func defaultDBPath() string {

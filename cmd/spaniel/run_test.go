@@ -393,15 +393,24 @@ func TestRun_ShutsDownCleanlyOnSignal(t *testing.T) {
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
 
+	// A live OTLP receiver is required for run() to start, so grab a second free
+	// port for the OTLP HTTP receiver (this test only cares about shutdown).
+	ln2, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free otlp port: %v", err)
+	}
+	otlpPort := ln2.Addr().(*net.TCPAddr).Port
+	ln2.Close()
+
 	dbPath := filepath.Join(t.TempDir(), "test.duckdb")
 
 	cfg := runConfig{
-		Port:          port,
-		DBPath:        dbPath,
-		NoBrowser:     true,
-		BindAddressV4: "127.0.0.1",
-		OTLPGRPCPort:  0,
-		OTLPHTTPPort:  0,
+		Port:             port,
+		DBPath:           dbPath,
+		NoBrowser:        true,
+		BindAddressV4:    "127.0.0.1",
+		OTLPGRPCPort:     0,
+		OTLPHTTPPort:     otlpPort,
 		SampleAlwaysKeep: "error",
 	}
 
