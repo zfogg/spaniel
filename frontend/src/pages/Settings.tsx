@@ -389,11 +389,6 @@ function NetworkSection({ s, mutate, hidden }: {
         <FieldError name="forward" />
       </Row>
       <ForwarderStatusRows />
-      <Row label="Auto-open browser on startup"
-        hint="When the daemon starts, open the spaniel UI in the default browser."
-        testid="row-autoopen">
-        <Toggle on={!s.no_browser} onChange={v => mutate({ no_browser: !v })} label="auto open browser" />
-      </Row>
     </Card>
   )
 }
@@ -493,16 +488,6 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
           min={0} max={1000000} ariaLabel="source burst" w={120} />
         <span className="font-mono text-[11px] text-muted-foreground">spans&nbsp;&nbsp;(0 = rps × 5)</span>
         <FieldError name="source_burst" />
-      </Row>
-      <Row label="Self-monitor"
-        hint="Send Spaniel's own traces and metrics to itself via its OTLP gRPC port. Enables the dogfood loop: see Spaniel's request latency, DB query times, and ingest spans in the Traces and Metrics tabs. Takes effect immediately."
-        testid="row-self-monitor">
-        <Toggle on={s.self_monitor} onChange={v => mutate({ self_monitor: v })} label="self monitor" />
-        {s.self_monitor && (
-          <span className="font-mono text-[11px] text-muted-foreground">
-            → localhost:{s.runtime.otlp_grpc_port}
-          </span>
-        )}
       </Row>
       <Row label="Storage usage"
         hint={`Currently ${fmtMB(s.runtime.db_size_bytes)} on disk.`}
@@ -622,7 +607,9 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
   )
 }
 
-function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
+function GeneralSection({ s, mutate, hidden }: {
+  s: SettingsT; mutate: (patch: SettingsUpdate) => void; hidden: boolean
+}) {
   const [copied, setCopied] = useState<string | null>(null)
   const endpoint = `${window.location.origin}/mcp`
   const addCmd = `claude mcp add --transport http spaniel ${endpoint}`
@@ -638,6 +625,25 @@ function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
   }, [])
 
   return (
+    <>
+    <Card id="general" title="General" sub="Startup and self-monitoring" hidden={hidden}>
+      <Row label="Auto-open browser on startup"
+        hint="When the daemon starts, open the spaniel UI in the default browser."
+        testid="row-autoopen">
+        <Toggle on={!s.no_browser} onChange={v => mutate({ no_browser: !v })} label="auto open browser" />
+      </Row>
+      <Row label="Self-monitor"
+        hint="Send Spaniel's own traces and metrics to itself via its OTLP gRPC port. Enables the dogfood loop: see Spaniel's request latency, DB query times, and ingest spans in the Traces and Metrics tabs. Takes effect immediately."
+        testid="row-self-monitor">
+        <Toggle on={s.self_monitor} onChange={v => mutate({ self_monitor: v })} label="self monitor" />
+        {s.self_monitor && (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            → localhost:{s.runtime.otlp_grpc_port}
+          </span>
+        )}
+      </Row>
+    </Card>
+
     <Card id="mcp" title="MCP" sub="Model Context Protocol endpoint for AI agents (Claude Code/Desktop)" hidden={hidden}>
       <Row label="Endpoint" hint="Streamable-HTTP MCP endpoint served on the UI port." testid="row-mcp-endpoint" align="center">
         {s.mcp_enabled
@@ -695,6 +701,7 @@ function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
         </>
       )}
     </Card>
+    </>
   )
 }
 
@@ -782,12 +789,12 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
 
 // ── page ─────────────────────────────────────────────────────────────────────
 
-type Section = 'network' | 'storage' | 'mcp' | 'about'
+type Section = 'general' | 'network' | 'storage' | 'about'
 
 export default function Settings() {
   const queryClient = useQueryClient()
   const [localError, setLocalError] = useState<string | null>(null)
-  const [section, setSection] = useState<Section>('network')
+  const [section, setSection] = useState<Section>('general')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
@@ -874,9 +881,9 @@ export default function Settings() {
   }, [queryClient])
 
   const sections = useMemo(() => ([
+    { id: 'general' as const, label: 'General' },
     { id: 'network' as const, label: 'Network' },
     { id: 'storage' as const, label: 'Storage' },
-    { id: 'mcp'     as const, label: 'MCP' },
     { id: 'about'   as const, label: 'About' },
   ]), [])
 
@@ -959,10 +966,10 @@ export default function Settings() {
           {!error && !saving && savedAt && <span className="text-[#3e6a3e]">✓ saved</span>}
         </div>
 
+        <GeneralSection s={data} mutate={mutate} hidden={section !== 'general'} />
         <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />
         <StorageSection s={data} mutate={mutate} hidden={section !== 'storage'}
           onPrune={onPrune} onDrop={onDrop} breakdown={breakdown} onCompact={onCompact} />
-        <MCPSection s={data} hidden={section !== 'mcp'} />
         <AboutSection s={data} hidden={section !== 'about'} />
       </div>
     </div>
