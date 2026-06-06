@@ -20,6 +20,11 @@ const (
 	// writeTimeout bounds a single frame write so one stalled client cannot
 	// wedge its writer goroutine forever.
 	writeTimeout = 5 * time.Second
+	// defaultHeartbeatInterval is how often each client gets a heartbeat frame.
+	// It keeps the connection warm and lets the client detect a dead link by
+	// noticing the absence of frames (the JS WebSocket API can't observe
+	// protocol-level pings, so this is an application message).
+	defaultHeartbeatInterval = 5 * time.Second
 )
 
 // Typed payload structs
@@ -107,6 +112,12 @@ func NewThroughputEvent(p *ThroughputPayload) *Event {
 	return &Event{Type: "throughput", Timestamp: time.Now().UnixNano(), Payload: p}
 }
 
+// NewHeartbeatEvent is a payload-less liveness beat the server sends on a timer.
+// Clients use its arrival (and the silence when it stops) to track connectivity.
+func NewHeartbeatEvent() *Event {
+	return &Event{Type: "heartbeat", Timestamp: time.Now().UnixNano()}
+}
+
 // client is one connected WebSocket peer. Each has a buffered send channel
 // drained by a dedicated writer goroutine, so a slow consumer never blocks
 // Broadcast (and therefore never blocks the ingestion goroutines that call it).
@@ -121,6 +132,10 @@ type client struct {
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[*client]struct{}
+
+	// heartbeatInterval is how often each client's writePump emits a heartbeat.
+	// Set by NewHub; overridable in tests.
+	heartbeatInterval time.Duration
 
 	bytesSent     metric.Int64Counter
 	bytesReceived metric.Int64Counter
@@ -137,9 +152,10 @@ func NewHub() *Hub {
 		metric.WithUnit("By"),
 	)
 	h := &Hub{
-		clients:       make(map[*client]struct{}),
-		bytesSent:     sent,
-		bytesReceived: received,
+		clients:           make(map[*client]struct{}),
+		heartbeatInterval: defaultHeartbeatInterval,
+		bytesSent:         sent,
+		bytesReceived:     received,
 	}
 	_, _ = meter.Int64ObservableGauge("spaniel.ws.connections",
 		metric.WithDescription("Active WebSocket connections"),
@@ -207,21 +223,40 @@ func (h *Hub) readPump(ctx context.Context, c *client) {
 // write failure (or canceled ctx) cancels the client so readPump unblocks and
 // ServeWS tears the connection down.
 func (h *Hub) writePump(ctx context.Context, c *client) {
+	ticker := time.NewTicker(h.heartbeatInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case data := <-c.send:
-			writeCtx, cancel := context.WithTimeout(ctx, writeTimeout)
-			err := c.conn.Write(writeCtx, websocket.MessageText, data)
-			cancel()
+		case <-ticker.C:
+			data, err := json.Marshal(NewHeartbeatEvent())
 			if err != nil {
-				c.cancel()
+				continue
+			}
+			if !h.writeFrame(ctx, c, data) {
 				return
 			}
-			h.bytesSent.Add(ctx, int64(len(data)))
+		case data := <-c.send:
+			if !h.writeFrame(ctx, c, data) {
+				return
+			}
 		}
 	}
+}
+
+// writeFrame writes one text frame with the write timeout, accounting for bytes
+// sent. It returns false (after cancelling the client) when the write fails.
+func (h *Hub) writeFrame(ctx context.Context, c *client, data []byte) bool {
+	writeCtx, cancel := context.WithTimeout(ctx, writeTimeout)
+	err := c.conn.Write(writeCtx, websocket.MessageText, data)
+	cancel()
+	if err != nil {
+		c.cancel()
+		return false
+	}
+	h.bytesSent.Add(ctx, int64(len(data)))
+	return true
 }
 
 func (h *Hub) Broadcast(ev *Event) {

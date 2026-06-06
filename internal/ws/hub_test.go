@@ -40,16 +40,25 @@ func dialHub(t *testing.T, h *Hub) (*websocket.Conn, *httptest.Server) {
 	return conn, srv
 }
 
-// readMsg reads one message with a 1s deadline, failing the test on error.
+// readMsg reads one non-heartbeat message with a 1s deadline, failing the test
+// on error. Heartbeat frames are ambient (every heartbeatInterval) and skipped.
 func readMsg(t *testing.T, conn *websocket.Conn) []byte {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_, msg, err := conn.Read(ctx)
-	if err != nil {
-		t.Fatalf("read message: %v", err)
+	for {
+		_, msg, err := conn.Read(ctx)
+		if err != nil {
+			t.Fatalf("read message: %v", err)
+		}
+		var probe struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(msg, &probe) == nil && probe.Type == "heartbeat" {
+			continue
+		}
+		return msg
 	}
-	return msg
 }
 
 // waitClients blocks until the hub reports exactly n clients, or fails after
@@ -183,6 +192,36 @@ func TestBroadcast_TypedEvents(t *testing.T) {
 			t.Errorf("event %d: expected type=%q, got %q", i, expectedTypes[i], got.Type)
 		}
 	}
+}
+
+// TestHeartbeat verifies the server emits periodic heartbeat frames so clients
+// can detect a live (or dead) connection.
+func TestHeartbeat(t *testing.T) {
+	h := NewHub()
+	h.heartbeatInterval = 30 * time.Millisecond // fast for the test
+	conn, srv := dialHub(t, h)
+	defer srv.Close()
+	defer conn.CloseNow() //nolint:errcheck
+
+	waitClients(t, h, 1)
+
+	// Read raw frames (don't skip heartbeats) and expect at least one heartbeat.
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_, msg, err := conn.Read(ctx)
+		cancel()
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		var probe struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(msg, &probe) == nil && probe.Type == "heartbeat" {
+			return // success
+		}
+	}
+	t.Fatal("no heartbeat frame received within 1s")
 }
 
 // TestSlowClientDropped verifies that a client which never reads is dropped

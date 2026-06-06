@@ -25,6 +25,16 @@ export function fmtRate(n: number): string {
   return `${Math.round(n)} / s`
 }
 
+// fmtDuration renders an elapsed millisecond span compactly: 5s, 1m 5s, 1h 2m.
+export function fmtDuration(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ${s % 60}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
+}
+
 interface ActiveSession { id: string; label: string }
 
 export default function BottomBar() {
@@ -32,7 +42,14 @@ export default function BottomBar() {
   const [active, setActive] = useState<ActiveSession | null>(null)
   const [showSources, setShowSources] = useState(false)
   const footerRef = useRef<HTMLElement>(null)
-  const connected = useWSStatus()
+  const { connected, since } = useWSStatus()
+  const [now, setNow] = useState(() => Date.now())
+
+  // Tick once a second so the "connected for <duration>" readout stays live.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   // Close sources panel on outside click.
   useEffect(() => {
@@ -104,9 +121,14 @@ export default function BottomBar() {
               : 'none',
           }}
         />
-        <span className="text-ink2">
+        <span className={connected ? 'text-ink2' : 'text-danger'}>
           {connected ? 'live' : 'disconnected'}
         </span>
+        {connected && since != null && (
+          <span className="text-ink3" title="Time connected to the backend">
+            {fmtDuration(now - since)}
+          </span>
+        )}
       </div>
     </footer>
   )
