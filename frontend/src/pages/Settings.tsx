@@ -638,7 +638,7 @@ function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
 
   return (
     <Card id="mcp" title="MCP" sub="Model Context Protocol endpoint for AI agents (Claude Code/Desktop)" hidden={hidden}>
-      <Row label="Endpoint" hint="Streamable-HTTP MCP endpoint served on the UI port." testid="row-mcp-endpoint">
+      <Row label="Endpoint" hint="Streamable-HTTP MCP endpoint served on the UI port." testid="row-mcp-endpoint" align="center">
         {s.mcp_enabled
           ? <>
               <code className="font-mono text-xs text-foreground">{endpoint}</code>
@@ -654,7 +654,7 @@ function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
 
       {s.mcp_enabled && (
         <>
-          <Row label="Write tools" hint="Whether agents can mutate state (create/activate sessions, set baseline, prune)." testid="row-mcp-writes">
+          <Row label="Write tools" hint="Whether agents can mutate state (create/activate sessions, set baseline, prune)." testid="row-mcp-writes" align="center">
             {s.mcp_allow_writes
               ? <>
                   <Pill tone="warn">read + write</Pill>
@@ -669,7 +669,7 @@ function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
           </Row>
 
           <Row label="Connect" hint="Register this server with Claude Code." testid="row-mcp-connect" align="center">
-            <code className="font-mono text-[11px] text-foreground bg-muted py-1 px-1.5 rounded break-all">{addCmd}</code>
+            <code className="flex-1 min-w-0 font-mono text-[11px] text-foreground bg-muted py-1 px-1.5 rounded break-all">{addCmd}</code>
             <button
               type="button"
               data-testid="mcp-copy-btn"
