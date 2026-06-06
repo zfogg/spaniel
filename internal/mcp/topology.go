@@ -102,7 +102,7 @@ type ListServicesOutput struct {
 }
 
 func (h *handler) listServices(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ListServicesOutput, error) {
-	services, err := h.store.ListServices()
+	services, err := h.store.ListServices("")
 	if err != nil {
 		return nil, ListServicesOutput{}, fmt.Errorf("list services: %w", err)
 	}

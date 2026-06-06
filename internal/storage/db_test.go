@@ -475,7 +475,7 @@ func TestListServices(t *testing.T) {
 		}
 	}
 
-	services, err := db.ListServices()
+	services, err := db.ListServices("")
 	if err != nil {
 		t.Fatalf("ListServices: %v", err)
 	}

@@ -738,10 +738,11 @@ export default function Sessions() {
   const baselineId = sessions.find((s) => s.is_baseline)?.id ?? null;
 
   // After any write, refetch the list + active session (server is the source of
-  // truth for is_baseline / active flags).
+  // truth for is_baseline / active flags). Because all data views are scoped to
+  // the active session server-side, changing the active session must also
+  // refresh every data query — so invalidate everything.
   function reload() {
-    queryClient.invalidateQueries({ queryKey: qk.sessions() });
-    queryClient.invalidateQueries({ queryKey: qk.activeSession() });
+    queryClient.invalidateQueries();
   }
 
   async function handleNew() {

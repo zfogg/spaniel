@@ -671,11 +671,15 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	return result, err
 }
 
-func (d *DB) ListServices() ([]string, error) {
+// ListServices returns distinct service names. An empty sessionID returns
+// services across all sessions; a non-empty one scopes to that session.
+func (d *DB) ListServices(sessionID string) ([]string, error) {
 	var result []string
-	err := d.gorm.Table("spans").
-		Distinct("service_name").Order("service_name").
-		Pluck("service_name", &result).Error
+	q := d.gorm.Table("spans").Distinct("service_name").Order("service_name")
+	if sessionID != "" {
+		q = q.Where("session_id = ?", sessionID)
+	}
+	err := q.Pluck("service_name", &result).Error
 	return result, err
 }
 

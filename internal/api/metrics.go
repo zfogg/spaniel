@@ -12,7 +12,7 @@ import (
 // listMetrics returns one entry per (service, name) metric stream.
 //   GET /api/metrics?sessionId=...
 func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
-	sessionID := req.URL.Query().Get("sessionId")
+	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
 	entries, err := r.store.ListMetricCatalog(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -68,7 +68,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	rows, err := r.store.GetMetricSeries(storage.MetricSeriesFilter{
 		Name:      name,
 		Service:   q.Get("service"),
-		SessionID: q.Get("sessionId"),
+		SessionID: r.scopeSession(q.Get("sessionId")),
 		FromNs:    from,
 		ToNs:      to,
 	})
@@ -125,7 +125,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 		}
 		traces, err := r.store.ListTracesInWindow(storage.TraceOverlayFilter{
 			Service:   q.Get("service"),
-			SessionID: q.Get("sessionId"),
+			SessionID: r.scopeSession(q.Get("sessionId")),
 			FromNs:    windowFrom,
 			ToNs:      windowTo,
 		})

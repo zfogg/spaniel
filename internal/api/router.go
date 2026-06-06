@@ -164,9 +164,18 @@ func (r *Router) health(w http.ResponseWriter, _ *http.Request) {
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 
+// scopeSession defaults an empty sessionId to the active session, so the UI (and
+// any API consumer) shows only the current session's data unless one is named.
+func (r *Router) scopeSession(sessionID string) string {
+	if sessionID == "" {
+		return r.store.ActiveSessionID()
+	}
+	return sessionID
+}
+
 func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
-	sessionID := q.Get("sessionId")
+	sessionID := r.scopeSession(q.Get("sessionId"))
 	service := q.Get("service")
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	page, _ := strconv.Atoi(q.Get("page"))
@@ -226,7 +235,7 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	rows, err := r.store.ListSpans(storage.SpanFilter{
-		SessionID: q.Get("sessionId"),
+		SessionID: r.scopeSession(q.Get("sessionId")),
 		Sort:      q.Get("sort"),
 		Limit:     limit,
 	})
@@ -388,7 +397,7 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 	}
 
 	logs, err := r.store.ListLogs(storage.LogFilter{
-		SessionID: q.Get("sessionId"),
+		SessionID: r.scopeSession(q.Get("sessionId")),
 		TraceID:   q.Get("traceId"),
 		SpanID:    q.Get("spanId"),
 		Limit:     limit,
@@ -405,7 +414,7 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listServices(w http.ResponseWriter, req *http.Request) {
-	services, err := r.store.ListServices()
+	services, err := r.store.ListServices(r.scopeSession(req.URL.Query().Get("sessionId")))
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -537,7 +546,7 @@ func (r *Router) deleteSession(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {
-	sessionID := req.URL.Query().Get("sessionId")
+	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
 	warnings, err := r.store.ListLintWarnings(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -550,7 +559,7 @@ func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
-	sessionID := req.URL.Query().Get("sessionId")
+	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
 	stats, err := r.store.GetStats(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -569,7 +578,7 @@ func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) getServiceMap(w http.ResponseWriter, req *http.Request) {
-	sessionID := req.URL.Query().Get("sessionId")
+	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
 	data, err := r.store.GetServiceMap(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -606,7 +615,7 @@ func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listSources(w http.ResponseWriter, req *http.Request) {
-	sessionID := req.URL.Query().Get("sessionId")
+	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
 	sources, err := r.store.GetSourceStats(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())

@@ -14,7 +14,7 @@ func (r *Router) search(w http.ResponseWriter, req *http.Request) {
 		respond(w, []*storage.SearchResult{}, 0, 1)
 		return
 	}
-	sessionID := q.Get("sessionId")
+	sessionID := r.scopeSession(q.Get("sessionId"))
 	limit, _ := strconv.Atoi(q.Get("limit"))
 
 	results, err := r.store.Search(query, sessionID, limit)
