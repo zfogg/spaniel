@@ -93,6 +93,7 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	h.registerTopologyTools(s)
 	h.registerSessionTools(s)
 	h.registerSQLTool(s)
+	h.registerResourcesAndPrompts(s)
 
 	if h.opts.AllowWrites {
 		h.registerWriteTools(s)
