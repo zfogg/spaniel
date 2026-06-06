@@ -189,6 +189,10 @@ Already sending traces to Grafana Tempo or Datadog? Run spaniel as a transparent
 spaniel --forward http://tempo:4318
 ```
 
+### 🤖 MCP server for AI agents
+
+Spaniel speaks [MCP](https://modelcontextprotocol.io) over a streamable-HTTP endpoint at `/mcp`, so a coding agent (Claude Code / Desktop) can read the traces it just generated — find the slow span, see the detected N+1, diff against a baseline — and fix the code, no screenshots required. Includes a read-only `query_sql` escape hatch for ad-hoc DuckDB queries. See [MCP server](#mcp-server).
+
 ---
 
 ## How it works
@@ -214,6 +218,54 @@ A few things for the paranoid and the high-volume:
 
 - **Local-only by default**, but you can require a bearer token (`--bearer-token`, or `SPANIEL_BEARER_TOKEN`) and serve over TLS (`--tls-cert` / `--tls-key`) if you expose it on a network.
 - **Back-pressure built in** — optional per-source rate limiting (`--source-rps`) and sampling (`--sample-rate`) keep a chatty service from filling your disk, while always keeping errors, N+1s, and slow traces.
+
+---
+
+## MCP server
+
+Spaniel serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `http://localhost:8080/mcp` (streamable HTTP, enabled by default). It lets an AI agent query everything Spaniel knows about your run.
+
+Add it to **Claude Code**:
+
+```bash
+claude mcp add --transport http spaniel http://localhost:8080/mcp
+```
+
+For **Claude Desktop** (or any client without native HTTP MCP support), bridge with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+
+```json
+{
+  "mcpServers": {
+    "spaniel": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:8080/mcp"]
+    }
+  }
+}
+```
+
+> The Settings page (⚙️ → **MCP**) shows the endpoint and has a copy button for the command above.
+
+### Tools
+
+All tools are **read-only** unless you start spaniel with `--mcp-allow-writes`.
+
+| Tool | What it does |
+|------|--------------|
+| `get_server_info` | version + how much data is stored |
+| `list_traces` / `get_trace` | recent traces; full waterfall + issues + correlated logs + lint for one trace |
+| `get_span` / `list_slow_spans` | one span's detail; the slowest spans in a session |
+| `list_issues` / `list_lint_warnings` | detected N+1/error-chain/etc.; semconv violations |
+| `query_logs` / `search` | logs by trace/span/service/severity; full-text + `lint:` search |
+| `get_service_map` / `list_services` / `get_stats` | dependency graph; services; counts |
+| `get_metrics` / `get_metric_series` | metric catalog and time series |
+| `list_sessions` / `diff_sessions` | sessions; before/after comparison |
+| `query_sql` | **read-only** raw SQL over the DuckDB tables (engine-enforced) |
+| `create_session` / `activate_session` / `set_baseline` / `prune_data` | **write** — only registered with `--mcp-allow-writes` |
+
+It also exposes **resources** (`spaniel://schema`, `spaniel://guide`) and **prompts** (`debug_latest_trace`, `diff_against_baseline`, `find_bottlenecks`).
+
+Config: `mcp_enabled` (default `true`), `mcp_allow_writes` (default `false`), or the `--mcp-enabled` / `--mcp-allow-writes` flags.
 
 ---
 
@@ -254,6 +306,8 @@ retention_days: 7
 max_sessions: 50
 max_db_size_mb: 500
 no_browser: false
+mcp_enabled: true        # serve the MCP endpoint at /mcp
+mcp_allow_writes: false  # let MCP clients mutate state (sessions, prune)
 forward:
   - http://tempo:4318
   - http://otelcollector:4318
@@ -278,6 +332,7 @@ Settings resolve **highest priority first**:
 spaniel                              start the server + UI (opens browser)
 spaniel --no-browser                 ... without opening a browser (CI/servers)
 spaniel --forward <url>              also forward OTLP upstream (repeatable)
+spaniel --mcp-allow-writes           let MCP clients mutate state (off by default)
 ```
 
 **Sessions**
