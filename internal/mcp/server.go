@@ -99,10 +99,6 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	}
 }
 
-// registerWriteTools is implemented alongside the write tools (issue #103).
-// Until those land it is a no-op so AllowWrites can be exercised end-to-end.
-func (h *handler) registerWriteTools(_ *mcpsdk.Server) {}
-
 // telemetryMiddleware starts an OTel span around every received MCP method,
 // naming tool calls after the invoked tool.
 func (h *handler) telemetryMiddleware(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
