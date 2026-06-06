@@ -97,6 +97,16 @@ func callStructured[T any](t *testing.T, cs *mcpsdk.ClientSession, name string, 
 	return out
 }
 
+// callToolIsError calls a tool and reports whether it returned a tool error.
+func callToolIsError(t *testing.T, cs *mcpsdk.ClientSession, name string, args map[string]any) bool {
+	t.Helper()
+	res, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatalf("call %s: %v", name, err)
+	}
+	return res.IsError
+}
+
 func TestListTraces(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
 	seedTrace(t, store, store.ActiveSessionID())

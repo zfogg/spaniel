@@ -90,6 +90,7 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	h.registerTraceTools(s)
 	h.registerDiagnosticTools(s)
 	h.registerLogTools(s)
+	h.registerTopologyTools(s)
 
 	if h.opts.AllowWrites {
 		h.registerWriteTools(s)
