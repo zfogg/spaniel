@@ -623,18 +623,19 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
 }
 
 function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
   const endpoint = `${window.location.origin}/mcp`
   const addCmd = `claude mcp add --transport http spaniel ${endpoint}`
+  const mcpJson = JSON.stringify({ mcpServers: { spaniel: { type: 'http', url: endpoint } } }, null, 2)
 
-  const copy = useCallback(() => {
-    navigator.clipboard?.writeText(addCmd)
+  const copy = useCallback((key: string, text: string) => {
+    navigator.clipboard?.writeText(text)
       .then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
+        setCopied(key)
+        setTimeout(() => setCopied(null), 1500)
       })
       .catch(() => {})
-  }, [addCmd])
+  }, [])
 
   return (
     <Card id="mcp" title="MCP" sub="Model Context Protocol endpoint for AI agents (Claude Code/Desktop)" hidden={hidden}>
@@ -673,10 +674,22 @@ function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
             <button
               type="button"
               data-testid="mcp-copy-btn"
-              onClick={copy}
+              onClick={() => copy('cmd', addCmd)}
               className="px-3 h-[28px] rounded-md bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden cursor-pointer shrink-0"
             >
-              {copied ? 'copied ✓' : 'copy'}
+              {copied === 'cmd' ? 'copied ✓' : 'copy'}
+            </button>
+          </Row>
+
+          <Row label=".mcp.json" hint="Project-scoped config — commit this to your repo to share the server with collaborators." testid="row-mcp-json">
+            <pre className="flex-1 min-w-0 font-mono text-[11px] text-foreground bg-muted p-2 rounded overflow-x-auto whitespace-pre">{mcpJson}</pre>
+            <button
+              type="button"
+              data-testid="mcp-json-copy-btn"
+              onClick={() => copy('json', mcpJson)}
+              className="px-3 h-[28px] rounded-md bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden cursor-pointer shrink-0 self-start"
+            >
+              {copied === 'json' ? 'copied ✓' : 'copy'}
             </button>
           </Row>
         </>

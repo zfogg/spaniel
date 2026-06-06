@@ -231,6 +231,19 @@ Add it to **Claude Code**:
 claude mcp add --transport http spaniel http://localhost:8080/mcp
 ```
 
+Or commit a project-scoped `.mcp.json` to your repo so collaborators get it automatically:
+
+```json
+{
+  "mcpServers": {
+    "spaniel": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
 For **Claude Desktop** (or any client without native HTTP MCP support), bridge with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
 
 ```json
@@ -244,7 +257,7 @@ For **Claude Desktop** (or any client without native HTTP MCP support), bridge w
 }
 ```
 
-> The Settings page (⚙️ → **MCP**) shows the endpoint and has a copy button for the command above.
+> The Settings page (⚙️ → **MCP**) shows the endpoint and has copy buttons for both the command and the `.mcp.json` above.
 
 ### Tools
 
