@@ -84,7 +84,7 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 	}
 	sessionID := h.resolveSession(in.SessionID)
 
-	rows, err := h.store.ListTraces(storage.TraceFilter{
+	rows, err := h.store.WithContext(ctx).ListTraces(storage.TraceFilter{
 		SessionID: sessionID,
 		Service:   in.Service,
 		Limit:     limit,
@@ -180,7 +180,7 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 		maxLogs = 100
 	}
 
-	spans, err := h.store.GetTrace(in.TraceID)
+	spans, err := h.store.WithContext(ctx).GetTrace(in.TraceID)
 	if err != nil {
 		return nil, GetTraceOutput{}, fmt.Errorf("get trace: %w", err)
 	}
@@ -223,7 +223,7 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 	out.DurationMs = nsToMs(maxEnd - minStart)
 
 	// Detected issues (best-effort; absence isn't fatal).
-	if issues, err := h.store.GetTraceIssues(in.TraceID); err == nil {
+	if issues, err := h.store.WithContext(ctx).GetTraceIssues(in.TraceID); err == nil {
 		for _, is := range issues {
 			out.Issues = append(out.Issues, TraceIssueOut{
 				Kind:          is.Kind,
@@ -236,7 +236,7 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 	}
 
 	// Correlated logs.
-	if logs, err := h.store.ListLogs(storage.LogFilter{TraceID: in.TraceID, Limit: maxLogs}); err == nil {
+	if logs, err := h.store.WithContext(ctx).ListLogs(storage.LogFilter{TraceID: in.TraceID, Limit: maxLogs}); err == nil {
 		for _, l := range logs {
 			out.Logs = append(out.Logs, TraceLogOut{
 				TimestampNs: l.TimestampNs,
@@ -249,7 +249,7 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 	}
 
 	// Lint warnings for this trace (the store exposes them per-session; filter).
-	if warnings, err := h.store.ListLintWarnings(out.SessionID); err == nil {
+	if warnings, err := h.store.WithContext(ctx).ListLintWarnings(out.SessionID); err == nil {
 		for _, w := range warnings {
 			if w.TraceID != in.TraceID {
 				continue
@@ -310,7 +310,7 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 	if in.SpanID == "" {
 		return nil, GetSpanOutput{}, fmt.Errorf("span_id is required")
 	}
-	span, err := h.store.GetSpan(in.SpanID)
+	span, err := h.store.WithContext(ctx).GetSpan(in.SpanID)
 	if err != nil {
 		return nil, GetSpanOutput{}, fmt.Errorf("get span: %w", err)
 	}
@@ -335,7 +335,7 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 		Links:         []SpanLinkOut{},
 	}
 
-	if events, err := h.store.ListEventsBySpan(span.SpanID); err == nil {
+	if events, err := h.store.WithContext(ctx).ListEventsBySpan(span.SpanID); err == nil {
 		for _, e := range events {
 			out.Events = append(out.Events, SpanEventOut{
 				TimeNs:     e.TimeNs,
@@ -344,7 +344,7 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 			})
 		}
 	}
-	if links, err := h.store.ListLinksBySpan(span.SpanID); err == nil {
+	if links, err := h.store.WithContext(ctx).ListLinksBySpan(span.SpanID); err == nil {
 		for _, l := range links {
 			out.Links = append(out.Links, SpanLinkOut{
 				LinkedTraceID: l.LinkedTraceID,
@@ -390,7 +390,7 @@ func (h *handler) listSlowSpans(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	}
 	sessionID := h.resolveSession(in.SessionID)
 
-	rows, err := h.store.ListSpans(storage.SpanFilter{
+	rows, err := h.store.WithContext(ctx).ListSpans(storage.SpanFilter{
 		SessionID: sessionID,
 		Sort:      "dur",
 		Limit:     limit,

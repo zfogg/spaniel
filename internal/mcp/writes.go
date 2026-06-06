@@ -96,7 +96,7 @@ func (h *handler) activateSession(ctx context.Context, _ *mcpsdk.CallToolRequest
 	if in.SessionID == "" {
 		return nil, OKOutput{}, fmt.Errorf("session_id is required")
 	}
-	sess, err := h.store.GetSession(in.SessionID)
+	sess, err := h.store.WithContext(ctx).GetSession(in.SessionID)
 	if err != nil {
 		return nil, OKOutput{}, fmt.Errorf("get session: %w", err)
 	}

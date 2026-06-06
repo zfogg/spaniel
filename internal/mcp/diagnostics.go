@@ -54,7 +54,7 @@ func (h *handler) listIssues(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 	// Trace-scoped takes precedence over session-scoped.
 	if in.TraceID != "" {
 		out.TraceID = in.TraceID
-		rows, err := h.store.GetTraceIssues(in.TraceID)
+		rows, err := h.store.WithContext(ctx).GetTraceIssues(in.TraceID)
 		if err != nil {
 			return nil, ListIssuesOutput{}, fmt.Errorf("get trace issues: %w", err)
 		}
@@ -70,7 +70,7 @@ func (h *handler) listIssues(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 
 	sessionID := h.resolveSession(in.SessionID)
 	out.SessionID = sessionID
-	rows, err2 := h.store.ListTraceIssuesBySession(sessionID)
+	rows, err2 := h.store.WithContext(ctx).ListTraceIssuesBySession(sessionID)
 	if err2 != nil {
 		return nil, ListIssuesOutput{}, fmt.Errorf("list session issues: %w", err2)
 	}
@@ -116,7 +116,7 @@ func (h *handler) listLintWarnings(ctx context.Context, _ *mcpsdk.CallToolReques
 	}
 	sessionID := h.resolveSession(in.SessionID)
 
-	warnings, err := h.store.ListLintWarnings(sessionID)
+	warnings, err := h.store.WithContext(ctx).ListLintWarnings(sessionID)
 	if err != nil {
 		return nil, ListLintOutput{}, fmt.Errorf("list lint warnings: %w", err)
 	}

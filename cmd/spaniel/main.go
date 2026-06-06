@@ -29,6 +29,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -726,7 +727,13 @@ func run(cfg runConfig) error {
 	otlpMux.HandleFunc("/v1/traces", httpRcv.HandleTraces)
 	otlpMux.HandleFunc("/v1/logs", httpRcv.HandleLogs)
 	otlpMux.HandleFunc("/v1/metrics", httpRcv.HandleMetrics)
-	var otlpHandler http.Handler = otlpMux
+	// Instrument inbound OTLP/HTTP so an ingest shows as one trace:
+	// "POST /v1/traces" → IngestTraces → db.flush.
+	var otlpHandler http.Handler = otelhttp.NewHandler(otlpMux, "spaniel.otlp",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path
+		}),
+	)
 	if cfg.BearerToken != "" {
 		otlpHandler = receiver.BearerMiddleware(cfg.BearerToken)(otlpHandler)
 	}

@@ -26,23 +26,23 @@ func (r *Router) getDiff(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	baseSess, err := r.store.GetSession(baselineID)
+	baseSess, err := r.store.WithContext(req.Context()).GetSession(baselineID)
 	if err != nil || baseSess == nil {
 		respondErr(w, req, 404, "baseline session not found")
 		return
 	}
-	cmpSess, err := r.store.GetSession(compareID)
+	cmpSess, err := r.store.WithContext(req.Context()).GetSession(compareID)
 	if err != nil || cmpSess == nil {
 		respondErr(w, req, 404, "compare session not found")
 		return
 	}
 
-	baseSpans, err := r.store.GetSpansBySession(baselineID)
+	baseSpans, err := r.store.WithContext(req.Context()).GetSpansBySession(baselineID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
-	cmpSpans, err := r.store.GetSpansBySession(compareID)
+	cmpSpans, err := r.store.WithContext(req.Context()).GetSpansBySession(compareID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return

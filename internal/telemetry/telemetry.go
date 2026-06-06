@@ -46,6 +46,18 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		cfg.ServiceName = "spaniel"
 	}
 
+	// With no endpoint there's nowhere to export. Crucially, do NOT install SDK
+	// providers in that case: the OTel global delegate only back-fills already-
+	// created tracers on the FIRST SetTracerProvider. Installing a non-exporting
+	// provider here would permanently bind every tracer obtained before the real
+	// (self_monitor) setup — storage's GORM plugin, the ingestion pipeline, etc.
+	// — to that dead provider, so their spans would never be exported. Leaving the
+	// global as the no-op delegate lets the later real setup be the first
+	// SetTracerProvider and back-fill all of them.
+	if cfg.Endpoint == "" {
+		return func(context.Context) error { return nil }, nil
+	}
+
 	// Resource: always build, partial errors are non-fatal.
 	attrs := []attribute.KeyValue{
 		semconv.ServiceName(cfg.ServiceName),

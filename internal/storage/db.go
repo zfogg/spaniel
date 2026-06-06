@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,17 @@ type DB struct {
 	path               string
 	activeSessionID    string
 	activeSessionLabel string
+}
+
+// WithContext returns a shallow copy of DB whose GORM queries carry ctx, so the
+// OTel plugin (see otel.go) nests DuckDB query spans under the caller's span.
+// Use it on request paths: store.WithContext(req.Context()).ListTraces(...).
+// Batcher (Appender) writes bypass GORM and are unaffected; instrument those
+// with an explicit span at the call site.
+func (d *DB) WithContext(ctx context.Context) *DB {
+	cp := *d
+	cp.gorm = d.gorm.WithContext(ctx)
+	return &cp
 }
 
 type Span struct {

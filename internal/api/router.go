@@ -183,7 +183,7 @@ func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 		page = 1
 	}
 
-	traces, err := r.store.ListTraces(storage.TraceFilter{
+	traces, err := r.store.WithContext(req.Context()).ListTraces(storage.TraceFilter{
 		SessionID: sessionID,
 		Service:   service,
 		Limit:     limit,
@@ -201,7 +201,7 @@ func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 	traceID := chi.URLParam(req, "traceId")
-	spans, err := r.store.GetTrace(traceID)
+	spans, err := r.store.WithContext(req.Context()).GetTrace(traceID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -211,7 +211,7 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 	}
 	// Bulk-attach links so the waterfall can show the link badge without a
 	// per-span round-trip. Group by span_id into a map, then attach.
-	if links, err := r.store.ListLinksByTrace(traceID); err == nil && len(links) > 0 {
+	if links, err := r.store.WithContext(req.Context()).ListLinksByTrace(traceID); err == nil && len(links) > 0 {
 		bySpan := make(map[string][]*storage.SpanLink, len(links))
 		for _, l := range links {
 			bySpan[l.SpanID] = append(bySpan[l.SpanID], l)
@@ -234,7 +234,7 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
-	rows, err := r.store.ListSpans(storage.SpanFilter{
+	rows, err := r.store.WithContext(req.Context()).ListSpans(storage.SpanFilter{
 		SessionID: r.scopeSession(q.Get("sessionId")),
 		Sort:      q.Get("sort"),
 		Limit:     limit,
@@ -251,7 +251,7 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 	spanID := chi.URLParam(req, "spanId")
-	span, err := r.store.GetSpan(spanID)
+	span, err := r.store.WithContext(req.Context()).GetSpan(spanID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -265,11 +265,11 @@ func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 	// Always materialize the slice (even empty) so the JSON field is `[]`,
 	// never `null`.
 	span.Events = []*storage.SpanEvent{}
-	if events, err := r.store.ListEventsBySpan(span.SpanID); err == nil && events != nil {
+	if events, err := r.store.WithContext(req.Context()).ListEventsBySpan(span.SpanID); err == nil && events != nil {
 		span.Events = events
 	}
 	span.Links = []*storage.SpanLink{}
-	if links, err := r.store.ListLinksBySpan(span.SpanID); err == nil && links != nil {
+	if links, err := r.store.WithContext(req.Context()).ListLinksBySpan(span.SpanID); err == nil && links != nil {
 		span.Links = links
 	}
 	respond(w, span, 1, 1)
@@ -282,7 +282,7 @@ func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 // One resourceSpans block is emitted per distinct (service_name, resource) pair.
 func (r *Router) exportTrace(w http.ResponseWriter, req *http.Request) {
 	traceID := chi.URLParam(req, "traceId")
-	spans, err := r.store.GetTrace(traceID)
+	spans, err := r.store.WithContext(req.Context()).GetTrace(traceID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -377,7 +377,7 @@ func decodeSpanID(s string) pcommon.SpanID {
 
 func (r *Router) listIncomingLinks(w http.ResponseWriter, req *http.Request) {
 	traceID := chi.URLParam(req, "traceId")
-	links, err := r.store.ListIncomingLinks(traceID)
+	links, err := r.store.WithContext(req.Context()).ListIncomingLinks(traceID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -396,7 +396,7 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 		page = 1
 	}
 
-	logs, err := r.store.ListLogs(storage.LogFilter{
+	logs, err := r.store.WithContext(req.Context()).ListLogs(storage.LogFilter{
 		SessionID: r.scopeSession(q.Get("sessionId")),
 		TraceID:   q.Get("traceId"),
 		SpanID:    q.Get("spanId"),
@@ -414,7 +414,7 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listServices(w http.ResponseWriter, req *http.Request) {
-	services, err := r.store.ListServices(r.scopeSession(req.URL.Query().Get("sessionId")))
+	services, err := r.store.WithContext(req.Context()).ListServices(r.scopeSession(req.URL.Query().Get("sessionId")))
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -426,7 +426,7 @@ func (r *Router) listServices(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listSessions(w http.ResponseWriter, req *http.Request) {
-	sessions, err := r.store.ListSessions()
+	sessions, err := r.store.WithContext(req.Context()).ListSessions()
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -455,7 +455,7 @@ func (r *Router) createSession(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) getSession(w http.ResponseWriter, req *http.Request) {
 	sessionID := chi.URLParam(req, "sessionId")
-	sess, err := r.store.GetSession(sessionID)
+	sess, err := r.store.WithContext(req.Context()).GetSession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -483,7 +483,7 @@ func (r *Router) patchSession(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
-	sess, err := r.store.GetSession(sessionID)
+	sess, err := r.store.WithContext(req.Context()).GetSession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -504,7 +504,7 @@ func (r *Router) getActiveSession(w http.ResponseWriter, _ *http.Request) {
 
 func (r *Router) activateSession(w http.ResponseWriter, req *http.Request) {
 	sessionID := chi.URLParam(req, "sessionId")
-	sess, err := r.store.GetSession(sessionID)
+	sess, err := r.store.WithContext(req.Context()).GetSession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -547,7 +547,7 @@ func (r *Router) deleteSession(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {
 	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
-	warnings, err := r.store.ListLintWarnings(sessionID)
+	warnings, err := r.store.WithContext(req.Context()).ListLintWarnings(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -560,7 +560,7 @@ func (r *Router) listLint(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
 	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
-	stats, err := r.store.GetStats(sessionID)
+	stats, err := r.store.WithContext(req.Context()).GetStats(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -579,7 +579,7 @@ func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) getServiceMap(w http.ResponseWriter, req *http.Request) {
 	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
-	data, err := r.store.GetServiceMap(sessionID)
+	data, err := r.store.WithContext(req.Context()).GetServiceMap(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -593,7 +593,7 @@ func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
 	sessionID := q.Get("sessionId")
 
 	if traceID != "" {
-		issues, err := r.store.GetTraceIssues(traceID)
+		issues, err := r.store.WithContext(req.Context()).GetTraceIssues(traceID)
 		if err != nil {
 			respondErr(w, req, 500, err.Error())
 			return
@@ -606,7 +606,7 @@ func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
 	if sessionID == "" {
 		sessionID = r.store.ActiveSessionID()
 	}
-	issues, err := r.store.ListTraceIssuesBySession(sessionID)
+	issues, err := r.store.WithContext(req.Context()).ListTraceIssuesBySession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -616,7 +616,7 @@ func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) listSources(w http.ResponseWriter, req *http.Request) {
 	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
-	sources, err := r.store.GetSourceStats(sessionID)
+	sources, err := r.store.WithContext(req.Context()).GetSourceStats(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -637,7 +637,7 @@ func (r *Router) listForwarders(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (r *Router) getStorageBreakdown(w http.ResponseWriter, req *http.Request) {
-	bd, err := r.store.GetStorageBreakdown()
+	bd, err := r.store.WithContext(req.Context()).GetStorageBreakdown()
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return

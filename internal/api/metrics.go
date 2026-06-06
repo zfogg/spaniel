@@ -13,7 +13,7 @@ import (
 //   GET /api/metrics?sessionId=...
 func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
-	entries, err := r.store.ListMetricCatalog(sessionID)
+	entries, err := r.store.WithContext(req.Context()).ListMetricCatalog(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -65,7 +65,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	from, _ := strconv.ParseInt(q.Get("from"), 10, 64)
 	to, _ := strconv.ParseInt(q.Get("to"), 10, 64)
 
-	rows, err := r.store.GetMetricSeries(storage.MetricSeriesFilter{
+	rows, err := r.store.WithContext(req.Context()).GetMetricSeries(storage.MetricSeriesFilter{
 		Name:      name,
 		Service:   q.Get("service"),
 		SessionID: r.scopeSession(q.Get("sessionId")),
@@ -123,7 +123,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 		if windowTo == 0 {
 			windowTo = maxNs
 		}
-		traces, err := r.store.ListTracesInWindow(storage.TraceOverlayFilter{
+		traces, err := r.store.WithContext(req.Context()).ListTracesInWindow(storage.TraceOverlayFilter{
 			Service:   q.Get("service"),
 			SessionID: r.scopeSession(q.Get("sessionId")),
 			FromNs:    windowFrom,

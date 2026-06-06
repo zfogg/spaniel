@@ -74,7 +74,7 @@ type ServiceMapOutput struct {
 
 func (h *handler) getServiceMap(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetServiceMapInput) (*mcpsdk.CallToolResult, ServiceMapOutput, error) {
 	sessionID := h.resolveSession(in.SessionID)
-	data, err := h.store.GetServiceMap(sessionID)
+	data, err := h.store.WithContext(ctx).GetServiceMap(sessionID)
 	if err != nil {
 		return nil, ServiceMapOutput{}, fmt.Errorf("get service map: %w", err)
 	}
@@ -102,7 +102,7 @@ type ListServicesOutput struct {
 }
 
 func (h *handler) listServices(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ListServicesOutput, error) {
-	services, err := h.store.ListServices("")
+	services, err := h.store.WithContext(ctx).ListServices("")
 	if err != nil {
 		return nil, ListServicesOutput{}, fmt.Errorf("list services: %w", err)
 	}
@@ -132,7 +132,7 @@ type StatsOutput struct {
 
 func (h *handler) getStats(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetStatsInput) (*mcpsdk.CallToolResult, StatsOutput, error) {
 	sessionID := h.resolveSession(in.SessionID)
-	stats, err := h.store.GetStats(sessionID)
+	stats, err := h.store.WithContext(ctx).GetStats(sessionID)
 	if err != nil {
 		return nil, StatsOutput{}, fmt.Errorf("get stats: %w", err)
 	}
@@ -172,7 +172,7 @@ type GetMetricsOutput struct {
 
 func (h *handler) getMetrics(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetMetricsInput) (*mcpsdk.CallToolResult, GetMetricsOutput, error) {
 	sessionID := h.resolveSession(in.SessionID)
-	entries, err := h.store.ListMetricCatalog(sessionID)
+	entries, err := h.store.WithContext(ctx).ListMetricCatalog(sessionID)
 	if err != nil {
 		return nil, GetMetricsOutput{}, fmt.Errorf("get metrics: %w", err)
 	}
@@ -223,7 +223,7 @@ func (h *handler) getMetricSeries(ctx context.Context, _ *mcpsdk.CallToolRequest
 	}
 	sessionID := h.resolveSession(in.SessionID)
 
-	points, err := h.store.GetMetricSeries(storage.MetricSeriesFilter{
+	points, err := h.store.WithContext(ctx).GetMetricSeries(storage.MetricSeriesFilter{
 		Name:      in.Name,
 		Service:   in.Service,
 		SessionID: sessionID,

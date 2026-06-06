@@ -1,7 +1,6 @@
 package receiver
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -67,7 +66,7 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unmarshal traces: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := h.pipeline.IngestTraces(context.Background(), req.Traces()); err != nil {
+	if err := h.pipeline.IngestTraces(r.Context(), req.Traces()); err != nil {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -93,7 +92,7 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unmarshal logs: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := h.pipeline.IngestLogs(context.Background(), req.Logs()); err != nil {
+	if err := h.pipeline.IngestLogs(r.Context(), req.Logs()); err != nil {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -119,7 +118,7 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unmarshal metrics: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := h.pipeline.IngestMetrics(context.Background(), req.Metrics()); err != nil {
+	if err := h.pipeline.IngestMetrics(r.Context(), req.Metrics()); err != nil {
 		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

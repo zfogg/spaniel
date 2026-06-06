@@ -8,10 +8,14 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-// TestSetup_NoEndpointInstallsRealProviders verifies the documented contract:
-// with an empty Endpoint, Setup configures no exporters but still installs
-// real (non-no-op) SDK providers and returns a usable shutdown func.
-func TestSetup_NoEndpointInstallsRealProviders(t *testing.T) {
+// TestSetup_NoEndpointIsNoop verifies the contract for an empty Endpoint: Setup
+// installs NOTHING and returns a usable no-op shutdown. This is deliberate — the
+// OTel global delegate only back-fills already-created tracers on the FIRST
+// SetTracerProvider, so installing a (non-exporting) provider here would
+// permanently orphan every tracer obtained at startup (storage's GORM plugin,
+// the ingestion pipeline) from the later real, exporting provider. A tracer
+// obtained now must still be safe to use (no-op span).
+func TestSetup_NoEndpointIsNoop(t *testing.T) {
 	ctx := context.Background()
 	shutdown, err := Setup(ctx, Config{ServiceName: "test-svc", Version: "0.0.1"})
 	if err != nil {
@@ -20,25 +24,12 @@ func TestSetup_NoEndpointInstallsRealProviders(t *testing.T) {
 	if shutdown == nil {
 		t.Fatal("Setup returned nil shutdown func")
 	}
-	t.Cleanup(func() {
-		shctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = shutdown(shctx)
-	})
+	if err := shutdown(ctx); err != nil {
+		t.Errorf("no-op shutdown returned error: %v", err)
+	}
 
-	// Providers must be installed globally so otelhttp/otelgrpc can grab them.
-	if otel.GetTracerProvider() == nil {
-		t.Error("global tracer provider is nil")
-	}
-	if otel.GetMeterProvider() == nil {
-		t.Error("global meter provider is nil")
-	}
-	// A tracer obtained from the global provider must be usable.
-	tr := otel.Tracer("test")
-	if tr == nil {
-		t.Error("tracer from global provider is nil")
-	}
-	_, span := tr.Start(ctx, "probe")
+	// Using a tracer must not panic even though no provider was installed.
+	_, span := otel.Tracer("test").Start(ctx, "probe")
 	span.End()
 }
 

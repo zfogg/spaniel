@@ -75,7 +75,7 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 		page = 1
 	}
 
-	logs, err := h.store.ListLogs(storage.LogFilter{
+	logs, err := h.store.WithContext(ctx).ListLogs(storage.LogFilter{
 		SessionID: sessionID,
 		TraceID:   in.TraceID,
 		SpanID:    in.SpanID,
@@ -140,7 +140,7 @@ func (h *handler) search(ctx context.Context, _ *mcpsdk.CallToolRequest, in Sear
 	// Unlike the other tools, search deliberately does NOT default to the active
 	// session — an empty session_id searches everything, which is usually what a
 	// search is for.
-	results, err := h.store.Search(in.Query, in.SessionID, in.Limit)
+	results, err := h.store.WithContext(ctx).Search(in.Query, in.SessionID, in.Limit)
 	if err != nil {
 		return nil, SearchOutput{}, fmt.Errorf("search: %w", err)
 	}

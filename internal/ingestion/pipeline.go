@@ -95,6 +95,23 @@ func (p *Pipeline) Throughput() storage.Throughput {
 // DropCounters returns the sampler's drop counters for surfacing in /api/stats.
 func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
 
+// flush persists this request's buffered rows, wrapped in a db.flush span so the
+// DuckDB columnar write shows up in the ingestion trace (the Appender bypasses
+// GORM, so it isn't covered by the storage OTel plugin).
+func (p *Pipeline) flush(ctx context.Context) error {
+	_, span := p.tracer.Start(ctx, "db.flush",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.String("db.system", "duckdb")),
+	)
+	defer span.End()
+	if err := p.store.FlushBatch(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
 	// Build OTel links to the root span of every received trace so this
 	// processing span is causally connected to the application spans it handles.
@@ -128,6 +145,10 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 		trace.WithLinks(receivedLinks...),
 	)
 	defer ingestSpan.End()
+
+	// ctx-bound store so the per-span gorm writes (events, links) nest under
+	// this ingest span as db.* spans.
+	store := p.store.WithContext(ctx)
 
 	sessionID := p.store.ActiveSessionID()
 
@@ -234,7 +255,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				}
 
 				t0 := time.Now()
-				if err := p.store.AppendSpan(s); err != nil {
+				if err := store.AppendSpan(s); err != nil {
 					ingestSpan.RecordError(err)
 					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
@@ -244,7 +265,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				spansSeen++
 				if len(events) > 0 {
 					t1 := time.Now()
-					if err := p.store.InsertSpanEvents(events); err != nil {
+					if err := store.InsertSpanEvents(events); err != nil {
 						ingestSpan.RecordError(err)
 						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
@@ -254,7 +275,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				}
 				if len(links) > 0 {
 					t1 := time.Now()
-					if err := p.store.InsertSpanLinks(links); err != nil {
+					if err := store.InsertSpanLinks(links); err != nil {
 						ingestSpan.RecordError(err)
 						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
@@ -277,7 +298,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 	}
 	// Persist this request's buffered rows before returning so reads-after-ingest
 	// (API queries, the post-debounce detectors) observe them.
-	if err := p.store.FlushBatch(); err != nil {
+	if err := p.flush(ctx); err != nil {
 		ingestSpan.RecordError(err)
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
@@ -355,7 +376,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 			}
 		}
 	}
-	if err := p.store.FlushBatch(); err != nil {
+	if err := p.flush(ctx); err != nil {
 		ingestSpan.RecordError(err)
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
@@ -372,7 +393,7 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	t0 := time.Now()
 	err := p.ingestMetricsTree(md, p.store.ActiveSessionID())
 	if err == nil {
-		err = p.store.FlushBatch()
+		err = p.flush(ctx)
 	}
 	p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
 		metric.WithAttributes(attribute.String("op", "insert_metrics")))

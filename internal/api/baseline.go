@@ -13,7 +13,7 @@ import (
 // Powers `spaniel ci export` and `spaniel ci check`.
 func (r *Router) exportBaseline(w http.ResponseWriter, req *http.Request) {
 	sessionID := chi.URLParam(req, "sessionId")
-	sess, err := r.store.GetSession(sessionID)
+	sess, err := r.store.WithContext(req.Context()).GetSession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -23,12 +23,12 @@ func (r *Router) exportBaseline(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	spans, err := r.store.GetSpansBySession(sessionID)
+	spans, err := r.store.WithContext(req.Context()).GetSpansBySession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
-	issues, err := r.store.ListTraceIssuesBySession(sessionID)
+	issues, err := r.store.WithContext(req.Context()).ListTraceIssuesBySession(sessionID)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return

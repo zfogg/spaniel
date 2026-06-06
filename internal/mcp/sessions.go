@@ -50,7 +50,7 @@ type ListSessionsOutput struct {
 }
 
 func (h *handler) listSessions(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ListSessionsOutput, error) {
-	sessions, err := h.store.ListSessions()
+	sessions, err := h.store.WithContext(ctx).ListSessions()
 	if err != nil {
 		return nil, ListSessionsOutput{}, fmt.Errorf("list sessions: %w", err)
 	}
@@ -120,20 +120,20 @@ func (h *handler) diffSessions(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 		return nil, DiffSessionsOutput{}, fmt.Errorf("both baseline and compare session ids are required")
 	}
 
-	baseSess, err := h.store.GetSession(in.Baseline)
+	baseSess, err := h.store.WithContext(ctx).GetSession(in.Baseline)
 	if err != nil || baseSess == nil {
 		return nil, DiffSessionsOutput{}, fmt.Errorf("baseline session %q not found", in.Baseline)
 	}
-	cmpSess, err := h.store.GetSession(in.Compare)
+	cmpSess, err := h.store.WithContext(ctx).GetSession(in.Compare)
 	if err != nil || cmpSess == nil {
 		return nil, DiffSessionsOutput{}, fmt.Errorf("compare session %q not found", in.Compare)
 	}
 
-	baseSpans, err := h.store.GetSpansBySession(in.Baseline)
+	baseSpans, err := h.store.WithContext(ctx).GetSpansBySession(in.Baseline)
 	if err != nil {
 		return nil, DiffSessionsOutput{}, fmt.Errorf("load baseline spans: %w", err)
 	}
-	cmpSpans, err := h.store.GetSpansBySession(in.Compare)
+	cmpSpans, err := h.store.WithContext(ctx).GetSpansBySession(in.Compare)
 	if err != nil {
 		return nil, DiffSessionsOutput{}, fmt.Errorf("load compare spans: %w", err)
 	}

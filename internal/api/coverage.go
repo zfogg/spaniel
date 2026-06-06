@@ -15,9 +15,9 @@ func (r *Router) getCoverage(w http.ResponseWriter, req *http.Request) {
 	var spans []*storage.Span
 	var err error
 	if sessionID != "" {
-		spans, err = r.store.GetSpansBySession(sessionID)
+		spans, err = r.store.WithContext(req.Context()).GetSpansBySession(sessionID)
 	} else {
-		spans, err = r.store.GetSpansBySession(r.store.ActiveSessionID())
+		spans, err = r.store.WithContext(req.Context()).GetSpansBySession(r.store.ActiveSessionID())
 	}
 	if err != nil {
 		respondErr(w, req, 500, err.Error())

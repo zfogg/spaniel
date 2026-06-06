@@ -137,7 +137,7 @@ type ServerInfo struct {
 }
 
 func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ServerInfo, error) {
-	stats, err := h.store.GetStats("")
+	stats, err := h.store.WithContext(ctx).GetStats("")
 	if err != nil {
 		return nil, ServerInfo{}, fmt.Errorf("read stats: %w", err)
 	}
