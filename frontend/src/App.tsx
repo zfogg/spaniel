@@ -18,6 +18,7 @@ import Coverage from './pages/Coverage'
 import Settings from './pages/Settings'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
+import StorageFullBanner from './components/StorageFullBanner'
 import RouteErrorBoundary from './components/RouteErrorBoundary'
 import { Toaster } from 'sonner'
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
@@ -221,6 +222,7 @@ function AppShell() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       <Chrome />
+      <StorageFullBanner />
       <main className="flex-1 overflow-hidden flex flex-col">
         <RouteErrorBoundary>
         <Routes>

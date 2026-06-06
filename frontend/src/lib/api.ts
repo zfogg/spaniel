@@ -330,6 +330,7 @@ export const StatsSchema = z.object({
   dropped_logs: z.number(),
   dropped_metric_points: z.number(),
   last_drop_at: z.number(),
+  storage_full: z.boolean().optional().default(false),
 })
 
 export const ServiceMapOpStatSchema = z.object({

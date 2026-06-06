@@ -10,9 +10,21 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/zfogg/spaniel/internal/ingestion"
+	"github.com/zfogg/spaniel/internal/storage"
 )
+
+// ingestGRPCError maps an ingest failure to a gRPC status: a full database is
+// retryable (RESOURCE_EXHAUSTED); everything else passes through (Unknown).
+func ingestGRPCError(err error) error {
+	if storage.IsStorageFull(err) {
+		return status.Error(codes.ResourceExhausted, "storage full: "+err.Error())
+	}
+	return err
+}
 
 type GRPCReceiver struct {
 	pipeline *ingestion.Pipeline
@@ -54,7 +66,7 @@ type traceServer struct {
 
 func (s *traceServer) Export(ctx context.Context, req ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestTraces(ctx, req.Traces()); err != nil {
-		return ptraceotlp.NewExportResponse(), err
+		return ptraceotlp.NewExportResponse(), ingestGRPCError(err)
 	}
 	return ptraceotlp.NewExportResponse(), nil
 }
@@ -66,7 +78,7 @@ type logServer struct {
 
 func (s *logServer) Export(ctx context.Context, req plogotlp.ExportRequest) (plogotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestLogs(ctx, req.Logs()); err != nil {
-		return plogotlp.NewExportResponse(), err
+		return plogotlp.NewExportResponse(), ingestGRPCError(err)
 	}
 	return plogotlp.NewExportResponse(), nil
 }
@@ -78,7 +90,7 @@ type metricServer struct {
 
 func (s *metricServer) Export(ctx context.Context, req pmetricotlp.ExportRequest) (pmetricotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestMetrics(ctx, req.Metrics()); err != nil {
-		return pmetricotlp.NewExportResponse(), err
+		return pmetricotlp.NewExportResponse(), ingestGRPCError(err)
 	}
 	return pmetricotlp.NewExportResponse(), nil
 }

@@ -162,14 +162,14 @@ func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
 // GORM, so it isn't covered by the storage OTel plugin).
 func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
 	if !instrument {
-		return p.store.FlushBatch()
+		return p.classifyFlush(p.store.FlushBatch())
 	}
 	_, span := p.tracer.Start(ctx, "db.flush",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String("db.system", "duckdb")),
 	)
 	defer span.End()
-	if err := p.store.FlushBatch(); err != nil {
+	if err := p.classifyFlush(p.store.FlushBatch()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -177,11 +177,27 @@ func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
 	return nil
 }
 
+// classifyFlush maps an out-of-space write failure to ErrStorageFull and flips
+// the storage into the full state so subsequent ingests are rejected (503).
+func (p *Pipeline) classifyFlush(err error) error {
+	if err != nil && storage.IsStorageFull(err) {
+		p.store.SetFull(true)
+		return storage.ErrStorageFull
+	}
+	return err
+}
+
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
 	// Spaniel's own self-telemetry is stored "quietly" — no instrumentation
 	// span, linter, or detectors — so self-monitoring doesn't generate new spans
 	// from ingesting its own spans (which would feed back on itself).
 	self := p.isSelfTraces(traces)
+
+	// Reject when storage is full so the exporter retries (503/RESOURCE_EXHAUSTED)
+	// rather than us dropping data. Self-telemetry is tiny and best-effort.
+	if !self && p.store.Full() {
+		return storage.ErrStorageFull
+	}
 
 	var ingestSpan trace.Span
 	if self {
@@ -403,6 +419,9 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 
 func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 	self := p.isSelfLogs(logs)
+	if !self && p.store.Full() {
+		return storage.ErrStorageFull
+	}
 	var ingestSpan trace.Span
 	if self {
 		ingestSpan = trace.SpanFromContext(context.Background())
@@ -476,6 +495,9 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
 	self := p.isSelfMetrics(md)
+	if !self && p.store.Full() {
+		return storage.ErrStorageFull
+	}
 	var ingestSpan trace.Span
 	if self {
 		ingestSpan = trace.SpanFromContext(context.Background())

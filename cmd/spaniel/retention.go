@@ -107,6 +107,40 @@ func runRetention(store *storage.DB, cfg storage.RetentionConfig, activeID strin
 	}
 }
 
+// runStorageGuard enforces the size cap between the hourly retention passes:
+// every 30s, if the DB is at/over maxBytes it prunes by size (protecting the
+// current active session), then flips storage full/not-full. Ingestion is
+// rejected (503) only while genuinely over the cap and unable to free space.
+func runStorageGuard(store *storage.DB, maxBytes int64) {
+	if maxBytes <= 0 {
+		return
+	}
+	check := func() {
+		if store.FileSize() < maxBytes {
+			store.SetFull(false)
+			return
+		}
+		// Over the cap: shrink by deleting the oldest non-active, non-baseline
+		// sessions. If nothing more can be freed, storage is full.
+		if _, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: maxBytes}, store.ActiveSessionID()); err != nil {
+			slog.Error("storage guard prune failed", "err", err)
+		}
+		full := store.FileSize() >= maxBytes
+		store.SetFull(full)
+		if full {
+			slog.Warn("storage full: ingestion paused until space frees",
+				"db_mb", float64(store.FileSize())/1024/1024,
+				"cap_mb", float64(maxBytes)/1024/1024)
+		}
+	}
+	check()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		check()
+	}
+}
+
 // prune opens the DB and applies the retention policy once. The active session
 // is unknown at CLI invocation time, so we pass "" — no session is special.
 func prune(dbPath string, cfg storage.RetentionConfig) error {

@@ -597,6 +597,12 @@ func run(cfg runConfig) error {
 		runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB), sess.ID)
 	}, "subsystem", "retention")
 
+	// Enforce the size cap between retention passes and maintain the storage-full
+	// flag (ingestion returns 503 while full).
+	goroutine.Go(func() {
+		runStorageGuard(store, int64(cfg.MaxDBSizeMB)*1024*1024)
+	}, "subsystem", "storage-guard")
+
 	hub := ws.NewHub()
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
 	limiter := ingestion.NewSourceLimiter(cfg.SourceRPS, cfg.SourceBurst)

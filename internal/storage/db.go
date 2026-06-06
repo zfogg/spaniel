@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/alifiroozi80/duckdb"
@@ -22,6 +23,7 @@ type DB struct {
 	path               string
 	activeSessionID    string
 	activeSessionLabel string
+	full               *atomic.Bool // writes rejected when true (see full.go); shared across WithContext copies
 }
 
 // WithContext returns a shallow copy of DB whose GORM queries carry ctx, so the
@@ -185,6 +187,7 @@ type Stats struct {
 	DroppedLogs         int64 `json:"dropped_logs"`
 	DroppedMetricPoints int64 `json:"dropped_metric_points"`
 	LastDropAt          int64 `json:"last_drop_at"`
+	StorageFull         bool  `json:"storage_full"` // ingestion paused: DB at cap / disk full
 	Throughput                // live ingest rates, filled by the API layer
 }
 
@@ -275,7 +278,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, path: path}
+	d := &DB{gorm: g, path: path, full: &atomic.Bool{}}
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -850,7 +853,7 @@ func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 }
 
 func (d *DB) GetStats(sessionID string) (*Stats, error) {
-	s := &Stats{}
+	s := &Stats{StorageFull: d.Full()}
 
 	spanQ := d.gorm.Table("spans")
 	traceQ := d.gorm.Table("spans").Distinct("trace_id")

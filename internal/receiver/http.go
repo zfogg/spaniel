@@ -12,7 +12,18 @@ import (
 
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/ingestion"
+	"github.com/zfogg/spaniel/internal/storage"
 )
+
+// writeIngestError maps an ingest failure to an OTLP/HTTP status: a full
+// database is retryable (503), everything else is a 500.
+func writeIngestError(w http.ResponseWriter, err error) {
+	if storage.IsStorageFull(err) {
+		http.Error(w, "storage full: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
+}
 
 // maxOTLPBodyBytes caps a single OTLP/HTTP export request body, matching the
 // 64 MB ceiling the JSON import endpoint uses. Without it, io.ReadAll would
@@ -67,7 +78,7 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.pipeline.IngestTraces(r.Context(), req.Traces()); err != nil {
-		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
+		writeIngestError(w, err)
 		return
 	}
 	if h.forwarder != nil {
@@ -93,7 +104,7 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.pipeline.IngestLogs(r.Context(), req.Logs()); err != nil {
-		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
+		writeIngestError(w, err)
 		return
 	}
 	if h.forwarder != nil {
@@ -119,7 +130,7 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.pipeline.IngestMetrics(r.Context(), req.Metrics()); err != nil {
-		http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)
+		writeIngestError(w, err)
 		return
 	}
 	if h.forwarder != nil {
