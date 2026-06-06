@@ -131,10 +131,11 @@ test.describe('Settings page', () => {
     await expect(pill).toContainText('4h 12m')
   })
 
-  test('renders the Network section by default with listening pills', async ({ page }) => {
+  test('Network section shows listening pills', async ({ page }) => {
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
 
     await expect(page.getByTestId('row-grpc')).toBeVisible()
     await expect(page.getByTestId('row-http')).toBeVisible()
@@ -146,6 +147,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
 
     await page.getByLabel('enable grpc receiver').click()
 
@@ -189,6 +191,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
 
     // The optimistic update flips display, then the server rejects with 400 and
     // the save-state strip shows the error.
@@ -221,6 +224,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
 
     const input = page.getByLabel('ipv4 bind address')
     await input.fill('0.0.0.0')
@@ -234,6 +238,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
 
     const input = page.getByLabel('ipv6 bind address')
     await input.fill('::')
@@ -247,6 +252,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
 
     const slider = page.getByLabel('forward sample', { exact: true })
     await slider.evaluate((el: HTMLInputElement) => {
