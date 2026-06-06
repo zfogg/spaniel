@@ -1,4 +1,4 @@
-package api
+package diff
 
 import (
 	"math"
@@ -22,17 +22,17 @@ func span(svc, name, spanID, parent string, durNs int64, attrs string) *storage.
 	}
 }
 
-// rootSpan helper — root has parent set to zeroParent so isRoot() reports true.
+// rootSpan helper — root has parent set to ZeroParent so isRoot() reports true.
 func rootSpan(svc, name, spanID string, durNs int64) *storage.Span {
-	return span(svc, name, spanID, zeroParent, durNs, "{}")
+	return span(svc, name, spanID, ZeroParent, durNs, "{}")
 }
 
 func sess(id, label string) *storage.Session {
 	return &storage.Session{ID: id, Label: label}
 }
 
-// findDiffSpan returns the DiffSpan matching (svc,name), or fails the test.
-func findDiffSpan(t *testing.T, result DiffResult, svc, name string) DiffSpan {
+// findSpan returns the diff Span matching (svc,name), or fails the test.
+func findSpan(t *testing.T, result Result, svc, name string) Span {
 	t.Helper()
 	for _, s := range result.Spans {
 		if s.ServiceName == svc && s.Name == name {
@@ -40,12 +40,12 @@ func findDiffSpan(t *testing.T, result DiffResult, svc, name string) DiffSpan {
 		}
 	}
 	t.Fatalf("no diff span for %s/%s in %+v", svc, name, result.Spans)
-	return DiffSpan{}
+	return Span{}
 }
 
 // Baseline 3 spans, compare 4 (1 new) — expect exactly 1 added span and the
 // new span reported with status="added".
-func TestComputeDiff_AddedSpan(t *testing.T) {
+func TestCompute_AddedSpan(t *testing.T) {
 	baseSpans := []*storage.Span{
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
 		span("api", "fetch user", "s2", "s1", 30_000_000, "{}"),
@@ -58,7 +58,7 @@ func TestComputeDiff_AddedSpan(t *testing.T) {
 		span("api", "fetch promo", "s4", "s1", 20_000_000, "{}"),
 	}
 
-	result := computeDiff(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
+	result := Compute(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
 
 	if result.Summary.SpansAdded != 1 {
 		t.Errorf("SpansAdded: want 1, got %d", result.Summary.SpansAdded)
@@ -66,7 +66,7 @@ func TestComputeDiff_AddedSpan(t *testing.T) {
 	if result.Summary.SpansRemoved != 0 {
 		t.Errorf("SpansRemoved: want 0, got %d", result.Summary.SpansRemoved)
 	}
-	added := findDiffSpan(t, result, "api", "fetch promo")
+	added := findSpan(t, result, "api", "fetch promo")
 	if added.Status != "added" {
 		t.Errorf("status: want added, got %q", added.Status)
 	}
@@ -77,7 +77,7 @@ func TestComputeDiff_AddedSpan(t *testing.T) {
 
 // 50% duration increase on a matching span — expect status="changed" and
 // DeltaPct = +50.0.
-func TestComputeDiff_DurationIncreasePct(t *testing.T) {
+func TestCompute_DurationIncreasePct(t *testing.T) {
 	baseSpans := []*storage.Span{
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
 		span("api", "fetch user", "s2", "s1", 20_000_000, "{}"),
@@ -87,9 +87,9 @@ func TestComputeDiff_DurationIncreasePct(t *testing.T) {
 		span("api", "fetch user", "s2", "s1", 30_000_000, "{}"),
 	}
 
-	result := computeDiff(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
+	result := Compute(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
 
-	user := findDiffSpan(t, result, "api", "fetch user")
+	user := findSpan(t, result, "api", "fetch user")
 	if user.Status != "changed" {
 		t.Errorf("status: want changed, got %q", user.Status)
 	}
@@ -100,7 +100,6 @@ func TestComputeDiff_DurationIncreasePct(t *testing.T) {
 		t.Errorf("durations wrong: %+v", user)
 	}
 
-	// Summary uses the root span duration: base=100ms cmp=150ms => +50%.
 	if result.Summary.DurationDeltaNs != 50_000_000 {
 		t.Errorf("DurationDeltaNs: want 50ms, got %d", result.Summary.DurationDeltaNs)
 	}
@@ -110,7 +109,7 @@ func TestComputeDiff_DurationIncreasePct(t *testing.T) {
 }
 
 // Removed span (in base, not in compare) — expect SpansRemoved=1 and status="removed".
-func TestComputeDiff_RemovedSpan(t *testing.T) {
+func TestCompute_RemovedSpan(t *testing.T) {
 	baseSpans := []*storage.Span{
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
 		span("api", "fetch promo", "s2", "s1", 20_000_000, "{}"),
@@ -119,19 +118,19 @@ func TestComputeDiff_RemovedSpan(t *testing.T) {
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
 	}
 
-	result := computeDiff(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
+	result := Compute(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
 
 	if result.Summary.SpansRemoved != 1 {
 		t.Errorf("SpansRemoved: want 1, got %d", result.Summary.SpansRemoved)
 	}
-	removed := findDiffSpan(t, result, "api", "fetch promo")
+	removed := findSpan(t, result, "api", "fetch promo")
 	if removed.Status != "removed" {
 		t.Errorf("status: want removed, got %q", removed.Status)
 	}
 }
 
 // Small (<5%) delta should be marked "unchanged" — exercises the threshold.
-func TestComputeDiff_SmallDeltaUnchanged(t *testing.T) {
+func TestCompute_SmallDeltaUnchanged(t *testing.T) {
 	baseSpans := []*storage.Span{
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
 		span("api", "fetch user", "s2", "s1", 100_000_000, "{}"),
@@ -141,16 +140,16 @@ func TestComputeDiff_SmallDeltaUnchanged(t *testing.T) {
 		span("api", "fetch user", "s2", "s1", 102_000_000, "{}"), // +2%
 	}
 
-	result := computeDiff(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
+	result := Compute(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
 
-	user := findDiffSpan(t, result, "api", "fetch user")
+	user := findSpan(t, result, "api", "fetch user")
 	if user.Status != "unchanged" {
 		t.Errorf("status: want unchanged for sub-5%% delta, got %q (delta=%v)", user.Status, user.DeltaPct)
 	}
 }
 
 // DB call delta — compare has more DB-tagged spans than base.
-func TestComputeDiff_DBCallDelta(t *testing.T) {
+func TestCompute_DBCallDelta(t *testing.T) {
 	baseSpans := []*storage.Span{
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
 		span("api", "db.query", "s2", "s1", 10_000_000, `{"db.system":"postgresql"}`),
@@ -161,7 +160,7 @@ func TestComputeDiff_DBCallDelta(t *testing.T) {
 		span("api", "db.query2", "s3", "s1", 8_000_000, `{"db.statement":"SELECT 1"}`),
 	}
 
-	result := computeDiff(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
+	result := Compute(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)
 
 	if result.Baseline.DBCalls != 1 {
 		t.Errorf("baseline DBCalls: want 1, got %d", result.Baseline.DBCalls)
