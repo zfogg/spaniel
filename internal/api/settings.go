@@ -27,6 +27,8 @@ type SettingsService struct {
 	OTLPHTTPPort   int
 	TLSEnabled     bool
 	BearerTokenSet bool
+	MCPEnabled     bool
+	MCPAllowWrites bool
 
 	// LiveGRPCPort / LiveHTTPPort return the port currently bound (0 = stopped).
 	// When nil the startup values above are used (tests / minimal configs).
@@ -84,6 +86,8 @@ type SettingsResponse struct {
 	TLSEnabled     bool     `json:"tls_enabled"`
 	BearerTokenSet bool     `json:"bearer_token_set"`
 	SelfMonitor    bool     `json:"self_monitor"`
+	MCPEnabled     bool     `json:"mcp_enabled"`
+	MCPAllowWrites bool     `json:"mcp_allow_writes"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -184,6 +188,8 @@ func (r *Router) buildSettings() SettingsResponse {
 		TLSEnabled:     s.TLSEnabled,
 		BearerTokenSet: s.BearerTokenSet,
 		SelfMonitor:    v.GetBool("self_monitor"),
+		MCPEnabled:     s.MCPEnabled,
+		MCPAllowWrites: s.MCPAllowWrites,
 		Runtime: SettingsRuntime{
 			PID:          os.Getpid(),
 			UptimeNs:     time.Since(s.StartedAt).Nanoseconds(),

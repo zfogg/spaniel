@@ -789,6 +789,8 @@ func run(cfg runConfig) error {
 		OTLPHTTPPort:   cfg.OTLPHTTPPort,
 		TLSEnabled:     tlsCfg != nil,
 		BearerTokenSet: cfg.BearerToken != "",
+		MCPEnabled:     cfg.MCPEnabled,
+		MCPAllowWrites: cfg.MCPAllowWrites,
 		LiveGRPCPort: func() int {
 			grpcLS.mu.Lock()
 			defer grpcLS.mu.Unlock()

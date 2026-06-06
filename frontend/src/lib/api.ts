@@ -284,6 +284,8 @@ export const SettingsSchema = z.object({
   tls_enabled: z.boolean(),
   bearer_token_set: z.boolean(),
   self_monitor: z.boolean(),
+  mcp_enabled: z.boolean(),
+  mcp_allow_writes: z.boolean(),
   runtime: SettingsRuntimeSchema,
 })
 

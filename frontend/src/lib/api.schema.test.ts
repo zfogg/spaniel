@@ -58,6 +58,7 @@ describe('api response schemas', () => {
       otlp_grpc_port: 4317, otlp_http_port: 4318, no_browser: false, forward: ['http://x'],
       bind_address_v4: '127.0.0.1', bind_address_v6: '::1', forward_sample: 1, source_rps: 100,
       source_burst: 50, tls_enabled: false, bearer_token_set: false, self_monitor: true,
+      mcp_enabled: true, mcp_allow_writes: false,
       runtime: { pid: 1, uptime_ns: 1, version: 'v0', channel: 'stable', config_path: '/c',
         otlp_grpc_port: 4317, otlp_http_port: 4318, db_size_bytes: 1 },
     }).success).toBe(true)

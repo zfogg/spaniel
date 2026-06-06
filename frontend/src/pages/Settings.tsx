@@ -622,6 +622,69 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
   )
 }
 
+function MCPSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
+  const [copied, setCopied] = useState(false)
+  const endpoint = `${window.location.origin}/mcp`
+  const addCmd = `claude mcp add --transport http spaniel ${endpoint}`
+
+  const copy = useCallback(() => {
+    navigator.clipboard?.writeText(addCmd)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      })
+      .catch(() => {})
+  }, [addCmd])
+
+  return (
+    <Card id="mcp" title="MCP" sub="Model Context Protocol endpoint for AI agents (Claude Code/Desktop)" hidden={hidden}>
+      <Row label="Endpoint" hint="Streamable-HTTP MCP endpoint served on the UI port." testid="row-mcp-endpoint">
+        {s.mcp_enabled
+          ? <>
+              <code className="font-mono text-xs text-foreground">{endpoint}</code>
+              <Pill tone="ok">● enabled</Pill>
+            </>
+          : <>
+              <Pill tone="warn">disabled</Pill>
+              <span className="font-sans text-xs text-muted-foreground">
+                Start with <code className="font-mono text-xs text-foreground">--mcp-enabled</code> or set <code className="font-mono text-xs text-foreground">mcp_enabled: true</code>.
+              </span>
+            </>}
+      </Row>
+
+      {s.mcp_enabled && (
+        <>
+          <Row label="Write tools" hint="Whether agents can mutate state (create/activate sessions, set baseline, prune)." testid="row-mcp-writes">
+            {s.mcp_allow_writes
+              ? <>
+                  <Pill tone="warn">read + write</Pill>
+                  <span className="font-sans text-xs text-muted-foreground">Agents can modify sessions and prune data.</span>
+                </>
+              : <>
+                  <Pill tone="ok">read-only</Pill>
+                  <span className="font-sans text-xs text-muted-foreground">
+                    Enable writes with <code className="font-mono text-xs text-foreground">--mcp-allow-writes</code>.
+                  </span>
+                </>}
+          </Row>
+
+          <Row label="Connect" hint="Register this server with Claude Code." testid="row-mcp-connect" align="center">
+            <code className="font-mono text-[11px] text-foreground bg-muted py-1 px-1.5 rounded break-all">{addCmd}</code>
+            <button
+              type="button"
+              data-testid="mcp-copy-btn"
+              onClick={copy}
+              className="px-3 h-[28px] rounded-md bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden cursor-pointer shrink-0"
+            >
+              {copied ? 'copied ✓' : 'copy'}
+            </button>
+          </Row>
+        </>
+      )}
+    </Card>
+  )
+}
+
 function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
@@ -706,7 +769,7 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
 
 // ── page ─────────────────────────────────────────────────────────────────────
 
-type Section = 'network' | 'storage' | 'about'
+type Section = 'network' | 'storage' | 'mcp' | 'about'
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -800,6 +863,7 @@ export default function Settings() {
   const sections = useMemo(() => ([
     { id: 'network' as const, label: 'Network' },
     { id: 'storage' as const, label: 'Storage' },
+    { id: 'mcp'     as const, label: 'MCP' },
     { id: 'about'   as const, label: 'About' },
   ]), [])
 
@@ -885,6 +949,7 @@ export default function Settings() {
         <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />
         <StorageSection s={data} mutate={mutate} hidden={section !== 'storage'}
           onPrune={onPrune} onDrop={onDrop} breakdown={breakdown} onCompact={onCompact} />
+        <MCPSection s={data} hidden={section !== 'mcp'} />
         <AboutSection s={data} hidden={section !== 'about'} />
       </div>
     </div>
