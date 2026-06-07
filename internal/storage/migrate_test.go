@@ -102,3 +102,88 @@ func TestMigrateLegacyDB(t *testing.T) {
 		t.Fatalf("legacy JSON column not converted to VARCHAR: attributes=%q (want verbatim, not double-encoded)", got[0].Attributes)
 	}
 }
+
+// TestMigrateRepairsStaleMetrics reproduces the v0.1.x-born database shape:
+// a metrics table missing the `exemplars` column even though 0004 is recorded
+// as applied (gormigrate's InitSchema stamped every migration without running
+// it). Migration 0006 must rebuild the table to the canonical 10-column order
+// the Appender writes to, preserve existing rows, and unblock metric writes.
+func TestMigrateRepairsStaleMetrics(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stale.duckdb")
+
+	// Start from a correct DB, then corrupt it into the stale shape: drop the
+	// 10-col metrics table, recreate the old 9-col one with a row, and forget
+	// 0006 so it re-runs on reopen (0004 stays recorded, as on a real stale DB).
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open fresh: %v", err)
+	}
+	for _, stmt := range []string{
+		`DROP TABLE metrics`,
+		`CREATE TABLE metrics (
+			name TEXT, description TEXT, unit TEXT, type TEXT, timestamp_ns BIGINT,
+			value DOUBLE, attributes VARCHAR, service_name TEXT, session_id TEXT)`,
+		`INSERT INTO metrics VALUES
+			('http.server.duration','','ms','histogram',1,1.5,'{}','svc-a','sess-1')`,
+		`DELETE FROM migrations WHERE id = '0006_metrics_exemplars_repair'`,
+	} {
+		if err := db.gorm.Exec(stmt).Error; err != nil {
+			t.Fatalf("corrupt to stale shape (%q): %v", stmt, err)
+		}
+	}
+	db.Close()
+
+	// Reopen: migration 0006 should run and repair the table.
+	db, err = Open(path)
+	if err != nil {
+		t.Fatalf("Open stale: %v", err)
+	}
+	defer db.Close()
+
+	// exemplars must exist at ordinal 8 (the position AppendMetric binds it).
+	type col struct {
+		Name string `gorm:"column:column_name"`
+		Pos  int    `gorm:"column:ordinal_position"`
+	}
+	var cols []col
+	if err := db.gorm.Raw(
+		`SELECT column_name, ordinal_position FROM information_schema.columns
+		 WHERE table_name = 'metrics' ORDER BY ordinal_position`).Scan(&cols).Error; err != nil {
+		t.Fatalf("introspect metrics: %v", err)
+	}
+	if len(cols) != 10 {
+		t.Fatalf("metrics column count = %d, want 10: %+v", len(cols), cols)
+	}
+	if cols[7].Name != "exemplars" {
+		t.Fatalf("exemplars at ordinal %d (%q), want position 8", cols[7].Pos, cols[7].Name)
+	}
+
+	// The pre-existing row must survive the rebuild.
+	var preserved int64
+	if err := db.gorm.Raw(`SELECT COUNT(*) FROM metrics WHERE name = 'http.server.duration'`).Scan(&preserved).Error; err != nil {
+		t.Fatalf("count preserved: %v", err)
+	}
+	if preserved != 1 {
+		t.Fatalf("pre-existing metric row lost: count = %d", preserved)
+	}
+
+	// A new metric write through the Appender must now succeed (this is exactly
+	// what failed before with "invalid column count: expected 9, got 10").
+	if err := db.AppendMetric(&Metric{
+		Name: "process.runtime.go.goroutines", Type: "gauge", Unit: "{goroutine}",
+		TimestampNs: 2, Value: 12, Attributes: `{}`, Exemplars: `[]`,
+		ServiceName: "svc-a", SessionID: "sess-1",
+	}); err != nil {
+		t.Fatalf("AppendMetric after repair: %v", err)
+	}
+	if err := db.FlushBatch(); err != nil {
+		t.Fatalf("FlushBatch: %v", err)
+	}
+	var total int64
+	if err := db.gorm.Raw(`SELECT COUNT(*) FROM metrics`).Scan(&total).Error; err != nil {
+		t.Fatalf("count metrics: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("metrics count = %d, want 2 (1 preserved + 1 appended)", total)
+	}
+}
