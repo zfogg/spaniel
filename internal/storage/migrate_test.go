@@ -3,10 +3,63 @@ package storage
 import (
 	"database/sql"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	_ "github.com/marcboeker/go-duckdb"
 )
+
+// TestSplitSQLStatements covers the cases a naive Split(s, ";") gets wrong:
+// semicolons inside comments and string literals, and comment-only fragments.
+func TestSplitSQLStatements(t *testing.T) {
+	cases := []struct {
+		name string
+		sql  string
+		want []string
+	}{
+		{
+			name: "semicolon in line comment is not a separator",
+			sql:  "-- drop this; and that\nCREATE TABLE t (a INT);",
+			want: []string{"CREATE TABLE t (a INT)"},
+		},
+		{
+			name: "semicolon in string literal is preserved",
+			sql:  "INSERT INTO t VALUES ('a;b');\nINSERT INTO t VALUES ('c');",
+			want: []string{"INSERT INTO t VALUES ('a;b')", "INSERT INTO t VALUES ('c')"},
+		},
+		{
+			name: "escaped quote inside string",
+			sql:  "INSERT INTO t VALUES ('it''s; ok');",
+			want: []string{"INSERT INTO t VALUES ('it''s; ok')"},
+		},
+		{
+			name: "block comment with semicolons dropped",
+			sql:  "/* a; b; c */ ALTER TABLE t ADD COLUMN x INT;",
+			want: []string{"ALTER TABLE t ADD COLUMN x INT"},
+		},
+		{
+			name: "comment-only file yields no statements",
+			sql:  "-- nothing here;\n/* or here; */\n",
+			want: nil,
+		},
+		{
+			name: "multiple statements",
+			sql:  "CREATE TABLE a (i INT);\nCREATE TABLE b (j INT);",
+			want: []string{"CREATE TABLE a (i INT)", "CREATE TABLE b (j INT)"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := splitSQLStatements(tc.sql)
+			if len(got) == 0 && len(tc.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("splitSQLStatements()\n got = %#v\nwant = %#v", got, tc.want)
+			}
+		})
+	}
+}
 
 // TestMigrateFreshDB checks a brand-new file DB gets the schema, records the
 // init migration, and stores the spaniel version in the meta table.

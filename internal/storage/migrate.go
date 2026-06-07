@@ -21,15 +21,79 @@ func execMigrationFile(tx *gorm.DB, name string) error {
 		// Embedded at build time — a missing file is a programming error.
 		panic("storage: missing embedded migration " + name + ": " + err.Error())
 	}
-	for stmt := range strings.SplitSeq(string(b), ";") {
-		if strings.TrimSpace(stmt) == "" {
-			continue
-		}
+	for _, stmt := range splitSQLStatements(string(b)) {
 		if err := tx.Exec(stmt).Error; err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// splitSQLStatements splits a SQL file into individual statements on top-level
+// semicolons, ignoring semicolons inside single-quoted string literals, line
+// comments (-- … EOL), and block comments (/* … */). Comments are stripped from
+// the emitted statements so a comment-only fragment never reaches the driver as
+// an "empty query" — a naive Split(s, ";") breaks on a semicolon anywhere in a
+// comment or literal. Whitespace/comment-only statements are dropped.
+func splitSQLStatements(sql string) []string {
+	const (
+		normal = iota
+		lineComment
+		blockComment
+		inString
+	)
+	var (
+		stmts []string
+		buf   strings.Builder
+		state = normal
+		rs    = []rune(sql)
+	)
+	flush := func() {
+		if s := strings.TrimSpace(buf.String()); s != "" {
+			stmts = append(stmts, s)
+		}
+		buf.Reset()
+	}
+	for i := 0; i < len(rs); i++ {
+		c := rs[i]
+		switch state {
+		case normal:
+			switch {
+			case c == '-' && i+1 < len(rs) && rs[i+1] == '-':
+				state, i = lineComment, i+1
+			case c == '/' && i+1 < len(rs) && rs[i+1] == '*':
+				state, i = blockComment, i+1
+			case c == '\'':
+				state = inString
+				buf.WriteRune(c)
+			case c == ';':
+				flush()
+			default:
+				buf.WriteRune(c)
+			}
+		case lineComment:
+			if c == '\n' {
+				state = normal
+				buf.WriteRune(c) // preserve line breaks between statements
+			}
+		case blockComment:
+			if c == '*' && i+1 < len(rs) && rs[i+1] == '/' {
+				state, i = normal, i+1
+			}
+		case inString:
+			buf.WriteRune(c)
+			if c == '\'' {
+				if i+1 < len(rs) && rs[i+1] == '\'' { // '' is an escaped quote
+					buf.WriteRune(rs[i+1])
+					i++
+				} else {
+					state = normal
+				}
+			}
+		}
+	}
+	flush()
+	return stmts
 }
 
 // migrations is the ordered list of schema migrations. Append new entries here
