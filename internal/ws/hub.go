@@ -36,6 +36,7 @@ type SpanPayload struct {
 	Name        string `json:"name"`
 	DurationNs  int64  `json:"durationNs"`
 	StatusCode  int    `json:"statusCode"`
+	SessionID   string `json:"sessionId"`
 }
 
 type LogPayload struct {

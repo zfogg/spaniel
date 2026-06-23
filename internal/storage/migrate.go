@@ -137,6 +137,12 @@ func migrations() []*gormigrate.Migration {
 				return execMigrationFile(tx, "0006_metrics_exemplars_repair.sql")
 			},
 		},
+		{
+			ID: "0007_performance_indexes",
+			Migrate: func(tx *gorm.DB) error {
+				return execMigrationFile(tx, "0007_performance_indexes.sql")
+			},
+		},
 	}
 }
 

@@ -386,6 +386,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					Name:        s.Name,
 					DurationNs:  s.EndNs - s.StartNs,
 					StatusCode:  s.StatusCode,
+					SessionID:   sessionID,
 				}))
 				if !self {
 					p.scheduleDetectors(s.TraceID)
@@ -627,6 +628,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 			Name:        e.span.Name,
 			DurationNs:  e.span.EndNs - e.span.StartNs,
 			StatusCode:  e.span.StatusCode,
+			SessionID:   e.span.SessionID,
 		}))
 	}
 

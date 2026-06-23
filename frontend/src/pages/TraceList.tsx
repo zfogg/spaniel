@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryState, parseAsStringLiteral } from 'nuqs'
 import { useQuery } from '@tanstack/react-query'
@@ -7,10 +7,11 @@ import ErrorState from '@/components/ErrorState'
 import { qk } from '../lib/query'
 import { api, TraceRow } from '../lib/api'
 import { traceTag } from '../lib/trace-tag'
-import { fmtRelative } from '../lib/fmt-relative'
+import { fmtRelative, fmtDateTime } from '../lib/fmt-relative'
 import { SEARCH_PALETTE_EVENT } from '../lib/shortcuts'
+import { useLiveActivity } from '../lib/live-activity'
 
-const GRID_COLS = 'minmax(0,1fr) 90px 80px 280px 70px'
+const GRID_COLS = 'minmax(0,1fr) 90px 80px 200px 70px 140px'
 const SLOW_NS = 250_000_000
 const MAX_SESSIONS = 7
 const MAX_SERVICES = 15
@@ -270,6 +271,11 @@ function TraceRowItem({
       <div className="text-right font-mono text-[10px] text-[var(--ink3)]">
         {fmtRelative(trace.start_ns)}
       </div>
+
+      {/* absolute timestamp */}
+      <div className="text-right font-mono text-[10px] text-[var(--ink3)]" title={fmtDateTime(trace.start_ns)}>
+        {fmtDateTime(trace.start_ns)}
+      </div>
     </div>
   )
 }
@@ -345,6 +351,17 @@ export default function TraceList() {
   const [quickFilter, setQuickFilter] = useQueryState('status', parseAsStringLiteral(['lint', 'slow', 'errors'] as const))
   const navigate = useNavigate()
 
+  // Live activity tracking: detects incoming spans and auto-switches session
+  const { streaming, activeSessionId } = useLiveActivity()
+  const manualSessionRef = useRef(false)
+
+  // Auto-switch to the active session when new data arrives (unless user manually selected)
+  useEffect(() => {
+    if (activeSessionId && !manualSessionRef.current && activeSessionId !== filterSession) {
+      setFilterSession(activeSessionId)
+    }
+  }, [activeSessionId, filterSession, setFilterSession])
+
   // Live refresh is driven centrally by useLiveInvalidation() in App.tsx, which
   // invalidates the 'traces' key on span events (throttled), so this query
   // re-fetches automatically instead of optimistically prepending rows here.
@@ -387,8 +404,10 @@ export default function TraceList() {
 
   const maxNs = filtered.reduce((m, t) => Math.max(m, t.duration_ns), 0)
 
-  const toggle = <T,>(cur: T, val: T, set: (v: T) => void, reset: T) =>
+  const toggle = <T,>(cur: T, val: T, set: (v: T) => void, reset: T, isSession = false) => {
+    if (isSession) manualSessionRef.current = true
     set(cur === val ? reset : val)
+  }
 
   if (loading) {
     return <div className="p-8 text-muted-foreground text-sm">Loading…</div>
@@ -422,7 +441,7 @@ export default function TraceList() {
                 active={filterSession === s.id}
                 dot={s.is_baseline ? 'var(--ink3)' : 'var(--accent)'}
                 count={s.trace_count}
-                onClick={() => toggle(filterSession, s.id, setFilterSession, null)}
+                onClick={() => toggle(filterSession, s.id, setFilterSession, null, true)}
               >
                 {s.label}{s.is_baseline ? ' · baseline' : ''}
               </SbItem>
@@ -484,8 +503,18 @@ export default function TraceList() {
         {/* panel head */}
         <div className="flex items-center gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-4 py-3">
           <div className="flex-1">
-            <div className="font-sans text-[13px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
-              Recent traces
+            <div className="flex items-center gap-2">
+              <span className="font-sans text-[13px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
+                Recent traces
+              </span>
+              {streaming && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ok)] bg-[var(--ok-bg)] px-2 py-0.5">
+                  <span className="pulse-dot size-1.5 rounded-full bg-[var(--ok)]" />
+                  <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-[var(--ok-ink)]">
+                    streaming
+                  </span>
+                </span>
+              )}
             </div>
             <div className="mt-0.5 font-mono text-[10px] tracking-[0.02em] text-[var(--ink3)]">
               live · {filtered.length} of {traces.length} traces
@@ -516,6 +545,7 @@ export default function TraceList() {
               <div className="text-right">spans</div>
               <div className="pl-3">shape</div>
               <div className="text-right">ago</div>
+              <div className="text-right">timestamp</div>
             </div>
 
             {filtered.map((t, i) => (

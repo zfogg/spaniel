@@ -448,34 +448,47 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	}
 	offset := (f.Page - 1) * f.Limit
 
+	// Optimized query: filter root spans first, then join for issues and counts.
+	// This avoids full-table scans in the subqueries by scoping them to the
+	// filtered trace set.
 	query := `
-		SELECT s.trace_id, s.service_name, s.name, s.status_code, s.start_ns, s.end_ns, s.duration_ns, s.session_id, s.session_label,
+		WITH root_spans AS (
+			SELECT trace_id, service_name, name, status_code, start_ns, end_ns,
+			       duration_ns, session_id, session_label
+			FROM spans
+			WHERE (parent_span_id = '' OR parent_span_id IS NULL)`
+	args := []any{}
+
+	if f.SessionID != "" {
+		query += ` AND session_id = ?`
+		args = append(args, f.SessionID)
+	}
+	if f.Service != "" {
+		query += ` AND service_name = ?`
+		args = append(args, f.Service)
+	}
+	query += ` ORDER BY start_ns DESC LIMIT ? OFFSET ?
+		)
+		SELECT rs.*,
 		       COALESCE(ti.has_n1, FALSE) AS has_n1,
 		       COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw,
 		       COALESCE(sc.span_count, 1) AS span_count
-		FROM spans s
+		FROM root_spans rs
 		LEFT JOIN (
 			SELECT trace_id,
 			       BOOL_OR(kind = 'n_plus_one') AS has_n1,
 			       string_agg(DISTINCT kind, ',') AS issue_kinds_raw
 			FROM trace_issues
+			WHERE trace_id IN (SELECT trace_id FROM root_spans)
 			GROUP BY trace_id
-		) ti ON s.trace_id = ti.trace_id
+		) ti ON rs.trace_id = ti.trace_id
 		LEFT JOIN (
-			SELECT trace_id, COUNT(*) AS span_count FROM spans GROUP BY trace_id
-		) sc ON s.trace_id = sc.trace_id
-		WHERE (s.parent_span_id = '' OR s.parent_span_id IS NULL)`
-	args := []any{}
-
-	if f.SessionID != "" {
-		query += ` AND s.session_id = ?`
-		args = append(args, f.SessionID)
-	}
-	if f.Service != "" {
-		query += ` AND s.service_name = ?`
-		args = append(args, f.Service)
-	}
-	query += ` ORDER BY s.start_ns DESC LIMIT ? OFFSET ?`
+			SELECT trace_id, COUNT(*) AS span_count
+			FROM spans
+			WHERE trace_id IN (SELECT trace_id FROM root_spans)
+			GROUP BY trace_id
+		) sc ON rs.trace_id = sc.trace_id
+		ORDER BY rs.start_ns DESC`
 	args = append(args, f.Limit, offset)
 
 	var result []*TraceRow

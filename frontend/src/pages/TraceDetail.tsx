@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import TraceWaterfall from '@/components/TraceWaterfall'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
+import { fmtDateTime, fmtDuration } from '@/lib/fmt-relative'
 
 function ShareIcon() {
   return (
@@ -95,6 +96,11 @@ export default function TraceDetail() {
     document.body.removeChild(a)
   }
 
+  // Compute trace metadata from spans
+  const rootSpan = spans.length > 0 ? spans[0] : null
+  const traceStartNs = rootSpan?.start_ns ?? 0
+  const traceDurationNs = rootSpan?.duration_ns ?? 0
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center gap-2 px-3.5 py-1.5 border-b border-border shrink-0">
@@ -104,9 +110,20 @@ export default function TraceDetail() {
         >
           ←
         </button>
-        <span className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">
-          {traceId}
-        </span>
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
+            {traceId}
+          </span>
+          {traceStartNs > 0 && (
+            <div className="flex items-center gap-2 font-mono text-[10px] text-[var(--ink3)]">
+              <span>{fmtDateTime(traceStartNs)}</span>
+              <span>·</span>
+              <span>{fmtDuration(traceDurationNs)}</span>
+              <span>·</span>
+              <span>{spans.length} spans</span>
+            </div>
+          )}
+        </div>
 
         {/* permalink */}
         <div className="relative shrink-0">

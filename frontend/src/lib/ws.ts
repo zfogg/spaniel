@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export interface SpanPayload { traceId: string; spanId: string; serviceName: string; name: string; durationNs: number; statusCode: number }
+export interface SpanPayload { traceId: string; spanId: string; serviceName: string; name: string; durationNs: number; statusCode: number; sessionId: string }
 export interface LogPayload { traceId: string; spanId: string; severity: number; body: string; serviceName: string; sessionId: string }
 export interface MetricPayload { name: string; serviceName: string; value: number; type: string }
 export interface IssuePayload { traceId: string; kind: string; fingerprint: string; count: number; wastedNs: number }
@@ -101,6 +101,35 @@ export function useWS(onEvent: Handler, onStatus?: StatusHandler) {
   const stRef = useRef(onStatus)
   stRef.current = onStatus
   useEffect(() => createWS(e => evRef.current(e), s => stRef.current?.(s)), [])
+}
+
+// ── Shared event bus ──────────────────────────────────────────────────────────
+// A single WebSocket feeds this bus; hooks subscribe via `onWSEvent`.
+// This avoids multiple WS connections when both useLiveInvalidation and
+// useLiveActivity are mounted.
+
+type Listener = (ev: WsEvent) => void
+const listeners = new Set<Listener>()
+let sharedDisconnect: (() => void) | null = null
+
+function ensureSharedWS() {
+  if (sharedDisconnect) return
+  sharedDisconnect = createWS((ev) => {
+    for (const fn of listeners) fn(ev)
+  })
+}
+
+/** Subscribe to the shared WebSocket event stream. Returns an unsubscribe fn. */
+export function onWSEvent(fn: Listener): () => void {
+  ensureSharedWS()
+  listeners.add(fn)
+  return () => {
+    listeners.delete(fn)
+    if (listeners.size === 0 && sharedDisconnect) {
+      sharedDisconnect()
+      sharedDisconnect = null
+    }
+  }
 }
 
 export interface WSStatus {

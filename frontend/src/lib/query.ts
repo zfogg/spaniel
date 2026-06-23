@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
-import { createWS } from './ws'
+import { onWSEvent } from './ws'
 
 // Single shared client. This is a local dev tool talking to localhost, so we
 // keep data briefly fresh and avoid focus/aggressive-retry refetch noise; live
@@ -45,7 +45,7 @@ export const qk = {
 // invalidate. Throughput is intentionally absent — BottomBar consumes it from
 // the live stream directly, it is not query state.
 const INVALIDATIONS: Record<string, string[]> = {
-  span: ['traces', 'trace', 'spans', 'span', 'service-map', 'stats', 'lint', 'coverage'],
+  span: ['traces', 'trace', 'spans', 'span', 'service-map', 'stats', 'lint', 'coverage', 'sessions'],
   log: ['logs'],
   metric: ['metrics', 'metric-series'],
   issue: ['issues', 'traces', 'trace'],
@@ -69,7 +69,7 @@ export function useLiveInvalidation() {
       dirty.clear()
     }
 
-    const disconnect = createWS((ev) => {
+    const unsub = onWSEvent((ev) => {
       const prefixes = INVALIDATIONS[ev.type]
       if (!prefixes) return
       for (const p of prefixes) dirty.add(p)
@@ -77,7 +77,7 @@ export function useLiveInvalidation() {
     })
 
     return () => {
-      disconnect()
+      unsub()
       if (timer) clearTimeout(timer)
     }
   }, [qc])
