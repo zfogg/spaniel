@@ -16,10 +16,12 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 	}
 	groups := map[string]*group{}
 	for _, s := range spans {
-		if !findSubstr(s.Attributes, `"db.statement"`) {
-			continue
-		}
+		// Check both db.statement (older OTel convention) and db.query.text
+		// (newer convention used by otelpgx and other modern instrumentations).
 		raw := extractAttrString(s.Attributes, "db.statement")
+		if raw == "" {
+			raw = extractAttrString(s.Attributes, "db.query.text")
+		}
 		if raw == "" {
 			continue
 		}

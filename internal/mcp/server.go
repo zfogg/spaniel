@@ -52,7 +52,7 @@ func NewHandler(store *storage.DB, opts Options) http.Handler {
 
 	impl := &mcpsdk.Implementation{
 		Name:       "spaniel",
-		Title:      "Spaniel — local OpenTelemetry viewer",
+		Title:      "Spaniel - tools for OpenTelemetry and logging, to help with local development",
 		Version:    opts.Version,
 		WebsiteURL: "https://github.com/zfogg/spaniel",
 	}
