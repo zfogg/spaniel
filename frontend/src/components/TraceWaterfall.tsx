@@ -11,11 +11,34 @@ import JsonView from '@/components/JsonView'
 
 // ── layout constants ──────────────────────────────────────────────────────────
 
-const NAME_W = 320
+const NAME_W = 480
 const ZERO_ID = '0000000000000000'
 const DUR_W = 56
 const ROW_H = 32
 const STEPS = 6
+
+/** Extract a better display name for HTTP spans when the name contains
+ *  "unknown" (otelhttp sets http.route before the route is resolved). */
+function httpDisplayName(span: Span): string {
+  if (!span.name.includes('unknown')) return span.name
+  try {
+    const a = JSON.parse(span.attributes ?? '{}')
+    const method = a['http.request.method'] || a['http.method'] || ''
+    // Prefer url.path (clean path) over http.url (full URL)
+    const path = a['url.path'] || a['http.target'] || ''
+    if (method && path) return `${method} ${path}`
+    // Fall back to http.url — strip scheme+host for readability
+    const url = a['http.url'] || ''
+    if (method && url) {
+      try {
+        const u = new URL(url)
+        return `${method} ${u.pathname}`
+      } catch { /* not a valid URL */ }
+    }
+    if (path) return path
+  } catch { /* empty */ }
+  return span.name
+}
 
 // ── Ruler ─────────────────────────────────────────────────────────────────────
 
@@ -136,7 +159,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           : hovered ? `${ACCENT}0d` : 'transparent',
         borderLeft: selected ? `2px solid ${ACCENT}` : '2px solid transparent',
       }}
-      title={`${span.name}\n${span.service_name}\n${fmtNs(span.duration_ns)}`}
+      title={`${httpDisplayName(span)}\n${span.service_name}\n${fmtNs(span.duration_ns)}`}
     >
       {/* name column */}
       <div
@@ -152,7 +175,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           style={{ background: c.fg }}
         />
         <span
-          className="font-mono text-[10px] shrink-0 max-w-[90px] overflow-hidden text-ellipsis whitespace-nowrap opacity-75"
+          className="font-mono text-[10px] shrink-0 max-w-[70px] overflow-hidden text-ellipsis whitespace-nowrap opacity-75"
           style={{ color: c.fg }}
           title={span.service_name}
         >
@@ -163,7 +186,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           className="font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0"
           style={{ color: isError ? 'var(--danger)' : 'var(--foreground)' }}
         >
-          {span.name}
+          {httpDisplayName(span)}
         </span>
         {isN1 && (
           <span className="font-mono text-[9px] font-bold text-warn-ink uppercase tracking-[0.08em] shrink-0 px-1 py-px rounded-[3px] bg-warn-bg">
@@ -327,13 +350,13 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
                 transform: isHov ? 'translateY(-1px)' : 'none',
                 zIndex: isHov || isSel ? 2 : 1,
               }}
-              title={`${span.name} · ${fmtNs(span.duration_ns)}`}
+              title={`${httpDisplayName(span)} · ${fmtNs(span.duration_ns)}`}
             >
               {width > 5 ? (
                 <>
                   <span className="opacity-[0.65]">{span.service_name.replace(/-service$/, '')}</span>
                   {' · '}
-                  <span>{span.name}</span>
+                  <span>{httpDisplayName(span)}</span>
                 </>
               ) : null}
             </button>

@@ -72,8 +72,8 @@ function attrs(span: Span): Record<string, unknown> {
 
 /** Span IDs that should be flagged with the N+1 badge. Combines server-side
  *  issues (when present, by example_span_id) with a client-side fallback that
- *  groups spans sharing the same raw `db.statement` and flags any group with
- *  10+ occurrences. */
+ *  groups spans sharing the same raw `db.statement` or `db.query.text` and
+ *  flags any group with 10+ occurrences. */
 export function detectN1SpanIds(flatSpans: FlatSpan[], issues: TraceIssue[]): Set<string> {
   const set = new Set<string>()
   for (const issue of issues) {
@@ -81,10 +81,13 @@ export function detectN1SpanIds(flatSpans: FlatSpan[], issues: TraceIssue[]): Se
       set.add(issue.example_span_id)
     }
   }
+  // Client-side fallback: group by db.statement or db.query.text.
   const counts = new Map<string, string[]>()
   for (const flat of flatSpans) {
-    const stmt = attrs(flat.span)['db.statement']
-    if (typeof stmt !== 'string' || !stmt) continue
+    const a = attrs(flat.span)
+    const stmt = (typeof a['db.statement'] === 'string' && a['db.statement']) ||
+                 (typeof a['db.query.text'] === 'string' && a['db.query.text'])
+    if (!stmt) continue
     const ids = counts.get(stmt) ?? []
     ids.push(flat.span.span_id)
     counts.set(stmt, ids)
@@ -112,9 +115,10 @@ export interface N1BannerEntry {
  *  (the server clusters by parent + statement fingerprint). */
 export function n1IssueForSpan(span: Span | null, issues: TraceIssue[]): TraceIssue | null {
   if (!span) return null
-  let attrs: Record<string, unknown> = {}
-  try { attrs = JSON.parse(span.attributes || '{}') } catch { /* empty */ }
-  if (typeof attrs['db.statement'] !== 'string') return null
+  let a: Record<string, unknown> = {}
+  try { a = JSON.parse(span.attributes || '{}') } catch { /* empty */ }
+  const hasStmt = typeof a['db.statement'] === 'string' || typeof a['db.query.text'] === 'string'
+  if (!hasStmt) return null
   for (const issue of issues) {
     if (issue.kind !== 'n_plus_one') continue
     if (issue.example_span_id && issue.example_span_id === span.span_id) return issue
@@ -131,8 +135,10 @@ export function n1BannerEntries(flatSpans: FlatSpan[], issues: TraceIssue[]): N1
 
   const groups = new Map<string, { ids: string[]; totalNs: number }>()
   for (const flat of flatSpans) {
-    const stmt = attrs(flat.span)['db.statement']
-    if (typeof stmt !== 'string' || !stmt) continue
+    const a = attrs(flat.span)
+    const stmt = (typeof a['db.statement'] === 'string' && a['db.statement']) ||
+                 (typeof a['db.query.text'] === 'string' && a['db.query.text'])
+    if (!stmt) continue
     const g = groups.get(stmt) ?? { ids: [], totalNs: 0 }
     g.ids.push(flat.span.span_id)
     g.totalNs += flat.span.duration_ns
