@@ -116,7 +116,7 @@ func TestPrune_DeleteBySize_ShrinksToCap(t *testing.T) {
 	// Flush so the file actually reflects the writes.
 	d.checkpoint()
 
-	before := d.fileSize()
+	before := d.FileSize()
 	if before == 0 {
 		t.Fatalf("file size unexpectedly 0")
 	}
@@ -126,7 +126,7 @@ func TestPrune_DeleteBySize_ShrinksToCap(t *testing.T) {
 		t.Fatalf("Prune: %v", err)
 	}
 	if res.DeletedBySize == 0 {
-		t.Errorf("expected at least one deletion by size, got 0 (before=%d after=%d)", before, d.fileSize())
+		t.Errorf("expected at least one deletion by size, got 0 (before=%d after=%d)", before, d.FileSize())
 	}
 	if s, _ := d.GetSession("s4"); s == nil {
 		t.Errorf("active session was deleted — must always be preserved")

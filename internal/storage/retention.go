@@ -2,7 +2,6 @@ package storage
 
 import (
 	"fmt"
-	"os"
 	"time"
 )
 
@@ -58,7 +57,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 		return res, err
 	}
 	res.FinalSessions = int(finalSessions)
-	res.FinalDBSizeBytes = d.fileSize()
+	res.FinalDBSizeBytes = d.FileSize()
 	return res, nil
 }
 
@@ -115,7 +114,7 @@ func (d *DB) deleteByCount(maxSessions int, activeID string) (int, error) {
 }
 
 func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
-	size := d.fileSize()
+	size := d.FileSize()
 	if size <= maxBytes {
 		return 0, nil
 	}
@@ -130,7 +129,7 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 
 	deleted := 0
 	for _, id := range candidates {
-		if d.fileSize() <= maxBytes {
+		if d.FileSize() <= maxBytes {
 			break
 		}
 		if _, err := d.deleteSessions([]string{id}); err != nil {
@@ -157,17 +156,6 @@ func (d *DB) deleteSessions(ids []string) (int, error) {
 		}
 	}
 	return len(ids), nil
-}
-
-func (d *DB) fileSize() int64 {
-	if d.path == "" || d.path == ":memory:" {
-		return 0
-	}
-	fi, err := os.Stat(d.path)
-	if err != nil {
-		return 0
-	}
-	return fi.Size()
 }
 
 // checkpoint flushes WAL into the main DB file so file-size measurements are
