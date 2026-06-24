@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
-import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, hasLinks, FlatSpan } from '@/lib/span-utils'
+import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, hasLinks, FlatSpan, httpDisplayName } from '@/lib/span-utils'
 import { computeLayout, detectN1SpanIds, n1BannerEntries, n1IssueForSpan } from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
 import TraceGraph from '@/components/TraceGraph'
@@ -16,29 +16,6 @@ const ZERO_ID = '0000000000000000'
 const DUR_W = 56
 const ROW_H = 32
 const STEPS = 6
-
-/** Extract a better display name for HTTP spans when the name contains
- *  "unknown" (otelhttp sets http.route before the route is resolved). */
-function httpDisplayName(span: Span): string {
-  if (!span.name.includes('unknown')) return span.name
-  try {
-    const a = JSON.parse(span.attributes ?? '{}')
-    const method = a['http.request.method'] || a['http.method'] || ''
-    // Prefer url.path (clean path) over http.url (full URL)
-    const path = a['url.path'] || a['http.target'] || ''
-    if (method && path) return `${method} ${path}`
-    // Fall back to http.url — strip scheme+host for readability
-    const url = a['http.url'] || ''
-    if (method && url) {
-      try {
-        const u = new URL(url)
-        return `${method} ${u.pathname}`
-      } catch { /* not a valid URL */ }
-    }
-    if (path) return path
-  } catch { /* empty */ }
-  return span.name
-}
 
 // ── Ruler ─────────────────────────────────────────────────────────────────────
 
@@ -175,7 +152,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           style={{ background: c.fg }}
         />
         <span
-          className="font-mono text-[10px] shrink-0 max-w-[70px] overflow-hidden text-ellipsis whitespace-nowrap opacity-75"
+          className="font-mono text-[10px] shrink-0 max-w-[175px] overflow-hidden text-ellipsis whitespace-nowrap opacity-75"
           style={{ color: c.fg }}
           title={span.service_name}
         >
@@ -390,7 +367,7 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
                 )}
               </div>
               <div className="text-xs mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap">
-                {span.name}
+                {httpDisplayName(span)}
               </div>
               <div className="flex gap-2.5 opacity-80">
                 <span>dur <strong>{fmtNs(span.duration_ns)}</strong></span>
@@ -771,7 +748,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
           className="font-mono text-xs leading-[1.4] break-words mb-3"
           style={{ color: isError ? 'var(--danger)' : 'var(--foreground)' }}
         >
-          {span.name}
+          {httpDisplayName(span)}
         </div>
         <div className="flex gap-4 items-baseline">
           <div>

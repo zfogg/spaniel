@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-table'
 import { qk } from '@/lib/query'
 import { api, type SpanRow } from '@/lib/api'
-import { svcColor } from '@/lib/span-utils'
+import { svcColor, httpDisplayName } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -153,7 +153,7 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
             className="bg-transparent border-none cursor-pointer text-muted-foreground text-base leading-none p-0"
           >×</button>
         </div>
-        <div className="font-mono text-[13px] text-foreground leading-[1.4] break-words">{span.name}</div>
+        <div className="font-mono text-[13px] text-foreground leading-[1.4] break-words">{httpDisplayName(span)}</div>
         <div className="grid grid-cols-2 gap-3 mt-3">
           <div>
             <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">duration</div>
@@ -449,7 +449,7 @@ export default function Spans() {
                     : undefined,
                 }}
               >
-                <div title={s.name} className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{s.name}</div>
+                <div title={httpDisplayName(s)} className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{httpDisplayName(s)}</div>
                 <div><SvcChip name={s.service_name} /></div>
                 <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.08em]">{kindLabel}</div>
                 <div

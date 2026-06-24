@@ -12,7 +12,7 @@ import 'reactflow/dist/style.css'
 import dagre from '@dagrejs/dagre'
 
 import type { Span } from '@/lib/api'
-import { svcColor, fmtNs } from '@/lib/span-utils'
+import { svcColor, fmtNs, httpDisplayName } from '@/lib/span-utils'
 import { buildGraph, criticalPath } from '@/lib/trace-graph'
 
 const NODE_W_MIN = 160
@@ -42,7 +42,7 @@ function SpanNode({ data }: NodeProps<SpanNodeData>) {
 
   return (
     <div
-      title={`${span.name}\n${span.service_name}\n${fmtNs(span.duration_ns)}`}
+      title={`${httpDisplayName(span)}\n${span.service_name}\n${fmtNs(span.duration_ns)}`}
       className="flex flex-col justify-between rounded-lg bg-surface px-2.5 py-1.5 cursor-pointer box-border"
       style={{
         width,
@@ -52,7 +52,7 @@ function SpanNode({ data }: NodeProps<SpanNodeData>) {
       }}
     >
       <div className="truncate font-mono text-xs font-semibold text-foreground">
-        {span.name}
+        {httpDisplayName(span)}
       </div>
       <div className="flex items-center justify-between gap-1.5">
         <span

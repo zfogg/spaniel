@@ -85,3 +85,42 @@ export function shortTraceId(id: string): string {
   if (!id || id.length < 12) return id
   return `${id.slice(0, 4)}…${id.slice(-5)}`
 }
+
+// ── HTTP display name ─────────────────────────────────────────────────────────
+
+/** Build a human-friendly display name for HTTP spans.
+ *  Tries url.full then http.url (both carry the full URL), falling back to
+ *  url.path / http.target for the path alone.  When the name contains
+ *  "unknown" and we can't build something better, returns just the method. */
+export function httpDisplayName(span: { name: string; attributes?: string | null }): string {
+  try {
+    const a = JSON.parse(span.attributes ?? '{}')
+    // Extract HTTP method: prefer attributes, then parse from name like "HTTP GET"
+    let method = a['http.request.method'] || a['http.method'] || ''
+    if (!method) {
+      const m = span.name.match(/^(?:HTTP)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)$/i)
+      if (m) method = m[1].toUpperCase()
+    }
+    // Try full URLs: url.full first, then http.url
+    for (const raw of [a['url.full'], a['http.url']]) {
+      if (!raw) continue
+      try {
+        const u = new URL(raw)
+        return method ? `${method} ${u.host}${u.pathname}` : `${u.host}${u.pathname}`
+      } catch {
+        // Not a full URL — use as bare path (e.g. "/api/foo")
+        if (raw.startsWith('/')) return method ? `${method} ${raw}` : raw
+      }
+    }
+    // Fallback: url.path or http.target with method
+    const path = a['url.path'] || a['http.target'] || ''
+    if (method && path) return `${method} ${path}`
+    if (path) return path
+  } catch { /* empty */ }
+  // Avoid returning raw "unknown" — use just the method if we have one
+  if (span.name.includes('unknown')) {
+    const m = span.name.match(/^(?:HTTP)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)/i)
+    if (m) return m[1].toUpperCase()
+  }
+  return span.name
+}

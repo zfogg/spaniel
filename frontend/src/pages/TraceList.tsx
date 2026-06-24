@@ -7,6 +7,7 @@ import ErrorState from '@/components/ErrorState'
 import { qk } from '../lib/query'
 import { api, TraceRow } from '../lib/api'
 import { traceTag } from '../lib/trace-tag'
+import { httpDisplayName } from '@/lib/span-utils'
 import { fmtRelative, fmtDateTime } from '../lib/fmt-relative'
 import { SEARCH_PALETTE_EVENT } from '../lib/shortcuts'
 import { useLiveActivity } from '../lib/live-activity'
@@ -240,7 +241,7 @@ function TraceRowItem({
       <div className="min-w-0">
         <div className="mb-0.5 flex items-center gap-2">
           <span className="truncate font-mono text-[12px] font-semibold text-[var(--ink)]">
-            {trace.name}
+            {httpDisplayName(trace)}
           </span>
           {tag && <TagChip tag={tag} />}
           {(trace.issue_kinds ?? []).filter(k => k !== 'n_plus_one').slice(0, 2).map(k => (

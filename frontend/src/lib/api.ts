@@ -62,6 +62,7 @@ export const TraceRowSchema = z.object({
   trace_id: z.string(),
   service_name: z.string(),
   name: z.string(),
+  attributes: z.string(),
   status_code: z.number(),
   start_ns: z.number(),
   end_ns: z.number(),

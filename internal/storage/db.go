@@ -110,6 +110,7 @@ type TraceRow struct {
 	TraceID         string   `json:"trace_id"`
 	ServiceName     string   `json:"service_name"`
 	Name            string   `json:"name"`
+	Attributes      string   `json:"attributes"`
 	StatusCode      int      `json:"status_code"`
 	StartNs         int64    `json:"start_ns"`
 	EndNs           int64    `json:"end_ns"`
@@ -453,7 +454,7 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	// filtered trace set.
 	query := `
 		WITH root_spans AS (
-			SELECT trace_id, service_name, name, status_code, start_ns, end_ns,
+			SELECT trace_id, service_name, name, attributes, status_code, start_ns, end_ns,
 			       duration_ns, session_id, session_label
 			FROM spans
 			WHERE (parent_span_id = '' OR parent_span_id IS NULL)`

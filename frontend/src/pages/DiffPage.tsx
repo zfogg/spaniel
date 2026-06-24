@@ -4,7 +4,7 @@ import { useQueryState } from 'nuqs'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { api, type Span, type Session } from '@/lib/api'
-import { fmtNs, svcColor, flatten } from '@/lib/span-utils'
+import { fmtNs, svcColor, flatten, httpDisplayName } from '@/lib/span-utils'
 import { diffStatusFor, layoutSpan, columnWindow, sharedWindowNs, type DiffStatus } from '@/lib/diff-layout'
 import { updateDiffHistoryDeltas } from '@/lib/diff-history'
 import EmptyState from '@/components/EmptyState'
@@ -190,7 +190,7 @@ function WaterfallRow({
           className={`absolute top-0 font-mono text-[9.5px] text-ink2 whitespace-nowrap overflow-hidden text-ellipsis${status === 'removed' ? ' line-through opacity-60' : ''}`}
           style={{ left: `${namePos}%`, maxWidth: '100%' }}
         >
-          {span.name}
+          {httpDisplayName(span)}
         </span>
       </div>
 
