@@ -82,14 +82,14 @@ type Session struct {
 	IsBaseline     bool   `json:"is_baseline"`
 	IsImported     bool   `json:"is_imported"`
 	SpanCount      int    `json:"span_count"`
-	TraceCount     int    `json:"trace_count" gorm:"-"`    // computed via join, not a column
+	TraceCount     int    `json:"trace_count" gorm:"-"` // computed via join, not a column
 	Services       string `json:"services"`
 	Note           string `json:"note"`
 	LastActivityNs int64  `json:"last_activity_ns"`
-	P95Ns          int64  `json:"p95_ns" gorm:"-"`         // computed from spans
-	SizeBytes      int64  `json:"size_bytes" gorm:"-"`     // approx from attribute payload
-	N1Count        int    `json:"n1_count" gorm:"-"`       // trace_issues with kind='n_plus_one'
-	ErrorCount     int    `json:"error_count" gorm:"-"`    // spans with status_code=2
+	P95Ns          int64  `json:"p95_ns" gorm:"-"`      // computed from spans
+	SizeBytes      int64  `json:"size_bytes" gorm:"-"`  // approx from attribute payload
+	N1Count        int    `json:"n1_count" gorm:"-"`    // trace_issues with kind='n_plus_one'
+	ErrorCount     int    `json:"error_count" gorm:"-"` // spans with status_code=2
 }
 
 func (Session) TableName() string { return "sessions" }
@@ -107,20 +107,20 @@ type LintWarning struct {
 func (LintWarning) TableName() string { return "lint_warnings" }
 
 type TraceRow struct {
-	TraceID         string   `json:"trace_id"`
-	ServiceName     string   `json:"service_name"`
-	Name            string   `json:"name"`
-	Attributes      string   `json:"attributes"`
-	StatusCode      int      `json:"status_code"`
-	StartNs         int64    `json:"start_ns"`
-	EndNs           int64    `json:"end_ns"`
-	DurationNs      int64    `json:"duration_ns"`
-	SessionID       string   `json:"session_id"`
-	SessionLabel    string   `json:"session_label"`
-	HasN1           bool     `json:"has_n1"`
-	SpanCount       int      `json:"span_count"`
-	IssueKinds      []string `json:"issue_kinds" gorm:"-"`
-	IssueKindsRaw   string   `json:"-"           gorm:"column:issue_kinds_raw"`
+	TraceID       string   `json:"trace_id"`
+	ServiceName   string   `json:"service_name"`
+	Name          string   `json:"name"`
+	Attributes    string   `json:"attributes"`
+	StatusCode    int      `json:"status_code"`
+	StartNs       int64    `json:"start_ns"`
+	EndNs         int64    `json:"end_ns"`
+	DurationNs    int64    `json:"duration_ns"`
+	SessionID     string   `json:"session_id"`
+	SessionLabel  string   `json:"session_label"`
+	HasN1         bool     `json:"has_n1"`
+	SpanCount     int      `json:"span_count"`
+	IssueKinds    []string `json:"issue_kinds" gorm:"-"`
+	IssueKindsRaw string   `json:"-"           gorm:"column:issue_kinds_raw"`
 }
 
 type TraceIssue struct {
@@ -212,7 +212,7 @@ type Metric struct {
 	TimestampNs int64   `json:"timestamp_ns"`
 	Value       float64 `json:"value"`
 	Attributes  string  `json:"attributes"`
-	Exemplars   string  `json:"exemplars"`      // JSON array of {trace_id, span_id}
+	Exemplars   string  `json:"exemplars"` // JSON array of {trace_id, span_id}
 	ServiceName string  `json:"service_name"`
 	SessionID   string  `json:"session_id"`
 }
@@ -1262,7 +1262,7 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	// Checkpoint first to flush the WAL, then distribute the actual on-disk
 	// file size proportionally using uncompressed payload lengths as weights.
 	if d.path != "" && d.path != ":memory:" {
-		_ = d.gorm.Exec("CHECKPOINT").Error
+		_ = d.flushBeforeCheckpoint()
 	}
 	var fileBytes int64
 	if d.path != "" && d.path != ":memory:" {
@@ -1273,8 +1273,8 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 
 	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
 	type tblSize struct {
-		Name        string
-		RowCount    int64
+		Name         string
+		RowCount     int64
 		PayloadBytes int64 // uncompressed payload weight; used only for proportioning
 	}
 	var sizes []tblSize
@@ -1374,7 +1374,7 @@ func (d *DB) Compact() (*CompactResult, error) {
 			res.BytesBefore = fi.Size()
 		}
 	}
-	if err := d.gorm.Exec("CHECKPOINT").Error; err != nil {
+	if err := d.flushBeforeCheckpoint(); err != nil {
 		return res, fmt.Errorf("checkpoint: %w", err)
 	}
 	if err := d.gorm.Exec("VACUUM").Error; err != nil {
@@ -1389,4 +1389,14 @@ func (d *DB) Compact() (*CompactResult, error) {
 		res.Reclaimed = res.BytesBefore - res.BytesAfter
 	}
 	return res, nil
+}
+
+// flushBeforeCheckpoint flushes the batcher's pending rows and then runs
+// CHECKPOINT. This prevents DuckDB internal state corruption that occurs when
+// CHECKPOINT interacts with unflushed appender data in the CGo layer.
+func (d *DB) flushBeforeCheckpoint() error {
+	if d.batcher != nil {
+		_ = d.batcher.Flush()
+	}
+	return d.gorm.Exec("CHECKPOINT").Error
 }

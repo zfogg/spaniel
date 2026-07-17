@@ -158,8 +158,9 @@ func (d *DB) deleteSessions(ids []string) (int, error) {
 	return len(ids), nil
 }
 
-// checkpoint flushes WAL into the main DB file so file-size measurements are
-// meaningful immediately after a delete. Best-effort; errors are ignored.
+// checkpoint flushes the batcher and WAL into the main DB file so file-size
+// measurements are meaningful immediately after a delete. Best-effort; errors
+// are ignored.
 func (d *DB) checkpoint() {
-	_ = d.gorm.Exec(`CHECKPOINT`).Error
+	_ = d.flushBeforeCheckpoint()
 }
