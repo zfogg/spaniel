@@ -28,7 +28,7 @@ func (d *DB) ReadOnlyQuery(ctx context.Context, query string, maxRows int) (cols
 		return nil, nil, false, fmt.Errorf("read-only SQL is unavailable: the database is in-memory, not file-backed")
 	}
 
-	ro, err := sql.Open("duckdb", d.path+"?access_mode=read_only")
+	ro, err := sql.Open("duckdb", duckDBDSN(d.path, true))
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("open read-only connection: %w", err)
 	}

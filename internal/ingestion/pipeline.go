@@ -31,6 +31,11 @@ type Pipeline struct {
 	debounce     map[string]*time.Timer
 	debounceMu   sync.Mutex
 	traceBuffers sync.Map
+	// Linting and post-ingest detectors are best-effort diagnostics. Bound
+	// their concurrency so an OTLP burst cannot create one DB-blocked goroutine
+	// per span/trace and retain gigabytes of request state.
+	lintSlots     chan struct{}
+	detectorSlots chan struct{}
 
 	tracer        trace.Tracer
 	ingestCounter metric.Int64Counter
@@ -41,6 +46,11 @@ type Pipeline struct {
 	// detectors) so self-monitoring doesn't feed back on itself. Empty disables.
 	selfService string
 }
+
+const (
+	maxConcurrentLinters   = 2
+	maxConcurrentDetectors = 2
+)
 
 // SetSelfService configures the service.name treated as Spaniel's own
 // self-telemetry; ingests from it are stored without generating new spans.
@@ -124,6 +134,8 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		sampler:       s,
 		limiter:       lim,
 		debounce:      make(map[string]*time.Timer),
+		lintSlots:     make(chan struct{}, maxConcurrentLinters),
+		detectorSlots: make(chan struct{}, maxConcurrentDetectors),
 		tracer:        otel.Tracer("spaniel/ingestion"),
 		ingestCounter: counter,
 		dbLatency:     dbHist,
@@ -263,8 +275,8 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				// Clock skew detection: flag spans timestamped far in the future
 				// (sender clock ahead) or more than 24h in the past (stale data).
 				if startNs := int64(span.StartTimestamp()); startNs > 0 {
-					const minAhead = 60_000_000_000      // 1 minute
-					const maxBehind = 86400_000_000_000  // 24 hours
+					const minAhead = 60_000_000_000     // 1 minute
+					const maxBehind = 86400_000_000_000 // 24 hours
 					if startNs > now+minAhead {
 						clockSkewFuture++
 					} else if now-startNs > maxBehind {
@@ -377,7 +389,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 						metric.WithAttributes(attribute.String("op", "insert_span_links")))
 				}
 				if !self {
-					goroutine.Go(func() { lintSpan(s, sessionID, p.store, p.tracer) }, "subsystem", "linter")
+					p.scheduleLint(s)
 				}
 				p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 					TraceID:     s.TraceID,
@@ -534,7 +546,7 @@ func (p *Pipeline) scheduleDetectors(traceID string) {
 		if p.sampler.NeedsBuffer() {
 			p.flushBuffer(traceID)
 		} else {
-			runDetectors(traceID, p.store, p.hub, p.tracer)
+			p.scheduleDetectorRun(traceID)
 		}
 		p.debounceMu.Lock()
 		delete(p.debounce, traceID)
@@ -620,7 +632,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 			_ = p.store.InsertSpanLinks(e.links)
 		}
 		sp := e.span // capture for goroutine closure
-		goroutine.Go(func() { lintSpan(sp, sp.SessionID, p.store, p.tracer) }, "subsystem", "linter")
+		p.scheduleLint(sp)
 		p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 			TraceID:     e.span.TraceID,
 			SpanID:      e.span.SpanID,
@@ -647,6 +659,30 @@ func (p *Pipeline) flushBuffer(traceID string) {
 				WastedNs:    issue.WastedNs,
 			}))
 		}
+	}
+}
+
+func (p *Pipeline) scheduleLint(s *storage.Span) {
+	select {
+	case p.lintSlots <- struct{}{}:
+		goroutine.Go(func() {
+			defer func() { <-p.lintSlots }()
+			lintSpan(s, s.SessionID, p.store, p.tracer)
+		}, "subsystem", "linter")
+	default:
+		// Do not delay or retain an ingest request for best-effort linting.
+	}
+}
+
+func (p *Pipeline) scheduleDetectorRun(traceID string) {
+	select {
+	case p.detectorSlots <- struct{}{}:
+		goroutine.Go(func() {
+			defer func() { <-p.detectorSlots }()
+			runDetectors(traceID, p.store, p.hub, p.tracer)
+		}, "subsystem", "detectors")
+	default:
+		// The trace is already durable; skip best-effort analysis under load.
 	}
 }
 

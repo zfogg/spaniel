@@ -265,9 +265,22 @@ const spanCols = `trace_id, span_id, parent_span_id, service_name, name, kind,
 	attributes::VARCHAR AS attributes, resource::VARCHAR AS resource,
 	session_id, session_label, received_at`
 
+// The batcher pins one database/sql connection for each of spans, logs, and
+// metrics. Keep exactly one additional connection for GORM metadata and read
+// queries. Leaving the pool unbounded lets concurrent OTLP requests create
+// many native DuckDB connections; each connection can provision a CPU-sized
+// worker set, producing thousands of OS threads and exhausting the host.
+const (
+	duckDBWorkerThreads = 4
+	duckDBMemoryLimit   = "256MB"
+)
+
+var duckDBMaxOpenConnections = len(batchTables) + 1
+
 func Open(path string) (*DB, error) {
-	g, err := gorm.Open(duckdb.Open(path), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+	g, err := gorm.Open(duckdb.Open(duckDBDSN(path, false)), &gorm.Config{
+		Logger:                 logger.Default.LogMode(logger.Silent),
+		SkipDefaultTransaction: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("open duckdb: %w", err)
@@ -276,6 +289,8 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("duckdb pool: %w", err)
 	}
+	sqlDB.SetMaxOpenConns(duckDBMaxOpenConnections)
+	sqlDB.SetMaxIdleConns(duckDBMaxOpenConnections)
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
@@ -296,6 +311,21 @@ func Open(path string) (*DB, error) {
 	}
 	d.batcher = b
 	return d, nil
+}
+
+// duckDBDSN places resource limits in the connector configuration rather than
+// issuing SET statements on one connection. database/sql opens connections
+// lazily, so per-connection SETs leave later query connections unconstrained.
+func duckDBDSN(path string, readOnly bool) string {
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	settings := fmt.Sprintf("threads=%d&memory_limit=%s", duckDBWorkerThreads, duckDBMemoryLimit)
+	if readOnly {
+		settings += "&access_mode=read_only"
+	}
+	return path + sep + settings
 }
 
 // AppendSpan buffers a span for batched insertion via the columnar Appender.
@@ -870,7 +900,10 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 	s := &Stats{StorageFull: d.Full()}
 
 	spanQ := d.gorm.Table("spans")
-	traceQ := d.gorm.Table("spans").Distinct("trace_id")
+	// Every complete OpenTelemetry trace has exactly one root span. Counting
+	// roots avoids an exact COUNT(DISTINCT trace_id), whose hash table grew to
+	// multiple GiB on a modest on-disk store and stalled the stats endpoint.
+	traceQ := d.gorm.Table("spans").Where("parent_span_id = ''")
 	logQ := d.gorm.Table("logs")
 	if sessionID != "" {
 		spanQ = spanQ.Where("session_id = ?", sessionID)

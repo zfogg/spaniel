@@ -17,6 +17,22 @@ func openTestDB(t *testing.T) *DB {
 	return db
 }
 
+func TestOpenBoundsDuckDBConnectionPool(t *testing.T) {
+	db := openTestDB(t)
+	stats := db.SQL().Stats()
+	if stats.MaxOpenConnections != duckDBMaxOpenConnections {
+		t.Fatalf("MaxOpenConnections = %d, want %d", stats.MaxOpenConnections, duckDBMaxOpenConnections)
+	}
+
+	var threads int
+	if err := db.SQL().QueryRow(`SELECT current_setting('threads')`).Scan(&threads); err != nil {
+		t.Fatalf("query DuckDB thread limit: %v", err)
+	}
+	if threads != duckDBWorkerThreads {
+		t.Fatalf("DuckDB threads = %d, want %d", threads, duckDBWorkerThreads)
+	}
+}
+
 func TestInsertAndGetTrace(t *testing.T) {
 	db := openTestDB(t)
 
