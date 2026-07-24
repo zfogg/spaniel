@@ -34,18 +34,19 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 	v.Set("retention_days", 7)
 	v.Set("max_sessions", 50)
 	v.Set("max_db_size_mb", 500)
+	v.Set("auto_prune", true)
 	v.Set("otlp_grpc_port", 4317)
 	v.Set("otlp_http_port", 4318)
 	v.Set("no_browser", false)
 	v.Set("forward", []string{})
 
 	svc := &SettingsService{
-		Viper:      v,
-		ConfigPath: filepath.Join(t.TempDir(), "config.yaml"),
-		Version:    "test-1.2.3",
-		StartedAt:  time.Now().Add(-90 * time.Second),
-		OTLPGRPCPort:   4317,
-		OTLPHTTPPort:   4318,
+		Viper:        v,
+		ConfigPath:   filepath.Join(t.TempDir(), "config.yaml"),
+		Version:      "test-1.2.3",
+		StartedAt:    time.Now().Add(-90 * time.Second),
+		OTLPGRPCPort: 4317,
+		OTLPHTTPPort: 4318,
 	}
 
 	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, svc, nil, nil, nil)
@@ -111,11 +112,13 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 
 	newPort := 9090
 	newRet := 14
+	newAutoPrune := false
 	w := putSettings(t, router, map[string]any{
 		"port":           newPort,
 		"retention_days": newRet,
-		"otlp_grpc_port":      4321,
-		"otlp_http_port":      0,
+		"auto_prune":     newAutoPrune,
+		"otlp_grpc_port": 4321,
+		"otlp_http_port": 0,
 	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
@@ -124,11 +127,14 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 		Data SettingsResponse `json:"data"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp.Data.Port != newPort || resp.Data.RetentionDays != newRet || resp.Data.OTLPGRPCPort != 4321 || resp.Data.OTLPHTTPPort != 0 {
+	if resp.Data.Port != newPort || resp.Data.RetentionDays != newRet || resp.Data.AutoPrune != newAutoPrune || resp.Data.OTLPGRPCPort != 4321 || resp.Data.OTLPHTTPPort != 0 {
 		t.Errorf("response did not echo update: %+v", resp.Data)
 	}
 	if svc.Viper.GetInt("port") != newPort {
 		t.Errorf("viper not mutated: port = %d", svc.Viper.GetInt("port"))
+	}
+	if svc.Viper.GetBool("auto_prune") != newAutoPrune {
+		t.Errorf("viper not mutated: auto_prune = %v", svc.Viper.GetBool("auto_prune"))
 	}
 	// File written.
 	raw, err := os.ReadFile(svc.ConfigPath)
@@ -155,6 +161,29 @@ func TestPutSettings_AcceptsZeroForReceiverPorts(t *testing.T) {
 	w := putSettings(t, router, map[string]any{"otlp_grpc_port": 0, "otlp_http_port": 0})
 	if w.Code != http.StatusOK {
 		t.Errorf("zero receiver ports should be valid (= disabled), got %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestPutSettings_HotAppliesStoragePolicy(t *testing.T) {
+	router, svc, _ := newSettingsRouter(t)
+	var gotMaxMB int
+	var gotAutoPrune bool
+	var calls int
+	svc.SetStoragePolicy = func(maxDBSizeMB int, autoPrune bool) {
+		calls++
+		gotMaxMB = maxDBSizeMB
+		gotAutoPrune = autoPrune
+	}
+
+	w := putSettings(t, router, map[string]any{
+		"max_db_size_mb": 250,
+		"auto_prune":     false,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	if calls != 1 || gotMaxMB != 250 || gotAutoPrune {
+		t.Fatalf("storage policy callback: calls=%d max_mb=%d auto_prune=%v", calls, gotMaxMB, gotAutoPrune)
 	}
 }
 

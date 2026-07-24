@@ -4,6 +4,7 @@ import type { Settings } from './api'
 
 const valid = {
   port: 8080, db_path: '/db', retention_days: 7, max_sessions: 50, max_db_size_mb: 500,
+  auto_prune: true,
   otlp_grpc_port: 4317, otlp_http_port: 4318, no_browser: false, forward: ['http://tempo:4318'],
   bind_address_v4: '127.0.0.1', bind_address_v6: '::1', forward_sample: 1, source_rps: 0,
   source_burst: 0, self_monitor: true,

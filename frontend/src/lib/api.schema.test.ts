@@ -55,6 +55,7 @@ describe('api response schemas', () => {
   it('accepts Settings with nested runtime', () => {
     expect(SettingsSchema.safeParse({
       port: 8080, db_path: '/db', retention_days: 7, max_sessions: 50, max_db_size_mb: 500,
+      auto_prune: true,
       otlp_grpc_port: 4317, otlp_http_port: 4318, no_browser: false, forward: ['http://x'],
       bind_address_v4: '127.0.0.1', bind_address_v6: '::1', forward_sample: 1, source_rps: 100,
       source_burst: 50, tls_enabled: false, bearer_token_set: false, self_monitor: true,

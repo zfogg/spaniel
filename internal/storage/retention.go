@@ -114,7 +114,7 @@ func (d *DB) deleteByCount(maxSessions int, activeID string) (int, error) {
 }
 
 func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
-	size := d.FileSize()
+	size := d.UsedSize()
 	if size <= maxBytes {
 		return 0, nil
 	}
@@ -129,7 +129,7 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 
 	deleted := 0
 	for _, id := range candidates {
-		if d.FileSize() <= maxBytes {
+		if d.UsedSize() <= maxBytes {
 			break
 		}
 		if _, err := d.deleteSessions([]string{id}); err != nil {

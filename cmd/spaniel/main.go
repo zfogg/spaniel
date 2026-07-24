@@ -380,6 +380,7 @@ type runConfig struct {
 	RetentionDays         int
 	MaxSessions           int
 	MaxDBSizeMB           int
+	AutoPrune             bool
 	ForwardURLs           []string
 	ForwardSample         float64
 	RoutesFile            string
@@ -418,6 +419,7 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		RetentionDays:         v.GetInt("retention_days"),
 		MaxSessions:           v.GetInt("max_sessions"),
 		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
+		AutoPrune:             v.GetBool("auto_prune"),
 		ForwardURLs:           v.GetStringSlice("forward"),
 		ForwardSample:         v.GetFloat64("forward_sample"),
 		ForwardSpoolDir:       v.GetString("forward_spool_dir"),
@@ -591,16 +593,18 @@ func run(cfg runConfig) error {
 	}
 	store.SetActiveSession(sess.ID, sess.Label)
 
+	storagePolicy := newStorageGuardPolicy(int64(cfg.MaxDBSizeMB)*1024*1024, cfg.AutoPrune)
+
 	// Panic-safe: a bare `go` here means a single panic silently kills
 	// auto-pruning for the rest of the process lifetime and the disk fills up.
 	goroutine.Go(func() {
-		runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB), sess.ID)
+		runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, 0), storagePolicy)
 	}, "subsystem", "retention")
 
-	// Enforce the size cap between retention passes and maintain the storage-full
-	// flag (ingestion returns 503 while full).
+	// Enforce the size cap between retention passes. Auto-prune mode deletes old
+	// sessions proactively; preserve mode pauses ingestion at the hard cap.
 	goroutine.Go(func() {
-		runStorageGuard(store, int64(cfg.MaxDBSizeMB)*1024*1024)
+		runStorageGuard(store, storagePolicy)
 	}, "subsystem", "storage-guard")
 
 	hub := ws.NewHub()
@@ -819,6 +823,9 @@ func run(cfg runConfig) error {
 		},
 		SetLiveGRPCPort: startGRPC,
 		SetLiveHTTPPort: startOTLPHTTP,
+		SetStoragePolicy: func(maxDBSizeMB int, autoPrune bool) {
+			storagePolicy.Update(int64(maxDBSizeMB)*1024*1024, autoPrune)
+		},
 		SetSelfMonitor: func(enabled bool) error {
 			var endpoint string
 			if enabled {
@@ -971,7 +978,8 @@ func run(cfg runConfig) error {
 	serveErr := serveAll(wrapTLS(lns, tlsCfg), srv)
 
 	// Shutdown tasks: run a final retention pass, flush drop counters, close DB.
-	retCfg := retentionConfig(cfg.RetentionDays, cfg.MaxSessions, cfg.MaxDBSizeMB)
+	retCfg := retentionConfig(cfg.RetentionDays, cfg.MaxSessions, 0)
+	retCfg.MaxDBSizeBytes = storagePolicy.RetentionSizeLimit()
 	if _, err := store.Prune(retCfg, store.ActiveSessionID()); err != nil {
 		fmt.Fprintf(os.Stderr, "shutdown retention: %v\n", err)
 	}

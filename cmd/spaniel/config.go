@@ -29,6 +29,10 @@ max_sessions: 50
 # Retention: shrink DB to at most N MB (0 = unlimited)
 max_db_size_mb: 500
 
+# Automatically delete the oldest sessions as storage approaches the size cap.
+# When false, Spaniel preserves all data and pauses ingestion at the cap.
+auto_prune: true
+
 # OTLP receiver ports. 0 disables that receiver; at least one of the two must
 # stay enabled or spaniel will refuse to start (there'd be no way to ingest).
 # OTLP gRPC receiver port (default 4317; 0 = disabled)
@@ -103,6 +107,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("retention_days", 7)
 	v.SetDefault("max_sessions", 50)
 	v.SetDefault("max_db_size_mb", 500)
+	v.SetDefault("auto_prune", true)
 	v.SetDefault("otlp_grpc_port", 4317)
 	v.SetDefault("otlp_http_port", 4318)
 	v.SetDefault("no_browser", false)

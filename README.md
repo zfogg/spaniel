@@ -318,6 +318,7 @@ db_path: ~/.spaniel/spaniel.duckdb
 retention_days: 7
 max_sessions: 50
 max_db_size_mb: 500
+auto_prune: true      # prune oldest sessions at 80%; false = preserve data and stop ingest at cap
 no_browser: false
 mcp_enabled: true        # serve the MCP endpoint at /mcp
 mcp_allow_writes: false  # let MCP clients mutate state (sessions, prune)

@@ -50,3 +50,28 @@ func (d *DB) FileSize() int64 {
 	}
 	return total
 }
+
+// UsedSize returns live DuckDB blocks plus the WAL. DuckDB retains freed blocks
+// in the database file for reuse, so FileSize is a high-water allocation and
+// does not by itself tell the guard whether pruning restored write headroom.
+func (d *DB) UsedSize() int64 {
+	if d.path == "" || d.path == ":memory:" {
+		return 0
+	}
+	var usage struct {
+		BlockSize  int64 `gorm:"column:block_size"`
+		UsedBlocks int64 `gorm:"column:used_blocks"`
+	}
+	if err := d.gorm.Raw(`
+		SELECT block_size, used_blocks
+		FROM pragma_database_size()
+		LIMIT 1
+	`).Scan(&usage).Error; err != nil || usage.BlockSize <= 0 {
+		return d.FileSize()
+	}
+	used := usage.BlockSize * usage.UsedBlocks
+	if fi, err := os.Stat(d.path + ".wal"); err == nil {
+		used += fi.Size()
+	}
+	return used
+}

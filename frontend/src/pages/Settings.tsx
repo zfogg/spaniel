@@ -444,11 +444,18 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         <FieldError name="db_path" />
       </Row>
       <Row label="Max database size"
-        hint="Retention drops the oldest sessions when the file grows past this cap. 0 = unlimited."
+        hint="Hard size cap for the DuckDB file. 0 = unlimited."
         testid="row-maxsize">
         <NumberBox value={s.max_db_size_mb} onChange={v => mutate({ max_db_size_mb: v })}
           min={0} max={102400} suffix="MB" w={130} ariaLabel="max db size mb" />
         <FieldError name="max_db_size_mb" />
+      </Row>
+      <Row label="Auto-prune storage"
+        hint="Enabled: delete oldest sessions near the cap to keep storage below it. Disabled: preserve data, pause ingestion at the cap, and report storage full."
+        testid="row-auto-prune">
+        <Toggle on={s.auto_prune} onChange={v => mutate({ auto_prune: v })} label="auto prune storage" />
+        <Pill tone={s.auto_prune ? 'ok' : 'danger'}>{s.auto_prune ? 'enabled · stays below cap' : 'disabled · fills to cap'}</Pill>
+        <FieldError name="auto_prune" />
       </Row>
       <Row label="Retention"
         hint="How long to keep spans before they're dropped. Lower = less disk pressure."

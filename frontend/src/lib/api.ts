@@ -273,6 +273,7 @@ export const SettingsSchema = z.object({
   retention_days: z.number(),
   max_sessions: z.number(),
   max_db_size_mb: z.number(),
+  auto_prune: z.boolean(),
   otlp_grpc_port: z.number(),
   otlp_http_port: z.number(),
   no_browser: z.boolean(),
@@ -445,6 +446,7 @@ export interface SettingsUpdate {
   retention_days?: number
   max_sessions?: number
   max_db_size_mb?: number
+  auto_prune?: boolean
   otlp_grpc_port?: number
   otlp_http_port?: number
   no_browser?: boolean

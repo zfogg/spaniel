@@ -16,6 +16,7 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     retention_days: 7,
     max_sessions: 50,
     max_db_size_mb: 500,
+    auto_prune: true,
     otlp_grpc_port: 4317,
     otlp_http_port: 4318,
     no_browser: false,
@@ -185,6 +186,21 @@ test.describe('Settings page', () => {
     // clamped at 100%
     const width = await fill.evaluate(el => (el as HTMLElement).style.width)
     expect(width).toBe('100%')
+  })
+
+  test('auto-prune toggle persists disabled mode and explains cap behavior', async ({ page }) => {
+    await stubChrome(page)
+    const h = await stubSettings(page, makeSettings({ auto_prune: true }))
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+
+    const toggle = page.getByRole('switch', { name: 'auto prune storage' })
+    await expect(toggle).toBeChecked()
+    await toggle.click()
+
+    await expect(toggle).not.toBeChecked()
+    await expect(page.getByTestId('row-auto-prune')).toContainText('fills to cap')
+    await expect.poll(() => h.lastPut()).toMatchObject({ auto_prune: false })
   })
 
   test('rejecting an invalid port surfaces the server error', async ({ page }) => {

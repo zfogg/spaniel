@@ -73,7 +73,7 @@ func TestPrune_DeleteByCount_OldestFirstPreserveBaselineAndActive(t *testing.T) 
 	// 5 sessions, oldest-to-newest: s0..s4. Mark s2 baseline, s4 active.
 	seedSession(t, d, "s0", "s0", base-int64(5*time.Hour), false, 1)
 	seedSession(t, d, "s1", "s1", base-int64(4*time.Hour), false, 1)
-	seedSession(t, d, "s2", "s2", base-int64(3*time.Hour), true, 1)  // baseline
+	seedSession(t, d, "s2", "s2", base-int64(3*time.Hour), true, 1) // baseline
 	seedSession(t, d, "s3", "s3", base-int64(2*time.Hour), false, 1)
 	seedSession(t, d, "s4", "s4", base-int64(1*time.Hour), false, 1) // active
 
