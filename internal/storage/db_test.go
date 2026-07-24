@@ -827,6 +827,18 @@ func TestGetStats(t *testing.T) {
 	}
 }
 
+func TestStorageBreakdown_EmptySessionsIsJSONArray(t *testing.T) {
+	db := openTestDB(t)
+
+	bd, err := db.GetStorageBreakdown()
+	if err != nil {
+		t.Fatalf("GetStorageBreakdown: %v", err)
+	}
+	if bd.Sessions == nil {
+		t.Fatal("Sessions is nil; the API must encode an empty JSON array, not null")
+	}
+}
+
 func TestStorageBreakdown_PerTable(t *testing.T) {
 	db := openTestDB(t)
 

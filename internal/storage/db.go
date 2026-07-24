@@ -1336,7 +1336,7 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	}
 
 	// Per-session: proxy size via span attribute payload length.
-	var sessSizes []SessionSize
+	sessSizes := make([]SessionSize, 0)
 	_ = d.gorm.Raw(`
 		SELECT s.session_id AS id, COALESCE(se.label,'') AS label, COUNT(*) AS span_count,
 		       SUM(LENGTH(s.attributes::VARCHAR) + LENGTH(s.resource::VARCHAR)) AS approx_bytes
