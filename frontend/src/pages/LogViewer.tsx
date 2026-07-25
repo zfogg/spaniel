@@ -107,12 +107,6 @@ export function matchesSevFilter(severity: number, filter: SevFilter): boolean {
   return true
 }
 
-function presentSevFilters(logs: Log[]): SevFilter[] {
-  const present = new Set<SevFilter>()
-  for (const l of logs) present.add(sevLabel(l.severity) as SevFilter)
-  return SEV_ORDER.filter(s => present.has(s))
-}
-
 // ── LogRow ────────────────────────────────────────────────────────────────────
 
 function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
@@ -318,9 +312,10 @@ export default function LogViewer() {
   // Logs + services come from queries; live log events refresh them via
   // useLiveInvalidation() in App.tsx (throttled), replacing the old initial
   // load + 3s poll + WebSocket-push + client-side dedup machinery.
+  const severity = filterSev === 'ALL' ? undefined : filterSev.toLowerCase()
   const { data: logs = [], isLoading: loading, isError, error, refetch } = useQuery({
-    queryKey: qk.logs({}),
-    queryFn: () => api.logs.list({}).then(r => r.data ?? []),
+    queryKey: qk.logs({ severity }),
+    queryFn: () => api.logs.list({ severity }).then(r => r.data ?? []),
   })
   const { data: services = [] } = useQuery({
     queryKey: qk.services(),
@@ -374,9 +369,10 @@ export default function LogViewer() {
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
-        {/* severity chips — ALL + one per present severity */}
+        {/* Keep every severity available even when the newest page has no rows
+            at that level; the API searches the full session before limiting. */}
         <div className="flex items-center gap-1">
-          {(['ALL', ...presentSevFilters(logs)] as SevFilter[]).map(chip => (
+          {(['ALL', ...SEV_ORDER] as SevFilter[]).map(chip => (
             <button
               key={chip}
               type="button"

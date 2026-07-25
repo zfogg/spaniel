@@ -700,11 +700,13 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 }
 
 type LogFilter struct {
-	SessionID string
-	TraceID   string
-	SpanID    string
-	Limit     int
-	Page      int
+	SessionID   string
+	TraceID     string
+	SpanID      string
+	MinSeverity int
+	MaxSeverity int
+	Limit       int
+	Page        int
 }
 
 func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
@@ -726,6 +728,12 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	}
 	if f.SpanID != "" {
 		q = q.Where("span_id = ?", f.SpanID)
+	}
+	if f.MinSeverity > 0 {
+		q = q.Where("severity >= ?", f.MinSeverity)
+	}
+	if f.MaxSeverity > 0 {
+		q = q.Where("severity <= ?", f.MaxSeverity)
 	}
 	var result []*Log
 	err := q.Order("timestamp_ns DESC").Limit(f.Limit).Offset(offset).Find(&result).Error

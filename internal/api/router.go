@@ -406,13 +406,20 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 	if page < 1 {
 		page = 1
 	}
+	minSeverity, maxSeverity, ok := logSeverityBand(q.Get("severity"))
+	if !ok {
+		respondErr(w, req, http.StatusBadRequest, "invalid severity")
+		return
+	}
 
 	logs, err := r.store.WithContext(req.Context()).ListLogs(storage.LogFilter{
-		SessionID: r.scopeSession(q.Get("sessionId")),
-		TraceID:   q.Get("traceId"),
-		SpanID:    q.Get("spanId"),
-		Limit:     limit,
-		Page:      page,
+		SessionID:   r.scopeSession(q.Get("sessionId")),
+		TraceID:     q.Get("traceId"),
+		SpanID:      q.Get("spanId"),
+		MinSeverity: minSeverity,
+		MaxSeverity: maxSeverity,
+		Limit:       limit,
+		Page:        page,
 	})
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -422,6 +429,27 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 		logs = []*storage.Log{}
 	}
 	respond(w, logs, len(logs), page)
+}
+
+func logSeverityBand(severity string) (minSeverity, maxSeverity int, ok bool) {
+	switch strings.ToLower(severity) {
+	case "", "all":
+		return 0, 0, true
+	case "trace":
+		return 1, 4, true
+	case "debug":
+		return 5, 8, true
+	case "info":
+		return 9, 12, true
+	case "warn":
+		return 13, 16, true
+	case "error":
+		return 17, 20, true
+	case "fatal":
+		return 21, 0, true
+	default:
+		return 0, 0, false
+	}
 }
 
 func (r *Router) listServices(w http.ResponseWriter, req *http.Request) {

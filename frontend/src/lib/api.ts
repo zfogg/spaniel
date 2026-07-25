@@ -480,11 +480,12 @@ export const api = {
     get: (spanId: string) => get(`/api/spans/${spanId}`, SpanSchema),
   },
   logs: {
-    list: (params?: { sessionId?: string; traceId?: string; spanId?: string }) => {
+    list: (params?: { sessionId?: string; traceId?: string; spanId?: string; severity?: string }) => {
       const q = new URLSearchParams()
       if (params?.sessionId) q.set('sessionId', params.sessionId)
       if (params?.traceId) q.set('traceId', params.traceId)
       if (params?.spanId) q.set('spanId', params.spanId)
+      if (params?.severity) q.set('severity', params.severity)
       const qs = q.toString()
       return get(`/api/logs${qs ? `?${qs}` : ''}`, z.array(LogSchema))
     },
