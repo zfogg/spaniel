@@ -46,7 +46,7 @@ type Span struct {
 	Kind          int          `json:"kind"`
 	StartNs       int64        `json:"start_ns"`
 	EndNs         int64        `json:"end_ns"`
-	DurationNs    int64        `json:"duration_ns" gorm:"->"` // generated column, read-only
+	DurationNs    int64        `json:"duration_ns"`
 	StatusCode    int          `json:"status_code"`
 	StatusMessage string       `json:"status_message"`
 	Attributes    string       `json:"attributes"`
@@ -272,7 +272,7 @@ const spanCols = `trace_id, span_id, parent_span_id, service_name, name, kind,
 // worker set, producing thousands of OS threads and exhausting the host.
 const (
 	duckDBWorkerThreads = 4
-	duckDBMemoryLimit   = "256MB"
+	duckDBMemoryLimit   = "1GB"
 )
 
 var duckDBMaxOpenConnections = len(batchTables) + 1
@@ -392,7 +392,9 @@ func (d *DB) ActiveSessionID() string    { return d.activeSessionID }
 func (d *DB) ActiveSessionLabel() string { return d.activeSessionLabel }
 
 func (d *DB) InsertSpan(s *Span) error {
-	// duration_ns is a generated column (gorm:"->") — never written.
+	if s.DurationNs == 0 {
+		s.DurationNs = s.EndNs - s.StartNs
+	}
 	return d.gorm.Create(s).Error
 }
 
@@ -1374,11 +1376,16 @@ func (d *DB) Compact() (*CompactResult, error) {
 			res.BytesBefore = fi.Size()
 		}
 	}
-	if err := d.flushBeforeCheckpoint(); err != nil {
-		return res, fmt.Errorf("checkpoint: %w", err)
-	}
-	if err := d.gorm.Exec("VACUUM").Error; err != nil {
-		return res, fmt.Errorf("vacuum: %w", err)
+	if err := d.withMaintenance(func() error {
+		if err := d.checkpointWithRetry(); err != nil {
+			return fmt.Errorf("checkpoint: %w", err)
+		}
+		if err := d.gorm.Exec("VACUUM").Error; err != nil {
+			return fmt.Errorf("vacuum: %w", err)
+		}
+		return d.checkpointWithRetry()
+	}); err != nil {
+		return res, err
 	}
 	if d.path != "" && d.path != ":memory:" {
 		if fi, err := os.Stat(d.path); err == nil {
@@ -1395,8 +1402,33 @@ func (d *DB) Compact() (*CompactResult, error) {
 // CHECKPOINT. This prevents DuckDB internal state corruption that occurs when
 // CHECKPOINT interacts with unflushed appender data in the CGo layer.
 func (d *DB) flushBeforeCheckpoint() error {
-	if d.batcher != nil {
-		_ = d.batcher.Flush()
+	return d.withMaintenance(func() error {
+		return d.checkpointWithRetry()
+	})
+}
+
+func (d *DB) withMaintenance(fn func() error) error {
+	if d.batcher == nil {
+		return fn()
 	}
-	return d.gorm.Exec("CHECKPOINT").Error
+	return d.batcher.Maintenance(fn)
+}
+
+// checkpointWithRetry lets auxiliary GORM writes from requests accepted just
+// before maintenance finish. Appenders remain paused by withMaintenance, so
+// the set of outstanding writers only drains; a transient writer collision
+// must not make the storage guard declare the database full.
+func (d *DB) checkpointWithRetry() error {
+	var err error
+	for range 80 {
+		err = d.gorm.Exec("CHECKPOINT").Error
+		if err == nil {
+			return nil
+		}
+		if !strings.Contains(err.Error(), "other write transactions active") {
+			return err
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	return err
 }

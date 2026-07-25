@@ -186,11 +186,21 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	}
 
 	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target}, store.ActiveSessionID())
+	after := store.UsedSize()
+	for attempt := 1; err == nil && after >= highWater && attempt < 3; attempt++ {
+		var more storage.PruneResult
+		more, err = store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target}, store.ActiveSessionID())
+		res.DeletedBySize += more.DeletedBySize
+		after = store.UsedSize()
+	}
 	if err != nil {
 		slog.Error("storage guard auto-prune failed", "err", err)
 	}
-	after := store.UsedSize()
-	blocked := err != nil || after >= highWater
+	// Staying above the proactive high-water mark after one pass is not a
+	// storage-full condition: queued ingestion may flush as appenders reopen,
+	// and the next guard pass can prune again. Reject writes only when pruning
+	// failed or the hard cap itself is still reached.
+	blocked := err != nil || after >= maxBytes
 	store.SetFull(blocked)
 	if blocked {
 		slog.Warn("storage guard could not restore headroom; ingestion paused",
@@ -201,7 +211,7 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	}
 	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
 	if deleted > 0 {
-		slog.Info("storage guard auto-pruned oldest sessions",
+		slog.Info("storage guard auto-pruned oldest telemetry",
 			"deleted", deleted,
 			"db_mb", float64(after)/1024/1024,
 			"target_mb", float64(target)/1024/1024,
@@ -210,8 +220,8 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 }
 
 // runStorageGuard enforces the live size policy between hourly retention
-// passes. FileSize is cheap; checking every five seconds provides enough
-// headroom for bursty local telemetry without continuously querying DuckDB.
+// passes. Checking every five seconds provides enough headroom for bursty
+// local telemetry without continuously querying DuckDB.
 func runStorageGuard(store *storage.DB, policy *storageGuardPolicy) {
 	check := func() {
 		checkStorageGuard(store, policy)

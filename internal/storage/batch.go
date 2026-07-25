@@ -216,6 +216,34 @@ func (b *Batcher) Flush() error {
 	return errors.Join(errs...)
 }
 
+// Maintenance temporarily closes all appenders while fn performs a DuckDB
+// maintenance operation such as CHECKPOINT or VACUUM. DuckDB must not run
+// those operations while an Appender is alive, even if it has been flushed:
+// doing so can invalidate the database with "Invalid node type" errors.
+// Appends are blocked for the duration and fresh appenders are installed
+// before this method returns.
+func (b *Batcher) Maintenance(fn func() error) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return fn()
+	}
+
+	closeErr := b.closeAllLocked()
+	fnErr := fn()
+
+	var reopenErrs []error
+	for _, table := range batchTables {
+		ta, err := newTableAppender(b.db, table)
+		if err != nil {
+			reopenErrs = append(reopenErrs, fmt.Errorf("reopen appender for %s: %w", table, err))
+			continue
+		}
+		b.apps[table] = ta
+	}
+	return errors.Join(closeErr, fnErr, errors.Join(reopenErrs...))
+}
+
 // Close stops the interval flusher, flushes remaining rows, and releases the
 // pinned connections. It is idempotent.
 func (b *Batcher) Close() error {
@@ -250,12 +278,14 @@ func (b *Batcher) closeAllLocked() error {
 	return errors.Join(errs...)
 }
 
-// AppendSpan buffers a span for batched insertion. The generated duration_ns
-// column is omitted — DuckDB computes it from start_ns/end_ns.
+// AppendSpan buffers a span for batched insertion.
 func (b *Batcher) AppendSpan(s *Span) error {
+	if s.DurationNs == 0 {
+		s.DurationNs = s.EndNs - s.StartNs
+	}
 	return b.append("spans",
 		s.TraceID, s.SpanID, s.ParentSpanID, s.ServiceName, s.Name,
-		s.Kind, s.StartNs, s.EndNs, // duration_ns is generated → skipped
+		s.Kind, s.StartNs, s.EndNs, s.DurationNs,
 		s.StatusCode, s.StatusMessage, s.Attributes, s.Resource,
 		s.SessionID, s.SessionLabel, s.ReceivedAt, s.Sampled,
 	)

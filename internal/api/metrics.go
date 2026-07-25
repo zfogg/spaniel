@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -10,7 +12,8 @@ import (
 )
 
 // listMetrics returns one entry per (service, name) metric stream.
-//   GET /api/metrics?sessionId=...
+//
+//	GET /api/metrics?sessionId=...
 func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
 	entries, err := r.store.WithContext(req.Context()).ListMetricCatalog(sessionID)
@@ -28,9 +31,9 @@ func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 // Histogram percentiles arrive bucketed into p50/p95/p99 slices on the client;
 // gauge/counter populate only Value. Exemplars link to traces via trace_id/span_id.
 type MetricSeriesPoint struct {
-	TimestampNs int64                `json:"timestamp_ns"`
-	Value       float64              `json:"value"`
-	Percentile  string               `json:"percentile,omitempty"`
+	TimestampNs int64                  `json:"timestamp_ns"`
+	Value       float64                `json:"value"`
+	Percentile  string                 `json:"percentile,omitempty"`
 	Exemplars   []MetricSeriesExemplar `json:"exemplars,omitempty"`
 }
 
@@ -40,12 +43,14 @@ type MetricSeriesExemplar struct {
 }
 
 type MetricSeriesResponse struct {
-	Name        string                  `json:"name"`
-	ServiceName string                  `json:"service_name"`
-	Type        string                  `json:"type"`
-	Unit        string                  `json:"unit"`
-	Description string                  `json:"description"`
-	Points      []MetricSeriesPoint     `json:"points"`
+	Name        string              `json:"name"`
+	ServiceName string              `json:"service_name"`
+	Type        string              `json:"type"`
+	Unit        string              `json:"unit"`
+	Description string              `json:"description"`
+	Points      []MetricSeriesPoint `json:"points"`
+	Dimensions  map[string][]string `json:"dimensions"`
+	Aggregation string              `json:"aggregation"`
 	// Traces is populated only when ?with_traces=1 is passed. Always
 	// materialized as [] (never null) so the frontend type can be
 	// non-optional and rendering branches stay flat.
@@ -53,7 +58,8 @@ type MetricSeriesResponse struct {
 }
 
 // getMetricSeries returns the time series for one metric.
-//   GET /api/metrics/series?name=&service=&sessionId=&from=&to=
+//
+//	GET /api/metrics/series?name=&service=&sessionId=&from=&to=
 func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	name := q.Get("name")
@@ -78,10 +84,18 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	}
 
 	out := MetricSeriesResponse{
-		Name:   name,
-		Points: []MetricSeriesPoint{},
-		Traces: []*storage.TraceOverlay{},
+		Name:       name,
+		Points:     []MetricSeriesPoint{},
+		Dimensions: map[string][]string{},
+		Traces:     []*storage.TraceOverlay{},
 	}
+	type pointKey struct {
+		timestamp  int64
+		percentile string
+	}
+	aggregated := make(map[pointKey]*MetricSeriesPoint)
+	dimensionValues := make(map[string]map[string]struct{})
+	counterPrevious := make(map[string]float64)
 	for _, m := range rows {
 		if out.ServiceName == "" {
 			out.ServiceName = m.ServiceName
@@ -89,18 +103,64 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 			out.Unit = m.Unit
 			out.Description = m.Description
 		}
-		p := MetricSeriesPoint{TimestampNs: m.TimestampNs, Value: m.Value}
+		percentile := ""
 		if m.Type == "histogram" {
-			p.Percentile = extractPercentile(m.Attributes)
+			percentile = extractPercentile(m.Attributes)
 		}
-		// Extract exemplars if present
+		var attrs map[string]any
+		if json.Unmarshal([]byte(m.Attributes), &attrs) == nil {
+			for key, value := range attrs {
+				if key == "percentile" {
+					continue
+				}
+				text := fmt.Sprint(value)
+				if dimensionValues[key] == nil {
+					dimensionValues[key] = map[string]struct{}{}
+				}
+				dimensionValues[key][text] = struct{}{}
+			}
+		}
+		key := pointKey{timestamp: m.TimestampNs, percentile: percentile}
+		p := aggregated[key]
+		if p == nil {
+			p = &MetricSeriesPoint{TimestampNs: m.TimestampNs, Percentile: percentile}
+			aggregated[key] = p
+		}
+		value := m.Value
+		if m.Type == "counter" {
+			seriesKey := m.ServiceName + "\x00" + m.Attributes
+			if previous, ok := counterPrevious[seriesKey]; ok && value >= previous {
+				value -= previous
+			}
+			counterPrevious[seriesKey] = m.Value
+		}
+		p.Value += value
 		if m.Exemplars != "" {
 			var exemplars []MetricSeriesExemplar
 			if err := json.Unmarshal([]byte(m.Exemplars), &exemplars); err == nil {
-				p.Exemplars = exemplars
+				p.Exemplars = append(p.Exemplars, exemplars...)
 			}
 		}
-		out.Points = append(out.Points, p)
+	}
+	for key, values := range dimensionValues {
+		for value := range values {
+			out.Dimensions[key] = append(out.Dimensions[key], value)
+		}
+		sort.Strings(out.Dimensions[key])
+	}
+	for _, p := range aggregated {
+		out.Points = append(out.Points, *p)
+	}
+	sort.Slice(out.Points, func(i, j int) bool {
+		if out.Points[i].TimestampNs == out.Points[j].TimestampNs {
+			return out.Points[i].Percentile < out.Points[j].Percentile
+		}
+		return out.Points[i].TimestampNs < out.Points[j].TimestampNs
+	})
+	if out.Type == "counter" {
+		out.Aggregation = "delta_sum"
+	} else {
+		out.Aggregation = "sum"
 	}
 
 	// Optional ?with_traces=1: attach the trace overlay for the chart's

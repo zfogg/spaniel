@@ -483,6 +483,14 @@ function MainPanel({ series, range, onRangeChange }: { series: MetricSeries; ran
             {series.unit && (
               <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">unit · {series.unit}</span>
             )}
+            {Object.keys(series.dimensions ?? {}).length > 0 && (
+              <span
+                className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold"
+                title={Object.entries(series.dimensions ?? {}).map(([k, v]) => `${k}: ${v.join(', ')}`).join('\n')}
+              >
+                {Object.keys(series.dimensions ?? {}).length} dimensions · {series.aggregation}
+              </span>
+            )}
           </div>
           <h1 className="mx-0 mt-2 mb-1 font-mono text-xl font-bold tracking-[-0.01em] text-foreground break-all">{series.name}</h1>
           {series.description && (

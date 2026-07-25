@@ -213,6 +213,8 @@ export const MetricSeriesSchema = z.object({
   unit: z.string(),
   description: z.string(),
   points: z.array(MetricSeriesPointSchema),
+  dimensions: z.record(z.string(), z.array(z.string())).optional(),
+  aggregation: z.string().optional(),
   // Populated only when ?with_traces=1 is requested. Always an array (server
   // returns [] when none) so the type stays non-optional.
   traces: z.array(TraceOverlaySchema),

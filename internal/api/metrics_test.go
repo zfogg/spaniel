@@ -66,6 +66,45 @@ func TestGetMetricSeries_MissingName(t *testing.T) {
 	}
 }
 
+func TestGetMetricSeries_CounterDeltasAreAggregatedPerDimension(t *testing.T) {
+	handler, db := setupRouter(t)
+	for _, row := range []storage.Metric{
+		{Name: "signals", Type: "counter", TimestampNs: 100, Value: 10, Attributes: `{"strategy":"a"}`, ServiceName: "worker", SessionID: "s1"},
+		{Name: "signals", Type: "counter", TimestampNs: 100, Value: 20, Attributes: `{"strategy":"b"}`, ServiceName: "worker", SessionID: "s1"},
+		{Name: "signals", Type: "counter", TimestampNs: 200, Value: 13, Attributes: `{"strategy":"a"}`, ServiceName: "worker", SessionID: "s1"},
+		{Name: "signals", Type: "counter", TimestampNs: 200, Value: 2, Attributes: `{"strategy":"b"}`, ServiceName: "worker", SessionID: "s1"}, // reset
+	} {
+		if err := db.InsertMetric(&row); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=signals&service=worker&sessionId=s1", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	var resp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Data.Points) != 2 {
+		t.Fatalf("points = %d, want 2", len(resp.Data.Points))
+	}
+	if got := resp.Data.Points[0].Value; got != 30 {
+		t.Errorf("initial aggregate = %v, want 30", got)
+	}
+	if got := resp.Data.Points[1].Value; got != 5 {
+		t.Errorf("reset-safe delta aggregate = %v, want 5", got)
+	}
+	if got := resp.Data.Dimensions["strategy"]; len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("strategy dimensions = %#v", got)
+	}
+	if resp.Data.Aggregation != "delta_sum" {
+		t.Errorf("aggregation = %q", resp.Data.Aggregation)
+	}
+}
+
 func TestGetMetricSeries_HistogramSplitsByPercentile(t *testing.T) {
 	handler, db := setupRouter(t)
 	// Insert one histogram data point as three rows (p50/p95/p99).
@@ -152,8 +191,8 @@ func TestGetMetricSeries_NoExemplars(t *testing.T) {
 	_ = db.InsertMetric(&storage.Metric{
 		Name: "http.requests", Type: "counter", Unit: "req",
 		TimestampNs: 1000, Value: 42,
-		Attributes: `{}`,
-		Exemplars:  "",
+		Attributes:  `{}`,
+		Exemplars:   "",
 		ServiceName: "api", SessionID: "s1",
 	})
 
@@ -192,10 +231,10 @@ func TestGetMetricSeries_WithTracesOverlay(t *testing.T) {
 			Attributes: "{}", Resource: "{}", SessionID: "s1", SessionLabel: "s1",
 		})
 	}
-	insertRoot("trace-a", "GET /cart",     1, 1100, 1200)
+	insertRoot("trace-a", "GET /cart", 1, 1100, 1200)
 	insertRoot("trace-b", "POST /checkout", 1, 1800, 1900)
-	insertRoot("trace-c", "GET /promo",    2, 2500, 2600) // error
-	insertRoot("trace-out", "outside",     1, 9000, 9100) // out of window
+	insertRoot("trace-c", "GET /promo", 2, 2500, 2600) // error
+	insertRoot("trace-out", "outside", 1, 9000, 9100)  // out of window
 
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/metrics/series?name=http.req&service=api&sessionId=s1&with_traces=1&from=1000&to=3000", nil)
@@ -252,7 +291,9 @@ func TestGetMetricSeries_WithTracesOverlay_DefaultsToPointsWindow(t *testing.T) 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: %d (%s)", w.Code, w.Body.String())
 	}
-	var resp struct{ Data MetricSeriesResponse `json:"data"` }
+	var resp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if len(resp.Data.Traces) != 1 || resp.Data.Traces[0].Op != "in-window" {
 		t.Errorf("expected single in-window trace, got %+v", resp.Data.Traces)

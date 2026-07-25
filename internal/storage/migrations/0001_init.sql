@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS spans (
     kind            INTEGER,
     start_ns        BIGINT,
     end_ns          BIGINT,
-    duration_ns     BIGINT GENERATED ALWAYS AS (end_ns - start_ns),
+    duration_ns     BIGINT,
     status_code     INTEGER,
     status_message  TEXT,
     attributes      VARCHAR,

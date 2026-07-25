@@ -143,6 +143,12 @@ func migrations() []*gormigrate.Migration {
 				return execMigrationFile(tx, "0007_performance_indexes.sql")
 			},
 		},
+		{
+			ID: "0008_materialize_span_duration",
+			Migrate: func(tx *gorm.DB) error {
+				return execMigrationFile(tx, "0008_materialize_span_duration.sql")
+			},
+		},
 	}
 }
 
@@ -167,7 +173,25 @@ func (d *DB) migrate() error {
 	m.InitSchema(func(tx *gorm.DB) error {
 		return execMigrationFile(tx, "0001_init.sql")
 	})
-	return m.Migrate()
+	if err := m.Migrate(); err != nil {
+		return err
+	}
+
+	// gormigrate's InitSchema marks every numbered migration as applied. A
+	// pre-gormigrate database therefore may retain the old generated duration
+	// column while 0008 is already stamped. Inspect the effective schema and
+	// repair it explicitly, just as 0001 already repairs legacy JSON columns.
+	var tableSQL string
+	if err := d.gorm.Raw(`
+		SELECT sql FROM duckdb_tables()
+		WHERE table_name = 'spans' AND internal = FALSE
+	`).Scan(&tableSQL).Error; err != nil {
+		return err
+	}
+	if strings.Contains(strings.ToUpper(tableSQL), "DURATION_NS BIGINT GENERATED") {
+		return execMigrationFile(d.gorm, "0008_materialize_span_duration.sql")
+	}
+	return nil
 }
 
 // SetSpanielVersion records the running binary version in the meta table. It is
