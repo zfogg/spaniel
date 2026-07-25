@@ -1,40 +1,5 @@
 <div align="center">
 
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 160" width="420" height="160">
-  <!-- Dog body -->
-  <ellipse cx="210" cy="105" rx="52" ry="34" fill="#c8a97e"/>
-  <!-- Head -->
-  <circle cx="252" cy="80" r="28" fill="#c8a97e"/>
-  <!-- Snout -->
-  <ellipse cx="270" cy="88" rx="14" ry="10" fill="#b8926a"/>
-  <!-- Nose -->
-  <ellipse cx="275" cy="84" rx="5" ry="4" fill="#2d1a0e"/>
-  <!-- Eye -->
-  <circle cx="258" cy="75" r="5" fill="#1a0a00"/>
-  <circle cx="259.5" cy="73.5" r="1.5" fill="white"/>
-  <!-- Left floppy ear -->
-  <ellipse cx="232" cy="68" rx="12" ry="20" fill="#a07850" transform="rotate(-18 232 68)"/>
-  <!-- Right floppy ear -->
-  <ellipse cx="270" cy="63" rx="10" ry="18" fill="#a07850" transform="rotate(15 270 63)"/>
-  <!-- Tail -->
-  <path d="M162 95 Q140 60 155 45" stroke="#c8a97e" stroke-width="10" fill="none" stroke-linecap="round"/>
-  <!-- Front legs -->
-  <rect x="215" y="130" width="12" height="22" rx="6" fill="#c8a97e"/>
-  <rect x="235" y="132" width="12" height="20" rx="6" fill="#c8a97e"/>
-  <!-- Back legs -->
-  <rect x="175" y="128" width="12" height="22" rx="6" fill="#b8926a"/>
-  <rect x="193" y="130" width="12" height="20" rx="6" fill="#b8926a"/>
-  <!-- Trace waterfall bars -->
-  <rect x="30" y="22" width="90" height="10" rx="5" fill="#6ee7b7" opacity="0.9"/>
-  <text x="30" y="19" font-family="monospace" font-size="8" fill="#6ee7b7" opacity="0.85">api</text>
-  <rect x="50" y="38" width="55" height="10" rx="5" fill="#67e8f9" opacity="0.9"/>
-  <text x="50" y="35" font-family="monospace" font-size="8" fill="#67e8f9" opacity="0.85">postgres</text>
-  <rect x="65" y="54" width="28" height="10" rx="5" fill="#a78bfa" opacity="0.9"/>
-  <text x="65" y="51" font-family="monospace" font-size="8" fill="#a78bfa" opacity="0.85">redis</text>
-  <line x1="45" y1="32" x2="50" y2="38" stroke="#6ee7b7" stroke-width="1" opacity="0.4"/>
-  <line x1="60" y1="48" x2="65" y2="54" stroke="#67e8f9" stroke-width="1" opacity="0.4"/>
-</svg>
-
 # spaniel
 
 **Local OpenTelemetry viewer. Postman for your traces.**
