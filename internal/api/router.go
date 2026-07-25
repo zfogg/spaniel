@@ -209,6 +209,10 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 	if spans == nil {
 		spans = []*storage.Span{}
 	}
+	for _, span := range spans {
+		span.Events = []*storage.SpanEvent{}
+		span.Links = []*storage.SpanLink{}
+	}
 	// Bulk-attach links so the waterfall can show the link badge without a
 	// per-span round-trip. Group by span_id into a map, then attach.
 	if links, err := r.store.WithContext(req.Context()).ListLinksByTrace(traceID); err == nil && len(links) > 0 {
@@ -245,6 +249,13 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 	}
 	if rows == nil {
 		rows = []*storage.SpanRow{}
+	}
+	// SpanRow embeds Span, whose collection fields are part of the frontend
+	// contract. GORM leaves ignored fields nil, which JSON encodes as null and
+	// causes response validation to reject the whole list.
+	for _, row := range rows {
+		row.Events = []*storage.SpanEvent{}
+		row.Links = []*storage.SpanLink{}
 	}
 	respond(w, rows, len(rows), 1)
 }

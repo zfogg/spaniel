@@ -55,6 +55,24 @@ func TestListSpans_ReturnsAllFields(t *testing.T) {
 	}
 }
 
+func TestListSpans_CollectionsAreEmptyArrays(t *testing.T) {
+	handler, store := setupRouter(t)
+	insertSpan(t, store, "sess-1", "trace-empty", "span-empty", "", "svc", "noop")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spans?sort=time", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"events":[]`) {
+		t.Errorf("expected `\"events\":[]` in response, got: %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"links":[]`) {
+		t.Errorf("expected `\"links\":[]` in response, got: %s", w.Body.String())
+	}
+}
+
 func TestListSpans_SessionFilter(t *testing.T) {
 	handler, store := setupRouter(t)
 	insertSpan(t, store, "sess-A", "trace-1", "span-a1", "", "svc", "op-alpha")
