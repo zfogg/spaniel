@@ -11,7 +11,7 @@ import JsonView from '@/components/JsonView'
 
 // ── layout constants ──────────────────────────────────────────────────────────
 
-const NAME_W = 480
+const NAME_W = 720
 const ZERO_ID = '0000000000000000'
 const DUR_W = 56
 const ROW_H = 32

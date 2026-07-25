@@ -201,3 +201,21 @@ describe('shortTraceId', () => {
     expect(shortTraceId('9ef357237e8c74950f711b77779d19eb')).toBe('9ef3…d19eb')
   })
 })
+
+describe('httpDisplayName', () => {
+  it('combines a bare HTTP method span name with url.path', async () => {
+    const { httpDisplayName } = await import('./span-utils')
+    expect(httpDisplayName({
+      name: 'GET',
+      attributes: JSON.stringify({ 'url.path': '/api/traces' }),
+    })).toBe('GET /api/traces')
+  })
+
+  it('combines a legacy unknown span name with the path from http.url', async () => {
+    const { httpDisplayName } = await import('./span-utils')
+    expect(httpDisplayName({
+      name: 'GET unknown',
+      attributes: JSON.stringify({ 'http.url': 'http://pi5:8081/api/settings?tab=storage' }),
+    })).toBe('GET pi5:8081/api/settings')
+  })
+})

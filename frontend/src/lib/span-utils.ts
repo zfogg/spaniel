@@ -88,6 +88,8 @@ export function shortTraceId(id: string): string {
 
 // ── HTTP display name ─────────────────────────────────────────────────────────
 
+const HTTP_METHOD_RE = /^(?:HTTP\s+)?(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)(?:\s+|$)/i
+
 /** Build a human-friendly display name for HTTP spans.
  *  Tries url.full then http.url (both carry the full URL), falling back to
  *  url.path / http.target for the path alone.  When the name contains
@@ -95,15 +97,18 @@ export function shortTraceId(id: string): string {
 export function httpDisplayName(span: { name: string; attributes?: string | null }): string {
   try {
     const a = JSON.parse(span.attributes ?? '{}')
-    // Extract HTTP method: prefer attributes, then parse from name like "HTTP GET"
-    let method = a['http.request.method'] || a['http.method'] || ''
+    // Extract HTTP method: prefer attributes, then accept common span names
+    // such as "GET", "GET unknown", and "HTTP GET".
+    let method = typeof a['http.request.method'] === 'string'
+      ? a['http.request.method']
+      : typeof a['http.method'] === 'string' ? a['http.method'] : ''
     if (!method) {
-      const m = span.name.match(/^(?:HTTP)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)$/i)
+      const m = span.name.match(HTTP_METHOD_RE)
       if (m) method = m[1].toUpperCase()
     }
     // Try full URLs: url.full first, then http.url
     for (const raw of [a['url.full'], a['http.url']]) {
-      if (!raw) continue
+      if (typeof raw !== 'string' || !raw) continue
       try {
         const u = new URL(raw)
         return method ? `${method} ${u.host}${u.pathname}` : `${u.host}${u.pathname}`
@@ -113,13 +118,15 @@ export function httpDisplayName(span: { name: string; attributes?: string | null
       }
     }
     // Fallback: url.path or http.target with method
-    const path = a['url.path'] || a['http.target'] || ''
+    const path = typeof a['url.path'] === 'string'
+      ? a['url.path']
+      : typeof a['http.target'] === 'string' ? a['http.target'] : ''
     if (method && path) return `${method} ${path}`
     if (path) return path
   } catch { /* empty */ }
   // Avoid returning raw "unknown" — use just the method if we have one
-  if (span.name.includes('unknown')) {
-    const m = span.name.match(/^(?:HTTP)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)/i)
+  if (span.name.toLowerCase().includes('unknown')) {
+    const m = span.name.match(HTTP_METHOD_RE)
     if (m) return m[1].toUpperCase()
   }
   return span.name
