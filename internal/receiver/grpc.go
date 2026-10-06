@@ -122,6 +122,7 @@ type traceServer struct {
 
 func (s *traceServer) Export(ctx context.Context, req ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestTraces(ctx, req.Traces()); err != nil {
+		telemetry.Catalog().RecordIngestRejected(ctx, "traces", "ingest_error")
 		logOTLPIngestFailure(ctx, "traces", err)
 		return ptraceotlp.NewExportResponse(), ingestGRPCError(err)
 	}
@@ -136,6 +137,7 @@ type logServer struct {
 
 func (s *logServer) Export(ctx context.Context, req plogotlp.ExportRequest) (plogotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestLogs(ctx, req.Logs()); err != nil {
+		telemetry.Catalog().RecordIngestRejected(ctx, "logs", "ingest_error")
 		logOTLPIngestFailure(ctx, "logs", err)
 		return plogotlp.NewExportResponse(), ingestGRPCError(err)
 	}
@@ -150,6 +152,7 @@ type metricServer struct {
 
 func (s *metricServer) Export(ctx context.Context, req pmetricotlp.ExportRequest) (pmetricotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestMetrics(ctx, req.Metrics()); err != nil {
+		telemetry.Catalog().RecordIngestRejected(ctx, "metrics", "ingest_error")
 		logOTLPIngestFailure(ctx, "metrics", err)
 		return pmetricotlp.NewExportResponse(), ingestGRPCError(err)
 	}

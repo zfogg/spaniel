@@ -38,6 +38,11 @@ type PruneResult struct {
 // continuously active session must not be allowed to grow past the cap.
 func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 	var res PruneResult
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		telemetry.Catalog().RecordStoragePrune(context.Background(), result, float64(time.Since(started).Microseconds())/1000)
+	}()
 
 	err := d.withMaintenance(func() error {
 		if cfg.MaxAge > 0 {
@@ -66,6 +71,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 		return d.checkpointWithRetry()
 	})
 	if err != nil {
+		result = "error"
 		return res, err
 	}
 
@@ -73,6 +79,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 	var finalSessions int64
 	count, err := d.query.Session.Count()
 	if err != nil {
+		result = "error"
 		return res, err
 	}
 	finalSessions = count

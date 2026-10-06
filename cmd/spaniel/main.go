@@ -606,6 +606,7 @@ func run(cfg runConfig) error {
 	store.SetActiveSession(sess.ID, sess.Label)
 
 	storagePolicy := newStorageGuardPolicy(int64(cfg.MaxDBSizeMB)*1024*1024, cfg.AutoPrune)
+	telemetry.Catalog().SetStorageDBSizeLimit(int64(cfg.MaxDBSizeMB) * 1024 * 1024)
 
 	// Panic-safe: a bare `go` here means a single panic silently kills
 	// auto-pruning for the rest of the process lifetime and the disk fills up.
@@ -839,6 +840,7 @@ func run(cfg runConfig) error {
 		SetLiveHTTPPort: startOTLPHTTP,
 		SetStoragePolicy: func(maxDBSizeMB int, autoPrune bool) {
 			storagePolicy.Update(int64(maxDBSizeMB)*1024*1024, autoPrune)
+			telemetry.Catalog().SetStorageDBSizeLimit(int64(maxDBSizeMB) * 1024 * 1024)
 		},
 		SetSelfMonitor: func(enabled bool) error {
 			var endpoint string

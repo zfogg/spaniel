@@ -152,6 +152,8 @@ func (b *Batcher) append(table string, args ...driver.Value) error {
 		return fmt.Errorf("append %s: %w", table, err)
 	}
 	ta.pending++
+	b.recordQueueDepthLocked()
+	telemetry.Catalog().RecordStorageBytesWritten(context.Background(), estimateRowBytes(args))
 	if ta.pending >= batchMaxRows {
 		return b.flushTableLocked(ta)
 	}
@@ -200,8 +202,41 @@ func (b *Batcher) flushTableLocked(ta *tableAppender) error {
 		return fmt.Errorf("flush %s: %w", ta.table, err)
 	}
 	ta.pending = 0
+	b.recordQueueDepthLocked()
 	telemetry.Catalog().RecordStorage(context.Background(), "write", "ok", int64(pending), float64(time.Since(started).Microseconds())/1000)
 	return nil
+}
+
+func (b *Batcher) recordQueueDepthLocked() {
+	var pending int
+	for _, ta := range b.apps {
+		if ta != nil {
+			pending += ta.pending
+		}
+	}
+	telemetry.Catalog().SetStorageWriteQueueDepth(int64(pending))
+}
+
+func estimateRowBytes(args []driver.Value) int64 {
+	var total int64
+	for _, arg := range args {
+		switch v := arg.(type) {
+		case string:
+			total += int64(len(v))
+		case []byte:
+			total += int64(len(v))
+		case int64, uint64, float64:
+			total += 8
+		case int32, uint32, float32:
+			total += 4
+		case bool:
+			total++
+		case nil:
+		default:
+			total += int64(len(fmt.Sprint(v)))
+		}
+	}
+	return total
 }
 
 // Flush flushes every appender's buffered rows so they become visible to

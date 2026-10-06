@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
@@ -52,6 +53,7 @@ func evaluateAlerts(parent context.Context, store *storage.DB, hub *ws.Hub, now 
 	store = store.WithContext(ctx)
 	rules, err := store.ListAlertRules()
 	if err != nil {
+		telemetry.Catalog().RecordAlertEvaluation(ctx, "error")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return
@@ -61,13 +63,16 @@ func evaluateAlerts(parent context.Context, store *storage.DB, hub *ws.Hub, now 
 			continue
 		}
 		if err := evaluateAlertRule(ctx, store, hub, rule, now); err != nil {
+			telemetry.Catalog().RecordAlertEvaluation(ctx, "error")
 			// Evaluation errors are attached to an instance rather than silently
 			// suppressing the rule. This makes malformed historic data observable.
 			_ = store.UpsertAlertInstance(&storage.AlertInstance{
 				RuleID: rule.ID, GroupKey: "__evaluation_error__", State: "error",
 				LastEvaluatedAt: now.UnixNano(), LastError: err.Error(),
 			})
+			continue
 		}
+		telemetry.Catalog().RecordAlertEvaluation(ctx, "ok")
 	}
 }
 

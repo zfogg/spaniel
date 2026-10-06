@@ -3,6 +3,7 @@ package ingestion
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	json "github.com/goccy/go-json"
@@ -45,13 +46,16 @@ type Pipeline struct {
 	// selfService is the service.name Spaniel uses for its own self-telemetry.
 	// Batches from it are stored "quietly" (no instrumentation spans, linter, or
 	// detectors) so self-monitoring doesn't feed back on itself. Empty disables.
-	selfService  string
-	metricSeries *metricSeriesLimiter
+	selfService   string
+	metricSeries  *metricSeriesLimiter
+	ingestSlots   chan struct{}
+	ingestPending atomic.Int64
 }
 
 const (
 	maxConcurrentLinters   = 2
 	maxConcurrentDetectors = 2
+	maxConcurrentIngests   = 64
 )
 
 // SetSelfService configures the service.name treated as Spaniel's own
@@ -142,6 +146,7 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		ingestCounter: counter,
 		dbLatency:     dbHist,
 		metricSeries:  newMetricSeriesLimiter(2000),
+		ingestSlots:   make(chan struct{}, maxConcurrentIngests),
 	}
 	if persisted, err := store.MetricSeriesCatalog(); err == nil {
 		for _, row := range persisted {
@@ -166,6 +171,17 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 	return p
 }
 
+func (p *Pipeline) beginIngest() func() {
+	depth := p.ingestPending.Add(1)
+	telemetry.Catalog().SetIngestQueue(depth, maxConcurrentIngests)
+	p.ingestSlots <- struct{}{}
+	return func() {
+		<-p.ingestSlots
+		depth := p.ingestPending.Add(-1)
+		telemetry.Catalog().SetIngestQueue(depth, maxConcurrentIngests)
+	}
+}
+
 // Sources returns a per-second stats snapshot for every source seen.
 func (p *Pipeline) Sources() []storage.SourceStats { return p.limiter.Snapshot() }
 
@@ -181,6 +197,9 @@ func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
 // DuckDB columnar write shows up in the ingestion trace (the Appender bypasses
 // GORM, so it isn't covered by the storage OTel plugin).
 func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
+	inFlight := telemetry.Catalog()
+	inFlight.AddFlushInFlight(1)
+	defer inFlight.AddFlushInFlight(-1)
 	started := time.Now()
 	if !instrument {
 		err := p.classifyFlush(p.store.FlushBatch())
@@ -217,6 +236,7 @@ func (p *Pipeline) classifyFlush(err error) error {
 }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
+	defer p.beginIngest()()
 	// Spaniel's own self-telemetry is stored "quietly" — no instrumentation
 	// span, linter, or detectors — so self-monitoring doesn't generate new spans
 	// from ingesting its own spans (which would feed back on itself).
@@ -454,6 +474,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 }
 
 func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
+	defer p.beginIngest()()
 	self := p.isSelfLogs(logs)
 	if !self && p.store.Full() {
 		return storage.ErrStorageFull
@@ -533,6 +554,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 }
 
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
+	defer p.beginIngest()()
 	self := p.isSelfMetrics(md)
 	if !self && p.store.Full() {
 		return storage.ErrStorageFull

@@ -196,6 +196,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	clientCount := int64(len(h.clients))
 	h.mu.Unlock()
 	telemetry.Catalog().SetWebSocketClients(clientCount)
+	telemetry.Catalog().RecordWebSocketClientConnected(context.Background())
 
 	// The writer goroutine owns all writes (coder/websocket forbids concurrent
 	// writes). readPump blocks here for the connection's lifetime, keeping the
@@ -258,6 +259,7 @@ func (h *Hub) writeFrame(ctx context.Context, c *client, data []byte) bool {
 	err := c.conn.Write(writeCtx, websocket.MessageText, data)
 	cancel()
 	if err != nil {
+		telemetry.Catalog().RecordWebSocketClientDropped(context.Background(), "write_failed")
 		c.cancel()
 		return false
 	}
@@ -291,5 +293,8 @@ func (h *Hub) Broadcast(ev *Event) {
 	}
 	if dropped > 0 {
 		telemetry.Catalog().RecordWebSocket(context.Background(), ev.Type, "dropped", dropped)
+		for range dropped {
+			telemetry.Catalog().RecordWebSocketClientDropped(context.Background(), "slow_consumer")
+		}
 	}
 }

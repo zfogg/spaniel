@@ -71,6 +71,7 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 	}()
 	body, ok := readBody(w, r)
 	if !ok {
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "traces", "body_read")
 		logOTLPHTTPFailure(r, "traces", "request body rejected", nil)
 		return
 	}
@@ -83,11 +84,14 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 		err = req.UnmarshalProto(body)
 	}
 	if err != nil {
+		telemetry.Catalog().RecordIngestDecodeError(r.Context(), "traces", map[bool]string{true: "http_json", false: "http_protobuf"}[isJSON(r.Header.Get("Content-Type"))])
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "traces", "decode")
 		logOTLPHTTPFailure(r, "traces", "request decode failed", err)
 		http.Error(w, "unmarshal traces: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := h.pipeline.IngestTraces(r.Context(), req.Traces()); err != nil {
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "traces", "ingest_error")
 		logOTLPHTTPFailure(r, "traces", "ingest failed", err)
 		writeIngestError(w, err)
 		return
@@ -107,6 +111,7 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}()
 	body, ok := readBody(w, r)
 	if !ok {
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "logs", "body_read")
 		logOTLPHTTPFailure(r, "logs", "request body rejected", nil)
 		return
 	}
@@ -119,11 +124,14 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		err = req.UnmarshalProto(body)
 	}
 	if err != nil {
+		telemetry.Catalog().RecordIngestDecodeError(r.Context(), "logs", map[bool]string{true: "http_json", false: "http_protobuf"}[isJSON(r.Header.Get("Content-Type"))])
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "logs", "decode")
 		logOTLPHTTPFailure(r, "logs", "request decode failed", err)
 		http.Error(w, "unmarshal logs: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := h.pipeline.IngestLogs(r.Context(), req.Logs()); err != nil {
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "logs", "ingest_error")
 		logOTLPHTTPFailure(r, "logs", "ingest failed", err)
 		writeIngestError(w, err)
 		return
@@ -143,6 +151,7 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	}()
 	body, ok := readBody(w, r)
 	if !ok {
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "metrics", "body_read")
 		logOTLPHTTPFailure(r, "metrics", "request body rejected", nil)
 		return
 	}
@@ -155,11 +164,14 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 		err = req.UnmarshalProto(body)
 	}
 	if err != nil {
+		telemetry.Catalog().RecordIngestDecodeError(r.Context(), "metrics", map[bool]string{true: "http_json", false: "http_protobuf"}[isJSON(r.Header.Get("Content-Type"))])
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "metrics", "decode")
 		logOTLPHTTPFailure(r, "metrics", "request decode failed", err)
 		http.Error(w, "unmarshal metrics: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := h.pipeline.IngestMetrics(r.Context(), req.Metrics()); err != nil {
+		telemetry.Catalog().RecordIngestRejected(r.Context(), "metrics", "ingest_error")
 		logOTLPHTTPFailure(r, "metrics", "ingest failed", err)
 		writeIngestError(w, err)
 		return
