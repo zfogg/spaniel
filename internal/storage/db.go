@@ -228,7 +228,7 @@ func (d *DB) RecordMetricSeries(sessionID, service, name, attrs string, timestam
 		SeriesKey: name + "\x00" + service + "\x00" + attrs, SeriesAttributes: attrs,
 		FirstTimestampNs: timestampNs, LastTimestampNs: timestampNs, PointCount: 1,
 	}
-	if err := d.query.MetricSeriesCatalog.Clauses(clause.OnConflict{DoNothing: true}).Create(entry); err != nil {
+	if err := d.namedQuery("storage.RecordMetricSeries").MetricSeriesCatalog.Clauses(clause.OnConflict{DoNothing: true}).Create(entry); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -273,7 +273,7 @@ func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session,
 		IsBaseline: isBaseline, IsImported: isImported,
 		SpanCount: 0, Services: string(services),
 	}
-	if err := d.query.Session.Create(s); err != nil {
+	if err := d.namedQuery("storage.CreateSession").Session.Create(s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -299,7 +299,7 @@ func (d *DB) InsertSpan(s *Span) error {
 	if s.DurationNs == 0 {
 		s.DurationNs = s.EndNs - s.StartNs
 	}
-	return d.query.Span.Create(s)
+	return d.namedQuery("storage.InsertSpan").Span.Create(s)
 }
 
 // InsertSpanEvents bulk-inserts the events attached to a span. Empty input
@@ -309,7 +309,7 @@ func (d *DB) InsertSpanEvents(events []*SpanEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
-	return d.query.SpanEvent.Create(events...)
+	return d.namedQuery("storage.InsertSpanEvents").SpanEvent.Create(events...)
 }
 
 // ListEventsBySpan returns the events attached to a single span, in time order.
@@ -331,7 +331,7 @@ func (d *DB) InsertSpanLinks(links []*SpanLink) error {
 	if len(links) == 0 {
 		return nil
 	}
-	return d.query.SpanLink.Create(links...)
+	return d.namedQuery("storage.InsertSpanLinks").SpanLink.Create(links...)
 }
 
 // ListLinksBySpan returns the outbound links emitted by a single span.
@@ -367,11 +367,11 @@ func spanLinkPointers(rows []model.SpanLink, err error) ([]*SpanLink, error) {
 }
 
 func (d *DB) InsertLog(l *Log) error {
-	return d.query.Log.Create(l)
+	return d.namedQuery("storage.InsertLog").Log.Create(l)
 }
 
 func (d *DB) InsertLintWarning(w *LintWarning) error {
-	return d.query.LintWarning.Create(w)
+	return d.namedQuery("storage.InsertLintWarning").LintWarning.Create(w)
 }
 
 type TraceFilter struct {
@@ -714,15 +714,16 @@ func (d *DB) GetSession(id string) (*Session, error) {
 }
 
 func (d *DB) SetBaseline(id string, isBaseline bool) error {
+	q := d.namedQuery("storage.SetBaseline")
 	if isBaseline {
 		// clear any previous baseline first
-		if _, err := d.query.Session.Where(d.query.Session.IsBaseline.Is(true)).
-			Update(d.query.Session.IsBaseline, false); err != nil {
+		if _, err := q.Session.Where(q.Session.IsBaseline.Is(true)).
+			Update(q.Session.IsBaseline, false); err != nil {
 			return err
 		}
 	}
-	_, err := d.query.Session.Where(d.query.Session.ID.Eq(id)).
-		Update(d.query.Session.IsBaseline, isBaseline)
+	_, err := q.Session.Where(q.Session.ID.Eq(id)).
+		Update(q.Session.IsBaseline, isBaseline)
 	return err
 }
 
@@ -744,33 +745,35 @@ func (d *DB) UpdateSession(id string, p SessionPatch) error {
 	if len(updates) == 0 {
 		return nil
 	}
-	_, err := d.query.Session.Where(d.query.Session.ID.Eq(id)).Updates(updates)
+	q := d.namedQuery("storage.UpdateSession")
+	_, err := q.Session.Where(q.Session.ID.Eq(id)).Updates(updates)
 	return err
 }
 
 func (d *DB) DeleteSession(id string) error {
-	if _, err := d.query.LintWarning.Where(d.query.LintWarning.SessionID.Eq(id)).Delete(); err != nil {
+	q := d.namedQuery("storage.DeleteSession")
+	if _, err := q.LintWarning.Where(q.LintWarning.SessionID.Eq(id)).Delete(); err != nil {
 		return err
 	}
-	if _, err := d.query.TraceIssue.Where(d.query.TraceIssue.SessionID.Eq(id)).Delete(); err != nil {
+	if _, err := q.TraceIssue.Where(q.TraceIssue.SessionID.Eq(id)).Delete(); err != nil {
 		return err
 	}
-	if _, err := d.query.Log.Where(d.query.Log.SessionID.Eq(id)).Delete(); err != nil {
+	if _, err := q.Log.Where(q.Log.SessionID.Eq(id)).Delete(); err != nil {
 		return err
 	}
-	if _, err := d.query.Metric.Where(d.query.Metric.SessionID.Eq(id)).Delete(); err != nil {
+	if _, err := q.Metric.Where(q.Metric.SessionID.Eq(id)).Delete(); err != nil {
 		return err
 	}
-	if _, err := d.query.SpanEvent.Where(d.query.SpanEvent.SessionID.Eq(id)).Delete(); err != nil {
+	if _, err := q.SpanEvent.Where(q.SpanEvent.SessionID.Eq(id)).Delete(); err != nil {
 		return err
 	}
-	if _, err := d.query.SpanLink.Where(d.query.SpanLink.SessionID.Eq(id)).Delete(); err != nil {
+	if _, err := q.SpanLink.Where(q.SpanLink.SessionID.Eq(id)).Delete(); err != nil {
 		return err
 	}
-	if _, err := d.query.Span.Where(d.query.Span.SessionID.Eq(id)).Delete(); err != nil {
+	if _, err := q.Span.Where(q.Span.SessionID.Eq(id)).Delete(); err != nil {
 		return err
 	}
-	_, err := d.query.Session.Where(d.query.Session.ID.Eq(id)).Delete()
+	_, err := q.Session.Where(q.Session.ID.Eq(id)).Delete()
 	return err
 }
 
@@ -961,7 +964,7 @@ func (d *DB) GetServiceP95(serviceName string) (int64, error) {
 }
 
 func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
-	return d.query.TraceIssue.Save(issue)
+	return d.namedQuery("storage.UpsertTraceIssue").TraceIssue.Save(issue)
 }
 
 func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
@@ -984,7 +987,7 @@ func (d *DB) GetSpansBySession(sessionID string) ([]*Span, error) {
 
 // InsertMetric stores one metric data point.
 func (d *DB) InsertMetric(m *Metric) error {
-	return d.query.Metric.Create(m)
+	return d.namedQuery("storage.InsertMetric").Metric.Create(m)
 }
 
 // ActiveMetricSeries returns the durable source for the observable

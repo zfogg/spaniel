@@ -41,13 +41,15 @@ func (d *DB) CreateAlertRule(r *AlertRule) error {
 	r.ID = uuid.NewString()
 	r.CreatedAt = now
 	r.UpdatedAt = now
-	return d.query.AlertRule.Create(r)
+	return d.namedQuery("storage.CreateAlertRule").AlertRule.Create(r)
 }
 func (d *DB) UpdateAlertRule(r *AlertRule) error {
 	r.UpdatedAt = time.Now().UnixNano()
-	return d.query.AlertRule.Save(r)
+	return d.namedQuery("storage.UpdateAlertRule").AlertRule.Save(r)
 }
-func (d *DB) UpsertAlertInstance(x *AlertInstance) error { return d.query.AlertInstance.Save(x) }
+func (d *DB) UpsertAlertInstance(x *AlertInstance) error {
+	return d.namedQuery("storage.UpsertAlertInstance").AlertInstance.Save(x)
+}
 
 // AcknowledgeAlert returns only the instances whose acknowledgement metadata
 // changed. Callers use that list to emit one genuine acknowledgement event per
@@ -58,7 +60,7 @@ func (d *DB) AcknowledgeAlert(id string) ([]*AlertInstance, error) {
 	// firing condition must remain firing so a later evaluation can resolve it
 	// correctly (and so the UI can still communicate the actual condition).
 	var changed []*AlertInstance
-	err := d.query.Transaction(func(tx *querygen.Query) error {
+	err := d.namedQuery("storage.AcknowledgeAlert").Transaction(func(tx *querygen.Query) error {
 		q := tx.AlertInstance.Where(
 			tx.AlertInstance.RuleID.Eq(id),
 			tx.AlertInstance.State.In("pending", "firing"),
@@ -84,7 +86,7 @@ func (d *DB) AcknowledgeAlert(id string) ([]*AlertInstance, error) {
 	return changed, nil
 }
 func (d *DB) DeleteAlertRule(id string) error {
-	return d.query.Transaction(func(tx *querygen.Query) error {
+	return d.namedQuery("storage.DeleteAlertRule").Transaction(func(tx *querygen.Query) error {
 		if _, err := tx.AlertInstance.Where(tx.AlertInstance.RuleID.Eq(id)).Delete(); err != nil {
 			return err
 		}

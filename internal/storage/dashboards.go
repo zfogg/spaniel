@@ -45,14 +45,14 @@ func (d *DB) hydrateDashboard(x *Dashboard) error {
 func (d *DB) CreateDashboard(name, description string) (*Dashboard, error) {
 	now := time.Now().UnixNano()
 	x := &Dashboard{ID: uuid.NewString(), Name: name, Description: description, CreatedAt: now, UpdatedAt: now, Variables: []*DashboardVariable{}, Panels: []*DashboardPanel{}}
-	return x, d.query.Dashboard.Create(x)
+	return x, d.namedQuery("storage.CreateDashboard").Dashboard.Create(x)
 }
 func (d *DB) UpdateDashboard(x *Dashboard) error {
 	x.UpdatedAt = time.Now().UnixNano()
-	return d.query.Dashboard.Save(x)
+	return d.namedQuery("storage.UpdateDashboard").Dashboard.Save(x)
 }
 func (d *DB) DeleteDashboard(id string) error {
-	return d.query.Transaction(func(tx *querygen.Query) error {
+	return d.namedQuery("storage.DeleteDashboard").Transaction(func(tx *querygen.Query) error {
 		if _, err := tx.DashboardPanel.Where(tx.DashboardPanel.DashboardID.Eq(id)).Delete(); err != nil {
 			return err
 		}
@@ -64,12 +64,13 @@ func (d *DB) DeleteDashboard(id string) error {
 	})
 }
 func (d *DB) SaveDashboardVariable(v *DashboardVariable) error {
-	return d.query.DashboardVariable.Save(v)
+	return d.namedQuery("storage.SaveDashboardVariable").DashboardVariable.Save(v)
 }
 func (d *DB) DeleteDashboardVariable(id, name string) error {
-	_, err := d.query.DashboardVariable.Where(
-		d.query.DashboardVariable.DashboardID.Eq(id),
-		d.query.DashboardVariable.Name.Eq(name),
+	q := d.namedQuery("storage.DeleteDashboardVariable")
+	_, err := q.DashboardVariable.Where(
+		q.DashboardVariable.DashboardID.Eq(id),
+		q.DashboardVariable.Name.Eq(name),
 	).Delete()
 	return err
 }
@@ -79,25 +80,27 @@ func (d *DB) CreateDashboardPanel(p *DashboardPanel) error {
 	if p.Position < 0 {
 		p.Position = 0
 	}
-	return d.query.DashboardPanel.Create(p)
+	return d.namedQuery("storage.CreateDashboardPanel").DashboardPanel.Create(p)
 }
 func (d *DB) UpdateDashboardPanel(p *DashboardPanel) error {
 	p.UpdatedAt = time.Now().UnixNano()
 	// DuckDB's ART index does not allow an indexed key to be deleted and
 	// reinserted in one transaction. Commit the delete before recreating the
 	// stable ID; the API still returns the replacement only on success.
-	if _, err := d.query.DashboardPanel.Where(
-		d.query.DashboardPanel.ID.Eq(p.ID),
-		d.query.DashboardPanel.DashboardID.Eq(p.DashboardID),
+	q := d.namedQuery("storage.UpdateDashboardPanel")
+	if _, err := q.DashboardPanel.Where(
+		q.DashboardPanel.ID.Eq(p.ID),
+		q.DashboardPanel.DashboardID.Eq(p.DashboardID),
 	).Delete(); err != nil {
 		return err
 	}
-	return d.query.DashboardPanel.Create(p)
+	return q.DashboardPanel.Create(p)
 }
 func (d *DB) DeleteDashboardPanel(dashboardID, id string) error {
-	_, err := d.query.DashboardPanel.Where(
-		d.query.DashboardPanel.ID.Eq(id),
-		d.query.DashboardPanel.DashboardID.Eq(dashboardID),
+	q := d.namedQuery("storage.DeleteDashboardPanel")
+	_, err := q.DashboardPanel.Where(
+		q.DashboardPanel.ID.Eq(id),
+		q.DashboardPanel.DashboardID.Eq(dashboardID),
 	).Delete()
 	return err
 }
