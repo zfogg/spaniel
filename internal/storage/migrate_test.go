@@ -97,6 +97,20 @@ func TestMigrateFreshDB(t *testing.T) {
 	if notificationColumn != 1 {
 		t.Fatalf("last_notified_at column missing from fresh alert_instances schema")
 	}
+	var viewCount int64
+	if err := db.gorm.Raw(`SELECT COUNT(*) FROM duckdb_views() WHERE view_name = 'telemetry_spans'`).Scan(&viewCount).Error; err != nil {
+		t.Fatalf("inspect telemetry views: %v", err)
+	}
+	if viewCount != 1 {
+		t.Fatalf("telemetry_spans view missing from fresh schema")
+	}
+	var legacyColumns int64
+	if err := db.gorm.Raw(`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'dashboard_panels' AND column_name IN ('query_text', 'query_json')`).Scan(&legacyColumns).Error; err != nil {
+		t.Fatalf("inspect legacy query columns: %v", err)
+	}
+	if legacyColumns != 0 {
+		t.Fatalf("legacy query DSL columns remain: %d", legacyColumns)
+	}
 	db.Close()
 }
 

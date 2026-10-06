@@ -323,7 +323,10 @@ func duckDBDSN(path string, readOnly bool) string {
 	}
 	settings := fmt.Sprintf("threads=%d&memory_limit=%s", duckDBWorkerThreads, duckDBMemoryLimit)
 	if readOnly {
-		settings += "&access_mode=read_only"
+		// User-authored dashboard and alert SQL runs on this connection. Keep
+		// DuckDB from reaching the network/filesystem or loading extensions even
+		// when a query uses otherwise read-looking SQL constructs.
+		settings += "&access_mode=read_only&enable_external_access=false&autoinstall_known_extensions=false&autoload_known_extensions=false&allow_community_extensions=false&lock_configuration=true"
 	}
 	return path + sep + settings
 }

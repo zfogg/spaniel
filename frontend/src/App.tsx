@@ -146,9 +146,9 @@ function ForwardingPills() {
 
 function Chrome() {
   return (
-    <header className="h-[46px] px-4 border-b border-border bg-background flex items-center gap-[14px] shrink-0">
+    <header className="h-[46px] px-4 border-b border-border bg-background flex items-center gap-[14px] shrink-0 overflow-x-auto overflow-y-hidden scrollbar-thin">
       {/* brand */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <SpanielLogo size={22} />
         <span className="font-sans text-[15px] font-semibold text-foreground tracking-[-0.01em] leading-none">
           spaniel
@@ -162,7 +162,7 @@ function Chrome() {
       <div className="w-px h-[18px] bg-border shrink-0" />
 
       {/* nav */}
-      <nav className="flex gap-0.5">
+      <nav className="flex gap-0.5 shrink-0 whitespace-nowrap" aria-label="Primary navigation">
         <NavPill to="/"         end   label="Traces"   />
         <NavPill to="/spans"          label="Spans"    />
         <NavPill to="/logs"           label="Logs"     />
@@ -176,7 +176,7 @@ function Chrome() {
         <NavPill to="/settings"       label="Settings" />
       </nav>
 
-      <div className="flex-1" />
+      <div className="flex-1 min-w-4" />
 
       {/* forwarding status */}
       <ForwardingPills />

@@ -123,6 +123,10 @@ func (r *Router) previewAlert(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 500, e.Error())
 		return
 	}
+	if e := validateAlertColumns(cols, alertGroupColumns(x.GroupByJSON)); e != nil {
+		respondErr(w, q, 400, e.Error())
+		return
+	}
 	rows := rowsForColumns(cols, values)
 	respond(w, map[string]any{"columns": cols, "rows": rows, "condition": json.RawMessage(x.ConditionJSON)}, len(rows), 1)
 }

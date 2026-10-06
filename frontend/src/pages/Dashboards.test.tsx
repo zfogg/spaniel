@@ -35,3 +35,17 @@ describe('dashboard deletion', () => {
     }
   }
 })
+
+describe('dashboard SQL preview', () => {
+  it('runs the unsaved query and shows its typed result', async () => {
+    vi.spyOn(api.dashboards, 'list').mockResolvedValue({ data: [{ id: 'test-dashboard', name: 'Test dashboard', description: '', created_at: 1, updated_at: 1, panels: [], variables: [] }], meta: { total: 1 } })
+    vi.spyOn(api.dashboards, 'catalog').mockResolvedValue({ data: [], meta: { total: 0 } })
+    const preview = vi.spyOn(api.dashboards, 'preview').mockResolvedValue({ data: { columns: ['value'], rows: [{ value: 42 }], warnings: [] }, meta: { total: 1 } })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/dashboards/test-dashboard']}><Routes><Route path="/dashboards/:dashboardId" element={<DashboardEditor />} /></Routes></MemoryRouter></QueryClientProvider>)
+    await screen.findByLabelText('Dashboard name')
+    fireEvent.click(screen.getByRole('button', { name: 'Run preview' }))
+    await screen.findByText(/PREVIEW.*1 rows/i)
+    expect(preview).toHaveBeenCalledWith('test-dashboard', expect.objectContaining({ display_type: 'time_series' }))
+  })
+})

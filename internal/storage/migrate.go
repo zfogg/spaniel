@@ -230,6 +230,13 @@ func (d *DB) migrate() error {
 // already-persisted, server-produced AST JSON; no legacy parser remains in the
 // runtime query path.
 func (d *DB) backfillLegacyDashboardSQL() error {
+	var legacyColumns int64
+	if err := d.gorm.Raw(`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'dashboard_panels' AND column_name = 'query_json'`).Scan(&legacyColumns).Error; err != nil {
+		return err
+	}
+	if legacyColumns == 0 {
+		return nil
+	}
 	type filter struct{ Field, Op, Value string }
 	type legacy struct {
 		Function, Signal, Target, GroupBy string
@@ -294,10 +301,12 @@ func (d *DB) backfillLegacyDashboardSQL() error {
 		return err
 	}
 	for _, p := range panels {
-		if sql := compile(p.QueryJSON, p.DisplayType); sql != "" {
-			if err := d.gorm.Exec("UPDATE dashboard_panels SET query_sql = ?, query_version = 1 WHERE id = ?", sql, p.ID).Error; err != nil {
-				return err
-			}
+		sql := compile(p.QueryJSON, p.DisplayType)
+		if sql == "" {
+			return fmt.Errorf("migrate dashboard panel %s: unsupported legacy query", p.ID)
+		}
+		if err := d.gorm.Exec("UPDATE dashboard_panels SET query_sql = ?, query_version = 1 WHERE id = ?", sql, p.ID).Error; err != nil {
+			return err
 		}
 	}
 	type rule struct{ ID, QueryJSON string }
@@ -306,13 +315,29 @@ func (d *DB) backfillLegacyDashboardSQL() error {
 		return err
 	}
 	for _, r := range rules {
-		if sql := compile(r.QueryJSON, ""); sql != "" {
-			if err := d.gorm.Exec("UPDATE alert_rules SET query_sql = ?, query_version = 1 WHERE id = ?", sql, r.ID).Error; err != nil {
-				return err
-			}
+		sql := compile(r.QueryJSON, "")
+		if sql == "" {
+			return fmt.Errorf("migrate alert rule %s: unsupported legacy query", r.ID)
+		}
+		if err := d.gorm.Exec("UPDATE alert_rules SET query_sql = ?, query_version = 1 WHERE id = ?", sql, r.ID).Error; err != nil {
+			return err
 		}
 	}
-	return nil
+	// DuckDB 1.1 cannot drop any column from a table while an index exists,
+	// even if that index does not reference the column being removed.
+	if err := d.gorm.Exec("DROP INDEX IF EXISTS idx_dashboard_panels_order").Error; err != nil {
+		return err
+	}
+	for _, statement := range []string{
+		"ALTER TABLE dashboard_panels DROP COLUMN query_text",
+		"ALTER TABLE dashboard_panels DROP COLUMN query_json",
+		"ALTER TABLE alert_rules DROP COLUMN query_json",
+	} {
+		if err := d.gorm.Exec(statement).Error; err != nil {
+			return err
+		}
+	}
+	return d.gorm.Exec("CREATE INDEX IF NOT EXISTS idx_dashboard_panels_order ON dashboard_panels(dashboard_id, position)").Error
 }
 
 func legacySQLField(field string) string {

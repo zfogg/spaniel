@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/alifiroozi80/duckdb"
+	"gorm.io/gorm"
 )
 
 func openFileDB(t *testing.T) *DB {
@@ -25,6 +28,26 @@ func openFileDB(t *testing.T) *DB {
 		t.Fatalf("insert span: %v", err)
 	}
 	_ = d.FlushBatch()
+	return d
+}
+
+// openQueryGateDB avoids migrations so mutation-regression coverage remains
+// focused on the query gate even while schema migrations evolve independently.
+func openQueryGateDB(t *testing.T) *DB {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "query-gate.duckdb")
+	g, err := gorm.Open(duckdb.Open(duckDBDSN(path, false)), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open query gate database: %v", err)
+	}
+	d := &DB{gorm: g, path: path}
+	if err := g.Exec(`CREATE TABLE spans (trace_id VARCHAR, span_id VARCHAR, name VARCHAR)`).Error; err != nil {
+		t.Fatalf("create spans: %v", err)
+	}
+	if err := g.Exec(`INSERT INTO spans VALUES ('t', 'a', 'original')`).Error; err != nil {
+		t.Fatalf("seed spans: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
 	return d
 }
 
@@ -107,6 +130,61 @@ func TestReadOnlyQuery_RejectsWrites(t *testing.T) {
 	}
 }
 
+// TestReadOnlyQuery_MutationRegression exercises the gate through the public
+// query path. On Windows these statements would otherwise run on Spaniel's
+// shared read-write DuckDB instance; on other platforms DuckDB's read-only
+// instance provides a second line of defence.
+func TestReadOnlyQuery_MutationRegression(t *testing.T) {
+	d := openQueryGateDB(t)
+	queries := []string{
+		"ALTER TABLE spans RENAME TO spans_renamed",
+		"ANALYZE spans",
+		"ATTACH ':memory:' AS other",
+		"BEGIN TRANSACTION",
+		"CALL checkpoint()",
+		"CHECKPOINT",
+		"COMMENT ON TABLE spans IS 'changed'",
+		"COMMIT",
+		"COPY spans TO 'spans.csv'",
+		"CREATE TABLE injected (id INTEGER)",
+		"DELETE FROM spans",
+		"DETACH other",
+		"DROP TABLE spans",
+		"EXPORT DATABASE 'exported-db'",
+		"IMPORT DATABASE 'exported-db'",
+		"INSERT INTO spans (trace_id, span_id) VALUES ('injected', 'injected')",
+		"INSTALL httpfs",
+		"LOAD httpfs",
+		"MERGE INTO spans USING spans AS source ON false WHEN MATCHED THEN DELETE",
+		"PRAGMA enable_profiling",
+		"REINDEX spans",
+		"ROLLBACK",
+		"SET threads = 1",
+		"TRUNCATE spans",
+		"UPDATE spans SET name = 'changed'",
+		"VACUUM",
+		"/* leading comment */ DeLeTe FROM spans",
+		"WITH changed AS (DELETE FROM spans RETURNING *) SELECT * FROM changed",
+		"SELECT 1; DROP TABLE spans",
+		"EXPLAIN UPDATE spans SET name = 'changed'",
+	}
+
+	for _, query := range queries {
+		t.Run(strings.Fields(query)[0], func(t *testing.T) {
+			if _, _, _, err := d.ReadOnlyQuery(context.Background(), query, 10); err == nil {
+				t.Fatalf("mutation was accepted: %q", query)
+			}
+			var count int64
+			if err := d.SQL().QueryRowContext(context.Background(), "SELECT count(*) FROM spans").Scan(&count); err != nil {
+				t.Fatalf("count spans after %q: %v", query, err)
+			}
+			if count != 1 {
+				t.Fatalf("span count after %q = %d, want 1", query, count)
+			}
+		})
+	}
+}
+
 func TestReadOnlyQuery_Truncation(t *testing.T) {
 	d := openFileDB(t)
 	// values(1),(2),(3) → 3 rows; cap at 2.
@@ -137,6 +215,7 @@ func TestValidateReadOnlySQL(t *testing.T) {
 		"WITH x AS (SELECT 1) SELECT * FROM x",
 		"-- UPDATE is only a comment\nSELECT 1",
 		"SELECT \"DROP\" FROM spans",
+		"SELECT 1; -- one trailing terminator is still one statement",
 	} {
 		if err := validateReadOnlySQL(query); err != nil {
 			t.Errorf("validateReadOnlySQL(%q): %v", query, err)
@@ -148,6 +227,7 @@ func TestValidateReadOnlySQL(t *testing.T) {
 		"EXPLAIN UPDATE spans SET name = 'z'",
 		"WITH changed AS (DELETE FROM spans RETURNING *) SELECT * FROM changed",
 		"SELECT 1; DROP TABLE spans",
+		"SELECT 1;;",
 	} {
 		err := validateReadOnlySQL(query)
 		if err == nil {

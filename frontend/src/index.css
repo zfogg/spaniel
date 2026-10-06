@@ -264,11 +264,35 @@
   outline-offset: 2px;
 }
 
-/* ── scrollbars ────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--ink3); }
+/* ── scrollbars ──────────────────────────────────────────────────────────────
+   Keep the browser chrome quiet, but make it feel like part of Drift whenever
+   scrolling is available. Firefox uses the standard color shorthand; WebKit
+   gets the fuller track, thumb, and corner treatment below. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent2) var(--surface2);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track {
+  background: var(--surface2);
+  border: 3px solid var(--background);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent2);
+  border: 3px solid var(--background);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+::-webkit-scrollbar-thumb:active { background: var(--accent-ink); }
+::-webkit-scrollbar-corner { background: var(--background); }
+
+/* The compact navbar needs a visible, touch-friendly horizontal affordance. */
+.scrollbar-thin::-webkit-scrollbar { height: 7px; }
+.scrollbar-thin::-webkit-scrollbar-track { border-width: 2px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { border-width: 2px; }
 
 /* ── animations ────────────────────────────────────────────────────────────── */
 @keyframes pulse-dot {

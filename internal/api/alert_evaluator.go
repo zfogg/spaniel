@@ -78,6 +78,9 @@ func evaluateAlertRule(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, 
 	if err != nil {
 		return fmt.Errorf("execute alert query: %w", err)
 	}
+	if err := validateAlertColumns(columns, alertGroupColumns(rule.GroupByJSON)); err != nil {
+		return err
+	}
 	rows := rowsForColumns(columns, values)
 
 	seen := make(map[string]bool, len(rows))
@@ -126,6 +129,26 @@ func alertGroupColumns(raw string) []string {
 	var columns []string
 	_ = json.Unmarshal([]byte(raw), &columns)
 	return columns
+}
+
+func validateAlertColumns(columns, groups []string) error {
+	has := func(name string) bool {
+		for _, column := range columns {
+			if strings.EqualFold(column, name) {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("value") {
+		return fmt.Errorf("alert query must return a numeric value column")
+	}
+	for _, group := range groups {
+		if !has(group) {
+			return fmt.Errorf("alert query does not return group column %q", group)
+		}
+	}
+	return nil
 }
 
 func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, key string, labels map[string]string, value float64, breached bool, now time.Time) error {
