@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -114,5 +115,32 @@ func TestReadOnlyQuery_InMemoryUnsupported(t *testing.T) {
 	defer d.Close()
 	if _, _, _, err := d.ReadOnlyQuery(context.Background(), "SELECT 1", 10); err == nil {
 		t.Error("expected in-memory DB to report read-only SQL unavailable")
+	}
+}
+
+func TestValidateReadOnlySQL(t *testing.T) {
+	for _, query := range []string{
+		"SELECT 'DELETE' AS verb",
+		"WITH x AS (SELECT 1) SELECT * FROM x",
+		"-- UPDATE is only a comment\nSELECT 1",
+		"SELECT \"DROP\" FROM spans",
+	} {
+		if err := validateReadOnlySQL(query); err != nil {
+			t.Errorf("validateReadOnlySQL(%q): %v", query, err)
+		}
+	}
+
+	for _, query := range []string{
+		"DELETE FROM spans",
+		"EXPLAIN UPDATE spans SET name = 'z'",
+		"WITH changed AS (DELETE FROM spans RETURNING *) SELECT * FROM changed",
+		"SELECT 1; DROP TABLE spans",
+	} {
+		err := validateReadOnlySQL(query)
+		if err == nil {
+			t.Errorf("validateReadOnlySQL(%q) unexpectedly succeeded", query)
+		} else if !strings.Contains(err.Error(), "not allowed") {
+			t.Errorf("validateReadOnlySQL(%q) = %v, want not-allowed error", query, err)
+		}
 	}
 }

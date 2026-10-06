@@ -5,6 +5,20 @@
 # Falls back to the short commit hash when no tags exist, then to "dev".
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
+# DuckDB's prebuilt Windows archive is compiled for the MSYS2 UCRT ABI.  The
+# Scoop MinGW compiler has a different libstdc++ ABI and fails at link time
+# (for example, resolving basic_streambuf::seekpos).  Put UCRT64 first so
+# every Go/CGo command launched by Make uses the compatible compiler and its
+# runtime DLLs.
+ifeq ($(OS),Windows_NT)
+UCRT64_BIN := C:/msys64/ucrt64/bin
+ifeq ($(wildcard $(UCRT64_BIN)/gcc.exe),)
+$(error Spaniel requires MSYS2 UCRT64 GCC for DuckDB on Windows. Install it with: C:/msys64/usr/bin/bash.exe -lc 'pacman -S mingw-w64-ucrt-x86_64-gcc')
+endif
+export PATH := $(UCRT64_BIN);$(PATH)
+export CC := $(UCRT64_BIN)/gcc.exe
+endif
+
 dev:
 	@# Run vite in the background, wait until it answers, then start spaniel
 	@# in --dev mode (which reverse-proxies UI requests to vite:5173 for live
