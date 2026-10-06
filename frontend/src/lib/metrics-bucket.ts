@@ -37,8 +37,18 @@ export function bucketPoints(
       p95: new Array(bins).fill(NaN),
       p99: new Array(bins).fill(NaN),
     }
+    // Histogram API requests contain the server-derived scalar for the
+    // selected operation in `value` (avg, p50, p90, …). Preserve that series
+    // for the main chart; the per-bucket percentiles below remain available
+    // for the summary strip and raw bucket inspection.
+    const values = new Array(bins).fill(NaN)
     for (const p of points) {
       const i = Math.min(bins - 1, Math.floor(((p.timestamp_ns - tMin) / span) * bins))
+		// A derived histogram value of zero after a prior cumulative snapshot
+		// means no new observations arrived in that export interval. Leave the
+		// bin empty so forwardFill keeps the last observed percentile instead
+		// of drawing a misleading fall to a literal zero-sized observation.
+		if (p.value !== 0) values[i] = p.value
 		if (p.bounds?.length && p.buckets?.length) {
 			out.p50[i] = histogramPercentile(p.bounds, p.buckets, 0.50)
 			out.p95[i] = histogramPercentile(p.bounds, p.buckets, 0.95)
@@ -54,7 +64,8 @@ export function bucketPoints(
     for (const k of ['p50', 'p95', 'p99'] as const) {
       forwardFill(out[k])
     }
-    return { values: out.p95, p50: out.p50, p95: out.p95, p99: out.p99 }
+    forwardFill(values)
+    return { values, p50: out.p50, p95: out.p95, p99: out.p99 }
   }
 
   const values = new Array(bins).fill(NaN)

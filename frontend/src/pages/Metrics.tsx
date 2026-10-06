@@ -111,18 +111,23 @@ function useChartSize(ref: React.RefObject<HTMLElement | null>) {
   return size
 }
 
-function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: BucketedSeries; traces: TraceOverlay[] }) {
+function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; bucketed: BucketedSeries; traces: TraceOverlay[]; operation: string }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const { w: W, h: H } = useChartSize(wrapRef)
   const P = { l: 56, r: 16, t: 24, b: 36 }
   const cw = W - P.l - P.r, ch = H - P.t - P.b
-  const series = metric.type === 'histogram'
-    ? [bucketed.p50!, bucketed.p95!, bucketed.p99!]
-    : [bucketed.values]
+  // The metric API derives the requested histogram operation for each export
+  // interval. Plot that selected series rather than silently replacing it
+  // with p50/p95/p99 calculated from raw cumulative buckets.
+  const series = [bucketed.values]
   const n = series[0].length
   const all = series.flat()
   const min = Math.min(0, ...all)
-  const max = Math.max(...all) * 1.08 || 1
+  // Keep one visual scale across histogram operations. Otherwise a p50 and a
+  // p90 with the same shape are each stretched to the top of the plot and
+  // misleadingly look identical despite having different byte/duration values.
+  const histogramEnvelope = metric.type === 'histogram' ? (bucketed.p99 ?? []) : []
+  const max = Math.max(...all, ...histogramEnvelope) * 1.08 || 1
   const span = max - min || 1
 
   const xAt = (i: number) => P.l + (i / Math.max(1, n - 1)) * cw
@@ -132,8 +137,8 @@ function Chart({ metric, bucketed, traces }: { metric: MetricSeries; bucketed: B
   for (let i = 0; i <= 4; i++) ticks.push(min + (span / 4) * i)
 
   const accent = svcColor(metric.service_name).fg
-  const COLORS = metric.type === 'histogram' ? ['#7aa3c5', accent, '#9a3b3b'] : [accent]
-  const LABELS = metric.type === 'histogram' ? ['p50', 'p95', 'p99'] : ['value']
+  const COLORS = [accent]
+  const LABELS = [metric.type === 'histogram' ? operation : 'value']
 
   const linePath = (s: number[]) =>
     s.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i)} ${yAt(v)}`).join(' ')
@@ -630,7 +635,7 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
 		</div>
 
       <div className="pt-[18px] px-4 pb-[22px]">
-		{display.points.length > 0 ? <Chart metric={chartSeries} bucketed={bucketed} traces={series.traces ?? []} /> : (
+		{display.points.length > 0 ? <Chart metric={chartSeries} bucketed={bucketed} traces={series.traces ?? []} operation={operation} /> : (
           <div className="rounded-lg border border-dashed border-border bg-[var(--surface2)] px-6 py-12 text-center">
             <p className="font-mono text-sm font-semibold text-foreground">No points in this time range</p>
             <p className="mt-2 text-sm text-muted-foreground">Choose a wider range to view earlier samples for this metric.</p>

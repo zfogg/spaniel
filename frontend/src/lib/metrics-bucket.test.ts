@@ -42,8 +42,19 @@ describe('bucketPoints', () => {
     expect(r.p50).toEqual([10, 10, 10, 12])
     expect(r.p95).toEqual([30, 30, 30, 40])
     expect(r.p99).toEqual([60, 60, 60, 80])
-    // values is aliased to p95 so the sparkline reflects the worst-case line.
-    expect(r.values).toBe(r.p95)
+    // `values` preserves the server-selected operation. This test's synthetic
+    // input has p99 last in each time bin, so it wins that bin's scalar value.
+    expect(r.values).toEqual([60, 60, 60, 80])
+  })
+
+  it('keeps server-derived histogram values distinct from raw bucket percentiles', () => {
+    const pts: MetricSeriesPoint[] = [
+      { timestamp_ns: 0, value: 14, bounds: [10, 20], buckets: [1, 1] },
+      { timestamp_ns: 90, value: 18, bounds: [10, 20], buckets: [1, 1] },
+    ]
+    const r = bucketPoints(pts, 'histogram', 4)
+    expect(r.values).toEqual([14, 14, 14, 18])
+    expect(r.p50).not.toEqual(r.values)
   })
 
   it('clamps points past tMax into the last bin', () => {
