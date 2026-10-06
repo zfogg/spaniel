@@ -91,8 +91,9 @@ export function shortTraceId(id: string): string {
 const HTTP_METHOD_RE = /^(?:HTTP\s+)?(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)(?:\s+|$)/i
 
 /** Build a human-friendly display name for HTTP spans.
- *  Tries url.full then http.url (both carry the full URL), falling back to
- *  url.path / http.target for the path alone.  When the name contains
+ *  Preserve a templated span name: it is the stable operation name, whereas
+ *  concrete URLs and paths can contain high-cardinality identifiers. Otherwise
+ *  try url.full, http.url, url.path, and http.target. When the name contains
  *  "unknown" and we can't build something better, returns just the method. */
 export function httpDisplayName(span: { name: string; attributes?: string | null }): string {
   try {
@@ -106,6 +107,7 @@ export function httpDisplayName(span: { name: string; attributes?: string | null
       const m = span.name.match(HTTP_METHOD_RE)
       if (m) method = m[1].toUpperCase()
     }
+    if (span.name.includes('{') && span.name.includes('}')) return span.name
     // Try full URLs: url.full first, then http.url
     for (const raw of [a['url.full'], a['http.url']]) {
       if (typeof raw !== 'string' || !raw) continue

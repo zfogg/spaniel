@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
@@ -72,6 +74,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Use(accessLogMiddleware)
 	mux.Use(middleware.Recoverer)
 	mux.Use(corsMiddleware)
+	mux.Use(apiMetricsMiddleware)
 	mux.Use(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "spaniel.api",
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
@@ -84,6 +87,11 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 			}),
 		)
 	})
+	// otelhttp records bytes read from Request.Body. Drain anything a handler
+	// intentionally ignores after it returns so request-body telemetry reflects
+	// the received payload, including rejected requests, without changing what
+	// handlers are allowed to read while they execute.
+	mux.Use(drainRequestBodyMiddleware)
 
 	mux.Get("/api/health", r.health)
 	mux.Get("/api/traces", r.listTraces)
@@ -146,6 +154,51 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	return mux
 }
 
+type metricsResponseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *metricsResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func (w *metricsResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w *metricsResponseWriter) Write(p []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(p)
+}
+func apiMetricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		rw := &metricsResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(rw, r)
+		status := rw.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		// Unknown paths must not create one telemetry series per arbitrary URL.
+		route := "unmatched"
+		if rc := chi.RouteContext(r.Context()); rc != nil && rc.RoutePattern() != "" {
+			route = rc.RoutePattern()
+		}
+		telemetry.Catalog().RecordAPI(r.Context(), route, fmt.Sprintf("%dxx", status/100), float64(time.Since(started).Microseconds())/1000)
+	})
+}
+
+func drainRequestBodyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		if r.Body != nil {
+			_, _ = io.Copy(io.Discard, r.Body)
+			_ = r.Body.Close()
+		}
+	})
+}
+
 // accessLogMiddleware records Spaniel's own HTTP activity through slog rather
 // than chi's legacy logger. When self-monitoring is enabled, the OTel slog
 // bridge exports these records back to Spaniel's Logs view.
@@ -159,7 +212,16 @@ func accessLogMiddleware(next http.Handler) http.Handler {
 		if rctx := chi.RouteContext(req.Context()); rctx != nil && rctx.RoutePattern() != "" {
 			route = rctx.RoutePattern()
 		}
+		// Successful read-only UI polling is not operator-significant. Recording
+		// it as INFO floods the Logs view (and /api/logs can trigger a feedback
+		// loop), hiding the Spaniel lifecycle and receiver records this view is
+		// meant to expose. Failed reads and every state-changing request remain
+		// visible below.
+		if req.Method == http.MethodGet && wrapped.Status() < http.StatusBadRequest {
+			return
+		}
 		slog.InfoContext(req.Context(), "HTTP request completed",
+			"spaniel.log.source", "access",
 			"http.request.method", req.Method,
 			"url.path", route,
 			"http.response.status_code", wrapped.Status(),
@@ -240,7 +302,15 @@ func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 	if traces == nil {
 		traces = []*storage.TraceRow{}
 	}
-	respond(w, traces, len(traces), page)
+	total, err := r.store.WithContext(req.Context()).CountTraces(storage.TraceFilter{
+		SessionID: sessionID,
+		Service:   service,
+	})
+	if err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	respond(w, traces, total, page)
 }
 
 func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
@@ -493,15 +563,17 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	logs, err := r.store.WithContext(req.Context()).ListLogs(storage.LogFilter{
+	filter := storage.LogFilter{
 		SessionID:   r.scopeSession(q.Get("sessionId")),
+		Service:     q.Get("service"),
 		TraceID:     q.Get("traceId"),
 		SpanID:      q.Get("spanId"),
 		MinSeverity: minSeverity,
 		MaxSeverity: maxSeverity,
 		Limit:       limit,
 		Page:        page,
-	})
+	}
+	logs, err := r.store.WithContext(req.Context()).ListLogs(filter)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -509,7 +581,12 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 	if logs == nil {
 		logs = []*storage.Log{}
 	}
-	respond(w, logs, len(logs), page)
+	total, err := r.store.WithContext(req.Context()).CountLogs(filter)
+	if err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	respond(w, logs, total, page)
 }
 
 func logSeverityBand(severity string) (minSeverity, maxSeverity int, ok bool) {

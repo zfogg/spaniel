@@ -9,6 +9,9 @@ import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 import { fmtClock, fmtRelative } from '@/lib/fmt-relative'
 import { logSeverityLabel } from '@/lib/log-severity'
+import PaginationControls from '@/components/PaginationControls'
+
+const PAGE_SIZE = 100
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
@@ -49,6 +52,7 @@ function isZeroTraceId(id: string): boolean {
 // ── severity filter chip levels ───────────────────────────────────────────────
 
 type SevFilter = 'ALL' | 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'
+type TimeFilter = '15m' | '1h' | '24h' | 'all'
 
 const SEV_ORDER: SevFilter[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
 
@@ -101,6 +105,13 @@ export function matchesSevFilter(severity: number, filter: SevFilter): boolean {
   if (filter === 'DEBUG') return severity >= 5  && severity < 9
   if (filter === 'TRACE') return severity < 5
   return true
+}
+
+function logSource(log: Log): string {
+  try {
+    const source = JSON.parse(log.attributes || '{}')['spaniel.log.source']
+    return typeof source === 'string' ? source : 'telemetry'
+  } catch { return 'telemetry' }
 }
 
 // ── LogRow ────────────────────────────────────────────────────────────────────
@@ -300,10 +311,13 @@ function LogInspector({ log, onClose, navigate }: {
 export default function LogViewer() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [filterService, setFilterService] = useState('all')
+  const [filterSource, setFilterSource] = useState('all')
   const [filterSev, setFilterSev]     = useState<SevFilter>('ALL')
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('1h')
   const [search, setSearch]           = useState('')
   const [nowMs, setNowMs]             = useState(() => Date.now())
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
   const navigate = useNavigate()
   const traceId = searchParams.get('traceId') ?? undefined
 
@@ -311,10 +325,12 @@ export default function LogViewer() {
   // useLiveInvalidation() in App.tsx (throttled), replacing the old initial
   // load + 3s poll + WebSocket-push + client-side dedup machinery.
   const severity = filterSev === 'ALL' ? undefined : filterSev.toLowerCase()
-  const { data: logs = [], isLoading: loading, isError, error, refetch } = useQuery({
-    queryKey: qk.logs({ severity, traceId }),
-    queryFn: () => api.logs.list({ severity, traceId }).then(r => r.data ?? []),
+  const { data: logResponse, isLoading: loading, isError, error, refetch } = useQuery({
+    queryKey: qk.logs({ severity, traceId, service: filterService, page }),
+    queryFn: () => api.logs.list({ severity, traceId, service: filterService === 'all' ? undefined : filterService, page, limit: PAGE_SIZE }),
   })
+  const logs = logResponse?.data ?? []
+  const logTotal = logResponse?.meta.total ?? 0
   const { data: services = [] } = useQuery({
     queryKey: qk.services(),
     queryFn: () => api.services.list().then(r => r.data ?? []),
@@ -336,12 +352,20 @@ export default function LogViewer() {
   const filtered = logs.filter(l => {
     if (filterService !== 'all' && l.service_name !== filterService) return false
     if (!matchesSevFilter(l.severity, filterSev)) return false
+    if (filterSource !== 'all' && logSource(l) !== filterSource) return false
+    const ageMs = Date.now() - l.timestamp_ns / 1_000_000
+    const limitMs = timeFilter === '15m' ? 900_000 : timeFilter === '1h' ? 3_600_000 : timeFilter === '24h' ? 86_400_000 : Infinity
+    if (ageMs > limitMs) return false
     if (search) {
       const q = search.toLowerCase()
       if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q)) return false
     }
     return true
   })
+
+  useEffect(() => { setPage(1); setSelectedKey(null) }, [filterService, filterSource, filterSev, timeFilter, traceId])
+
+  const sources = Array.from(new Set(logs.map(logSource))).sort()
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -368,6 +392,15 @@ export default function LogViewer() {
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
+        <select value={filterSource} onChange={e => setFilterSource(e.target.value)} aria-label="Log source" className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none">
+          <option value="all">all sources</option>
+          {sources.map(source => <option key={source} value={source}>{source}</option>)}
+        </select>
+
+        <select value={timeFilter} onChange={e => setTimeFilter(e.target.value as TimeFilter)} aria-label="Log time range" className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none">
+          <option value="15m">last 15m</option><option value="1h">last hour</option><option value="24h">last 24h</option><option value="all">all time</option>
+        </select>
+
         {/* Keep every severity available even when the newest page has no rows
             at that level; the API searches the full session before limiting. */}
         <div className="flex items-center gap-1">
@@ -388,8 +421,9 @@ export default function LogViewer() {
 
         {/* log count */}
         <span className="font-mono text-[10px] text-ink3">
-          {filtered.length} logs
+          {filtered.length} on this page · {logTotal.toLocaleString()} logs
         </span>
+        <PaginationControls page={page} pageSize={PAGE_SIZE} total={logTotal} itemLabel="logs" onPageChange={setPage} />
       </div>
 
       {/* body (list + optional right inspector) */}

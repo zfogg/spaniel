@@ -12,6 +12,7 @@ import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
+import PaginationControls from '@/components/PaginationControls'
 import { fmtDuration, fmtClock } from '@/lib/fmt-relative'
 
 // Global search: matches a span on its name, service, trace/span id, or any
@@ -625,15 +626,8 @@ export default function Spans() {
 
         {/* Status footer */}
         <div className="px-3.5 py-2 border-t border-border bg-muted font-mono text-[10.5px] text-muted-foreground flex items-center gap-3.5">
-          <span>
-            <strong className="text-foreground">{showingGroups ? groups.length.toLocaleString() : filtered.length.toLocaleString()}</strong>
-            {' '}of {(showingGroups ? groupTotal : spanTotal).toLocaleString()} {showingGroups ? 'operations' : 'spans'}
-          </span>
-          <span>·</span>
-          <span>page {page}</span>
           <span className="flex-1" />
-          <button type="button" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="border border-border rounded px-2 py-[3px] bg-background disabled:opacity-40 cursor-pointer">prev</button>
-          <button type="button" disabled={page * PAGE_SIZE >= (showingGroups ? groupTotal : spanTotal)} onClick={() => setPage(p => p + 1)} className="border border-border rounded px-2 py-[3px] bg-background disabled:opacity-40 cursor-pointer">next</button>
+          <PaginationControls page={page} pageSize={PAGE_SIZE} total={showingGroups ? groupTotal : spanTotal} itemLabel={showingGroups ? 'operations' : 'spans'} onPageChange={setPage} />
           <code className="px-2 py-[3px] rounded-[5px] border border-border bg-background text-muted-foreground font-mono text-[10px]">spaniel spans --tail</code>
         </div>
       </div>

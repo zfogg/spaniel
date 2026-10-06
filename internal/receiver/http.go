@@ -190,7 +190,7 @@ func logOTLPHTTPFailure(r *http.Request, signal, message string, err error) {
 	if r.Header.Get("x-spaniel-self-telemetry") == "true" {
 		return
 	}
-	args := []any{"otel.signal", signal}
+	args := []any{"spaniel.log.source", "receiver", "otel.signal", signal}
 	if err != nil {
 		args = append(args, "error", err)
 	}

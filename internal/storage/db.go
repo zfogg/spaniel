@@ -12,6 +12,7 @@ import (
 
 	"github.com/alifiroozi80/duckdb"
 	"github.com/google/uuid"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
@@ -243,6 +244,8 @@ type Metric struct {
 	Exemplars              string   `json:"exemplars"`
 	ServiceName            string   `json:"service_name"`
 	SessionID              string   `json:"session_id"`
+	// SeriesNew is ingestion-local state; it is never persisted in metrics.
+	SeriesNew bool `json:"-" gorm:"-"`
 }
 
 func (Metric) TableName() string { return "metrics" }
@@ -328,6 +331,9 @@ func Open(path string) (*DB, error) {
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+	if count, err := d.ActiveMetricSeries(); err == nil {
+		telemetry.Catalog().SetActiveSeries(count)
+	}
 	_ = g.Use(newGORMPlugin())
 	registerDBSizeGauge(path)
 
@@ -371,6 +377,42 @@ func (d *DB) AppendLog(l *Log) error { return d.batcher.AppendLog(l) }
 
 // AppendMetric buffers a metric data point for batched insertion.
 func (d *DB) AppendMetric(m *Metric) error { return d.batcher.AppendMetric(m) }
+
+// RecordMetricSeries persists an identity that passed the bounded-series
+// admission policy. ON CONFLICT keeps this safe across process restarts.
+func (d *DB) RecordMetricSeries(sessionID, service, name, attrs string, timestampNs int64) (bool, error) {
+	result := d.gorm.Exec(`
+		INSERT INTO metric_series_catalog
+		(session_id, service_name, name, series_key, series_attributes, first_timestamp_ns, last_timestamp_ns, point_count)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+		ON CONFLICT (session_id, service_name, name, series_key) DO NOTHING`,
+		sessionID, service, name, name+"\x00"+service+"\x00"+attrs, attrs, timestampNs, timestampNs)
+	return result.RowsAffected == 1, result.Error
+}
+
+// ActiveMetricSeries is the durable source for the observable active-series
+// gauge. It can also be used by APIs without reconstructing identities from
+// raw metric points.
+func (d *DB) ActiveMetricSeries() (int64, error) {
+	var count int64
+	err := d.gorm.Table("metric_series_catalog").Count(&count).Error
+	return count, err
+}
+
+// MetricSeriesCatalog is the durable bounded identity inventory used to seed
+// ingestion's cardinality limiter after a process restart.
+type MetricSeriesCatalog struct {
+	SessionID  string
+	Service    string `gorm:"column:service_name"`
+	Name       string
+	Attributes string `gorm:"column:series_attributes"`
+}
+
+func (d *DB) MetricSeriesCatalog() ([]MetricSeriesCatalog, error) {
+	var rows []MetricSeriesCatalog
+	err := d.gorm.Table("metric_series_catalog").Select("session_id, service_name, name, series_attributes").Find(&rows).Error
+	return rows, err
+}
 
 // FlushBatch flushes all buffered hot-path rows so they are visible to readers.
 // Ingest paths call this at the end of a request and before running detectors.

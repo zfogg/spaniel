@@ -24,7 +24,7 @@ var indexedMetricAttributes = map[string]struct{}{
 
 // ingestMetrics walks the OTLP tree without changing the metric model. Every
 // OTLP data point becomes exactly one storage row.
-func (p *Pipeline) ingestMetricsTree(ctx context.Context, md pmetric.Metrics, sessionID string) error {
+func (p *Pipeline) ingestMetricsTree(ctx context.Context, md pmetric.Metrics, sessionID string, broadcast bool) error {
 	pointsSeen := 0
 	defer func() { p.tp.addMetrics(pointsSeen) }()
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
@@ -41,7 +41,7 @@ func (p *Pipeline) ingestMetricsTree(ctx context.Context, md pmetric.Metrics, se
 					continue
 				}
 				pointsSeen += pts
-				if err := p.storeMetric(ctx, m, svc, resource, scope.Name(), scope.Version(), sm.SchemaUrl(), mapToJSON(scope.Attributes()), sessionID); err != nil {
+				if err := p.storeMetric(ctx, m, svc, resource, scope.Name(), scope.Version(), sm.SchemaUrl(), mapToJSON(scope.Attributes()), sessionID, broadcast); err != nil {
 					return err
 				}
 			}
@@ -66,11 +66,12 @@ func metricDataPointCount(m pmetric.Metric) int {
 	return 0
 }
 
-func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resource, scopeName, scopeVersion, scopeSchemaURL, scopeAttributes, sessionID string) error {
+func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resource, scopeName, scopeVersion, scopeSchemaURL, scopeAttributes, sessionID string, broadcast bool) error {
 	base := func(metricType string, attrs pcommon.Map, start, timestamp pcommon.Timestamp, flags pmetric.DataPointFlags, exemplars pmetric.ExemplarSlice) *storage.Metric {
 		attrsJSON, seriesAttrs, limitedAttrs := metricAttributes(attrs)
 		stream := sessionID + "\x00" + svc + "\x00" + m.Name()
-		if !p.metricSeries.Admit(stream, seriesAttrs) {
+		admitted, fresh := p.metricSeries.Admit(stream, seriesAttrs)
+		if !admitted {
 			seriesAttrs = "{}"
 			telemetry.Catalog().RecordCardinalityLimited(ctx, "new_series_budget", 1)
 		}
@@ -81,9 +82,23 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 			StartTimestampNs: int64(start), TimestampNs: int64(timestamp), Flags: uint32(flags),
 			Attributes: attrsJSON, Resource: resource, SeriesAttributes: seriesAttrs,
 			SeriesKey: m.Name() + "\x00" + svc + "\x00" + seriesAttrs, ScopeName: scopeName, ScopeVersion: scopeVersion, ScopeSchemaURL: scopeSchemaURL, ScopeAttributes: scopeAttributes,
-			Exemplars: exemplarsToJSON(exemplars), ServiceName: svc, SessionID: sessionID}
+			Exemplars: exemplarsToJSON(exemplars), ServiceName: svc, SessionID: sessionID, SeriesNew: admitted && fresh}
 	}
 	store := func(row *storage.Metric) error {
+		if row.SeriesNew {
+			// This is intentionally outside the hot point table: it is a small,
+			// durable catalog of identities that were allowed to become series.
+			// Raw point attributes remain in metrics regardless of this decision.
+			inserted, err := p.store.RecordMetricSeries(row.SessionID, row.ServiceName, row.Name, row.SeriesAttributes, row.TimestampNs)
+			if err != nil {
+				return err
+			}
+			if inserted {
+				if count, err := p.store.ActiveMetricSeries(); err == nil {
+					telemetry.Catalog().SetActiveSeries(count)
+				}
+			}
+		}
 		if err := p.store.AppendMetric(row); err != nil {
 			return err
 		}
@@ -93,7 +108,13 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 		} else if row.SummarySum != nil {
 			value = *row.SummarySum
 		}
-		p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Value: value, Type: row.Type}))
+		// Self-monitoring data is persisted, but never made into a live browser
+		// event. Otherwise its periodic export invalidates Metrics, the resulting
+		// API requests generate more self-telemetry, and the feedback can starve
+		// external exporters until their gRPC deadline expires.
+		if broadcast {
+			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Value: value, Type: row.Type}))
+		}
 		return nil
 	}
 

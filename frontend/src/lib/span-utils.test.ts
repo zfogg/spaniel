@@ -203,6 +203,18 @@ describe('shortTraceId', () => {
 })
 
 describe('httpDisplayName', () => {
+  it('prefers the stable http.route template over a concrete request path', async () => {
+    const { httpDisplayName } = await import('./span-utils')
+    expect(httpDisplayName({
+      name: 'POST /api/dashboards/{id}/query-preview',
+      attributes: JSON.stringify({
+        'http.request.method': 'POST',
+        'http.route': '/api/dashboards/{id}/query-preview',
+        'url.path': '/api/dashboards/3816d107-32a5-4a39-af88-09f092d508f1/query-preview',
+      }),
+    })).toBe('POST /api/dashboards/{id}/query-preview')
+  })
+
   it('combines a bare HTTP method span name with url.path', async () => {
     const { httpDisplayName } = await import('./span-utils')
     expect(httpDisplayName({

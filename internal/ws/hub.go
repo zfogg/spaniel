@@ -193,7 +193,9 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
+	clientCount := int64(len(h.clients))
 	h.mu.Unlock()
+	telemetry.Catalog().SetWebSocketClients(clientCount)
 
 	// The writer goroutine owns all writes (coder/websocket forbids concurrent
 	// writes). readPump blocks here for the connection's lifetime, keeping the
@@ -204,7 +206,9 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	cancel()
 	h.mu.Lock()
 	delete(h.clients, c)
+	clientCount = int64(len(h.clients))
 	h.mu.Unlock()
+	telemetry.Catalog().SetWebSocketClients(clientCount)
 	_ = conn.CloseNow()
 }
 

@@ -745,6 +745,7 @@ func run(cfg runConfig) error {
 		if err := setupOTel(cfg.SelfTelemetryEndpoint); err != nil {
 			return fmt.Errorf("self-telemetry setup (endpoint %q): %w", cfg.SelfTelemetryEndpoint, err)
 		}
+		slog.Info("Spaniel self-monitoring active", "otel.endpoint", cfg.SelfTelemetryEndpoint)
 	}
 
 	httpRcv := receiver.NewHTTPReceiver(pipeline)
@@ -969,6 +970,7 @@ func run(cfg runConfig) error {
 	if err != nil {
 		return fmt.Errorf("ui/api listen: %w", err)
 	}
+	slog.Info("Spaniel server ready", "http.port", cfg.Port, "otlp.grpc.port", cfg.OTLPGRPCPort, "otlp.http.port", cfg.OTLPHTTPPort)
 
 	srv := &http.Server{
 		Handler: mainHandler,

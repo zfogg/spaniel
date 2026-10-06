@@ -85,7 +85,7 @@ func openSpool(dir, urlHash string, maxBytes int64) (*spool, error) {
 
 // write appends a record, enforces the size cap (dropping oldest if needed),
 // and signals the send loop.
-func (s *spool) write(path, ct string, body []byte) {
+func (s *spool) write(path, ct string, body []byte) (int64, error) {
 	pLen := uint16(len(path))
 	cLen := uint16(len(ct))
 	bLen := uint32(len(body))
@@ -106,16 +106,21 @@ func (s *spool) write(path, ct string, body []byte) {
 	copy(rec[n:], body)
 
 	s.mu.Lock()
-	if _, err := s.f.WriteAt(rec, s.writeOff); err == nil {
-		s.writeOff += int64(total)
-		s.enforceCap()
+	before := s.dropped.Load()
+	if _, err := s.f.WriteAt(rec, s.writeOff); err != nil {
+		s.mu.Unlock()
+		return 0, err
 	}
+	s.writeOff += int64(total)
+	s.enforceCap()
+	dropped := s.dropped.Load() - before
 	s.mu.Unlock()
 
 	select {
 	case s.notify <- struct{}{}:
 	default:
 	}
+	return dropped, nil
 }
 
 // readNext returns the next undelivered record without advancing readOff.

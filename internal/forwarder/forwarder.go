@@ -15,9 +15,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/telemetry"
@@ -70,20 +67,15 @@ type Forwarder struct {
 // registerForwarderMetrics registers an observable gauge for spool queue depth
 // across all upstreams. Only meaningful when spools are configured.
 func registerForwarderMetrics(upstreams []*upstream) {
-	meter := otel.Meter("spaniel/forwarder")
-	_, _ = meter.Int64ObservableGauge("spaniel.forwarder.queue_bytes",
-		metric.WithDescription("Pending bytes in each upstream's spool queue"),
-		metric.WithUnit("By"),
-		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
-			for _, up := range upstreams {
-				if up.sp != nil {
-					o.Observe(up.sp.pendingBytes(),
-						metric.WithAttributes(attribute.String("upstream_id", urlHash(up.url))))
-				}
+	telemetry.Catalog().RegisterForwardQueueSnapshot(func() []telemetry.ForwardQueueDepth {
+		depths := make([]telemetry.ForwardQueueDepth, 0, len(upstreams))
+		for _, up := range upstreams {
+			if up.sp != nil {
+				depths = append(depths, telemetry.ForwardQueueDepth{UpstreamID: urlHash(up.url), Bytes: up.sp.pendingBytes()})
 			}
-			return nil
-		}),
-	)
+		}
+		return depths
+	})
 }
 
 // New returns a Forwarder in fire-and-forget mode (no spool, no retry).
@@ -193,7 +185,14 @@ func (f *Forwarder) Forward(path, contentType string, body []byte) {
 			continue
 		}
 		if up.sp != nil {
-			up.sp.write(path, contentType, body)
+			dropped, err := up.sp.write(path, contentType, body)
+			if err != nil {
+				telemetry.Catalog().RecordForward(context.Background(), "enqueue_error", 0)
+				up.errors.Add(1)
+				up.lastErr.Store(err.Error())
+				continue
+			}
+			telemetry.Catalog().RecordForwardDrops(context.Background(), dropped)
 		} else {
 			up, path, contentType, body := up, path, contentType, body // capture
 			goroutine.Go(func() { f.send(up, path, contentType, body) }, "subsystem", "forwarder")
@@ -287,8 +286,9 @@ func (f *Forwarder) runLoop(up *upstream, retryMax time.Duration) {
 			continue
 		}
 
+		started := time.Now()
 		if err := f.sendRecord(up, rec); err != nil {
-			telemetry.Catalog().RecordForward(context.Background(), "retry", 0)
+			telemetry.Catalog().RecordForward(context.Background(), "retry", float64(time.Since(started).Microseconds())/1000)
 			up.errors.Add(1)
 			up.lastErr.Store(err.Error())
 			up.lastFailAt.Store(time.Now().UnixNano())
@@ -306,6 +306,7 @@ func (f *Forwarder) runLoop(up *upstream, retryMax time.Duration) {
 				backoff = retryMax
 			}
 		} else {
+			telemetry.Catalog().RecordForward(context.Background(), "ok", float64(time.Since(started).Microseconds())/1000)
 			up.sp.commit(rec)
 			up.sent.Add(1)
 			backoff = 250 * time.Millisecond

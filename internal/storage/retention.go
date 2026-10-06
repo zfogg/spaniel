@@ -1,8 +1,11 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"time"
+
+	"github.com/zfogg/spaniel/internal/telemetry"
 )
 
 const (
@@ -71,6 +74,9 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 	}
 	res.FinalSessions = int(finalSessions)
 	res.FinalDBSizeBytes = d.FileSize()
+	telemetry.Catalog().RecordRetention(context.Background(), "age", int64(res.DeletedByAge))
+	telemetry.Catalog().RecordRetention(context.Background(), "count", int64(res.DeletedByCount))
+	telemetry.Catalog().RecordRetention(context.Background(), "size", int64(res.DeletedBySize))
 	return res, nil
 }
 

@@ -164,12 +164,12 @@ func logOTLPIngest(ctx context.Context, signal string, count int) {
 	if isSelfTelemetryContext(ctx) {
 		return
 	}
-	slog.InfoContext(ctx, "OTLP telemetry ingested", "otel.signal", signal, "otel.record_count", count)
+	slog.InfoContext(ctx, "OTLP telemetry ingested", "spaniel.log.source", "receiver", "otel.signal", signal, "otel.record_count", count)
 }
 
 func logOTLPIngestFailure(ctx context.Context, signal string, err error) {
 	if isSelfTelemetryContext(ctx) {
 		return
 	}
-	slog.ErrorContext(ctx, "OTLP telemetry ingest failed", "otel.signal", signal, "error", err)
+	slog.ErrorContext(ctx, "OTLP telemetry ingest failed", "spaniel.log.source", "receiver", "otel.signal", signal, "error", err)
 }

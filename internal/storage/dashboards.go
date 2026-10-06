@@ -31,18 +31,16 @@ type DashboardVariable struct {
 func (DashboardVariable) TableName() string { return "dashboard_variables" }
 
 type DashboardPanel struct {
-	ID              string `json:"id"`
-	DashboardID     string `json:"dashboard_id"`
-	Title           string `json:"title"`
-	DisplayType     string `json:"display_type"`
-	QuerySQL        string `json:"query_sql"`
-	QueryVersion    int    `json:"query_version"`
-	LegacyQueryText string `json:"-" gorm:"column:query_text"`
-	LegacyQueryJSON string `json:"-" gorm:"column:query_json"`
-	SettingsJSON    string `json:"settings_json"`
-	LayoutJSON      string `json:"layout_json"`
-	Position        int    `json:"position"`
-	UpdatedAt       int64  `json:"updated_at"`
+	ID           string `json:"id"`
+	DashboardID  string `json:"dashboard_id"`
+	Title        string `json:"title"`
+	DisplayType  string `json:"display_type"`
+	QuerySQL     string `json:"query_sql"`
+	QueryVersion int    `json:"query_version"`
+	SettingsJSON string `json:"settings_json"`
+	LayoutJSON   string `json:"layout_json"`
+	Position     int    `json:"position"`
+	UpdatedAt    int64  `json:"updated_at"`
 }
 
 func (DashboardPanel) TableName() string { return "dashboard_panels" }
@@ -99,8 +97,6 @@ func (d *DB) DeleteDashboardVariable(id, name string) error {
 func (d *DB) CreateDashboardPanel(p *DashboardPanel) error {
 	p.ID = uuid.NewString()
 	p.UpdatedAt = time.Now().UnixNano()
-	p.LegacyQueryText = p.QuerySQL
-	p.LegacyQueryJSON = "{}"
 	if p.Position < 0 {
 		p.Position = 0
 	}
@@ -108,15 +104,13 @@ func (d *DB) CreateDashboardPanel(p *DashboardPanel) error {
 }
 func (d *DB) UpdateDashboardPanel(p *DashboardPanel) error {
 	p.UpdatedAt = time.Now().UnixNano()
-	// DuckDB implements updates to primary-key-indexed rows as a delete/insert
-	// internally, but its ART index rejects that as a duplicate key. Replace the
-	// row ourselves in one transaction while preserving its stable panel ID.
-	return d.gorm.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id = ? AND dashboard_id = ?", p.ID, p.DashboardID).Delete(&DashboardPanel{}).Error; err != nil {
-			return err
-		}
-		return tx.Create(p).Error
-	})
+	// DuckDB implements primary-key updates as delete/insert operations, but
+	// rejects the replacement while the old ART-index entry is in the same
+	// transaction. Commit the delete before recreating the stable panel ID.
+	if err := d.gorm.Where("id = ? AND dashboard_id = ?", p.ID, p.DashboardID).Delete(&DashboardPanel{}).Error; err != nil {
+		return err
+	}
+	return d.gorm.Create(p).Error
 }
 func (d *DB) DeleteDashboardPanel(dashboardID, id string) error {
 	return d.gorm.Delete(&DashboardPanel{}, "id = ? AND dashboard_id = ?", id, dashboardID).Error

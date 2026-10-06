@@ -4,6 +4,7 @@
 # a -N-gSHA suffix for commits past the tag and -dirty for uncommitted changes.
 # Falls back to the short commit hash when no tags exist, then to "dev".
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+BIN := spaniel
 
 # DuckDB's prebuilt Windows archive is compiled for the MSYS2 UCRT ABI.  The
 # Scoop MinGW compiler has a different libstdc++ ABI and fails at link time
@@ -17,6 +18,7 @@ $(error Spaniel requires MSYS2 UCRT64 GCC for DuckDB on Windows. Install it with
 endif
 export PATH := $(UCRT64_BIN);$(PATH)
 export CC := $(UCRT64_BIN)/gcc.exe
+BIN := spaniel.exe
 endif
 
 dev:
@@ -33,7 +35,7 @@ dev:
 
 build:
 	cd frontend && pnpm build
-	go build -ldflags "-X main.version=$(VERSION)" -o spaniel ./cmd/spaniel
+	go build -ldflags "-X main.version=$(VERSION)" -o $(BIN) ./cmd/spaniel
 
 run:
 	go run -ldflags "-X main.version=$(VERSION)" ./cmd/spaniel

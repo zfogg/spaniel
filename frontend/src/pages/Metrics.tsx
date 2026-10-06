@@ -18,6 +18,14 @@ function displayMetricType(type: string): MetricType {
   return 'gauge'
 }
 
+function defaultMetricOperation(metric: Pick<MetricCatalogEntry, 'name' | 'type'>): string {
+  if (displayMetricType(metric.type) !== 'histogram') return 'raw'
+  // Body-size histograms have an exact sum/count mean. It reacts to changing
+  // payloads, unlike a percentile that can stay in the same broad byte bucket.
+  if (metric.name === 'http.server.request.body.size' || metric.name === 'http.server.response.body.size') return 'avg'
+  return 'p95'
+}
+
 function MtIcon({ type }: { type: string }) {
   type = displayMetricType(type)
   if (type === 'gauge') {
@@ -291,20 +299,37 @@ function StatBox({ s }: { s: Stat }) {
 
 // ── time range ───────────────────────────────────────────────────────────────
 
-type TimeRange = '30s' | '3m' | '15m' | '1h' | '6h' | '24h'
-const TIME_RANGES: TimeRange[] = ['30s', '3m', '15m', '1h', '6h', '24h']
+type TimeRange = '30s' | '3m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d' | '3mo' | '6mo' | '1yr' | 'all'
+const TIME_RANGES: TimeRange[] = ['30s', '3m', '15m', '1h', '6h', '24h', '7d', '30d', '3mo', '6mo', '1yr', 'all']
 
-const RANGE_NS: Record<TimeRange, number> = {
+const RANGE_NS: Record<Exclude<TimeRange, 'all'>, number> = {
   '30s':  30 * 1_000_000_000,
   '3m':   3  * 60 * 1_000_000_000,
   '15m':  15 * 60 * 1_000_000_000,
   '1h':   60 * 60 * 1_000_000_000,
   '6h':   6  * 60 * 60 * 1_000_000_000,
   '24h':  24 * 60 * 60 * 1_000_000_000,
+  '7d':   7  * 24 * 60 * 60 * 1_000_000_000,
+  '30d':  30 * 24 * 60 * 60 * 1_000_000_000,
+  '3mo':  90 * 24 * 60 * 60 * 1_000_000_000,
+  '6mo':  180 * 24 * 60 * 60 * 1_000_000_000,
+  '1yr':  365 * 24 * 60 * 60 * 1_000_000_000,
 }
 
-function rangeFromNs(range: TimeRange): number {
+function rangeFromNs(range: TimeRange): number | undefined {
+  // Omitting `from` asks the API for the complete retained history.
+  if (range === 'all') return undefined
   return Date.now() * 1_000_000 - RANGE_NS[range]
+}
+
+function displayUnit(unit: string): string {
+  const names: Record<string, string> = {
+    By: 'bytes',
+    '{point}': 'points',
+    '{request}': 'requests',
+    '{signal}': 'signals',
+  }
+  return names[unit] ?? unit
 }
 
 // ── page ─────────────────────────────────────────────────────────────────────
@@ -328,8 +353,15 @@ export default function Metrics() {
     return catalog.find(metric => metric.name === selectedName && metric.service_name === selectedService) ?? null
   }, [catalog, selectedName, selectedService])
 
+  // A direct metric URL bypasses selectMetric(), so it must establish the
+  // same useful default as a sidebar click. Histogram rows keep value=0 as a
+  // transport placeholder; their real visual value is a bucket percentile.
+  useEffect(() => {
+    if (selected) setOperation(defaultMetricOperation(selected))
+  }, [selectedName, selectedService, selected?.type])
+
   const selectMetric = (metric: MetricCatalogEntry, replace = false) => {
-		setOperation(displayMetricType(metric.type) === 'histogram' ? 'p95' : 'raw')
+		setOperation(defaultMetricOperation(metric))
     const next = new URLSearchParams(searchParams)
     next.set('metric', metric.name)
     next.set('service', metric.service_name)
@@ -495,14 +527,41 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
 	// The server never merges attribute variants. Until a group is selected the
 	// chart shows a complete identity, never an accidental cross-series sum.
 	const [seriesIndex, setSeriesIndex] = useState(0)
-	useEffect(() => setSeriesIndex(0), [series.name, series.service_name])
-	const selected = series.series?.[Math.min(seriesIndex, Math.max(0, (series.series?.length ?? 1) - 1))]
+	const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({})
+	const [variantsOpen, setVariantsOpen] = useState(false)
+	// Prefer a series that has observations for the selected operation. HTTP
+	// response-body metrics include the WebSocket upgrade as their first complete
+	// attribute set, and its response has no body. Selecting it by default made a
+	// healthy metric look flat even though the ordinary HTTP response series had
+	// non-zero percentile values.
+	useEffect(() => {
+		let bestIndex = -1
+		let widestSpread = -1
+		let highestValue = -1
+		for (const [index, candidate] of (series.series ?? []).entries()) {
+			const values = candidate.points.map(point => point.value).filter(Number.isFinite)
+			if (values.length === 0 || Math.max(...values) === 0) continue
+			const spread = Math.max(...values) - Math.min(...values)
+			const high = Math.max(...values)
+			if (spread > widestSpread || (spread === widestSpread && high > highestValue)) {
+				bestIndex = index
+				widestSpread = spread
+				highestValue = high
+			}
+		}
+		setSeriesIndex(bestIndex >= 0 ? bestIndex : 0)
+	}, [series.name, series.service_name, operation, series.series])
+	const candidates = (series.series ?? []).filter(candidate => Object.entries(dimensionFilters).every(([key, value]) => String(candidate.attributes[key]) === value))
+	const selected = candidates[Math.min(seriesIndex, Math.max(0, candidates.length - 1))]
 	const display = selected ? { ...series, points: selected.points } : series
   const chartType = displayMetricType(series.type)
 	const chartSeries = useMemo(() => ({ ...display, type: chartType }), [display, chartType])
 	const bucketed = useMemo(() => bucketPoints(display.points, chartType), [display, chartType])
   const stats = useMemo(() => statsFor(chartSeries, bucketed), [chartSeries, bucketed])
-	const operations = chartType === 'histogram' ? ['raw', 'p50', 'p90', 'p95', 'p99'] : chartType === 'counter' ? ['raw', 'delta', 'rate'] : ['raw', 'last', 'min', 'max', 'avg']
+	// Histogram "raw" rows contain count/sum/buckets rather than a scalar
+	// value, so a raw line is always zero. The heatmap below remains the raw
+	// bucket view; chart modes use derived scalar summaries instead.
+	const operations = chartType === 'histogram' ? ['avg', 'p50', 'p90', 'p95', 'p99'] : chartType === 'counter' ? ['raw', 'delta', 'rate'] : ['raw', 'last', 'min', 'max', 'avg']
 
   return (
     <>
@@ -518,27 +577,35 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
             >{series.service_name}</span>
             <MetricKindTag type={series.type} />
             {series.unit && (
-              <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">unit · {series.unit}</span>
+              <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">{displayUnit(series.unit)}</span>
             )}
             {Object.keys(series.dimensions ?? {}).length > 0 && (
               <span
                 className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold"
-                title={Object.entries(series.dimensions ?? {}).map(([k, v]) => `${k}: ${v.join(', ')}`).join('\n')}
+                title={`Each line represents one label combination.\n\n${Object.entries(series.dimensions ?? {}).map(([k, v]) => `${k}: ${v.join(', ')}`).join('\n')}`}
               >
-                {Object.keys(series.dimensions ?? {}).length} dimensions · {series.aggregation}
+                {Object.keys(series.dimensions ?? {}).length} labels
               </span>
             )}
-			{(series.series?.length ?? 0) > 1 && <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">showing 1 of {series.series?.length} complete series</span>}
+			{(series.series?.length ?? 0) > 1 && (
+				<div className="relative flex self-center">
+					<button type="button" onClick={() => setVariantsOpen(open => !open)} aria-expanded={variantsOpen} className="h-[21px] flex items-center px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold leading-none cursor-pointer hover:text-foreground">
+						variants · {seriesIndex + 1} / {candidates.length}<svg aria-hidden="true" viewBox="0 0 10 10" className={`ml-1 inline-block h-2.5 w-2.5 transition-transform ${variantsOpen ? '-rotate-90' : ''}`}><path d="m3 2.5 3 2.5-3 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+					</button>
+					{variantsOpen && <div className="absolute z-20 top-[calc(100%+6px)] left-0 min-w-[360px] max-w-[min(680px,calc(100vw-3rem))] rounded-lg border border-border bg-[var(--surface)] shadow-lg p-2.5">
+						<div className="flex flex-wrap gap-2 pb-2.5 border-b border-border">
+							{Object.entries(series.dimensions ?? {}).map(([key, values]) => <label key={key} className="font-mono text-[10px] text-muted-foreground">{key}<select value={dimensionFilters[key] ?? ''} onChange={event => { const next = { ...dimensionFilters }; if (event.target.value) next[key] = event.target.value; else delete next[key]; setDimensionFilters(next); setSeriesIndex(0) }} className="ml-1 bg-[var(--surface2)] border border-border rounded px-1 py-0.5 text-foreground"><option value="">all</option>{values.map(value => <option key={value} value={value}>{value}</option>)}</select></label>)}
+						</div>
+						<div className="mt-2 flex flex-col gap-1 max-h-64 overflow-y-auto">
+							{candidates.map((candidate, index) => {
+								const label = Object.entries(candidate.attributes).map(([k, v]) => `${k}=${String(v)}`).join(', ') || 'no indexed attributes'
+								return <button key={candidate.key} type="button" aria-pressed={index === seriesIndex} onClick={() => { setSeriesIndex(index); setVariantsOpen(false) }} className={`text-left font-mono text-[10px] px-2 py-1.5 rounded border cursor-pointer ${index === seriesIndex ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-[var(--surface2)] text-muted-foreground border-border hover:text-foreground'}`}>{label}</button>
+							})}
+						</div>
+					</div>}
+				</div>
+			)}
           </div>
-		{(series.series?.length ?? 0) > 1 && (
-			<div className="px-6 py-2.5 border-b border-border bg-[var(--surface2)] flex flex-wrap gap-1.5 items-center">
-				<span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground mr-1">complete attribute set</span>
-				{series.series!.map((candidate, index) => {
-					const label = Object.entries(candidate.attributes).map(([k, v]) => `${k}=${String(v)}`).join(', ') || 'no indexed attributes'
-					return <button key={candidate.key} type="button" onClick={() => setSeriesIndex(index)} className={`font-mono text-[10px] px-2 py-1 rounded border cursor-pointer ${index === seriesIndex ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-[var(--surface)] text-muted-foreground border-border hover:text-foreground'}`}>{label}</button>
-				})}
-			</div>
-		)}
           <h1 className="mx-0 mt-2 mb-1 font-mono text-xl font-bold tracking-[-0.01em] text-foreground break-all">{series.name}</h1>
           {series.description && (
             <div
@@ -549,24 +616,9 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
         </div>
 
         {/* Range picker */}
-        <div className="inline-flex items-center gap-0.5 bg-[var(--surface2)] border border-border rounded-lg p-[3px] shrink-0" data-testid="range-picker">
-          {TIME_RANGES.map(r => {
-            const active = r === range
-            return (
-              <button
-                key={r}
-                type="button"
-                data-testid={`range-${r}`}
-                onClick={() => onRangeChange(r)}
-                className={`px-2.5 py-1 rounded-md font-mono text-[11px] cursor-pointer outline-none border transition-colors ${
-                  active
-                    ? 'bg-[var(--surface)] text-foreground border-border font-bold'
-                    : 'bg-transparent text-muted-foreground border-transparent font-medium hover:text-foreground'
-                }`}
-              >{r}</button>
-            )
-          })}
-        </div>
+        <select aria-label="Time range" value={range} onChange={event => onRangeChange(event.target.value as TimeRange)} className="h-8 shrink-0 bg-[var(--surface2)] border border-border rounded-lg px-2.5 font-mono text-[11px] font-semibold text-foreground cursor-pointer outline-none" data-testid="range-picker">
+          {TIME_RANGES.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
       </div>
 
       <div className="grid grid-cols-4 border-b border-border">
@@ -575,7 +627,6 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
 		<div className="px-6 py-2 border-b border-border flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
 			<span className="uppercase tracking-[0.1em]">query</span>
 			{operations.map(op => <button key={op} type="button" onClick={() => onOperationChange(op)} className={`px-2 py-1 rounded border cursor-pointer ${operation === op ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'border-border bg-muted hover:text-foreground'}`}>{op}</button>)}
-			<span className="ml-auto">aggregation: {series.aggregation}</span>
 		</div>
 
       <div className="pt-[18px] px-4 pb-[22px]">
@@ -586,6 +637,7 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
           </div>
         )}
 		{chartType === 'histogram' && display.points.length > 0 && <HistogramHeatmap points={display.points} />}
+		<MetricExemplars points={display.points} />
       </div>
 
       <div className="pt-1 px-6 pb-[22px] font-mono text-[11px] text-muted-foreground">
@@ -595,6 +647,16 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
       <CorrelatedTracesPanel series={chartSeries} bucketed={bucketed} />
     </>
   )
+}
+
+function MetricExemplars({ points }: { points: MetricSeries['points'] }) {
+	const navigate = useNavigate()
+	const exemplars = points.flatMap(point => point.exemplars ?? [])
+	if (exemplars.length === 0) return null
+	return <div className="mt-5 border border-border rounded-lg p-3" data-testid="metric-exemplars">
+		<div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground mb-2">exemplars · linked traces</div>
+		<div className="flex flex-wrap gap-1.5">{exemplars.slice(0, 24).map((exemplar, index) => <button key={`${exemplar.trace_id}-${exemplar.span_id}-${index}`} type="button" onClick={() => navigate(`/traces/${exemplar.trace_id}`)} className="font-mono text-[10px] px-2 py-1 rounded border border-border text-[var(--accent)] hover:bg-muted cursor-pointer">{exemplar.trace_id.slice(0, 12)}… / {exemplar.span_id.slice(0, 8)}…</button>)}</div>
+	</div>
 }
 
 function HistogramHeatmap({ points }: { points: MetricSeries['points'] }) {
@@ -614,7 +676,7 @@ function HistogramHeatmap({ points }: { points: MetricSeries['points'] }) {
 	return <div className="mt-5 border border-border rounded-lg overflow-hidden" data-testid="histogram-heatmap">
 		<div className="px-3 py-2 border-b border-border font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">bucket heatmap · raw observations</div>
 		<div className="grid" style={{ gridTemplateColumns: `72px repeat(${Math.max(1, points.length)}, minmax(4px, 1fr))` }}>
-			{rows.map(row => <><span key={`${row.label}-label`} className="px-2 py-1 font-mono text-[9px] text-muted-foreground border-b border-border truncate">{row.label}</span>{points.map((_, index) => <span key={`${row.label}-${index}`} title={`${row.label}: ${row.values[index] ?? 0}`} className="min-h-5 border-b border-l border-border" style={{ background: `color-mix(in srgb, var(--accent) ${Math.round(((row.values[index] ?? 0) / peak) * 100)}%, transparent)` }} />)}</>)}
+			{rows.map(row => <div key={row.label} className="contents"><span className="px-2 py-1 font-mono text-[9px] text-muted-foreground border-b border-border truncate">{row.label}</span>{points.map((_, index) => <span key={`${row.label}-${index}`} title={`${row.label}: ${row.values[index] ?? 0}`} className="min-h-5 border-b border-l border-border" style={{ background: `color-mix(in srgb, var(--accent) ${Math.round(((row.values[index] ?? 0) / peak) * 100)}%, transparent)` }} />)}</div>)}
 		</div>
 	</div>
 }

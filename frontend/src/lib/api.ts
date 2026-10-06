@@ -189,8 +189,8 @@ export const MetricCatalogEntrySchema = z.object({
   description: z.string(),
   unit: z.string(),
   type: z.string(),
-\taggregation_temporality: z.string().optional(),
-\tis_monotonic: z.boolean().optional(),
+	aggregation_temporality: z.string().optional(),
+	is_monotonic: z.boolean().optional(),
   service_name: z.string(),
   sample_count: z.number(),
 })
@@ -201,18 +201,29 @@ export const MetricSeriesExemplarSchema = z.object({
 })
 
 export const MetricSeriesPointSchema = z.object({
-\tstart_timestamp_ns: z.number().optional(),
+	start_timestamp_ns: z.number().optional(),
   timestamp_ns: z.number(),
-\tflags: z.number().optional(),
+	flags: z.number().optional(),
   value: z.number(),
-\tpercentile: z.enum(['p50', 'p95', 'p99']).optional(),
-\tcount: z.number().optional(),
-\tsum: z.number().optional(),
-\tmin: z.number().optional(),
-\tmax: z.number().optional(),
-\tbounds: z.array(z.number()).optional(),
-\tbuckets: z.array(z.number()).optional(),
-\tquantiles: z.record(z.string(), z.number()).optional(),
+	percentile: z.enum(['p50', 'p95', 'p99']).optional(),
+	count: z.number().optional(),
+	sum: z.number().optional(),
+	min: z.number().optional(),
+	max: z.number().optional(),
+	bounds: z.array(z.number()).optional(),
+	buckets: z.array(z.number()).optional(),
+	quantiles: z.record(z.string(), z.number()).optional(),
+	  exp_scale: z.number().optional(),
+	  exp_zero_count: z.number().optional(),
+	  exp_zero_threshold: z.number().optional(),
+	  exp_positive_offset: z.number().optional(),
+	  exp_positive_counts: z.array(z.number()).optional(),
+	  exp_negative_offset: z.number().optional(),
+	  exp_negative_counts: z.array(z.number()).optional(),
+	  scope_name: z.string().optional(),
+	  scope_version: z.string().optional(),
+	  scope_schema_url: z.string().optional(),
+	  scope_attributes: z.record(z.string(), z.unknown()).optional(),
   exemplars: z.array(MetricSeriesExemplarSchema).optional(),
 })
 
@@ -232,11 +243,11 @@ export const MetricSeriesSchema = z.object({
   type: z.string(),
   unit: z.string(),
   description: z.string(),
-\taggregation_temporality: z.string().optional(),
-\tis_monotonic: z.boolean().optional(),
-\toperation: z.string().optional(),
+	aggregation_temporality: z.string().optional(),
+	is_monotonic: z.boolean().optional(),
+	operation: z.string().optional(),
   points: z.array(MetricSeriesPointSchema),
-\tseries: z.array(z.object({ key: z.string(), attributes: z.record(z.string(), z.unknown()), points: z.array(MetricSeriesPointSchema) })).optional(),
+	series: z.array(z.object({ key: z.string(), attributes: z.record(z.string(), z.unknown()), points: z.array(MetricSeriesPointSchema) })).optional(),
   dimensions: z.record(z.string(), z.array(z.string())).optional(),
   aggregation: z.string().optional(),
   // Populated only when ?with_traces=1 is requested. Always an array (server
@@ -534,8 +545,15 @@ export const api = {
 		preview: (id: string) => post(`/api/alerts/${id}/preview`, {}, QueryPreviewSchema),
 	 },
   traces: {
-    list: (sessionId?: string) =>
-      get(`/api/traces${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(TraceRowSchema)),
+    list: (params: { sessionId?: string; service?: string; page?: number; limit?: number } = {}) => {
+      const search = new URLSearchParams()
+      if (params.sessionId) search.set('sessionId', params.sessionId)
+      if (params.service) search.set('service', params.service)
+      if (params.page) search.set('page', String(params.page))
+      if (params.limit) search.set('limit', String(params.limit))
+      const query = search.toString()
+      return get(`/api/traces${query ? `?${query}` : ''}`, z.array(TraceRowSchema))
+    },
     get: (traceId: string) => get(`/api/traces/${traceId}`, z.array(SpanSchema)),
     exportUrl: (traceId: string) => `/api/traces/${traceId}/export`,
   },
@@ -562,12 +580,15 @@ export const api = {
     get: (spanId: string) => get(`/api/spans/${spanId}`, SpanSchema),
   },
   logs: {
-    list: (params?: { sessionId?: string; traceId?: string; spanId?: string; severity?: string }) => {
+    list: (params?: { sessionId?: string; traceId?: string; spanId?: string; severity?: string; service?: string; page?: number; limit?: number }) => {
       const q = new URLSearchParams()
       if (params?.sessionId) q.set('sessionId', params.sessionId)
       if (params?.traceId) q.set('traceId', params.traceId)
       if (params?.spanId) q.set('spanId', params.spanId)
       if (params?.severity) q.set('severity', params.severity)
+      if (params?.service) q.set('service', params.service)
+      if (params?.page) q.set('page', String(params.page))
+      if (params?.limit) q.set('limit', String(params.limit))
       const qs = q.toString()
       return get(`/api/logs${qs ? `?${qs}` : ''}`, z.array(LogSchema))
     },

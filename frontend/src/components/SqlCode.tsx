@@ -1,7 +1,8 @@
 import CodeMirror from '@uiw/react-codemirror'
 import { sql } from '@codemirror/lang-sql'
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
-import { tags } from '@lezer/highlight'
+import { tags, highlightTree, tagHighlighter } from '@lezer/highlight'
+import { useMemo, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
 
 // CodeMirror's Lezer parser is incremental and error-tolerant: an unfinished
@@ -57,13 +58,26 @@ export function SqlEditor({ value, onChange, label = 'DuckDB SQL' }: SqlEditorPr
   />
 }
 
+const staticSQL = sql().language
+const staticHighlight = tagHighlighter([
+  { tag: tags.keyword, class: 'font-bold text-[var(--sql-keyword)]' },
+  { tag: [tags.string, tags.special(tags.string)], class: 'text-[var(--sql-string)]' },
+  { tag: tags.number, class: 'text-[var(--sql-number)]' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], class: 'italic text-[var(--sql-comment)]' },
+  { tag: [tags.operatorKeyword, tags.operator], class: 'text-[var(--sql-operator)]' },
+])
+
 export function SqlCode({ value }: { value: string }) {
-  return <CodeMirror
-    aria-label="SQL query"
-    value={value}
-    editable={false}
-    basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false, highlightActiveLineGutter: false }}
-    extensions={sqlExtensions}
-    className="sql-code max-h-56 overflow-auto rounded border border-border bg-background text-[11px]"
-  />
+  const content = useMemo(() => {
+    const nodes: ReactNode[] = []
+    let end = 0
+    highlightTree(staticSQL.parser.parse(value), staticHighlight, (from, to, className) => {
+      if (from > end) nodes.push(value.slice(end, from))
+      nodes.push(<span key={from} className={className}>{value.slice(from, to)}</span>)
+      end = to
+    })
+    if (end < value.length) nodes.push(value.slice(end))
+    return nodes
+  }, [value])
+  return <div aria-label="SQL query" className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] font-mono text-[11px] leading-relaxed text-foreground">{content}</div>
 }

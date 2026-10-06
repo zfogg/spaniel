@@ -27,18 +27,29 @@ func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 // Histogram buckets are returned verbatim so quantiles and heatmaps are based on
 // observations rather than ingest-time estimates.
 type MetricSeriesPoint struct {
-	StartTimestampNs int64                  `json:"start_timestamp_ns,omitempty"`
-	TimestampNs      int64                  `json:"timestamp_ns"`
-	Flags            uint32                 `json:"flags,omitempty"`
-	Value            float64                `json:"value"`
-	Count            *uint64                `json:"count,omitempty"`
-	Sum              *float64               `json:"sum,omitempty"`
-	Min              *float64               `json:"min,omitempty"`
-	Max              *float64               `json:"max,omitempty"`
-	Bounds           []float64              `json:"bounds,omitempty"`
-	Buckets          []uint64               `json:"buckets,omitempty"`
-	Quantiles        map[string]float64     `json:"quantiles,omitempty"`
-	Exemplars        []MetricSeriesExemplar `json:"exemplars,omitempty"`
+	StartTimestampNs  int64                  `json:"start_timestamp_ns,omitempty"`
+	TimestampNs       int64                  `json:"timestamp_ns"`
+	Flags             uint32                 `json:"flags,omitempty"`
+	Value             float64                `json:"value"`
+	Count             *uint64                `json:"count,omitempty"`
+	Sum               *float64               `json:"sum,omitempty"`
+	Min               *float64               `json:"min,omitempty"`
+	Max               *float64               `json:"max,omitempty"`
+	Bounds            []float64              `json:"bounds,omitempty"`
+	Buckets           []uint64               `json:"buckets,omitempty"`
+	Quantiles         map[string]float64     `json:"quantiles,omitempty"`
+	ExpScale          *int32                 `json:"exp_scale,omitempty"`
+	ExpZeroCount      *uint64                `json:"exp_zero_count,omitempty"`
+	ExpZeroThreshold  *float64               `json:"exp_zero_threshold,omitempty"`
+	ExpPositiveOffset *int32                 `json:"exp_positive_offset,omitempty"`
+	ExpPositiveCounts []uint64               `json:"exp_positive_counts,omitempty"`
+	ExpNegativeOffset *int32                 `json:"exp_negative_offset,omitempty"`
+	ExpNegativeCounts []uint64               `json:"exp_negative_counts,omitempty"`
+	ScopeName         string                 `json:"scope_name,omitempty"`
+	ScopeVersion      string                 `json:"scope_version,omitempty"`
+	ScopeSchemaURL    string                 `json:"scope_schema_url,omitempty"`
+	ScopeAttributes   map[string]any         `json:"scope_attributes,omitempty"`
+	Exemplars         []MetricSeriesExemplar `json:"exemplars,omitempty"`
 }
 type MetricSeriesExemplar struct {
 	TraceID string `json:"trace_id"`
@@ -155,10 +166,13 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 }
 
 func metricPoint(row *storage.Metric) MetricSeriesPoint {
-	p := MetricSeriesPoint{StartTimestampNs: row.StartTimestampNs, TimestampNs: row.TimestampNs, Flags: row.Flags, Value: row.Value, Count: row.HistogramCount, Sum: row.HistogramSum, Min: row.HistogramMin, Max: row.HistogramMax, Exemplars: []MetricSeriesExemplar{}}
+	p := MetricSeriesPoint{StartTimestampNs: row.StartTimestampNs, TimestampNs: row.TimestampNs, Flags: row.Flags, Value: row.Value, Count: row.HistogramCount, Sum: row.HistogramSum, Min: row.HistogramMin, Max: row.HistogramMax, ExpScale: row.ExpScale, ExpZeroCount: row.ExpZeroCount, ExpZeroThreshold: row.ExpZeroThreshold, ExpPositiveOffset: row.ExpPositiveOffset, ExpNegativeOffset: row.ExpNegativeOffset, ScopeName: row.ScopeName, ScopeVersion: row.ScopeVersion, ScopeSchemaURL: row.ScopeSchemaURL, ScopeAttributes: map[string]any{}, Exemplars: []MetricSeriesExemplar{}}
 	_ = json.Unmarshal([]byte(row.ExplicitBounds), &p.Bounds)
 	_ = json.Unmarshal([]byte(row.BucketCounts), &p.Buckets)
 	_ = json.Unmarshal([]byte(row.SummaryQuantiles), &p.Quantiles)
+	_ = json.Unmarshal([]byte(row.ExpPositiveCounts), &p.ExpPositiveCounts)
+	_ = json.Unmarshal([]byte(row.ExpNegativeCounts), &p.ExpNegativeCounts)
+	_ = json.Unmarshal([]byte(row.ScopeAttributes), &p.ScopeAttributes)
 	_ = json.Unmarshal([]byte(row.Exemplars), &p.Exemplars)
 	if p.Sum == nil && row.SummarySum != nil {
 		p.Sum = row.SummarySum
@@ -190,15 +204,33 @@ func deriveMetricSeries(points []MetricSeriesPoint, typ, temporality, operation 
 		}
 		return
 	}
-	if operation == "raw" || typ != "sum" {
-		if typ == "histogram" && strings.HasPrefix(operation, "p") {
+	if typ == "histogram" {
+		// OTLP cumulative histograms are snapshots since process start. Charts need
+		// the observations from each export interval, not the lifetime aggregate.
+		// Keep raw points untouched and derive the interval values only for views.
+		cumulative := temporality == "Cumulative"
+		switch {
+		case operation == "avg":
+			// Histogram sums preserve the observed byte/duration values while
+			// percentile queries are necessarily quantized to bucket boundaries.
+			for i := range points {
+				count, sum, _ := histogramInterval(points, i, cumulative)
+				if count > 0 {
+					points[i].Value = sum / float64(count)
+				}
+			}
+		case strings.HasPrefix(operation, "p"):
 			q, err := strconv.ParseFloat(strings.TrimPrefix(operation, "p"), 64)
 			if err == nil {
 				for i := range points {
-					points[i].Value = histogramPercentile(points[i].Bounds, points[i].Buckets, q/100)
+					_, _, buckets := histogramInterval(points, i, cumulative)
+					points[i].Value = histogramPercentile(points[i].Bounds, buckets, q/100)
 				}
 			}
 		}
+		return
+	}
+	if operation == "raw" || typ != "sum" {
 		return
 	}
 	for i := range points {
@@ -226,6 +258,38 @@ func deriveMetricSeries(points []MetricSeriesPoint, typ, temporality, operation 
 		}
 	}
 }
+
+func histogramInterval(points []MetricSeriesPoint, index int, cumulative bool) (uint64, float64, []uint64) {
+	current := points[index]
+	var count uint64
+	if current.Count != nil {
+		count = *current.Count
+	}
+	var sum float64
+	if current.Sum != nil {
+		sum = *current.Sum
+	}
+	buckets := append([]uint64(nil), current.Buckets...)
+	if !cumulative || index == 0 {
+		return count, sum, buckets
+	}
+	previous := points[index-1]
+	reset := previous.Count == nil || previous.Sum == nil || current.Count == nil || current.Sum == nil ||
+		count < *previous.Count || sum < *previous.Sum ||
+		(current.StartTimestampNs != 0 && current.StartTimestampNs != previous.StartTimestampNs) ||
+		len(buckets) != len(previous.Buckets)
+	if reset {
+		return count, sum, buckets
+	}
+	for i := range buckets {
+		if buckets[i] < previous.Buckets[i] {
+			return count, sum, append([]uint64(nil), current.Buckets...)
+		}
+		buckets[i] -= previous.Buckets[i]
+	}
+	return count - *previous.Count, sum - *previous.Sum, buckets
+}
+
 func metricDimensionFilters(q map[string][]string) map[string]string {
 	out := map[string]string{}
 	for k, v := range q {

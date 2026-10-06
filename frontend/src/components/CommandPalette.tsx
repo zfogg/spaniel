@@ -124,9 +124,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       // palette is invisible. The selectors below match Radix's animation
       // hooks (data-[state=open/closed]) so it fades cleanly.
       overlayClassName="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-      contentClassName="fixed left-1/2 top-[20%] z-50 w-[min(640px,90vw)] -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl outline-none"
+      contentClassName="fixed left-1/2 top-4 z-50 flex max-h-[calc(100dvh-2rem)] w-[min(640px,90vw)] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl outline-none"
     >
-      <div className="flex items-center border-b border-border px-3">
+      <div className="flex items-center border-b border-border px-3 py-2">
         <CommandInput
           value={query}
           onValueChange={setQuery}
@@ -140,7 +140,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         )}
       </div>
 
-      <CommandList className="max-h-[360px] overflow-y-auto py-1">
+      <CommandList className="min-h-0 max-h-[360px] flex-1 overflow-y-auto py-1">
         {/* Recent searches */}
         {!query.trim() && recent.length > 0 && (
           <CommandGroup heading={

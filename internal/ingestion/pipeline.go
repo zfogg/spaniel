@@ -143,6 +143,11 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		dbLatency:     dbHist,
 		metricSeries:  newMetricSeriesLimiter(2000),
 	}
+	if persisted, err := store.MetricSeriesCatalog(); err == nil {
+		for _, row := range persisted {
+			p.metricSeries.Seed(row.SessionID+"\x00"+row.Service+"\x00"+row.Name, row.Attributes)
+		}
+	}
 	// Observable gauge wrapping the sampler's atomic drop counters so they
 	// appear as spaniel.sampler.dropped{signal=spans/logs/metrics} in metrics.
 	_, _ = meter.Int64ObservableCounter("spaniel.sampler.dropped",
@@ -403,15 +408,17 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				if !self {
 					p.scheduleLint(s)
 				}
-				p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
-					TraceID:     s.TraceID,
-					SpanID:      s.SpanID,
-					ServiceName: s.ServiceName,
-					Name:        s.Name,
-					DurationNs:  s.EndNs - s.StartNs,
-					StatusCode:  s.StatusCode,
-					SessionID:   sessionID,
-				}))
+				if !self {
+					p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
+						TraceID:     s.TraceID,
+						SpanID:      s.SpanID,
+						ServiceName: s.ServiceName,
+						Name:        s.Name,
+						DurationNs:  s.EndNs - s.StartNs,
+						StatusCode:  s.StatusCode,
+						SessionID:   sessionID,
+					}))
+				}
 				if !self {
 					p.scheduleDetectors(s.TraceID)
 				}
@@ -501,14 +508,16 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 				p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
 					metric.WithAttributes(attribute.String("op", "insert_log")))
 				logsSeen++
-				p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
-					TraceID:     l.TraceID,
-					SpanID:      l.SpanID,
-					Severity:    l.Severity,
-					Body:        l.Body,
-					ServiceName: l.ServiceName,
-					SessionID:   l.SessionID,
-				}))
+				if !self {
+					p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
+						TraceID:     l.TraceID,
+						SpanID:      l.SpanID,
+						Severity:    l.Severity,
+						Body:        l.Body,
+						ServiceName: l.ServiceName,
+						SessionID:   l.SessionID,
+					}))
+				}
 			}
 		}
 	}
@@ -538,7 +547,7 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	}
 	defer ingestSpan.End()
 	t0 := time.Now()
-	err := p.ingestMetricsTree(ctx, md, p.store.ActiveSessionID())
+	err := p.ingestMetricsTree(ctx, md, p.store.ActiveSessionID(), !self)
 	if err == nil {
 		err = p.flush(ctx, !self)
 	}

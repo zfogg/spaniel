@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/marcboeker/go-duckdb"
+	"github.com/zfogg/spaniel/internal/telemetry"
 )
 
 // DuckDB is columnar and pays a heavy fixed cost per INSERT statement, so the
@@ -191,11 +192,15 @@ func (b *Batcher) flushTableLocked(ta *tableAppender) error {
 	if ta == nil || ta.app == nil || ta.pending == 0 {
 		return nil
 	}
+	pending := ta.pending
+	started := time.Now()
 	if err := ta.app.Flush(); err != nil {
 		b.recreateLocked(ta.table)
+		telemetry.Catalog().RecordStorage(context.Background(), "write", "error", int64(pending), float64(time.Since(started).Microseconds())/1000)
 		return fmt.Errorf("flush %s: %w", ta.table, err)
 	}
 	ta.pending = 0
+	telemetry.Catalog().RecordStorage(context.Background(), "write", "ok", int64(pending), float64(time.Since(started).Microseconds())/1000)
 	return nil
 }
 

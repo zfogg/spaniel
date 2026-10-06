@@ -19,7 +19,7 @@ export const queryClient = new QueryClient({
 // the same prefixes. The first element of every key is the invalidation prefix
 // used by useLiveInvalidation below.
 export const qk = {
-  traces: (sessionId?: string) => ['traces', sessionId ?? null] as const,
+  traces: (p?: Record<string, unknown>) => ['traces', p ?? null] as const,
   trace: (id: string) => ['trace', id] as const,
   spans: (p?: Record<string, unknown>) => ['spans', p ?? null] as const,
   span: (id: string) => ['span', id] as const,

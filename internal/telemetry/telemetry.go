@@ -111,9 +111,22 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	shutdownFuncs = append(shutdownFuncs, tp.Shutdown)
 
 	// Metrics: always real SDK. Add exporter/reader only if endpoint configured.
+	// HTTP body-size histograms need useful buckets beyond the SDK's default
+	// upper boundary. API responses such as metric queries routinely exceed
+	// 10 KiB; without these, every high percentile is indistinguishable from
+	// the final 10 KiB bucket.
+	bodySizeBounds := []float64{0, 16, 32, 64, 128, 256, 512, 1 << 10, 2 << 10, 4 << 10, 8 << 10, 16 << 10, 32 << 10, 64 << 10, 128 << 10, 256 << 10, 512 << 10, 1 << 20, 2 << 20, 4 << 20}
 	mpOpts := []sdkmetric.Option{
 		sdkmetric.WithResource(res),
 		sdkmetric.WithExemplarFilter(exemplar.AlwaysOnFilter),
+		sdkmetric.WithView(sdkmetric.NewView(
+			sdkmetric.Instrument{Name: "http.server.request.body.size"},
+			sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: bodySizeBounds}},
+		)),
+		sdkmetric.WithView(sdkmetric.NewView(
+			sdkmetric.Instrument{Name: "http.server.response.body.size"},
+			sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: bodySizeBounds}},
+		)),
 	}
 	if cfg.Endpoint != "" {
 		metExpOpts := []otlpmetricgrpc.Option{
@@ -166,7 +179,11 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	global.SetLoggerProvider(lp)
 	shutdownFuncs = append(shutdownFuncs, lp.Shutdown)
 
-	slog.SetDefault(slog.New(otelslog.NewHandler("spaniel")))
+	// Every process log receives a stable origin attribute. Individual paths
+	// (access, receiver, forwarder) may override it with a more specific value.
+	slog.SetDefault(slog.New(otelslog.NewHandler("spaniel").WithAttrs([]slog.Attr{
+		slog.String("spaniel.log.source", "spaniel"),
+	})))
 
 	shutdown = func(ctx context.Context) error {
 		var errs []error

@@ -183,6 +183,10 @@ func migrations() []*gormigrate.Migration {
 			ID:      "0016_reorder_metric_scope_attributes",
 			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0016_reorder_metric_scope_attributes.sql") },
 		},
+		{
+			ID:      "0017_metric_series_catalog",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0017_metric_series_catalog.sql") },
+		},
 	}
 }
 
@@ -228,7 +232,16 @@ func (d *DB) migrate() error {
 		if err := execMigrationFile(tx, "0013_remove_legacy_dashboard_queries.sql"); err != nil {
 			return err
 		}
-		return execMigrationFile(tx, "0014_lossless_metric_points.sql")
+		if err := execMigrationFile(tx, "0014_lossless_metric_points.sql"); err != nil {
+			return err
+		}
+		if err := execMigrationFile(tx, "0015_metric_scope_attributes.sql"); err != nil {
+			return err
+		}
+		if err := execMigrationFile(tx, "0016_reorder_metric_scope_attributes.sql"); err != nil {
+			return err
+		}
+		return execMigrationFile(tx, "0017_metric_series_catalog.sql")
 	})
 	if err := m.Migrate(); err != nil {
 		return err

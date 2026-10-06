@@ -328,6 +328,19 @@ func TestGetMetricSeries_TracesEmptyArrayWhenFlagAbsent(t *testing.T) {
 	}
 }
 
+func TestDeriveMetricSeries_HistogramAverageUsesSumAndCount(t *testing.T) {
+	countTwo, countFive := uint64(2), uint64(5)
+	sumOne, sumTwo := 120.0, 195.0
+	points := []MetricSeriesPoint{
+		{Value: 0, Count: &countTwo, Sum: &sumOne},
+		{Value: 0, Count: &countFive, Sum: &sumTwo},
+	}
+	deriveMetricSeries(points, "histogram", "Cumulative", "avg")
+	if points[0].Value != 60 || points[1].Value != 25 {
+		t.Fatalf("histogram average = [%v, %v], want [60, 25]", points[0].Value, points[1].Value)
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

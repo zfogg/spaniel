@@ -1303,7 +1303,7 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], logs
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <TraceMeta
-        rootName={rootSpan?.name ?? traceId}
+        rootName={rootSpan ? httpDisplayName(rootSpan) : traceId}
         traceId={traceId}
         traceDurNs={traceDurNs}
         spanCount={spans.length}

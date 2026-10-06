@@ -171,6 +171,24 @@ describe('<Metrics />', () => {
     expect(screen.getByRole('button', { name: /^sum$/i })).toBeTruthy()
   })
 
+  it('offers long metric-history ranges including all retained data', async () => {
+    setup({
+      catalog: [{ name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: '', sample_count: 1 }],
+      series: {
+        'name=memory.usage&service=api&with_traces=1': {
+          name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: '', points: [], traces: [],
+        },
+      },
+    })
+    renderMetrics()
+    await waitFor(() => expect(screen.getByText('memory.usage')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/No points in this time range/i)).toBeTruthy())
+    const picker = screen.getByRole('combobox', { name: 'Time range' }) as HTMLSelectElement
+    for (const range of ['7d', '30d', '3mo', '6mo', '1yr', 'all']) {
+      expect(Array.from(picker.options).some(option => option.value === range)).toBe(true)
+    }
+  })
+
   it('renders chart + stats after selecting a metric', async () => {
     setup({
       catalog: [
@@ -241,6 +259,37 @@ describe('<Metrics />', () => {
     await waitFor(() => expect(screen.getByText('pool.in_use')).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: /pool\.in_use/i }))
     await waitFor(() => expect(screen.getByTestId('location-search').textContent).toBe('?metric=pool.in_use&service=postgres'))
+  })
+
+  it('uses p95 when a histogram is opened directly from its URL', async () => {
+    setup({
+      catalog: [{ name: 'http.response.bytes', service_name: 'api', type: 'histogram', unit: 'By', description: '', sample_count: 1 }],
+      series: {
+        'name=http.response.bytes&service=api&operation=p95&with_traces=1': {
+          name: 'http.response.bytes', service_name: 'api', type: 'histogram', unit: 'By', description: '',
+          operation: 'p95', points: [{ timestamp_ns: 1, value: 48.75, count: 1, sum: 40, bounds: [50], buckets: [1] }], traces: [],
+        },
+      },
+    })
+
+    renderMetrics(['/metrics?metric=http.response.bytes&service=api'])
+    await waitFor(() => expect(screen.getByText('http.response.bytes')).toBeTruthy())
+    await waitFor(() => {
+      expect((fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes('operation=p95'))).toBe(true)
+    })
+  })
+
+  it('uses the exact average for a body-size histogram', async () => {
+    setup({
+      catalog: [{ name: 'http.server.response.body.size', service_name: 'api', type: 'histogram', unit: 'By', description: '', sample_count: 1 }],
+      series: {
+        'name=http.server.response.body.size&service=api&operation=avg&with_traces=1': {
+          name: 'http.server.response.body.size', service_name: 'api', type: 'histogram', unit: 'By', description: '', operation: 'avg', points: [], traces: [],
+        },
+      },
+    })
+    renderMetrics(['/metrics?metric=http.server.response.body.size&service=api'])
+    await waitFor(() => expect((fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes('operation=avg'))).toBe(true))
   })
 
   it('buckets histogram points by percentile attribute', () => {

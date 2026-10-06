@@ -11,11 +11,13 @@ import { httpDisplayName } from '@/lib/span-utils'
 import { fmtRelative, fmtDateTime } from '../lib/fmt-relative'
 import { SEARCH_PALETTE_EVENT } from '../lib/shortcuts'
 import { useLiveActivity } from '../lib/live-activity'
+import PaginationControls from '@/components/PaginationControls'
 
 const GRID_COLS = 'minmax(0,1fr) 90px 80px 200px 70px 140px'
 const SLOW_NS = 250_000_000
 const MAX_SESSIONS = 7
 const MAX_SERVICES = 15
+const PAGE_SIZE = 100
 
 function fmtDuration(ns: number): string {
   if (ns < 1_000) return `${ns}ns`
@@ -350,6 +352,7 @@ export default function TraceList() {
   const [filterService, setFilterService] = useQueryState('service', { defaultValue: 'all' })
   const [filterSession, setFilterSession] = useQueryState('session')
   const [quickFilter, setQuickFilter] = useQueryState('status', parseAsStringLiteral(['lint', 'slow', 'errors'] as const))
+  const [page, setPage] = useState(1)
   const navigate = useNavigate()
 
   // Live activity tracking: detects incoming spans and auto-switches session
@@ -366,10 +369,12 @@ export default function TraceList() {
   // Live refresh is driven centrally by useLiveInvalidation() in App.tsx, which
   // invalidates the 'traces' key on span events (throttled), so this query
   // re-fetches automatically instead of optimistically prepending rows here.
-  const { data: traces = [], isLoading: loading, isError, error, refetch } = useQuery({
-    queryKey: qk.traces(),
-    queryFn: () => api.traces.list().then(r => r.data ?? []),
+  const { data: traceResponse, isLoading: loading, isError, error, refetch } = useQuery({
+    queryKey: qk.traces({ sessionId: filterSession, service: filterService, page }),
+    queryFn: () => api.traces.list({ sessionId: filterSession ?? undefined, service: filterService === 'all' ? undefined : filterService, page, limit: PAGE_SIZE }),
   })
+  const traces = traceResponse?.data ?? []
+  const traceTotal = traceResponse?.meta.total ?? 0
   const { data: sessions = [] } = useQuery({
     queryKey: qk.sessions(),
     queryFn: () => api.sessions.list().then(r => r.data ?? []),
@@ -402,6 +407,8 @@ export default function TraceList() {
     (filterSession === null || t.session_id === filterSession) &&
     matchesQuick(t),
   )
+
+  useEffect(() => { setPage(1) }, [filterSession, filterService, quickFilter])
 
   const maxNs = filtered.reduce((m, t) => Math.max(m, t.duration_ns), 0)
 
@@ -518,7 +525,7 @@ export default function TraceList() {
               )}
             </div>
             <div className="mt-0.5 font-mono text-[10px] tracking-[0.02em] text-[var(--ink3)]">
-              live · {filtered.length} of {traces.length} traces
+              live · {filtered.length} on this page · {traceTotal.toLocaleString()} traces
             </div>
           </div>
           <button
@@ -528,6 +535,7 @@ export default function TraceList() {
           >
             ⌘K
           </button>
+          <PaginationControls page={page} pageSize={PAGE_SIZE} total={traceTotal} itemLabel="traces" onPageChange={setPage} />
         </div>
 
         {filtered.length === 0 ? (

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -41,6 +42,19 @@ func TestHealthEndpoint(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "ok") {
 		t.Errorf("expected body to contain 'ok', got: %s", body)
+	}
+}
+
+func TestDrainRequestBodyMiddlewareReadsIgnoredPayload(t *testing.T) {
+	h := drainRequestBodyMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	req := httptest.NewRequest(http.MethodPost, "/ignored", strings.NewReader("payload"))
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	remaining, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("read remaining body: %v", err)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("unread request payload: %q", remaining)
 	}
 }
 
@@ -271,22 +285,22 @@ func TestGetSpanReturnsLinks(t *testing.T) {
 
 	links := []*storage.SpanLink{
 		{
-			SpanID:         "span-link-test",
-			TraceID:        "trace-link-test",
-			SessionID:      "sess-1",
-			LinkedTraceID:  "producer-trace-aaa",
-			LinkedSpanID:   "producer-span-bbb",
-			TraceState:     "",
-			Attributes:     `{"messaging.operation":"process"}`,
+			SpanID:        "span-link-test",
+			TraceID:       "trace-link-test",
+			SessionID:     "sess-1",
+			LinkedTraceID: "producer-trace-aaa",
+			LinkedSpanID:  "producer-span-bbb",
+			TraceState:    "",
+			Attributes:    `{"messaging.operation":"process"}`,
 		},
 		{
-			SpanID:         "span-link-test",
-			TraceID:        "trace-link-test",
-			SessionID:      "sess-1",
-			LinkedTraceID:  "producer-trace-ccc",
-			LinkedSpanID:   "producer-span-ddd",
-			TraceState:     "",
-			Attributes:     "{}",
+			SpanID:        "span-link-test",
+			TraceID:       "trace-link-test",
+			SessionID:     "sess-1",
+			LinkedTraceID: "producer-trace-ccc",
+			LinkedSpanID:  "producer-span-ddd",
+			TraceState:    "",
+			Attributes:    "{}",
 		},
 	}
 	if err := store.InsertSpanLinks(links); err != nil {

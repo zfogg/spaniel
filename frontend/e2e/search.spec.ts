@@ -42,12 +42,17 @@ async function expectPaletteOpen(page: Page) {
   const contentStyle = await content.evaluate((el) => {
     const cs = getComputedStyle(el as HTMLElement)
     const r = (el as HTMLElement).getBoundingClientRect()
-    return { position: cs.position, zIndex: parseInt(cs.zIndex, 10) || 0, width: r.width, height: r.height, top: r.top, left: r.left }
+    const input = el.querySelector('input')
+    const inputTop = input?.getBoundingClientRect().top ?? r.top
+    return { position: cs.position, zIndex: parseInt(cs.zIndex, 10) || 0, width: r.width, height: r.height, top: r.top, left: r.left, inputTop }
   })
   expect(contentStyle.position, 'palette content must be position:fixed').toBe('fixed')
   expect(contentStyle.zIndex, 'palette content must have a positive z-index').toBeGreaterThan(0)
   expect(contentStyle.width,  'palette content must have nonzero width').toBeGreaterThan(200)
   expect(contentStyle.height, 'palette content must have nonzero height').toBeGreaterThan(50)
+  // The global keyboard focus ring sits outside the input. Leave enough room
+  // above it that the dialog's overflow clipping cannot cut it off.
+  expect(contentStyle.inputTop - contentStyle.top, 'input top focus-ring gutter').toBeGreaterThanOrEqual(5)
 
   const overlayStyle = await overlay.evaluate((el) => getComputedStyle(el as HTMLElement).position)
   expect(overlayStyle, 'palette overlay must be position:fixed').toBe('fixed')
@@ -55,10 +60,14 @@ async function expectPaletteOpen(page: Page) {
   // Bounding box sits inside the viewport (sanity that we didn't position
   // off-screen with a typo).
   const vp = page.viewportSize() ?? { width: 1280, height: 720 }
-  expect(contentStyle.top,  'content top within viewport').toBeGreaterThanOrEqual(0)
+  // Keep a fixed top gutter so the search input is never flush with or clipped
+  // by the browser's top edge. The palette list is the scrollable region when
+  // the viewport is too short for its natural height.
+  expect(contentStyle.top,  'content top gutter').toBeGreaterThanOrEqual(16)
   expect(contentStyle.top,  'content top within viewport').toBeLessThan(vp.height)
   expect(contentStyle.left, 'content left within viewport').toBeGreaterThanOrEqual(0)
   expect(contentStyle.left, 'content left within viewport').toBeLessThan(vp.width)
+  expect(contentStyle.top + contentStyle.height, 'content bottom within viewport').toBeLessThanOrEqual(vp.height)
 }
 
 function traceResult(traceId: string, title: string, subtitle = 'my-svc') {
