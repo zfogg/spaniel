@@ -752,29 +752,31 @@ func (d *DB) UpdateSession(id string, p SessionPatch) error {
 
 func (d *DB) DeleteSession(id string) error {
 	q := d.namedQuery("storage.DeleteSession")
-	if _, err := q.LintWarning.Where(q.LintWarning.SessionID.Eq(id)).Delete(); err != nil {
+	return q.Transaction(func(tx *querygen.Query) error {
+		if _, err := tx.LintWarning.Where(tx.LintWarning.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.TraceIssue.Where(tx.TraceIssue.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Log.Where(tx.Log.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Metric.Where(tx.Metric.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.SpanEvent.Where(tx.SpanEvent.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.SpanLink.Where(tx.SpanLink.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Span.Where(tx.Span.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
+		_, err := tx.Session.Where(tx.Session.ID.Eq(id)).Delete()
 		return err
-	}
-	if _, err := q.TraceIssue.Where(q.TraceIssue.SessionID.Eq(id)).Delete(); err != nil {
-		return err
-	}
-	if _, err := q.Log.Where(q.Log.SessionID.Eq(id)).Delete(); err != nil {
-		return err
-	}
-	if _, err := q.Metric.Where(q.Metric.SessionID.Eq(id)).Delete(); err != nil {
-		return err
-	}
-	if _, err := q.SpanEvent.Where(q.SpanEvent.SessionID.Eq(id)).Delete(); err != nil {
-		return err
-	}
-	if _, err := q.SpanLink.Where(q.SpanLink.SessionID.Eq(id)).Delete(); err != nil {
-		return err
-	}
-	if _, err := q.Span.Where(q.Span.SessionID.Eq(id)).Delete(); err != nil {
-		return err
-	}
-	_, err := q.Session.Where(q.Session.ID.Eq(id)).Delete()
-	return err
+	})
 }
 
 func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
