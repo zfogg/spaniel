@@ -69,9 +69,11 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 
 	// Final state for reporting.
 	var finalSessions int64
-	if err := d.gorm.Table("sessions").Count(&finalSessions).Error; err != nil {
+	count, err := d.query.Session.Count()
+	if err != nil {
 		return res, err
 	}
+	finalSessions = count
 	res.FinalSessions = int(finalSessions)
 	res.FinalDBSizeBytes = d.FileSize()
 	telemetry.Catalog().RecordRetention(context.Background(), "age", int64(res.DeletedByAge))
@@ -84,10 +86,8 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 // The active session pointer in memory is cleared.
 func (d *DB) Reset() error {
 	err := d.withMaintenance(func() error {
-		for _, tbl := range []string{"lint_warnings", "trace_issues", "logs", "metrics", "span_events", "span_links", "spans", "sessions"} {
-			if err := d.gorm.Exec(`DELETE FROM ` + tbl).Error; err != nil {
-				return fmt.Errorf("truncate %s: %w", tbl, err)
-			}
+		if err := d.resetTelemetry(); err != nil {
+			return err
 		}
 		return d.checkpointWithRetry()
 	})
@@ -116,15 +116,15 @@ func (d *DB) deleteByAge(maxAge time.Duration, activeID string) (int, error) {
 func (d *DB) deleteByCount(maxSessions int, activeID string) (int, error) {
 	// Oldest deletable sessions first; preserve active + baseline.
 	var deletable []string
-	if err := d.gorm.Table("sessions").
-		Where("id != ? AND is_baseline = FALSE", activeID).
-		Order("created_at ASC").
-		Pluck("id", &deletable).Error; err != nil {
+	if err := d.query.Session.
+		Where(d.query.Session.ID.Neq(activeID), d.query.Session.IsBaseline.Is(false)).
+		Order(d.query.Session.CreatedAt).
+		Pluck(d.query.Session.ID, &deletable); err != nil {
 		return 0, err
 	}
 
-	var total int64
-	if err := d.gorm.Table("sessions").Count(&total).Error; err != nil {
+	total, err := d.query.Session.Count()
+	if err != nil {
 		return 0, err
 	}
 	excess := int(total) - maxSessions
@@ -220,10 +220,40 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
 
 func (d *DB) protectedSessionIDsOlderThan(cutoffNs int64, activeID string) ([]string, error) {
 	var ids []string
-	err := d.gorm.Table("sessions").
-		Where("created_at < ? AND id != ? AND is_baseline = FALSE", cutoffNs, activeID).
-		Pluck("id", &ids).Error
+	err := d.query.Session.
+		Where(d.query.Session.CreatedAt.Lt(cutoffNs), d.query.Session.ID.Neq(activeID), d.query.Session.IsBaseline.Is(false)).
+		Pluck(d.query.Session.ID, &ids)
 	return ids, err
+}
+
+func (d *DB) resetTelemetry() error {
+	// Generated DAOs retain model ownership and the normal instrumentation path;
+	// each predicate makes the intended whole-table maintenance deletion explicit.
+	if _, err := d.query.LintWarning.Where(d.query.LintWarning.SpanID.IsNotNull()).Delete(); err != nil {
+		return fmt.Errorf("truncate lint_warnings: %w", err)
+	}
+	if _, err := d.query.TraceIssue.Where(d.query.TraceIssue.ID.IsNotNull()).Delete(); err != nil {
+		return fmt.Errorf("truncate trace_issues: %w", err)
+	}
+	if _, err := d.query.Log.Where(d.query.Log.TimestampNs.Gte(0)).Delete(); err != nil {
+		return fmt.Errorf("truncate logs: %w", err)
+	}
+	if _, err := d.query.Metric.Where(d.query.Metric.TimestampNs.Gte(0)).Delete(); err != nil {
+		return fmt.Errorf("truncate metrics: %w", err)
+	}
+	if _, err := d.query.SpanEvent.Where(d.query.SpanEvent.SpanID.IsNotNull()).Delete(); err != nil {
+		return fmt.Errorf("truncate span_events: %w", err)
+	}
+	if _, err := d.query.SpanLink.Where(d.query.SpanLink.SpanID.IsNotNull()).Delete(); err != nil {
+		return fmt.Errorf("truncate span_links: %w", err)
+	}
+	if _, err := d.query.Span.Where(d.query.Span.SpanID.IsNotNull()).Delete(); err != nil {
+		return fmt.Errorf("truncate spans: %w", err)
+	}
+	if _, err := d.query.Session.Where(d.query.Session.ID.IsNotNull()).Delete(); err != nil {
+		return fmt.Errorf("truncate sessions: %w", err)
+	}
+	return nil
 }
 
 func (d *DB) deleteSessions(ids []string) (int, error) {

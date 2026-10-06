@@ -43,20 +43,26 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	if err := validateReadOnlySQL(query); err != nil {
 		return nil, nil, false, err
 	}
-	name := queryNameFromContext(ctx)
-	if name == "" {
-		name = sqlSummary(query)
+	// Internal callers such as catalog discovery can opt out to avoid making
+	// their own metadata probes appear as telemetry data. User-authored SQL
+	// still gets the explicit query name or a sanitized low-cardinality summary.
+	if !skipTracing(ctx) {
+		name := queryNameFromContext(ctx)
+		if name == "" {
+			name = sqlSummary(query)
+		}
+		attrs := []attribute.KeyValue{
+			semconv.DBSystemKey.String("duckdb"),
+			attribute.String("db.query.summary", name),
+		}
+		if sanitized, ok := sanitizeSQL(query); ok {
+			attrs = append(attrs, semconv.DBQueryTextKey.String(sanitized))
+		}
+		var span trace.Span
+		ctx, span = otel.Tracer("spaniel/storage").Start(ctx, name,
+			trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
+		defer span.End()
 	}
-	attrs := []attribute.KeyValue{
-		semconv.DBSystemKey.String("duckdb"),
-		attribute.String("db.query.summary", name),
-	}
-	if sanitized, ok := sanitizeSQL(query); ok {
-		attrs = append(attrs, semconv.DBQueryTextKey.String(sanitized))
-	}
-	ctx, span := otel.Tracer("spaniel/storage").Start(ctx, name,
-		trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
-	defer span.End()
 
 	var ro *sql.DB
 	if runtime.GOOS == "windows" {

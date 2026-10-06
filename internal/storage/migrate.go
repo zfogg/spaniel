@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-gormigrate/gormigrate/v2"
+	"github.com/zfogg/spaniel/internal/model"
 	"gorm.io/gorm"
 )
 
@@ -187,6 +188,10 @@ func migrations() []*gormigrate.Migration {
 			ID:      "0017_metric_series_catalog",
 			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0017_metric_series_catalog.sql") },
 		},
+		{
+			ID:      "0018_telemetry_views",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0018_telemetry_views.sql") },
+		},
 	}
 }
 
@@ -241,7 +246,10 @@ func (d *DB) migrate() error {
 		if err := execMigrationFile(tx, "0016_reorder_metric_scope_attributes.sql"); err != nil {
 			return err
 		}
-		return execMigrationFile(tx, "0017_metric_series_catalog.sql")
+		if err := execMigrationFile(tx, "0017_metric_series_catalog.sql"); err != nil {
+			return err
+		}
+		return execMigrationFile(tx, "0018_telemetry_views.sql")
 	})
 	if err := m.Migrate(); err != nil {
 		return err
@@ -406,15 +414,14 @@ func legacySQLField(field string) string {
 // informational (surfaced in doctor/settings); schema versioning is owned by the
 // migrations table. Best-effort by design — callers may ignore the error.
 func (d *DB) SetSpanielVersion(version string) error {
-	return d.gorm.Exec(
-		`INSERT OR REPLACE INTO meta (meta_key, meta_value) VALUES ('spaniel_version', ?)`,
-		version,
-	).Error
+	return d.query.Meta.Save(&model.Meta{Key: "spaniel_version", Value: version})
 }
 
 // SpanielVersion returns the spaniel version recorded in the meta table, or "".
 func (d *DB) SpanielVersion() string {
-	var v string
-	_ = d.gorm.Raw(`SELECT meta_value FROM meta WHERE meta_key = 'spaniel_version'`).Scan(&v).Error
-	return v
+	v, err := d.query.Meta.Where(d.query.Meta.Key.Eq("spaniel_version")).First()
+	if err != nil {
+		return ""
+	}
+	return v.Value
 }

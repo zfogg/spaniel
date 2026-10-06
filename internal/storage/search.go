@@ -3,17 +3,12 @@ package storage
 import (
 	"fmt"
 	"strings"
+
+	"github.com/zfogg/spaniel/internal/model"
 )
 
 // SearchResult is one item returned by the global search.
-type SearchResult struct {
-	Kind      string `json:"kind"`              // "trace" | "span" | "session" | "service" | "log"
-	TraceID   string `json:"trace_id"`
-	SpanID    string `json:"span_id,omitempty"`
-	Title     string `json:"title"`
-	Subtitle  string `json:"subtitle"`
-	SessionID string `json:"session_id"`
-}
+type SearchResult = model.SearchResult
 
 // parseFilters splits a query into field:value filters and the remaining
 // free-text terms. e.g. "lint:n+1 orders" -> {"lint":"n+1"}, "orders".
@@ -56,116 +51,49 @@ func (d *DB) Search(query, sessionID string, limit int) ([]*SearchResult, error)
 	var results []*SearchResult
 
 	// ── Traces (spans grouped by trace_id) ───────────────────────────────────
-	var traces []*SearchResult
-	if err := d.gorm.Raw(`
-		SELECT
-			'trace'           AS kind,
-			trace_id,
-			''                AS span_id,
-			MIN(name)         AS title,
-			MIN(service_name) AS subtitle,
-			MIN(session_id)   AS session_id
-		FROM spans
-		WHERE (? = '' OR session_id = ?)
-		  AND (
-		      name         ILIKE ?
-		   OR service_name ILIKE ?
-		   OR trace_id     ILIKE ?
-		   OR attributes::VARCHAR ILIKE ?
-		  )
-		GROUP BY trace_id
-		ORDER BY MAX(start_ns) DESC
-		LIMIT ?
-	`, sessionID, sessionID, pat, pat, tracePrefix, pat, quarter).Scan(&traces).Error; err != nil {
+	traces, err := d.query.Span.SearchTraces(sessionID, pat, tracePrefix, quarter)
+	if err != nil {
 		return nil, err
 	}
-	results = append(results, traces...)
+	results = append(results, searchResultPointers(traces)...)
 
 	// ── Spans (individual child spans) ────────────────────────────────────────
-	var spans []*SearchResult
-	if err := d.gorm.Raw(`
-		SELECT
-			'span'       AS kind,
-			trace_id,
-			span_id,
-			name         AS title,
-			service_name AS subtitle,
-			session_id
-		FROM spans
-		WHERE (? = '' OR session_id = ?)
-		  AND parent_span_id IS NOT NULL AND parent_span_id != ''
-		  AND (
-		      name         ILIKE ?
-		   OR attributes::VARCHAR ILIKE ?
-		  )
-		ORDER BY start_ns DESC
-		LIMIT ?
-	`, sessionID, sessionID, pat, pat, quarter).Scan(&spans).Error; err != nil {
+	spans, err := d.query.Span.SearchChildSpans(sessionID, pat, quarter)
+	if err != nil {
 		return nil, err
 	}
-	results = append(results, spans...)
+	results = append(results, searchResultPointers(spans)...)
 
 	// ── Sessions ──────────────────────────────────────────────────────────────
-	var sessions []*SearchResult
-	if err := d.gorm.Raw(`
-		SELECT
-			'session' AS kind,
-			''        AS trace_id,
-			''        AS span_id,
-			label     AS title,
-			CASE WHEN is_baseline THEN 'baseline' ELSE 'session' END AS subtitle,
-			id        AS session_id
-		FROM sessions
-		WHERE label ILIKE ?
-		ORDER BY created_at DESC
-		LIMIT ?
-	`, pat, quarter).Scan(&sessions).Error; err != nil {
+	sessions, err := d.query.Session.SearchByLabel(pat, quarter)
+	if err != nil {
 		return nil, err
 	}
-	results = append(results, sessions...)
+	results = append(results, searchResultPointers(sessions)...)
 
 	// ── Services ──────────────────────────────────────────────────────────────
-	var services []*SearchResult
-	if err := d.gorm.Raw(`
-		SELECT
-			'service'    AS kind,
-			''           AS trace_id,
-			''           AS span_id,
-			service_name AS title,
-			CONCAT(CAST(COUNT(*) AS VARCHAR), ' spans') AS subtitle,
-			COALESCE(MIN(session_id), '') AS session_id
-		FROM spans
-		WHERE service_name ILIKE ?
-		  AND (? = '' OR session_id = ?)
-		GROUP BY service_name
-		ORDER BY COUNT(*) DESC
-		LIMIT ?
-	`, pat, sessionID, sessionID, quarter).Scan(&services).Error; err != nil {
+	services, err := d.query.Span.SearchServices(sessionID, pat, quarter)
+	if err != nil {
 		return nil, err
 	}
-	results = append(results, services...)
+	results = append(results, searchResultPointers(services)...)
 
 	// ── Logs ──────────────────────────────────────────────────────────────────
-	var logs []*SearchResult
-	if err := d.gorm.Raw(`
-		SELECT
-			'log'              AS kind,
-			trace_id,
-			span_id,
-			LEFT(body, 120)    AS title,
-			service_name       AS subtitle,
-			session_id
-		FROM logs
-		WHERE (? = '' OR session_id = ?)
-		  AND body ILIKE ?
-		ORDER BY timestamp_ns DESC
-		LIMIT ?
-	`, sessionID, sessionID, pat, quarter).Scan(&logs).Error; err != nil {
+	logs, err := d.query.Log.SearchByBody(sessionID, pat, quarter)
+	if err != nil {
 		return nil, err
 	}
-	results = append(results, logs...)
+	results = append(results, searchResultPointers(logs)...)
 
 	return results, nil
+}
+
+func searchResultPointers(rows []model.SearchResult) []*SearchResult {
+	out := make([]*SearchResult, len(rows))
+	for i := range rows {
+		out[i] = &rows[i]
+	}
+	return out
 }
 
 // searchLint returns traces flagged by the linter or detectors for the given
@@ -176,23 +104,8 @@ func (d *DB) searchLint(rule, sessionID string, limit int) ([]*SearchResult, err
 	var results []*SearchResult
 
 	if norm == "n+1" || norm == "n1" || norm == "n_plus_one" {
-		var rows []struct {
-			TraceID   string
-			Title     string
-			Count     int
-			SessionID string
-		}
-		if err := d.gorm.Raw(`
-			SELECT ti.trace_id,
-			       COALESCE(s.name, '(trace)') AS title,
-			       ti.count,
-			       ti.session_id
-			FROM trace_issues ti
-			LEFT JOIN spans s ON s.span_id = ti.example_span_id
-			WHERE ti.kind = 'n_plus_one'
-			  AND (? = '' OR ti.session_id = ?)
-			ORDER BY ti.wasted_ns DESC
-			LIMIT ?`, sessionID, sessionID, limit).Scan(&rows).Error; err != nil {
+		rows, err := d.query.TraceIssue.SearchNPlusOne(sessionID, limit)
+		if err != nil {
 			return nil, err
 		}
 		for _, row := range rows {
@@ -208,24 +121,8 @@ func (d *DB) searchLint(rule, sessionID string, limit int) ([]*SearchResult, err
 	}
 
 	// Other lint rules: match lint_warnings.rule_id, grouped by trace.
-	var rows []struct {
-		TraceID   string
-		Title     string
-		RuleID    string
-		SessionID string
-	}
-	if err := d.gorm.Raw(`
-		SELECT lw.trace_id,
-		       COALESCE(MIN(s.name), '(trace)') AS title,
-		       MIN(lw.rule_id) AS rule_id,
-		       MIN(lw.session_id) AS session_id
-		FROM lint_warnings lw
-		LEFT JOIN spans s ON s.span_id = lw.span_id
-		WHERE lw.rule_id ILIKE ?
-		  AND (? = '' OR lw.session_id = ?)
-		  AND lw.trace_id != ''
-		GROUP BY lw.trace_id
-		LIMIT ?`, "%"+rule+"%", sessionID, sessionID, limit).Scan(&rows).Error; err != nil {
+	rows, err := d.query.LintWarning.SearchByRule(sessionID, "%"+rule+"%", limit)
+	if err != nil {
 		return nil, err
 	}
 	for _, row := range rows {

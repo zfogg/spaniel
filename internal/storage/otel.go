@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -156,11 +155,6 @@ func (p *gormOTelPlugin) after(db *gorm.DB) {
 				float64(time.Since(t).Milliseconds()),
 				metric.WithAttributes(attrs...),
 			)
-			result := "ok"
-			if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
-				result = "error"
-			}
-			telemetry.Catalog().RecordStorage(db.Statement.Context, "query", result, 0, float64(time.Since(t).Microseconds())/1000)
 		}
 	}
 
