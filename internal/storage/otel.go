@@ -3,8 +3,11 @@ package storage
 import (
 	"context"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -93,7 +96,14 @@ func (p *gormOTelPlugin) before(op string) func(*gorm.DB) {
 		if skipTracing(ctx) {
 			return
 		}
-		ctx, _ = p.tracer.Start(ctx, "db."+op,
+		name := queryNameFromContext(ctx)
+		if name == "" {
+			name = storageCallerName()
+		}
+		if name == "" {
+			name = "db." + op
+		}
+		ctx, _ = p.tracer.Start(ctx, name,
 			trace.WithSpanKind(trace.SpanKindClient),
 			trace.WithAttributes(
 				semconv.DBSystemKey.String("duckdb"),
@@ -103,6 +113,30 @@ func (p *gormOTelPlugin) before(op string) func(*gorm.DB) {
 		db.Statement.Context = ctx
 		db.Set("otel:start", time.Now())
 	}
+}
+
+// storageCallerName gives Spaniel's own queries a stable source-authored name
+// without forcing every storage method to repeat a string literal. User SQL
+// does not run through this GORM path; ReadOnlyQuery names it from its SQL.
+func storageCallerName() string {
+	const prefix = "github.com/zfogg/spaniel/internal/storage.(*DB)."
+	pcs := make([]uintptr, 16)
+	n := runtime.Callers(3, pcs)
+	for _, pc := range pcs[:n] {
+		fn := runtime.FuncForPC(pc)
+		if fn == nil {
+			continue
+		}
+		name := fn.Name()
+		if strings.HasPrefix(name, prefix) {
+			method := strings.TrimPrefix(name, prefix)
+			if dot := strings.IndexByte(method, '.'); dot >= 0 {
+				method = method[:dot]
+			}
+			return "storage." + method
+		}
+	}
+	return ""
 }
 
 func (p *gormOTelPlugin) after(db *gorm.DB) {
@@ -122,6 +156,11 @@ func (p *gormOTelPlugin) after(db *gorm.DB) {
 				float64(time.Since(t).Milliseconds()),
 				metric.WithAttributes(attrs...),
 			)
+			result := "ok"
+			if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+				result = "error"
+			}
+			telemetry.Catalog().RecordStorage(db.Statement.Context, "query", result, 0, float64(time.Since(t).Microseconds())/1000)
 		}
 	}
 

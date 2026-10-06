@@ -12,8 +12,9 @@ import (
 )
 
 // TestWithContext_NestsDBSpans proves the core of issue #108: a DuckDB query run
-// via store.WithContext(ctx) produces a "db.*" span nested under the caller's
-// span, with the SQL and db.system recorded by the GORM OTel plugin.
+// via store.WithContext(ctx) produces a source-named storage span nested under
+// the caller's span, with the SQL and db.system recorded by the GORM OTel
+// plugin.
 func TestWithContext_NestsDBSpans(t *testing.T) {
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
@@ -35,7 +36,7 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 	parentID := parent.SpanContext().SpanID()
 	var dbSpan sdktrace.ReadOnlySpan
 	for _, s := range sr.Ended() {
-		if strings.HasPrefix(s.Name(), "db.") && s.Parent().SpanID() == parentID {
+		if s.Name() == "storage.ListTraces" && s.Parent().SpanID() == parentID {
 			dbSpan = s
 			break
 		}
@@ -45,7 +46,7 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 		for _, s := range sr.Ended() {
 			names = append(names, s.Name())
 		}
-		t.Fatalf("no db.* span nested under parent; recorded spans: %v", names)
+		t.Fatalf("no storage.ListTraces span nested under parent; recorded spans: %v", names)
 	}
 
 	// The plugin should record db.system=duckdb and the SQL text.
@@ -89,8 +90,8 @@ func TestWithoutContext_DBSpanIsRoot(t *testing.T) {
 
 	parentID := parent.SpanContext().SpanID()
 	for _, s := range sr.Ended() {
-		if strings.HasPrefix(s.Name(), "db.") && s.Parent().SpanID() == parentID {
-			t.Errorf("db span unexpectedly nested under parent without WithContext")
+		if s.Name() == "storage.ListTraces" && s.Parent().SpanID() == parentID {
+			t.Errorf("storage span unexpectedly nested under parent without WithContext")
 		}
 	}
 	_ = ctx

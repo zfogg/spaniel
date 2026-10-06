@@ -192,6 +192,7 @@ func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
 func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request) {
 	var in struct {
 		QuerySQL    string            `json:"query_sql" validate:"required,max=16000"`
+		Name        string            `json:"name" validate:"omitempty,max=200"`
 		DisplayType string            `json:"display_type" validate:"omitempty,oneof=single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
 		Variables   map[string]string `json:"variables"`
 	}
@@ -228,6 +229,7 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 	}
 	ctx, cancel := context.WithTimeout(req.Context(), 30*time.Second)
 	defer cancel()
+	ctx = storage.WithQueryName(ctx, in.Name)
 	columns, valuesRows, truncated, err := r.store.ReadOnlyQueryArgs(ctx, in.QuerySQL, args, 1000)
 	if err != nil {
 		respondErr(w, req, 400, err.Error())

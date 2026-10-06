@@ -54,9 +54,9 @@ func TestEvaluateAlerts_NestsStorageSpans(t *testing.T) {
 		t.Fatal("spaniel.alerts.evaluate span was not recorded")
 	}
 	for _, span := range recorder.Ended()[before:] {
-		if span.Name() == "db.query" && span.Parent().SpanID() == root.SpanContext().SpanID() {
+		if span.Name() == "storage.ListAlertRules" && span.Parent().SpanID() == root.SpanContext().SpanID() {
 			return
 		}
 	}
-	t.Fatal("alert evaluator did not nest db.query under spaniel.alerts.evaluate")
+	t.Fatal("alert evaluator did not nest storage.ListAlertRules under spaniel.alerts.evaluate")
 }

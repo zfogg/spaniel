@@ -162,7 +162,7 @@ export function DashboardEditor() {
     return () => window.clearTimeout(timer)
   }, [catalogSearch])
   const catalog = useQuery({ queryKey: ['query-catalog', debouncedSearch], queryFn: ({ signal }) => api.dashboards.catalog(undefined, debouncedSearch, signal).then(x => x.data), retry: 1, staleTime: 15_000 })
-  const preview = useMutation({ mutationFn: () => active ? api.dashboards.preview(active.id, { query_sql: query, display_type: display }).then(x => ({ ...x.data, querySQL: query, displayType: display })) : Promise.reject(new Error('Create a dashboard before previewing SQL')) })
+	const preview = useMutation({ mutationFn: () => active ? api.dashboards.preview(active.id, { query_sql: query, name: title, display_type: display }).then(x => ({ ...x.data, querySQL: query, displayType: display })) : Promise.reject(new Error('Create a dashboard before previewing SQL')) })
   useEffect(() => { setDashboardName(active?.name ?? '') }, [active?.id])
   const saveDashboardName = async (nextName: string) => {
     if (!active || !nextName.trim() || nextName.trim() === active.name) return

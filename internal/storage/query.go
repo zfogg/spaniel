@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ReadOnlyQuery runs query against a read-only DuckDB connection to the same
@@ -38,6 +43,20 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	if err := validateReadOnlySQL(query); err != nil {
 		return nil, nil, false, err
 	}
+	name := queryNameFromContext(ctx)
+	if name == "" {
+		name = sqlSummary(query)
+	}
+	attrs := []attribute.KeyValue{
+		semconv.DBSystemKey.String("duckdb"),
+		attribute.String("db.query.summary", name),
+	}
+	if sanitized, ok := sanitizeSQL(query); ok {
+		attrs = append(attrs, semconv.DBQueryTextKey.String(sanitized))
+	}
+	ctx, span := otel.Tracer("spaniel/storage").Start(ctx, name,
+		trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
+	defer span.End()
 
 	var ro *sql.DB
 	if runtime.GOOS == "windows" {

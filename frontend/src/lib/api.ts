@@ -499,7 +499,7 @@ export const api = {
 		create: (body: { name: string; description?: string }) => post('/api/dashboards', body, DashboardSchema),
 		update: (id: string, body: { name: string; description?: string }) => patch(`/api/dashboards/${id}`, body, DashboardSchema),
 		remove: (id: string) => del(`/api/dashboards/${id}`, OkSchema),
-                preview: (id: string, body: { query_sql: string; display_type?: string; variables?: Record<string, string> }) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
+				preview: (id: string, body: { query_sql: string; name?: string; display_type?: string; variables?: Record<string, string> }) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
                 catalog: (signal?: string, search?: string, abortSignal?: AbortSignal) => {
                   const query = new URLSearchParams()
                   if (signal) query.set('signal', signal)
