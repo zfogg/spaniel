@@ -6,6 +6,7 @@ export interface MetricPayload { name: string; serviceName: string; value: numbe
 export interface IssuePayload { traceId: string; kind: string; fingerprint: string; count: number; wastedNs: number }
 export interface ForwarderPayload { url: string; sent: number; errors: number; lastError?: string; pendingBytes?: number; droppedSpool?: number }
 export interface ThroughputPayload { spansPerSec: number; logsPerSec: number }
+export interface AlertPayload { ruleId: string; state: string; name?: string; severity?: string }
 
 export type WsEvent =
   | { type: 'span';       timestamp_ns: number; payload: SpanPayload }
@@ -14,6 +15,7 @@ export type WsEvent =
   | { type: 'issue';      timestamp_ns: number; payload: IssuePayload }
   | { type: 'forwarder';  timestamp_ns: number; payload: ForwarderPayload }
   | { type: 'throughput'; timestamp_ns: number; payload: ThroughputPayload }
+	| { type: 'alert';      timestamp_ns: number; payload: AlertPayload }
   | { type: 'heartbeat';  timestamp_ns: number }
 
 // Keep SpanEvent as a backward-compat alias:

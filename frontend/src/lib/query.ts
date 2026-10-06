@@ -39,6 +39,8 @@ export const qk = {
   sources: () => ['sources'] as const,
   storage: () => ['storage'] as const,
   settings: () => ['settings'] as const,
+	 dashboards: () => ['dashboards'] as const,
+	 alerts: () => ['alerts'] as const,
 }
 
 // Maps a live WebSocket event type to the query-key prefixes it should
@@ -50,6 +52,7 @@ const INVALIDATIONS: Record<string, string[]> = {
   metric: ['metrics', 'metric-series'],
   issue: ['issues', 'traces', 'trace'],
   forwarder: ['forwarders'],
+	 alert: ['alerts'],
 }
 
 // Opens a single WebSocket and turns live events into throttled query

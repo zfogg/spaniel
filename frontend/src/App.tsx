@@ -16,8 +16,11 @@ import DiffPage from './pages/DiffPage'
 import Metrics from './pages/Metrics'
 import Coverage from './pages/Coverage'
 import Settings from './pages/Settings'
+import Dashboards, { DashboardEditor } from './pages/Dashboards'
+import Alerts from './pages/Alerts'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
+import AlertToast from './components/AlertToast'
 import StorageFullBanner from './components/StorageFullBanner'
 import RouteErrorBoundary from './components/RouteErrorBoundary'
 import { Toaster } from 'sonner'
@@ -164,6 +167,8 @@ function Chrome() {
         <NavPill to="/spans"          label="Spans"    />
         <NavPill to="/logs"           label="Logs"     />
         <NavPill to="/metrics"        label="Metrics"  />
+		<NavPill to="/dashboards"     label="Dashboards" />
+		<NavPill to="/alerts"         label="Alerts" />
         <NavPill to="/services"       label="Services" />
         <NavPill to="/coverage"       label="Coverage" />
         <NavPill to="/lint"           label="Lint"     />
@@ -231,6 +236,10 @@ function AppShell() {
           <Route path="/traces/:traceId"   element={<TraceDetail />} />
           <Route path="/logs"              element={<LogViewer />}   />
           <Route path="/metrics"           element={<Metrics />}     />
+		  <Route path="/dashboards"        element={<Dashboards />}  />
+		  <Route path="/dashboards/new"    element={<DashboardEditor />}  />
+		  <Route path="/dashboards/:dashboardId" element={<DashboardEditor />}  />
+		  <Route path="/alerts"            element={<Alerts />}      />
           <Route path="/coverage"          element={<Coverage />}    />
           <Route path="/settings"          element={<Settings />}    />
           <Route path="/services"          element={<ServiceMap />}  />
@@ -242,6 +251,7 @@ function AppShell() {
       </main>
       <BottomBar />
       <IssueToast />
+	  <AlertToast />
       <Toaster position="bottom-right" offset={44} visibleToasts={3} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>

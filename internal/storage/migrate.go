@@ -149,6 +149,14 @@ func migrations() []*gormigrate.Migration {
 				return execMigrationFile(tx, "0008_materialize_span_duration.sql")
 			},
 		},
+		{
+			ID:      "0009_dashboards_alerts",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0009_dashboards_alerts.sql") },
+		},
+		{
+			ID:      "0010_alert_notification_state",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0010_alert_notification_state.sql") },
+		},
 	}
 }
 
@@ -171,7 +179,12 @@ func (d *DB) migrate() error {
 
 	m := gormigrate.New(d.gorm, gormigrate.DefaultOptions, migrations())
 	m.InitSchema(func(tx *gorm.DB) error {
-		return execMigrationFile(tx, "0001_init.sql")
+		if err := execMigrationFile(tx, "0001_init.sql"); err != nil {
+			return err
+		}
+		// Fresh databases are stamped with every migration, so new definition
+		// tables must be included here as well as in their numbered migration.
+		return execMigrationFile(tx, "0009_dashboards_alerts.sql")
 	})
 	if err := m.Migrate(); err != nil {
 		return err

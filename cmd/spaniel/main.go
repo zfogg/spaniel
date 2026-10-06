@@ -945,6 +945,7 @@ func run(cfg runConfig) error {
 	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	api.StartAlertEvaluator(ctx, store, hub, 15*time.Second)
 	defer stop()
 
 	lns, err := listenAll(hosts, cfg.Port)

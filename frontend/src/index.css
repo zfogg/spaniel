@@ -5,6 +5,14 @@
 
 /* ── tailwind ──────────────────────────────────────────────────────────────── */
 @import "tailwindcss";
+
+/* The dashboard mockup establishes layout, not a separate light-only theme. */
+.dark .dashboard-workspace [class*="bg-[#e4eaf0]"], .dark .dashboard-workspace main { background-color: var(--background) !important; }
+.dark .dashboard-workspace [class*="bg-[#f5f9fc]"], .dark .dashboard-workspace [class*="bg-[#edf3f7]"] { background-color: var(--surface) !important; }
+.dark .dashboard-workspace [class*="text-[#1f2937]"], .dark .dashboard-workspace [class*="text-[#566574]"] { color: var(--foreground) !important; }
+.dark .dashboard-workspace [class*="border-[#cad5df]"], .dark .dashboard-workspace [class*="border-[#dae3eb]"], .dark .dashboard-workspace [class*="border-[#e0e7ed]"] { border-color: var(--border) !important; }
+.dark .dashboard-workspace [class*="text-[#8291a0]"] { color: var(--muted-foreground) !important; }
+.dark .dashboard-workspace [class*="bg-[#eaf0f5]"] { background-color: var(--muted) !important; }
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 

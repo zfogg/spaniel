@@ -8,7 +8,7 @@ import { createElement, type ReactNode } from 'react'
 // so we can drive it synthetically.
 let captured: ((ev: unknown) => void) | null = null
 vi.mock('./ws', () => ({
-  createWS: (onEvent: (ev: unknown) => void) => {
+  onWSEvent: (onEvent: (ev: unknown) => void) => {
     captured = onEvent
     return () => {}
   },
