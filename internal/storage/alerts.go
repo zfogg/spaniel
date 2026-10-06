@@ -11,6 +11,7 @@ type AlertRule struct {
 	Name            string           `json:"name"`
 	QuerySQL        string           `json:"query_sql"`
 	QueryVersion    int              `json:"query_version"`
+	LegacyQueryJSON string           `json:"-" gorm:"column:query_json"`
 	ConditionJSON   string           `json:"condition_json"`
 	GroupByJSON     string           `json:"group_by_json"`
 	PendingForNs    int64            `json:"pending_for_ns"`
@@ -68,11 +69,12 @@ func (d *DB) CreateAlertRule(r *AlertRule) error {
 	r.ID = uuid.NewString()
 	r.CreatedAt = now
 	r.UpdatedAt = now
+	r.LegacyQueryJSON = "{}"
 	return d.gorm.Create(r).Error
 }
 func (d *DB) UpdateAlertRule(r *AlertRule) error {
 	r.UpdatedAt = time.Now().UnixNano()
-	return d.gorm.Model(&AlertRule{}).Where("id = ?", r.ID).Updates(map[string]any{"name": r.Name, "query_sql": r.QuerySQL, "query_version": r.QueryVersion, "condition_json": r.ConditionJSON, "group_by_json": r.GroupByJSON, "pending_for_ns": r.PendingForNs, "cooldown_ns": r.CooldownNs, "severity": r.Severity, "annotations_json": r.AnnotationsJSON, "enabled": r.Enabled, "updated_at": r.UpdatedAt}).Error
+	return d.gorm.Model(&AlertRule{}).Where("id = ?", r.ID).Updates(map[string]any{"name": r.Name, "query_json": "{}", "query_sql": r.QuerySQL, "query_version": r.QueryVersion, "condition_json": r.ConditionJSON, "group_by_json": r.GroupByJSON, "pending_for_ns": r.PendingForNs, "cooldown_ns": r.CooldownNs, "severity": r.Severity, "annotations_json": r.AnnotationsJSON, "enabled": r.Enabled, "updated_at": r.UpdatedAt}).Error
 }
 func (d *DB) UpsertAlertInstance(x *AlertInstance) error { return d.gorm.Save(x).Error }
 
