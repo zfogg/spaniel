@@ -531,6 +531,8 @@ func receiverConfigError(grpcPort, httpPort int) error {
 	return nil
 }
 
+var notifyShutdown = signal.NotifyContext
+
 func run(cfg runConfig) error {
 	// Fail fast before any side effects (DB open, goroutines) if there's no way
 	// to ingest telemetry.
@@ -647,6 +649,7 @@ func run(cfg runConfig) error {
 			RetryMax: cfg.ForwardRetryMax,
 		}
 		fwd = forwarder.NewWithSpool(cfg.ForwardURLs, cfg.ForwardSample, sc)
+		defer fwd.Close()
 	}
 
 	// A half-configured TLS pair is almost always a mistake that would
@@ -958,7 +961,7 @@ func run(cfg runConfig) error {
 		}
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := notifyShutdown(context.Background(), os.Interrupt, syscall.SIGTERM)
 	api.StartAlertEvaluator(ctx, store, hub, 15*time.Second)
 	defer stop()
 

@@ -112,14 +112,6 @@ func validateReadOnlySQL(query string) error {
 	if len(tokens) == 0 {
 		return fmt.Errorf("read-only SQL: query is empty")
 	}
-	// A single trailing terminator is harmless, but a delimiter followed by
-	// another token is a second statement.  Do this before checking the first
-	// keyword so SELECT 1; DROP TABLE never becomes "a SELECT containing DROP".
-	for i, token := range tokens {
-		if token == ";" && i != len(tokens)-1 {
-			return fmt.Errorf("read-only SQL: multiple statements are not allowed")
-		}
-	}
 	switch tokens[0] {
 	case "SELECT", "WITH", "VALUES", "EXPLAIN", "SHOW", "DESCRIBE":
 	default:

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -60,6 +61,9 @@ type Forwarder struct {
 	client    *http.Client
 	sample    float64
 	rand      func() float64
+	done      chan struct{}
+	closeOnce sync.Once
+	loops     sync.WaitGroup
 }
 
 // registerForwarderMetrics registers an observable gauge for spool queue depth
@@ -96,6 +100,7 @@ func New(urls []string, sample float64) *Forwarder {
 		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil)},
 		sample:    sample,
 		rand:      rand.Float64,
+		done:      make(chan struct{}),
 	}
 }
 
@@ -135,15 +140,45 @@ func NewWithSpool(urls []string, sample float64, sc SpoolConfig) *Forwarder {
 		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil)},
 		sample:    sample,
 		rand:      rand.Float64,
+		done:      make(chan struct{}),
 	}
 	for _, up := range ups {
 		if up.sp != nil {
 			up := up // capture
-			goroutine.Go(func() { f.runLoop(up, sc.RetryMax) }, "subsystem", "forwarder", "upstream", up.url)
+			f.loops.Add(1)
+			goroutine.Go(func() {
+				defer f.loops.Done()
+				f.runLoop(up, sc.RetryMax)
+			}, "subsystem", "forwarder", "upstream", up.url)
 		}
 	}
 	registerForwarderMetrics(ups)
 	return f
+}
+
+// Close stops retry loops and closes disk spool files. It is safe to call more
+// than once. Call it during shutdown so Windows can release the file handles.
+func (f *Forwarder) Close() {
+	if f == nil {
+		return
+	}
+	f.closeOnce.Do(func() {
+		close(f.done)
+		for _, up := range f.upstreams {
+			if up.sp != nil {
+				select {
+				case up.sp.notify <- struct{}{}:
+				default:
+				}
+			}
+		}
+		f.loops.Wait()
+		for _, up := range f.upstreams {
+			if up.sp != nil {
+				_ = up.sp.f.Close()
+			}
+		}
+	})
 }
 
 // Forward asynchronously delivers body to each upstream at <base>/path.
@@ -219,13 +254,24 @@ func (f *Forwarder) sendRecord(up *upstream, rec *spoolRecord) error {
 func (f *Forwarder) runLoop(up *upstream, retryMax time.Duration) {
 	backoff := 250 * time.Millisecond
 	for {
+		select {
+		case <-f.done:
+			return
+		default:
+		}
 		rec, err := up.sp.readNext()
 		if err != nil {
-			time.Sleep(time.Second)
+			select {
+			case <-f.done:
+				return
+			case <-time.After(time.Second):
+			}
 			continue
 		}
 		if rec == nil {
 			select {
+			case <-f.done:
+				return
 			case <-up.sp.notify:
 			case <-time.After(5 * time.Second):
 			}
@@ -240,7 +286,11 @@ func (f *Forwarder) runLoop(up *upstream, retryMax time.Duration) {
 			// sleep backoff/2 .. backoff with uniform jitter
 			half := int64(backoff / 2)
 			sleep := backoff/2 + time.Duration(rand.Int64N(half+1))
-			time.Sleep(sleep)
+			select {
+			case <-f.done:
+				return
+			case <-time.After(sleep):
+			}
 			backoff *= 2
 			if backoff > retryMax {
 				backoff = retryMax

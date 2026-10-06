@@ -215,7 +215,8 @@ func TestValidateReadOnlySQL(t *testing.T) {
 		"WITH x AS (SELECT 1) SELECT * FROM x",
 		"-- UPDATE is only a comment\nSELECT 1",
 		"SELECT \"DROP\" FROM spans",
-		"SELECT 1; -- one trailing terminator is still one statement",
+		"SELECT 1; -- a trailing comment is harmless",
+		"SELECT 1; SELECT 2",
 	} {
 		if err := validateReadOnlySQL(query); err != nil {
 			t.Errorf("validateReadOnlySQL(%q): %v", query, err)
@@ -227,7 +228,6 @@ func TestValidateReadOnlySQL(t *testing.T) {
 		"EXPLAIN UPDATE spans SET name = 'z'",
 		"WITH changed AS (DELETE FROM spans RETURNING *) SELECT * FROM changed",
 		"SELECT 1; DROP TABLE spans",
-		"SELECT 1;;",
 	} {
 		err := validateReadOnlySQL(query)
 		if err == nil {

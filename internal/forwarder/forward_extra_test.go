@@ -160,6 +160,7 @@ func TestForwardSurvivesUpstreamDowntime(t *testing.T) {
 	dir := t.TempDir()
 	sc := SpoolConfig{Dir: dir, MaxBytes: 100 << 20, RetryMax: 500 * time.Millisecond}
 	f := NewWithSpool([]string{srv.URL}, 1.0, sc)
+	t.Cleanup(f.Close)
 
 	f.Forward("/v1/traces", "application/json", []byte("{}"))
 

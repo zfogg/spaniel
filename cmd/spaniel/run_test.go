@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -378,6 +378,15 @@ func TestPrintSummary_SlowestURL(t *testing.T) {
 }
 
 func TestRun_ShutsDownCleanlyOnSignal(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	oldNotifyShutdown := notifyShutdown
+	notifyShutdown = func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+		return ctx, func() {}
+	}
+	t.Cleanup(func() {
+		notifyShutdown = oldNotifyShutdown
+		cancel()
+	})
 	// Find a free port so the test doesn't collide with other processes.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -421,14 +430,9 @@ func TestRun_ShutsDownCleanlyOnSignal(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	// Send SIGINT to ourselves — signal.NotifyContext in run() should catch it.
-	p, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		t.Fatalf("FindProcess: %v", err)
-	}
-	if err := p.Signal(syscall.SIGINT); err != nil {
-		t.Fatalf("Signal: %v", err)
-	}
+	// Drive the same shutdown context signal.NotifyContext supplies in
+	// production. Process SIGINT is not supported by Windows test processes.
+	cancel()
 
 	select {
 	case err := <-errc:
