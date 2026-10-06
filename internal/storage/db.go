@@ -43,6 +43,17 @@ func (d *DB) WithContext(ctx context.Context) *DB {
 	return &cp
 }
 
+// namedQuery preserves the caller context while attaching a stable,
+// source-owned span name to generated SQL whose implementation executes via
+// GORM's raw callback (for example, named DML templates).
+func (d *DB) namedQuery(name string) *querygen.Query {
+	ctx := context.Background()
+	if d.gorm.Statement != nil && d.gorm.Statement.Context != nil {
+		ctx = d.gorm.Statement.Context
+	}
+	return querygen.Use(d.gorm.WithContext(WithQueryName(ctx, name)))
+}
+
 type Span = model.Span
 type Log = model.Log
 type Session = model.Session
@@ -929,7 +940,7 @@ func (d *DB) SaveDropCounters(spans, logs, metrics int64) error {
 		{Key: "dropped_logs", Value: strconv.FormatInt(logs, 10)},
 		{Key: "dropped_metric_points", Value: strconv.FormatInt(metrics, 10)},
 	} {
-		if err := d.query.Meta.Save(entry); err != nil {
+		if err := d.namedQuery("storage.SaveDropCounters").Meta.UpsertValue(entry.Key, entry.Value); err != nil {
 			return err
 		}
 	}

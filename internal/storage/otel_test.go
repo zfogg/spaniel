@@ -101,3 +101,30 @@ func TestWithoutContext_DBSpanIsRoot(t *testing.T) {
 	}
 	_ = ctx
 }
+
+func TestWithContext_NamesGeneratedWriteSpan(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	d, err := Open(filepath.Join(t.TempDir(), "write.duckdb"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	ctx, parent := otel.Tracer("test").Start(context.Background(), "parent")
+	if err := d.WithContext(ctx).SetSpanielVersion("test"); err != nil {
+		t.Fatalf("SetSpanielVersion: %v", err)
+	}
+	parent.End()
+
+	parentID := parent.SpanContext().SpanID()
+	for _, s := range sr.Ended() {
+		if s.Name() == "storage.SetSpanielVersion" && s.Parent().SpanID() == parentID {
+			return
+		}
+	}
+	t.Fatal("no source-named generated write span nested under parent")
+}

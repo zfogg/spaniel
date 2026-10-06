@@ -37,6 +37,7 @@ func main() {
 	g.ApplyInterface(func(model.SpanServiceMapMethods) {}, model.Span{})
 	g.ApplyInterface(func(model.SpanStorageMethods) {}, model.Span{})
 	g.ApplyInterface(func(model.MetaDiagnosticMethods) {}, model.Meta{})
+	g.ApplyInterface(func(model.MetaWriteMethods) {}, model.Meta{})
 	g.ApplyInterface(func(model.TraceIssueSearchMethods) {}, model.TraceIssue{})
 	g.ApplyInterface(func(model.LintWarningSearchMethods) {}, model.LintWarning{})
 	g.ApplyInterface(func(model.LintWarningMethods) {}, model.LintWarning{})

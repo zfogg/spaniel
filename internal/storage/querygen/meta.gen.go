@@ -157,6 +157,7 @@ type IMetaDo interface {
 	schema.Tabler
 
 	DatabaseSize() (result []model.DatabaseSize, err error)
+	UpsertValue(key string, value string) (err error)
 }
 
 // DatabaseSize
@@ -168,6 +169,24 @@ func (m metaDo) DatabaseSize() (result []model.DatabaseSize, err error) {
 
 	var executeSQL *gorm.DB
 	executeSQL = m.UnderlyingDB().Raw(generateSQL.String()).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
+}
+
+// UpsertValue
+//
+// INSERT INTO @@table (meta_key, meta_value) VALUES (@key, @value) ON CONFLICT (meta_key) DO UPDATE SET meta_value = excluded.meta_value
+func (m metaDo) UpsertValue(key string, value string) (err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, key)
+	params = append(params, value)
+	generateSQL.WriteString("INSERT INTO meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT (meta_key) DO UPDATE SET meta_value = excluded.meta_value ")
+
+	var executeSQL *gorm.DB
+	executeSQL = m.UnderlyingDB().Exec(generateSQL.String(), params...) // ignore_security_alert
 	err = executeSQL.Error
 
 	return

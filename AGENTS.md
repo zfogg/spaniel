@@ -24,7 +24,7 @@ intentionally externally reachable, approve only its corresponding stable
 
 ## Storage query boundary
 
-Use GORM Gen for Spaniel's typed persistence and named read queries. Raw GORM
-is reserved for migrations/schema repair, dynamic retention cleanup, and
-DuckDB maintenance; user SQL remains read-only and is separately traced.
+Use GORM Gen for Spaniel's typed reads/writes and named SQL (including DML).
+Raw GORM is reserved for migrations/schema repair, dynamic retention cleanup,
+and DuckDB maintenance; user SQL remains read-only and is separately traced.
 Run `make generate` after changing storage models or named query interfaces.

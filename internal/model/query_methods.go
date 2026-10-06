@@ -2,6 +2,15 @@ package model
 
 import "gorm.io/gen"
 
+// MetaWriteMethods keeps small persisted-state writes as named generated DML,
+// rather than letting callers assemble an upsert at runtime.
+type MetaWriteMethods interface {
+	// UpsertValue
+	//
+	// INSERT INTO @@table (meta_key, meta_value) VALUES (@key, @value) ON CONFLICT (meta_key) DO UPDATE SET meta_value = excluded.meta_value
+	UpsertValue(key, value string) error
+}
+
 // SpanEventMethods and SpanLinkMethods are the named, source-owned read
 // queries whose shapes are stable enough to generate rather than assemble at
 // runtime. The names become part of the storage API and remain low-cardinality
