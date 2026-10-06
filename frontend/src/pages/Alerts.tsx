@@ -8,7 +8,7 @@ const tone: Record<string, string> = { firing: 'bg-danger-bg text-danger-ink bor
 const toNS = (v: string) => Math.max(0, Number(v) || 0) * 60e9
 const fromNS = (v: number) => String(v / 60e9)
 type Draft = { name:string; query:string; threshold:string; operator:string; severity:string; pending:string; cooldown:string; groupBy:string; enabled:boolean; annotations:string }
-const blank = (): Draft => ({ name:'Elevated error traces', query:'count(traces) by service_name where status = 2', threshold:'10', operator:'>', severity:'warning', pending:'0', cooldown:'5', groupBy:'service_name', enabled:true, annotations:'{}' })
+const blank = (): Draft => ({ name:'Elevated error traces', query:'SELECT service_name, count(*) AS value FROM telemetry_spans WHERE status_code = 2 GROUP BY service_name', threshold:'10', operator:'>', severity:'warning', pending:'0', cooldown:'5', groupBy:'service_name', enabled:true, annotations:'{}' })
 const json = <T,>(s:string, fallback:T):T => { try { return JSON.parse(s) as T } catch { return fallback } }
 const stateOf = (r:AlertRule) => r.instances.find(x=>x.state==='firing')?.state ?? r.instances.find(x=>x.state==='pending')?.state ?? r.instances[0]?.state ?? 'resolved'
 function draftFor(r:AlertRule):Draft { const c=json<{operator?:string;value?:number}>(r.condition_json,{}); return { name:r.name, query:r.query_sql, threshold:String(c.value??0), operator:c.operator??'>', severity:r.severity, pending:fromNS(r.pending_for_ns), cooldown:fromNS(r.cooldown_ns), groupBy:json<string[]>(r.group_by_json,[])[0]??'', enabled:r.enabled, annotations:r.annotations_json||'{}' } }
