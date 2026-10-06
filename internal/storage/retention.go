@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/zfogg/spaniel/internal/storage/querygen"
 	"github.com/zfogg/spaniel/internal/telemetry"
+	"gorm.io/gorm"
 )
 
 const (
@@ -173,49 +175,49 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
 		)`, oldestTraces, table, table)
 	}
 
-	for _, table := range []string{"lint_warnings", "trace_issues", "logs", "span_events", "span_links"} {
-		if err := d.gorm.Exec(`DELETE FROM ` + table + ` WHERE ` + traceMatch(table)).Error; err != nil {
-			return 0, fmt.Errorf("delete old trace %s: %w", table, err)
-		}
-	}
-
 	deleted := 0
-	tx := d.gorm.Exec(`DELETE FROM spans WHERE ` + traceMatch("spans"))
-	if tx.Error != nil {
-		return 0, fmt.Errorf("delete old spans: %w", tx.Error)
-	}
-	deleted += int(tx.RowsAffected)
-
-	for _, spec := range []struct {
-		table string
-		order string
-	}{
-		{"logs", "timestamp_ns"},
-		{"metrics", "timestamp_ns"},
-	} {
-		q := fmt.Sprintf(`DELETE FROM %s WHERE rowid IN (
+	err := d.namedGORM("storage.DeleteOldestTelemetryBatch").Transaction(func(tx *gorm.DB) error {
+		for _, table := range []string{"lint_warnings", "trace_issues", "logs", "span_events", "span_links"} {
+			if err := tx.Exec(`DELETE FROM ` + table + ` WHERE ` + traceMatch(table)).Error; err != nil {
+				return fmt.Errorf("delete old trace %s: %w", table, err)
+			}
+		}
+		result := tx.Exec(`DELETE FROM spans WHERE ` + traceMatch("spans"))
+		if result.Error != nil {
+			return fmt.Errorf("delete old spans: %w", result.Error)
+		}
+		deleted += int(result.RowsAffected)
+		for _, spec := range []struct {
+			table string
+			order string
+		}{
+			{"logs", "timestamp_ns"},
+			{"metrics", "timestamp_ns"},
+		} {
+			q := fmt.Sprintf(`DELETE FROM %s WHERE rowid IN (
 			SELECT rowid FROM %s ORDER BY %s LIMIT %d
 		)`, spec.table, spec.table, spec.order, pruneRecordBatch)
-		tx = d.gorm.Exec(q)
-		if tx.Error != nil {
-			return deleted, fmt.Errorf("delete old %s: %w", spec.table, tx.Error)
+			result = tx.Exec(q)
+			if result.Error != nil {
+				return fmt.Errorf("delete old %s: %w", spec.table, result.Error)
+			}
+			deleted += int(result.RowsAffected)
 		}
-		deleted += int(tx.RowsAffected)
-	}
-
-	// Sessions are metadata, not a reason to retain an empty allocation.
-	// Preserve the active and baseline records so new telemetry continues to
-	// land in a valid session.
-	if err := d.gorm.Exec(`
+		// Sessions are metadata, not a reason to retain an empty allocation.
+		// Preserve the active and baseline records so new telemetry continues to
+		// land in a valid session.
+		if err := tx.Exec(`
 		DELETE FROM sessions
 		WHERE id != ? AND is_baseline = FALSE
 		  AND NOT EXISTS (SELECT 1 FROM spans WHERE spans.session_id = sessions.id)
 		  AND NOT EXISTS (SELECT 1 FROM logs WHERE logs.session_id = sessions.id)
 		  AND NOT EXISTS (SELECT 1 FROM metrics WHERE metrics.session_id = sessions.id)
-	`, activeID).Error; err != nil {
-		return deleted, fmt.Errorf("delete empty sessions: %w", err)
-	}
-	return deleted, nil
+		`, activeID).Error; err != nil {
+			return fmt.Errorf("delete empty sessions: %w", err)
+		}
+		return nil
+	})
+	return deleted, err
 }
 
 func (d *DB) protectedSessionIDsOlderThan(cutoffNs int64, activeID string) ([]string, error) {
@@ -229,31 +231,34 @@ func (d *DB) protectedSessionIDsOlderThan(cutoffNs int64, activeID string) ([]st
 func (d *DB) resetTelemetry() error {
 	// Generated DAOs retain model ownership and the normal instrumentation path;
 	// each predicate makes the intended whole-table maintenance deletion explicit.
-	if _, err := d.query.LintWarning.Where(d.query.LintWarning.SpanID.IsNotNull()).Delete(); err != nil {
-		return fmt.Errorf("truncate lint_warnings: %w", err)
-	}
-	if _, err := d.query.TraceIssue.Where(d.query.TraceIssue.ID.IsNotNull()).Delete(); err != nil {
-		return fmt.Errorf("truncate trace_issues: %w", err)
-	}
-	if _, err := d.query.Log.Where(d.query.Log.TimestampNs.Gte(0)).Delete(); err != nil {
-		return fmt.Errorf("truncate logs: %w", err)
-	}
-	if _, err := d.query.Metric.Where(d.query.Metric.TimestampNs.Gte(0)).Delete(); err != nil {
-		return fmt.Errorf("truncate metrics: %w", err)
-	}
-	if _, err := d.query.SpanEvent.Where(d.query.SpanEvent.SpanID.IsNotNull()).Delete(); err != nil {
-		return fmt.Errorf("truncate span_events: %w", err)
-	}
-	if _, err := d.query.SpanLink.Where(d.query.SpanLink.SpanID.IsNotNull()).Delete(); err != nil {
-		return fmt.Errorf("truncate span_links: %w", err)
-	}
-	if _, err := d.query.Span.Where(d.query.Span.SpanID.IsNotNull()).Delete(); err != nil {
-		return fmt.Errorf("truncate spans: %w", err)
-	}
-	if _, err := d.query.Session.Where(d.query.Session.ID.IsNotNull()).Delete(); err != nil {
-		return fmt.Errorf("truncate sessions: %w", err)
-	}
-	return nil
+	q := d.namedQuery("storage.ResetTelemetry")
+	return q.Transaction(func(tx *querygen.Query) error {
+		if _, err := tx.LintWarning.Where(tx.LintWarning.SpanID.IsNotNull()).Delete(); err != nil {
+			return fmt.Errorf("truncate lint_warnings: %w", err)
+		}
+		if _, err := tx.TraceIssue.Where(tx.TraceIssue.ID.IsNotNull()).Delete(); err != nil {
+			return fmt.Errorf("truncate trace_issues: %w", err)
+		}
+		if _, err := tx.Log.Where(tx.Log.TimestampNs.Gte(0)).Delete(); err != nil {
+			return fmt.Errorf("truncate logs: %w", err)
+		}
+		if _, err := tx.Metric.Where(tx.Metric.TimestampNs.Gte(0)).Delete(); err != nil {
+			return fmt.Errorf("truncate metrics: %w", err)
+		}
+		if _, err := tx.SpanEvent.Where(tx.SpanEvent.SpanID.IsNotNull()).Delete(); err != nil {
+			return fmt.Errorf("truncate span_events: %w", err)
+		}
+		if _, err := tx.SpanLink.Where(tx.SpanLink.SpanID.IsNotNull()).Delete(); err != nil {
+			return fmt.Errorf("truncate span_links: %w", err)
+		}
+		if _, err := tx.Span.Where(tx.Span.SpanID.IsNotNull()).Delete(); err != nil {
+			return fmt.Errorf("truncate spans: %w", err)
+		}
+		if _, err := tx.Session.Where(tx.Session.ID.IsNotNull()).Delete(); err != nil {
+			return fmt.Errorf("truncate sessions: %w", err)
+		}
+		return nil
+	})
 }
 
 func (d *DB) deleteSessions(ids []string) (int, error) {

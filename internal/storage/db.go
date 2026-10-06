@@ -47,11 +47,15 @@ func (d *DB) WithContext(ctx context.Context) *DB {
 // source-owned span name to generated SQL whose implementation executes via
 // GORM's raw callback (for example, named DML templates).
 func (d *DB) namedQuery(name string) *querygen.Query {
+	return querygen.Use(d.namedGORM(name))
+}
+
+func (d *DB) namedGORM(name string) *gorm.DB {
 	ctx := context.Background()
 	if d.gorm.Statement != nil && d.gorm.Statement.Context != nil {
 		ctx = d.gorm.Statement.Context
 	}
-	return querygen.Use(d.gorm.WithContext(WithQueryName(ctx, name)))
+	return d.gorm.WithContext(WithQueryName(ctx, name))
 }
 
 type Span = model.Span
@@ -715,16 +719,18 @@ func (d *DB) GetSession(id string) (*Session, error) {
 
 func (d *DB) SetBaseline(id string, isBaseline bool) error {
 	q := d.namedQuery("storage.SetBaseline")
-	if isBaseline {
-		// clear any previous baseline first
-		if _, err := q.Session.Where(q.Session.IsBaseline.Is(true)).
-			Update(q.Session.IsBaseline, false); err != nil {
-			return err
+	return q.Transaction(func(tx *querygen.Query) error {
+		if isBaseline {
+			// clear any previous baseline first
+			if _, err := tx.Session.Where(tx.Session.IsBaseline.Is(true)).
+				Update(tx.Session.IsBaseline, false); err != nil {
+				return err
+			}
 		}
-	}
-	_, err := q.Session.Where(q.Session.ID.Eq(id)).
-		Update(q.Session.IsBaseline, isBaseline)
-	return err
+		_, err := tx.Session.Where(tx.Session.ID.Eq(id)).
+			Update(tx.Session.IsBaseline, isBaseline)
+		return err
+	})
 }
 
 // SessionPatch holds the mutable user-facing fields that PATCH /api/sessions/{id} may change.
@@ -940,16 +946,19 @@ func (d *DB) LoadDropCounters() (spans, logs, metrics int64, err error) {
 
 // SaveDropCounters writes the current drop counters to the meta table.
 func (d *DB) SaveDropCounters(spans, logs, metrics int64) error {
-	for _, entry := range []*model.Meta{
-		{Key: "dropped_spans", Value: strconv.FormatInt(spans, 10)},
-		{Key: "dropped_logs", Value: strconv.FormatInt(logs, 10)},
-		{Key: "dropped_metric_points", Value: strconv.FormatInt(metrics, 10)},
-	} {
-		if err := d.namedQuery("storage.SaveDropCounters").Meta.UpsertValue(entry.Key, entry.Value); err != nil {
-			return err
+	q := d.namedQuery("storage.SaveDropCounters")
+	return q.Transaction(func(tx *querygen.Query) error {
+		for _, entry := range []*model.Meta{
+			{Key: "dropped_spans", Value: strconv.FormatInt(spans, 10)},
+			{Key: "dropped_logs", Value: strconv.FormatInt(logs, 10)},
+			{Key: "dropped_metric_points", Value: strconv.FormatInt(metrics, 10)},
+		} {
+			if err := tx.Meta.UpsertValue(entry.Key, entry.Value); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // GetServiceP95 returns the p95 duration_ns for spans of the given service.
