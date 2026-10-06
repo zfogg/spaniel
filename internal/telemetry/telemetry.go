@@ -26,6 +26,14 @@ import (
 // goruntimeOnce ensures goruntime.Start is called exactly once per process.
 var goruntimeOnce sync.Once
 
+// SelfTelemetryHeader marks OTLP exported by Spaniel itself. The receiver uses
+// it to avoid tracing the exporter RPCs, which would otherwise create a
+// perpetual stream of one-span collector traces in Spaniel's own trace view.
+const (
+	SelfTelemetryHeader = "x-spaniel-self-telemetry"
+	selfTelemetryValue  = "true"
+)
+
 // Config controls Spaniel's own OTLP self-telemetry.
 type Config struct {
 	// Endpoint is the OTLP gRPC target (e.g. "localhost:4317").
@@ -85,7 +93,10 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	// Traces: always real SDK. Add exporter only if endpoint is configured.
 	traceOpts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
 	if cfg.Endpoint != "" {
-		traceExpOpts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.Endpoint)}
+		traceExpOpts := []otlptracegrpc.Option{
+			otlptracegrpc.WithEndpoint(cfg.Endpoint),
+			otlptracegrpc.WithHeaders(map[string]string{SelfTelemetryHeader: selfTelemetryValue}),
+		}
 		if cfg.Insecure {
 			traceExpOpts = append(traceExpOpts, otlptracegrpc.WithInsecure())
 		}
@@ -105,7 +116,10 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		sdkmetric.WithExemplarFilter(exemplar.AlwaysOnFilter),
 	}
 	if cfg.Endpoint != "" {
-		metExpOpts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint)}
+		metExpOpts := []otlpmetricgrpc.Option{
+			otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
+			otlpmetricgrpc.WithHeaders(map[string]string{SelfTelemetryHeader: selfTelemetryValue}),
+		}
 		if cfg.Insecure {
 			metExpOpts = append(metExpOpts, otlpmetricgrpc.WithInsecure())
 		}
@@ -132,7 +146,10 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	// Logs: always real SDK. Add exporter only if endpoint is configured.
 	logOpts := []sdklog.LoggerProviderOption{sdklog.WithResource(res)}
 	if cfg.Endpoint != "" {
-		logExpOpts := []otlploggrpc.Option{otlploggrpc.WithEndpoint(cfg.Endpoint)}
+		logExpOpts := []otlploggrpc.Option{
+			otlploggrpc.WithEndpoint(cfg.Endpoint),
+			otlploggrpc.WithHeaders(map[string]string{SelfTelemetryHeader: selfTelemetryValue}),
+		}
 		if cfg.Insecure {
 			logExpOpts = append(logExpOpts, otlploggrpc.WithInsecure())
 		}

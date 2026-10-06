@@ -95,11 +95,12 @@ func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig
 // automatic size-based deletion path without affecting explicit retention.
 func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storageGuardPolicy) {
 	apply := func() {
-		ctx, span := otel.Tracer("spaniel/retention").Start(context.Background(), "retention.prune")
+		ctx, span := otel.Tracer("spaniel/retention").Start(context.Background(), "spaniel.retention.prune")
 		t0 := time.Now()
 		current := cfg
 		current.MaxDBSizeBytes = policy.RetentionSizeLimit()
-		res, err := store.Prune(current, store.ActiveSessionID())
+		scopedStore := store.WithContext(ctx)
+		res, err := scopedStore.Prune(current, scopedStore.ActiveSessionID())
 		getRetentionDurationHist().Record(ctx, float64(time.Since(t0).Milliseconds()))
 		if err != nil {
 			span.RecordError(err)

@@ -9,6 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
@@ -21,7 +25,7 @@ func StartAlertEvaluator(ctx context.Context, store *storage.DB, hub *ws.Hub, in
 		interval = 15 * time.Second
 	}
 	go func() {
-		evaluateAlerts(store, hub, time.Now())
+		evaluateAlerts(ctx, store, hub, time.Now())
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -29,7 +33,7 @@ func StartAlertEvaluator(ctx context.Context, store *storage.DB, hub *ws.Hub, in
 			case <-ctx.Done():
 				return
 			case now := <-ticker.C:
-				evaluateAlerts(store, hub, now)
+				evaluateAlerts(ctx, store, hub, now)
 			}
 		}
 	}()
@@ -41,16 +45,22 @@ type alertCondition struct {
 	Value    float64 `json:"value"`
 }
 
-func evaluateAlerts(store *storage.DB, hub *ws.Hub, now time.Time) {
+func evaluateAlerts(parent context.Context, store *storage.DB, hub *ws.Hub, now time.Time) {
+	ctx, span := otel.Tracer("spaniel/alerts").Start(parent, "spaniel.alerts.evaluate", trace.WithSpanKind(trace.SpanKindInternal))
+	defer span.End()
+
+	store = store.WithContext(ctx)
 	rules, err := store.ListAlertRules()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return
 	}
 	for _, rule := range rules {
 		if !rule.Enabled {
 			continue
 		}
-		if err := evaluateAlertRule(store, hub, rule, now); err != nil {
+		if err := evaluateAlertRule(ctx, store, hub, rule, now); err != nil {
 			// Evaluation errors are attached to an instance rather than silently
 			// suppressing the rule. This makes malformed historic data observable.
 			_ = store.UpsertAlertInstance(&storage.AlertInstance{
@@ -61,7 +71,7 @@ func evaluateAlerts(store *storage.DB, hub *ws.Hub, now time.Time) {
 	}
 }
 
-func evaluateAlertRule(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, now time.Time) error {
+func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, now time.Time) error {
 	var condition alertCondition
 	if err := json.Unmarshal([]byte(rule.ConditionJSON), &condition); err != nil {
 		return fmt.Errorf("read alert condition: %w", err)
@@ -72,7 +82,7 @@ func evaluateAlertRule(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, 
 	if err := storage.ValidateReadOnlySQL(rule.QuerySQL); err != nil {
 		return fmt.Errorf("validate alert query: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 	columns, values, _, err := store.ReadOnlyQuery(ctx, rule.QuerySQL, 1000)
 	if err != nil {

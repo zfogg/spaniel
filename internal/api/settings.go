@@ -163,7 +163,7 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 // dropAllData wipes the database (DELETE /api/settings/data). Distinct from
 // the existing /api/sessions endpoints which are per-session.
 func (r *Router) dropAllData(w http.ResponseWriter, req *http.Request) {
-	if err := r.store.Reset(); err != nil {
+	if err := r.store.WithContext(req.Context()).Reset(); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}

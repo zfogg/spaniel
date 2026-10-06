@@ -43,7 +43,7 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	return &storage.AlertRule{Name: in.Name, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, ConditionJSON: string(c), GroupByJSON: string(g), PendingForNs: in.PendingForNs, CooldownNs: in.CooldownNs, Severity: sev, Enabled: on, AnnotationsJSON: string(a)}, nil
 }
 func (r *Router) listAlerts(w http.ResponseWriter, q *http.Request) {
-	x, e := r.store.ListAlertRules()
+	x, e := r.store.WithContext(q.Context()).ListAlertRules()
 	if e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
@@ -51,7 +51,7 @@ func (r *Router) listAlerts(w http.ResponseWriter, q *http.Request) {
 	respond(w, x, len(x), 1)
 }
 func (r *Router) getAlert(w http.ResponseWriter, q *http.Request) {
-	x, e := r.store.GetAlertRule(chi.URLParam(q, "id"))
+	x, e := r.store.WithContext(q.Context()).GetAlertRule(chi.URLParam(q, "id"))
 	if e != nil {
 		respondErr(w, q, 404, "alert not found")
 		return
@@ -68,7 +68,7 @@ func (r *Router) createAlert(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 400, e.Error())
 		return
 	}
-	if e = r.store.CreateAlertRule(x); e != nil {
+	if e = r.store.WithContext(q.Context()).CreateAlertRule(x); e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
 	}
@@ -85,27 +85,28 @@ func (r *Router) patchAlert(w http.ResponseWriter, q *http.Request) {
 		return
 	}
 	x.ID = chi.URLParam(q, "id")
-	if e = r.store.UpdateAlertRule(x); e != nil {
+	if e = r.store.WithContext(q.Context()).UpdateAlertRule(x); e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
 	}
 	respond(w, x, 1, 1)
 }
 func (r *Router) deleteAlert(w http.ResponseWriter, q *http.Request) {
-	if e := r.store.DeleteAlertRule(chi.URLParam(q, "id")); e != nil {
+	if e := r.store.WithContext(q.Context()).DeleteAlertRule(chi.URLParam(q, "id")); e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
 	}
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 func (r *Router) acknowledgeAlert(w http.ResponseWriter, q *http.Request) {
+	store := r.store.WithContext(q.Context())
 	id := chi.URLParam(q, "id")
-	changed, e := r.store.AcknowledgeAlert(id)
+	changed, e := store.AcknowledgeAlert(id)
 	if e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
 	}
-	if rule, err := r.store.GetAlertRule(id); err == nil && r.hub != nil {
+	if rule, err := store.GetAlertRule(id); err == nil && r.hub != nil {
 		for _, instance := range changed {
 			r.hub.Broadcast(alertEvent(rule, instance, "acknowledged", time.Now()))
 		}
@@ -113,12 +114,13 @@ func (r *Router) acknowledgeAlert(w http.ResponseWriter, q *http.Request) {
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 func (r *Router) previewAlert(w http.ResponseWriter, q *http.Request) {
-	x, e := r.store.GetAlertRule(chi.URLParam(q, "id"))
+	store := r.store.WithContext(q.Context())
+	x, e := store.GetAlertRule(chi.URLParam(q, "id"))
 	if e != nil {
 		respondErr(w, q, 404, "alert not found")
 		return
 	}
-	cols, values, _, e := r.store.ReadOnlyQuery(q.Context(), x.QuerySQL, 1000)
+	cols, values, _, e := store.ReadOnlyQuery(q.Context(), x.QuerySQL, 1000)
 	if e != nil {
 		respondErr(w, q, 500, e.Error())
 		return

@@ -565,7 +565,7 @@ func (r *Router) createSession(w http.ResponseWriter, req *http.Request) {
 	if !decodeAndValidate(w, req, &body) {
 		return
 	}
-	sess, err := r.store.CreateSession(body.Label, body.IsBaseline)
+	sess, err := r.store.WithContext(req.Context()).CreateSession(body.Label, body.IsBaseline)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -596,7 +596,7 @@ func (r *Router) patchSession(w http.ResponseWriter, req *http.Request) {
 	if !decodeAndValidate(w, req, &body) {
 		return
 	}
-	if err := r.store.UpdateSession(sessionID, storage.SessionPatch{
+	if err := r.store.WithContext(req.Context()).UpdateSession(sessionID, storage.SessionPatch{
 		Label: body.Label,
 		Note:  body.Note,
 	}); err != nil {
@@ -645,7 +645,7 @@ func (r *Router) baselineSession(w http.ResponseWriter, req *http.Request) {
 	if !decodeAndValidate(w, req, &body) {
 		return
 	}
-	if err := r.store.SetBaseline(sessionID, body.IsBaseline); err != nil {
+	if err := r.store.WithContext(req.Context()).SetBaseline(sessionID, body.IsBaseline); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
@@ -658,7 +658,7 @@ func (r *Router) deleteSession(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 400, "cannot delete the active session")
 		return
 	}
-	if err := r.store.DeleteSession(sessionID); err != nil {
+	if err := r.store.WithContext(req.Context()).DeleteSession(sessionID); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
@@ -766,7 +766,7 @@ func (r *Router) getStorageBreakdown(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) compact(w http.ResponseWriter, req *http.Request) {
-	res, err := r.store.Compact()
+	res, err := r.store.WithContext(req.Context()).Compact()
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -793,7 +793,8 @@ func (r *Router) prune(w http.ResponseWriter, req *http.Request) {
 	if mb := v.GetInt("max_db_size_mb"); mb > 0 {
 		cfg.MaxDBSizeBytes = int64(mb) * 1024 * 1024
 	}
-	res, err := r.store.Prune(cfg, r.store.ActiveSessionID())
+	store := r.store.WithContext(req.Context())
+	res, err := store.Prune(cfg, store.ActiveSessionID())
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return

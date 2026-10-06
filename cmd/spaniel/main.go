@@ -918,11 +918,15 @@ func run(cfg runConfig) error {
 
 	// Throughput + forwarder status broadcaster (every 2s)
 	go func() {
+		// This is UI bookkeeping, not an operator-visible database operation.
+		// It runs every two seconds, so tracing it would otherwise manufacture a
+		// constant stream of root db.query traces merely because the UI is live.
+		statsStore := store.WithContext(storage.WithoutTracing(context.Background()))
 		var prevSpans, prevLogs int
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			stats, err := store.GetStats("")
+			stats, err := statsStore.GetStats("")
 			if err == nil {
 				spansRate := float64(stats.SpanCount-prevSpans) / 2.0
 				logsRate := float64(stats.LogCount-prevLogs) / 2.0
