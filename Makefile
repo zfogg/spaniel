@@ -54,6 +54,7 @@ run: build-server
 verify-generated:
 	$(MAKE) generate
 	git diff --exit-code -- internal/storage/querygen
+	test -z "$$(git ls-files --others --exclude-standard -- internal/storage/querygen)"
 
 test: verify-generated
 	@set -e; \
@@ -68,7 +69,7 @@ test: verify-generated
 
 # Focused backend verification for storage work when the embedded frontend
 # artifact has not been built in an isolated worktree.
-test-storage:
+test-storage: verify-generated
 	go test ./internal/storage
 
 generate:

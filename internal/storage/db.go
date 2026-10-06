@@ -281,9 +281,6 @@ func (d *DB) SQL() *sql.DB {
 	return sqlDB
 }
 
-// Gorm exposes the underlying *gorm.DB for callers that want to build queries.
-func (d *DB) Gorm() *gorm.DB { return d.gorm }
-
 func (d *DB) ActiveSessionID() string    { return d.activeSessionID }
 func (d *DB) ActiveSessionLabel() string { return d.activeSessionLabel }
 

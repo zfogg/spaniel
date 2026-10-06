@@ -72,3 +72,41 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 	}
 	t.Fatal("no read-only SQL span recorded")
 }
+
+func TestReadOnlyQueryUsesExplicitUserName(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = provider.Shutdown(context.Background()) })
+
+	d, err := Open(filepath.Join(t.TempDir(), "named-query.duckdb"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	ctx := WithQueryName(context.Background(), "DashboardLatency")
+	if _, _, _, err := d.ReadOnlyQuery(ctx, "SELECT 'secret' AS value", 1); err != nil {
+		t.Fatalf("ReadOnlyQuery: %v", err)
+	}
+
+	for _, span := range recorder.Ended() {
+		if span.Name() != "DashboardLatency" {
+			continue
+		}
+		foundSummary := false
+		for _, attr := range span.Attributes() {
+			if string(attr.Key) == "db.query.summary" {
+				foundSummary = true
+				if attr.Value.AsString() != "DashboardLatency" {
+					t.Errorf("summary = %q, want DashboardLatency", attr.Value.AsString())
+				}
+			}
+		}
+		if !foundSummary {
+			t.Error("explicitly named span missing db.query.summary")
+		}
+		return
+	}
+	t.Fatal("no explicitly named read-only SQL span recorded")
+}

@@ -48,6 +48,11 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 		}
 		t.Fatalf("no storage.ListTraces span nested under parent; recorded spans: %v", names)
 	}
+	for _, s := range sr.Ended() {
+		if s.Parent().SpanID() == parentID && (s.Name() == "db.query" || s.Name() == "db.row") {
+			t.Errorf("generic database span name %q recorded; spans must be source-named", s.Name())
+		}
+	}
 
 	// The plugin should record db.system=duckdb and the SQL text.
 	var hasSystem, hasSQL bool
