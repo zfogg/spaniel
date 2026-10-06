@@ -1,5 +1,7 @@
 # Spaniel contributor guidance
 
+**spaniel** is a cute, small, compact, but complete and powerful OpenTelemetry dashboard: a single binary for traces, spans, metrics, and logs, with custom lints, alerts, dashboards, and an MCP server built in. It is made so you do not need Grafana for your personal projects—though it is capable enough to use at work too—while keeping automatic N+1 detection, semantic-convention linting, session diffing, and the rest of your telemetry close at hand.
+
 ## Testing on Windows
 
 Run Go builds and tests through the Makefile (`make build` and `make test`),

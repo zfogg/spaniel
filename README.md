@@ -14,7 +14,7 @@
 
 You run `docker compose up`. You hit an endpoint. It takes 800ms. You have no idea if it's Postgres, Redis, an N+1 query, or the downstream HTTP call. So you add `print()` statements. There has to be a better way.
 
-**spaniel** is a single binary that receives OpenTelemetry traces, logs, and metrics from your local services and shows them in a beautiful UI — with automatic N+1 detection, a semantic convention linter, and session diffing so you can see exactly what your code change made better or worse.
+**spaniel** is a cute, small, compact, but complete and powerful OpenTelemetry dashboard: a single binary for traces, spans, metrics, and logs, with custom lints, alerts, dashboards, and an MCP server built in. It is made so you do not need Grafana for your personal projects—though it is capable enough to use at work too—while keeping automatic N+1 detection, semantic-convention linting, session diffing, and the rest of your telemetry close at hand.
 
 No Docker required. No cloud account. Nothing leaves your machine.
 
