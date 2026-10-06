@@ -20,6 +20,12 @@ export function numberValue(value: unknown): number | undefined {
   return undefined
 }
 
+export function durationLabel(value: unknown): string {
+  const ns = numberValue(value)
+  if (ns === undefined) return formatValue(value)
+  return Math.abs(ns) >= 1_000_000_000 ? `${formatValue(ns / 1_000_000_000)} s` : `${formatValue(ns / 1_000_000)} ms`
+}
+
 export function columnValue(row: PanelRow, preferred: string[], fallback = 'value'): unknown {
   for (const key of preferred) if (key in row) return row[key]
   return row[fallback]

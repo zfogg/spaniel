@@ -196,6 +196,11 @@
   --sidebar-ring:                var(--accent);
 }
 
+/* The new-dashboard canvas owns its three working columns; the editor chrome
+   is retained for saved dashboards but would duplicate those tools here. */
+main:has(.dashboard-new-layout) > header { display: none; }
+main:has(.dashboard-new-layout) + aside { display: none; }
+
 /* ── tailwind @theme ───────────────────────────────────────────────────────── */
 @theme inline {
   --font-sans:    'Inter Variable', 'Inter', -apple-system, system-ui, sans-serif;

@@ -6,6 +6,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { DashboardEditor } from './Dashboards'
 
+vi.mock('@/components/SqlCode', () => ({
+  SqlCode: ({ value }: { value: string }) => <code>{value}</code>,
+  SqlEditor: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => <textarea aria-label="SQL editor" value={value} onChange={event => onChange(event.target.value)}/>,
+}))
+
 afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear() })
 
 describe('dashboard deletion', () => {
@@ -43,9 +48,10 @@ describe('dashboard SQL preview', () => {
     const preview = vi.spyOn(api.dashboards, 'preview').mockResolvedValue({ data: { columns: ['value'], rows: [{ value: 42 }], warnings: [] }, meta: { total: 1 } })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/dashboards/test-dashboard']}><Routes><Route path="/dashboards/:dashboardId" element={<DashboardEditor />} /></Routes></MemoryRouter></QueryClientProvider>)
-    await screen.findByLabelText('Dashboard name')
+    await screen.findByRole('button', { name: /Single value/ })
+    fireEvent.click(screen.getByRole('button', { name: /Single value/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Run preview' }))
-    await screen.findByText(/PREVIEW.*1 rows/i)
-    expect(preview).toHaveBeenCalledWith('test-dashboard', expect.objectContaining({ display_type: 'time_series' }))
+    await screen.findByText('42')
+    expect(preview).toHaveBeenCalledWith('test-dashboard', expect.objectContaining({ display_type: 'single_value' }))
   })
 })

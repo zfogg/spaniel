@@ -21,7 +21,7 @@ type dashboardInput struct {
 }
 type panelInput struct {
 	Title        string `json:"title" validate:"required,max=160"`
-	DisplayType  string `json:"display_type" validate:"required,oneof=single_value time_series table heatmap trace_list span_list log_list"`
+	DisplayType  string `json:"display_type" validate:"required,oneof=single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
 	QuerySQL     string `json:"query_sql" validate:"required,max=16000"`
 	SettingsJSON string `json:"settings_json"`
 	LayoutJSON   string `json:"layout_json"`
@@ -192,7 +192,7 @@ func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
 func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request) {
 	var in struct {
 		QuerySQL    string            `json:"query_sql" validate:"required,max=16000"`
-		DisplayType string            `json:"display_type" validate:"omitempty,oneof=single_value time_series table heatmap trace_list span_list log_list"`
+		DisplayType string            `json:"display_type" validate:"omitempty,oneof=single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
 		Variables   map[string]string `json:"variables"`
 	}
 	if !decodeAndValidate(w, req, &in) {
@@ -259,13 +259,17 @@ func validatePanelResult(display string, columns []string) error {
 		if !has("value") {
 			return &dslError{"single value panels require a value column"}
 		}
-	case "time_series":
+	case "time_series", "deploy_correlation":
 		if !has("value") || !has("timestamp", "timestamp_ns", "time_ns") {
 			return &dslError{"time series panels require timestamp and value columns"}
 		}
 	case "heatmap":
 		if !has("value") || !has("x", "group_value") {
 			return &dslError{"heatmap panels require value and x (or group_value) columns"}
+		}
+	case "entity_list":
+		if !has("label", "service_name", "name") || !has("primary_value", "value", "duration_ns") {
+			return &dslError{"entity list panels require a label and primary_value (or value) column"}
 		}
 	case "trace_list":
 		if !has("trace_id") {
@@ -297,28 +301,21 @@ func rowsForColumns(columns []string, values [][]any) []map[string]any {
 }
 
 func (r *Router) queryCatalog(w http.ResponseWriter, req *http.Request) {
-	signal, q := req.URL.Query().Get("signal"), strings.ToLower(req.URL.Query().Get("q"))
-	items := []map[string]string{}
-	add := func(item map[string]string) {
-		if q == "" || strings.Contains(strings.ToLower(item["name"]+" "+item["query"]), q) {
-			items = append(items, item)
-		}
+	signal, search := req.URL.Query().Get("signal"), strings.TrimSpace(req.URL.Query().Get("q"))
+	if len(search) > 256 {
+		respondErr(w, req, 400, "search must be at most 256 bytes")
+		return
 	}
-	if signal == "" || signal == "metrics" {
-		xs, _ := r.store.ListMetricCatalog(r.scopeSession(req.URL.Query().Get("sessionId")))
-		for _, x := range xs {
-			// Self-instrumentation is valuable when diagnosing Spaniel, but it is
-			// not a useful default dashboard query for an observed service.
-			if strings.HasPrefix(strings.ToLower(x.Name), "spaniel.") {
-				continue
-			}
-			add(map[string]string{"signal": "metrics", "name": x.Name, "query": "SELECT date_trunc('minute', make_timestamp_ns(timestamp_ns)) AS timestamp, avg(value) AS value FROM telemetry_metrics WHERE name = '" + strings.ReplaceAll(x.Name, "'", "''") + "' GROUP BY 1 ORDER BY 1", "display_type": "time_series"})
-		}
+	if signal != "" && signal != "metrics" && signal != "spans" && signal != "traces" && signal != "logs" {
+		respondErr(w, req, 400, "unknown telemetry signal")
+		return
 	}
-	for _, item := range []map[string]string{{"signal": "spans", "name": "Span count", "query": "SELECT date_trunc('minute', make_timestamp_ns(start_ns)) AS timestamp, count(*) AS value FROM telemetry_spans GROUP BY 1 ORDER BY 1", "display_type": "time_series"}, {"signal": "spans", "name": "p95 span duration", "query": "SELECT date_trunc('minute', make_timestamp_ns(start_ns)) AS timestamp, quantile_cont(duration_ns, 0.95) AS value FROM telemetry_spans GROUP BY 1 ORDER BY 1", "display_type": "time_series"}, {"signal": "spans", "name": "Recent spans", "query": "SELECT trace_id, span_id, service_name, name, duration_ns, status_code FROM telemetry_spans ORDER BY start_ns DESC LIMIT 100", "display_type": "span_list"}, {"signal": "spans", "name": "Span records", "query": "SELECT trace_id, span_id, service_name, name, start_ns, duration_ns, status_code FROM telemetry_spans ORDER BY start_ns DESC LIMIT 100", "display_type": "table"}, {"signal": "traces", "name": "Trace records", "query": "SELECT trace_id, service_name, name, duration_ns FROM telemetry_traces ORDER BY start_ns DESC LIMIT 100", "display_type": "trace_list"}, {"signal": "logs", "name": "Log records", "query": "SELECT timestamp_ns, severity, body, service_name, trace_id, span_id FROM telemetry_logs ORDER BY timestamp_ns DESC LIMIT 100", "display_type": "log_list"}} {
-		if signal == "" || signal == item["signal"] {
-			add(item)
-		}
+	ctx, cancel := context.WithTimeout(req.Context(), 10*time.Second)
+	defer cancel()
+	items, err := r.store.QueryCatalog(ctx, signal, search, r.scopeSession(req.URL.Query().Get("sessionId")))
+	if err != nil {
+		respondErr(w, req, 500, "telemetry search failed: "+err.Error())
+		return
 	}
 	respond(w, items, len(items), 1)
 }

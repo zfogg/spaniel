@@ -1,26 +1,35 @@
 import { useQuery } from '@tanstack/react-query'
 import { api, type DashboardPanel } from '@/lib/api'
 import { HeatmapPanel } from './HeatmapPanel'
+import { EntityListPanel } from './EntityListPanel'
 import { LogListPanel } from './LogListPanel'
 import { SingleValuePanel } from './SingleValuePanel'
 import { SpanListPanel } from './SpanListPanel'
 import { TablePanel } from './TablePanel'
 import { TimeSeriesPanel } from './TimeSeriesPanel'
 import { TraceListPanel } from './TraceListPanel'
+import type { DashboardPanelRendererProps } from './types'
 
 export function PanelRenderer({ dashboardId, panel, variables = {} }: { dashboardId: string; panel: DashboardPanel; variables?: Record<string, string> }) {
   const result = useQuery({ queryKey: ['dashboard-panel', dashboardId, panel.id, panel.query_sql, panel.display_type, variables], queryFn: () => api.dashboards.preview(dashboardId, { query_sql: panel.query_sql, display_type: panel.display_type, variables }).then(response => response.data), staleTime: 15_000, retry: 1 })
-  if (result.isPending) return <div className="flex h-52 items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-xs text-muted-foreground">Loading panel data…</div>
-  if (result.isError) return <div role="alert" className="rounded-md border border-danger/40 bg-danger/5 px-3 py-3 text-xs text-danger">Could not load this panel: {result.error.message}</div>
-  if (!result.data.rows.length) return <div className="flex h-52 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">No telemetry matches this query.</div>
-  const props = { panel, rows: result.data.rows, columns: result.data.columns }
+  if (result.isPending) return <div className="flex min-h-40 items-center justify-center text-xs text-muted-foreground">Loading panel data…</div>
+  if (result.isError) return <div role="alert" className="px-1 py-3 text-xs text-danger">Could not load this panel: {result.error.message}</div>
+  return <PanelResult panel={panel} rows={result.data.rows} columns={result.data.columns}/>
+}
+
+// Shared by saved panels and the SQL studio: no separate preview visualization.
+export function PanelResult(props: DashboardPanelRendererProps) {
+  const { panel, rows } = props
+  if (!rows.length) return <div className="flex min-h-40 items-center justify-center text-xs text-muted-foreground">No telemetry matches this query.</div>
   switch (panel.display_type) {
     case 'single_value': return <SingleValuePanel {...props}/>
     case 'time_series': return <TimeSeriesPanel {...props}/>
     case 'table': return <TablePanel {...props}/>
     case 'heatmap': return <HeatmapPanel {...props}/>
+    case 'entity_list': return <EntityListPanel {...props}/>
     case 'span_list': return <SpanListPanel {...props}/>
     case 'trace_list': return <TraceListPanel {...props}/>
     case 'log_list': return <LogListPanel {...props}/>
+    case 'deploy_correlation': return <TimeSeriesPanel {...props}/>
   }
 }

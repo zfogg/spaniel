@@ -15,7 +15,7 @@ function tableValue(key: string, value: unknown) {
 export function TablePanel({ rows, columns }: DashboardPanelRendererProps) {
   const keys = columns.length ? columns : Object.keys(rows[0] ?? {})
   if (!keys.length) return null
-  return <div className="max-h-80 overflow-auto rounded-md border border-border">
+  return <div className="max-h-80 overflow-auto">
     <table className="w-full text-left text-xs">
       <thead className="sticky top-0 z-10 bg-muted/95 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
         <tr>{keys.map(key => <th key={key} className="whitespace-nowrap px-3 py-2 font-medium">{columnLabel(key)}</th>)}</tr>
