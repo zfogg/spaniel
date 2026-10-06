@@ -58,6 +58,10 @@
   --warn-ink:  #6a4f1e;
   --warn-bg:   #f2e4c4;
 
+  /* Dashboard density is a data scale, not a navigation/status color. */
+  --heatmap-low:  #6d3fa0;
+  --heatmap-high: #f0c94d;
+
   --danger:    #d68a7a;
   --danger-ink: #7a3a2a;
   --danger-bg:  #f2cfc8;
@@ -65,6 +69,13 @@
   --ok:        #88b29a;
   --ok-ink:    #2a5a3a;
   --ok-bg:     #c8e0d2;
+
+  /* CodeMirror SQL syntax: deliberately distinct from application status ink. */
+  --sql-keyword: #075985;
+  --sql-string:  #047857;
+  --sql-number:  #9a6700;
+  --sql-operator:#b42318;
+  --sql-comment: #64748b;
 
   --chip-bg:   #dde6ee;
   --chip-ink:  #3d4a58;
@@ -130,6 +141,9 @@
   --warn-ink:  #f0d898;
   --warn-bg:   #2c2010;
 
+  --heatmap-low:  #8956bd;
+  --heatmap-high: #f2cd58;
+
   --danger:    #c87060;
   --danger-ink: #f0b8aa;
   --danger-bg:  #2c1410;
@@ -137,6 +151,13 @@
   --ok:        #6a9880;
   --ok-ink:    #b8e0c8;
   --ok-bg:     #102418;
+
+  /* Higher-chroma tokens retain contrast against the deep navy editor. */
+  --sql-keyword: #7dd3fc;
+  --sql-string:  #86efac;
+  --sql-number:  #fde68a;
+  --sql-operator:#fda4af;
+  --sql-comment: #7892aa;
 
   --chip-bg:   #1a2d3e;
   --chip-ink:  #90b0c8;

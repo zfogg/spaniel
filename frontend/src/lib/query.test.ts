@@ -35,6 +35,19 @@ describe('useLiveInvalidation', () => {
 
     vi.advanceTimersByTime(1_000)
     expect(spy).toHaveBeenCalledWith({ queryKey: ['traces'] })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] })
+  })
+
+  it.each(['log', 'metric'])('invalidates dashboard panels for a live %s event', (type) => {
+    const qc = new QueryClient()
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children)
+
+    renderHook(() => useLiveInvalidation(), { wrapper })
+    captured!({ type, timestamp_ns: 0, payload: {} })
+    vi.advanceTimersByTime(1_000)
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] })
   })
 
   it('ignores throughput events', () => {

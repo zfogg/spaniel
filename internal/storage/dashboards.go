@@ -108,7 +108,15 @@ func (d *DB) CreateDashboardPanel(p *DashboardPanel) error {
 }
 func (d *DB) UpdateDashboardPanel(p *DashboardPanel) error {
 	p.UpdatedAt = time.Now().UnixNano()
-	return d.gorm.Model(&DashboardPanel{}).Where("id = ? AND dashboard_id = ?", p.ID, p.DashboardID).Updates(map[string]any{"title": p.Title, "display_type": p.DisplayType, "query_text": p.QuerySQL, "query_json": "{}", "query_sql": p.QuerySQL, "query_version": p.QueryVersion, "settings_json": p.SettingsJSON, "layout_json": p.LayoutJSON, "position": p.Position, "updated_at": p.UpdatedAt}).Error
+	// DuckDB implements updates to primary-key-indexed rows as a delete/insert
+	// internally, but its ART index rejects that as a duplicate key. Replace the
+	// row ourselves in one transaction while preserving its stable panel ID.
+	return d.gorm.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ? AND dashboard_id = ?", p.ID, p.DashboardID).Delete(&DashboardPanel{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(p).Error
+	})
 }
 func (d *DB) DeleteDashboardPanel(dashboardID, id string) error {
 	return d.gorm.Delete(&DashboardPanel{}, "id = ? AND dashboard_id = ?", id, dashboardID).Error

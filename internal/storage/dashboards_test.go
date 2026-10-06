@@ -19,6 +19,18 @@ func TestDashboardPanelPersistenceAndDeletion(t *testing.T) {
 	if len(loaded.Panels) != 1 || loaded.Panels[0].ID != panel.ID {
 		t.Fatalf("panel not persisted: %+v", loaded.Panels)
 	}
+	panel.Title = "Slowest spans"
+	panel.QuerySQL = "SELECT trace_id FROM telemetry_spans ORDER BY duration_ns DESC"
+	if err := db.UpdateDashboardPanel(panel); err != nil {
+		t.Fatalf("update panel: %v", err)
+	}
+	loaded, err = db.GetDashboard(dashboard.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := loaded.Panels[0]; got.ID != panel.ID || got.Title != panel.Title || got.QuerySQL != panel.QuerySQL {
+		t.Fatalf("panel update not persisted: %+v", got)
+	}
 	if err := db.DeleteDashboard(dashboard.ID); err != nil {
 		t.Fatal(err)
 	}

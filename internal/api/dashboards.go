@@ -21,7 +21,7 @@ type dashboardInput struct {
 }
 type panelInput struct {
 	Title        string `json:"title" validate:"required,max=160"`
-	DisplayType  string `json:"display_type" validate:"required,oneof=single_value time_series table heatmap trace_list log_list"`
+	DisplayType  string `json:"display_type" validate:"required,oneof=single_value time_series table heatmap trace_list span_list log_list"`
 	QuerySQL     string `json:"query_sql" validate:"required,max=16000"`
 	SettingsJSON string `json:"settings_json"`
 	LayoutJSON   string `json:"layout_json"`
@@ -192,7 +192,7 @@ func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
 func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request) {
 	var in struct {
 		QuerySQL    string            `json:"query_sql" validate:"required,max=16000"`
-		DisplayType string            `json:"display_type" validate:"omitempty,oneof=single_value time_series table heatmap trace_list log_list"`
+		DisplayType string            `json:"display_type" validate:"omitempty,oneof=single_value time_series table heatmap trace_list span_list log_list"`
 		Variables   map[string]string `json:"variables"`
 	}
 	if !decodeAndValidate(w, req, &in) {
@@ -271,6 +271,10 @@ func validatePanelResult(display string, columns []string) error {
 		if !has("trace_id") {
 			return &dslError{"trace list panels require a trace_id column"}
 		}
+	case "span_list":
+		if !has("span_id", "trace_id") {
+			return &dslError{"span list panels require a span_id or trace_id column"}
+		}
 	case "log_list":
 		if !has("body", "message") {
 			return &dslError{"log list panels require a body or message column"}
@@ -303,10 +307,15 @@ func (r *Router) queryCatalog(w http.ResponseWriter, req *http.Request) {
 	if signal == "" || signal == "metrics" {
 		xs, _ := r.store.ListMetricCatalog(r.scopeSession(req.URL.Query().Get("sessionId")))
 		for _, x := range xs {
+			// Self-instrumentation is valuable when diagnosing Spaniel, but it is
+			// not a useful default dashboard query for an observed service.
+			if strings.HasPrefix(strings.ToLower(x.Name), "spaniel.") {
+				continue
+			}
 			add(map[string]string{"signal": "metrics", "name": x.Name, "query": "SELECT date_trunc('minute', make_timestamp_ns(timestamp_ns)) AS timestamp, avg(value) AS value FROM telemetry_metrics WHERE name = '" + strings.ReplaceAll(x.Name, "'", "''") + "' GROUP BY 1 ORDER BY 1", "display_type": "time_series"})
 		}
 	}
-	for _, item := range []map[string]string{{"signal": "spans", "name": "Span count", "query": "SELECT date_trunc('minute', make_timestamp_ns(start_ns)) AS timestamp, count(*) AS value FROM telemetry_spans GROUP BY 1 ORDER BY 1", "display_type": "time_series"}, {"signal": "spans", "name": "p95 span duration", "query": "SELECT date_trunc('minute', make_timestamp_ns(start_ns)) AS timestamp, quantile_cont(duration_ns, 0.95) AS value FROM telemetry_spans GROUP BY 1 ORDER BY 1", "display_type": "time_series"}, {"signal": "spans", "name": "Span records", "query": "SELECT trace_id, span_id, service_name, name, start_ns, duration_ns, status_code FROM telemetry_spans ORDER BY start_ns DESC LIMIT 100", "display_type": "table"}, {"signal": "traces", "name": "Trace records", "query": "SELECT trace_id, service_name, name, duration_ns FROM telemetry_traces ORDER BY start_ns DESC LIMIT 100", "display_type": "trace_list"}, {"signal": "logs", "name": "Log records", "query": "SELECT timestamp_ns, severity, body, service_name FROM telemetry_logs ORDER BY timestamp_ns DESC LIMIT 100", "display_type": "log_list"}} {
+	for _, item := range []map[string]string{{"signal": "spans", "name": "Span count", "query": "SELECT date_trunc('minute', make_timestamp_ns(start_ns)) AS timestamp, count(*) AS value FROM telemetry_spans GROUP BY 1 ORDER BY 1", "display_type": "time_series"}, {"signal": "spans", "name": "p95 span duration", "query": "SELECT date_trunc('minute', make_timestamp_ns(start_ns)) AS timestamp, quantile_cont(duration_ns, 0.95) AS value FROM telemetry_spans GROUP BY 1 ORDER BY 1", "display_type": "time_series"}, {"signal": "spans", "name": "Recent spans", "query": "SELECT trace_id, span_id, service_name, name, duration_ns, status_code FROM telemetry_spans ORDER BY start_ns DESC LIMIT 100", "display_type": "span_list"}, {"signal": "spans", "name": "Span records", "query": "SELECT trace_id, span_id, service_name, name, start_ns, duration_ns, status_code FROM telemetry_spans ORDER BY start_ns DESC LIMIT 100", "display_type": "table"}, {"signal": "traces", "name": "Trace records", "query": "SELECT trace_id, service_name, name, duration_ns FROM telemetry_traces ORDER BY start_ns DESC LIMIT 100", "display_type": "trace_list"}, {"signal": "logs", "name": "Log records", "query": "SELECT timestamp_ns, severity, body, service_name, trace_id, span_id FROM telemetry_logs ORDER BY timestamp_ns DESC LIMIT 100", "display_type": "log_list"}} {
 		if signal == "" || signal == item["signal"] {
 			add(item)
 		}

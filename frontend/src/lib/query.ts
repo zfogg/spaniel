@@ -47,9 +47,12 @@ export const qk = {
 // invalidate. Throughput is intentionally absent — BottomBar consumes it from
 // the live stream directly, it is not query state.
 const INVALIDATIONS: Record<string, string[]> = {
-  span: ['traces', 'trace', 'spans', 'span', 'service-map', 'stats', 'lint', 'coverage', 'sessions'],
-  log: ['logs'],
-  metric: ['metrics', 'metric-series'],
+  // Dashboard panels execute read-only queries over these same live streams.
+  // Invalidate their active observers from the event that made their results
+  // stale, rather than polling the preview endpoint.
+  span: ['traces', 'trace', 'spans', 'span', 'service-map', 'stats', 'lint', 'coverage', 'sessions', 'dashboard-panel'],
+  log: ['logs', 'dashboard-panel'],
+  metric: ['metrics', 'metric-series', 'dashboard-panel'],
   issue: ['issues', 'traces', 'trace'],
   forwarder: ['forwarders'],
 	 alert: ['alerts'],

@@ -668,7 +668,7 @@ function GeneralSection({ s, mutate, hidden }: {
         <Toggle on={!s.no_browser} onChange={v => mutate({ no_browser: !v })} label="auto open browser" />
       </Row>
       <Row label="Self-monitor"
-        hint="Send Spaniel's own traces and metrics to itself via its OTLP gRPC port. Enables the dogfood loop: see Spaniel's request latency, DB query times, and ingest spans in the Traces and Metrics tabs. Takes effect immediately."
+        hint="Send Spaniel's own traces, metrics, and structured logs to itself via its OTLP gRPC port. Enables the dogfood loop: see request latency, DB query times, ingest spans, and Spaniel logs in the Traces, Metrics, and Logs tabs. Takes effect immediately."
         testid="row-self-monitor">
         <Toggle on={s.self_monitor} onChange={v => mutate({ self_monitor: v })} label="self monitor" />
         {s.self_monitor && (

@@ -399,7 +399,7 @@ export const StorageBreakdownSchema = z.object({
 })
 
 export const DashboardVariableSchema = z.object({ dashboard_id: z.string(), name: z.string(), kind: z.enum(['attribute', 'string', 'number', 'boolean', 'duration', 'time', 'enum', 'service', 'operation', 'trace_id', 'span_id', 'log_id']), source: z.string(), options_json: z.string(), default_value: z.string() })
-export const DashboardPanelSchema = z.object({ id: z.string(), dashboard_id: z.string(), title: z.string(), display_type: z.enum(['single_value', 'time_series', 'table', 'heatmap', 'trace_list', 'log_list']), query_sql: z.string(), query_version: z.number(), settings_json: z.string(), layout_json: z.string(), position: z.number(), updated_at: z.number() })
+export const DashboardPanelSchema = z.object({ id: z.string(), dashboard_id: z.string(), title: z.string(), display_type: z.enum(['single_value', 'time_series', 'table', 'heatmap', 'trace_list', 'span_list', 'log_list']), query_sql: z.string(), query_version: z.number(), settings_json: z.string(), layout_json: z.string(), position: z.number(), updated_at: z.number() })
 export const DashboardSchema = z.object({ id: z.string(), name: z.string(), description: z.string(), created_at: z.number(), updated_at: z.number(), variables: z.array(DashboardVariableSchema).default([]), panels: z.array(DashboardPanelSchema).default([]) })
 export const QueryPreviewSchema = z.object({ display_type: z.string().optional(), columns: z.array(z.string()), rows: z.array(z.record(z.string(), z.unknown())), warnings: z.array(z.string()).default([]) })
 export const QueryCatalogEntrySchema = z.object({ signal: z.string(), name: z.string(), query: z.string(), display_type: z.string() })

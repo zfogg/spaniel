@@ -3,6 +3,7 @@ import { api, type DashboardPanel } from '@/lib/api'
 import { HeatmapPanel } from './HeatmapPanel'
 import { LogListPanel } from './LogListPanel'
 import { SingleValuePanel } from './SingleValuePanel'
+import { SpanListPanel } from './SpanListPanel'
 import { TablePanel } from './TablePanel'
 import { TimeSeriesPanel } from './TimeSeriesPanel'
 import { TraceListPanel } from './TraceListPanel'
@@ -18,6 +19,7 @@ export function PanelRenderer({ dashboardId, panel, variables = {} }: { dashboar
     case 'time_series': return <TimeSeriesPanel {...props}/>
     case 'table': return <TablePanel {...props}/>
     case 'heatmap': return <HeatmapPanel {...props}/>
+    case 'span_list': return <SpanListPanel {...props}/>
     case 'trace_list': return <TraceListPanel {...props}/>
     case 'log_list': return <LogListPanel {...props}/>
   }

@@ -9,13 +9,15 @@ import { EditorView } from '@codemirror/view'
 // token it can already classify. That makes it appropriate for live typing,
 // unlike a formatter that must successfully parse the whole statement.
 const driftTheme = EditorView.theme({
-  '&': {
-    backgroundColor: 'var(--background)',
+  '&.cm-editor': {
+    backgroundColor: 'var(--surface)',
     color: 'var(--foreground)',
     fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace",
     fontSize: '12px',
   },
+  '.cm-scroller, .cm-content': { backgroundColor: 'var(--surface)', color: 'var(--foreground)' },
   '.cm-content': { caretColor: 'var(--accent-ink)', padding: '10px 12px', minHeight: '8rem' },
+  '.cm-line': { color: 'var(--foreground)' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent-ink)' },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': { backgroundColor: 'var(--accent-bg)' },
   '.cm-gutters': { backgroundColor: 'var(--surface2)', color: 'var(--muted-foreground)', borderRight: '1px solid var(--border)' },
@@ -25,14 +27,17 @@ const driftTheme = EditorView.theme({
 })
 
 const driftHighlight = HighlightStyle.define([
-  { tag: tags.keyword, color: 'var(--accent-ink)', fontWeight: '700' },
-  { tag: [tags.string, tags.special(tags.string)], color: 'var(--ok-ink)' },
-  { tag: tags.number, color: 'var(--warn-ink)' },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: 'var(--muted-foreground)', fontStyle: 'italic' },
-  { tag: [tags.operatorKeyword, tags.operator], color: 'var(--danger-ink)' },
+  { tag: tags.keyword, color: 'var(--sql-keyword)', fontWeight: '700' },
+  { tag: [tags.string, tags.special(tags.string)], color: 'var(--sql-string)' },
+  { tag: tags.number, color: 'var(--sql-number)' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: 'var(--sql-comment)', fontStyle: 'italic' },
+  { tag: [tags.operatorKeyword, tags.operator], color: 'var(--sql-operator)' },
   { tag: tags.variableName, color: 'var(--foreground)' },
 ])
 
+// Do not make this a fallback highlighter. `basicSetup` supplies CodeMirror's
+// default highlighter too; a fallback loses to it and leaves the light-theme
+// purple SQL tokens in place. This is the editor's authoritative palette.
 const sqlExtensions = [sql(), driftTheme, syntaxHighlighting(driftHighlight)]
 
 type SqlEditorProps = {

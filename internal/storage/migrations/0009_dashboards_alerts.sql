@@ -9,14 +9,14 @@ CREATE TABLE IF NOT EXISTS dashboard_variables (
 );
 CREATE TABLE IF NOT EXISTS dashboard_panels (
     id TEXT PRIMARY KEY, dashboard_id TEXT NOT NULL, title TEXT NOT NULL,
-    display_type TEXT NOT NULL, query_text TEXT NOT NULL, query_json VARCHAR NOT NULL,
+    display_type TEXT NOT NULL, query_sql VARCHAR NOT NULL, query_version INTEGER NOT NULL DEFAULT 1,
     settings_json VARCHAR NOT NULL DEFAULT '{}', layout_json VARCHAR NOT NULL DEFAULT '{}',
     position INTEGER NOT NULL, updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_dashboard_panels_order ON dashboard_panels(dashboard_id, position);
 CREATE INDEX IF NOT EXISTS idx_dashboard_variables_dashboard ON dashboard_variables(dashboard_id);
 CREATE TABLE IF NOT EXISTS alert_rules (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL, query_json VARCHAR NOT NULL,
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, query_sql VARCHAR NOT NULL, query_version INTEGER NOT NULL DEFAULT 1,
     condition_json VARCHAR NOT NULL, group_by_json VARCHAR NOT NULL DEFAULT '[]',
     pending_for_ns BIGINT NOT NULL DEFAULT 0, cooldown_ns BIGINT NOT NULL DEFAULT 0,
     severity TEXT NOT NULL DEFAULT 'warning', annotations_json VARCHAR NOT NULL DEFAULT '{}',

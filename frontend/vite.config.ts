@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-// The local Spaniel container is exposed on :8345. `make dev` supplies its
-// own API URL for the backend it starts.
-const apiTarget = process.env.SPANIEL_API_URL ?? 'http://127.0.0.1:8345'
+// The local development daemon serves the API on :8080. `make dev` can still
+// override this when it starts a dedicated backend.
+const apiTarget = process.env.SPANIEL_API_URL ?? 'http://127.0.0.1:8080'
 
 export default defineConfig({
   plugins: [tailwindcss(), react()],

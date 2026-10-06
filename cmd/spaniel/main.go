@@ -545,8 +545,15 @@ func run(cfg runConfig) error {
 	// so it can be hot-swapped when self_monitor is toggled at runtime.
 	var otelMu sync.Mutex
 	var otelActive func(context.Context) error
+	// Keep the process logger Spaniel started with. Self-monitoring replaces it
+	// with the OTel bridge so its slog records are ingested too; disabling the
+	// setting must restore the original handler rather than keep exporting logs.
+	baseSlog := slog.Default()
 
 	setupOTel := func(endpoint string) error {
+		if endpoint == "" {
+			slog.SetDefault(baseSlog)
+		}
 		sd, err := telemetry.Setup(context.Background(), telemetry.Config{
 			Endpoint:    endpoint,
 			ServiceName: cfg.SelfTelemetryService,
@@ -563,6 +570,9 @@ func run(cfg runConfig) error {
 		}
 		otelActive = sd
 		otelMu.Unlock()
+		if endpoint != "" {
+			slog.Info("self-monitoring enabled", "otel.endpoint", endpoint)
+		}
 		return nil
 	}
 	// Initialize with empty endpoint; will set up real telemetry after OTLP receivers are running

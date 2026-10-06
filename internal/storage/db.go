@@ -675,15 +675,35 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 	if f.Page < 1 {
 		f.Page = 1
 	}
+	// The CTE reads directly from spans; the outer query aliases it as s.
+	// Keep their order expressions separate so both are valid SQL.
+	innerOrderBy := "start_ns DESC"
 	orderBy := "s.start_ns DESC"
 	switch f.Sort {
 	case "dur":
+		innerOrderBy = "duration_ns DESC"
 		orderBy = "s.duration_ns DESC"
 	case "name":
+		innerOrderBy = "name ASC"
 		orderBy = "s.name ASC"
 	}
 	//nolint:gosec // orderBy is constrained to safe values above
+	// Sort and page the base spans before joining issue/lint tables. Previously
+	// DuckDB had to sort the complete joined result just to return 100 rows,
+	// which made changing the sort dropdown visibly stall busy sessions.
 	query := `
+		WITH page_spans AS (
+			SELECT trace_id, span_id, parent_span_id, service_name, name, kind,
+				start_ns, end_ns, duration_ns, status_code, status_message,
+				attributes, resource, session_id, session_label, received_at
+			FROM spans
+			WHERE (? = '' OR session_id = ?)
+			  AND (? = '' OR service_name = ?)
+			  AND (? = '' OR name = ?)
+			  AND (? = FALSE OR kind = ?)
+			ORDER BY ` + innerOrderBy + `
+			LIMIT ? OFFSET ?
+		)
 		SELECT
 			s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind,
 			s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message,
@@ -695,17 +715,12 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 				WHEN lw.span_id IS NOT NULL   THEN 'lint'
 				ELSE ''
 			END AS tag
-		FROM spans s
+		FROM page_spans s
 		LEFT JOIN (SELECT DISTINCT trace_id FROM trace_issues WHERE kind = 'n_plus_one') ni
 			ON s.trace_id = ni.trace_id
 		LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw
 			ON s.span_id = lw.span_id
-		WHERE (? = '' OR s.session_id = ?)
-		  AND (? = '' OR s.service_name = ?)
-		  AND (? = '' OR s.name = ?)
-		  AND (? = FALSE OR s.kind = ?)
-		ORDER BY ` + orderBy + `
-		LIMIT ? OFFSET ?`
+		ORDER BY ` + orderBy
 	var result []*SpanRow
 	if err := d.gorm.Raw(query,
 		f.SessionID, f.SessionID, f.Service, f.Service, f.Name, f.Name, f.HasKind, f.Kind,

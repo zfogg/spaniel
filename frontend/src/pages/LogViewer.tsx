@@ -1,23 +1,19 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 import { fmtClock, fmtRelative } from '@/lib/fmt-relative'
+import { logSeverityLabel } from '@/lib/log-severity'
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
 export function sevLabel(n: number): string {
-  if (n >= 21) return 'FATAL'
-  if (n >= 17) return 'ERROR'
-  if (n >= 13) return 'WARN'
-  if (n >= 9)  return 'INFO'
-  if (n >= 5)  return 'DEBUG'
-  return 'TRACE'
+  return logSeverityLabel(n)
 }
 
 function sevBadgeStyle(n: number): React.CSSProperties {
@@ -302,20 +298,22 @@ function LogInspector({ log, onClose, navigate }: {
 // ── LogViewer ─────────────────────────────────────────────────────────────────
 
 export default function LogViewer() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [filterService, setFilterService] = useState('all')
   const [filterSev, setFilterSev]     = useState<SevFilter>('ALL')
   const [search, setSearch]           = useState('')
   const [nowMs, setNowMs]             = useState(() => Date.now())
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const navigate = useNavigate()
+  const traceId = searchParams.get('traceId') ?? undefined
 
   // Logs + services come from queries; live log events refresh them via
   // useLiveInvalidation() in App.tsx (throttled), replacing the old initial
   // load + 3s poll + WebSocket-push + client-side dedup machinery.
   const severity = filterSev === 'ALL' ? undefined : filterSev.toLowerCase()
   const { data: logs = [], isLoading: loading, isError, error, refetch } = useQuery({
-    queryKey: qk.logs({ severity }),
-    queryFn: () => api.logs.list({ severity }).then(r => r.data ?? []),
+    queryKey: qk.logs({ severity, traceId }),
+    queryFn: () => api.logs.list({ severity, traceId }).then(r => r.data ?? []),
   })
   const { data: services = [] } = useQuery({
     queryKey: qk.services(),
@@ -349,6 +347,7 @@ export default function LogViewer() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* filter bar */}
       <div className="flex items-center gap-2.5 px-[14px] py-2 bg-surface border-b border-line shrink-0 flex-wrap">
+        {traceId && <button type="button" onClick={() => setSearchParams({})} className="rounded border border-accent-d bg-accent-bg px-2 py-1 font-mono text-[10px] text-accent-ink hover:brightness-110">trace {traceId.slice(0, 8)} ×</button>}
         {/* search */}
         <input
           type="text"

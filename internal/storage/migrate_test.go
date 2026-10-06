@@ -114,6 +114,37 @@ func TestMigrateFreshDB(t *testing.T) {
 	db.Close()
 }
 
+func TestMigrateRemovesSpanielDashboardVariables(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dashboard-variables.duckdb")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open fresh: %v", err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO dashboard_variables (dashboard_id, name, kind, source, options_json, default_value) VALUES ('d', 'spaniel.db.latency', 'string', 'spaniel.db.latency', '[]', '')`,
+		`INSERT INTO dashboard_variables (dashboard_id, name, kind, source, options_json, default_value) VALUES ('d', 'service', 'string', 'telemetry_spans.service_name', '[]', '')`,
+		`DELETE FROM migrations WHERE id = '0012_remove_spaniel_dashboard_variables'`,
+	} {
+		if err := db.gorm.Exec(statement).Error; err != nil {
+			t.Fatalf("prepare migration (%q): %v", statement, err)
+		}
+	}
+	db.Close()
+
+	db, err = Open(path)
+	if err != nil {
+		t.Fatalf("reopen migrated database: %v", err)
+	}
+	defer db.Close()
+	var names []string
+	if err := db.gorm.Raw(`SELECT name FROM dashboard_variables ORDER BY name`).Scan(&names).Error; err != nil {
+		t.Fatalf("read dashboard variables: %v", err)
+	}
+	if !reflect.DeepEqual(names, []string{"service"}) {
+		t.Fatalf("dashboard variables after migration = %#v, want only service", names)
+	}
+}
+
 // TestMigrateLegacyDB simulates a pre-gormigrate database: the spaniel tables
 // already exist but there is no migrations/meta table. Opening it must stamp
 // the init migration idempotently without clobbering existing data.

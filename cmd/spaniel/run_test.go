@@ -204,12 +204,7 @@ func TestSpawnRun_CreatesSession(t *testing.T) {
 func TestSpawnRun_InjectsEnvVars(t *testing.T) {
 	stub := newRunStub(t)
 
-	// Use a helper binary that dumps its env to stdout, captured via a pipe.
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	// Output drains concurrently while the helper writes its inherited environment.
 	childArgs := append(echoEnvCmd(), "--")
 	env := append(os.Environ(),
 		"GO_HELPER_PROCESS=1",
@@ -220,13 +215,11 @@ func TestSpawnRun_InjectsEnvVars(t *testing.T) {
 	)
 	cmd := exec.Command(childArgs[0], childArgs[1:]...) //nolint:gosec
 	cmd.Env = env
-	cmd.Stdout = pw
 	cmd.Stderr = os.Stderr
-	_ = cmd.Run()
-	pw.Close()
-
-	envOutput, _ := io.ReadAll(pr)
-	pr.Close()
+	envOutput, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("run environment helper: %v", err)
+	}
 
 	for _, want := range []string{
 		"OTEL_EXPORTER_OTLP_ENDPOINT=",

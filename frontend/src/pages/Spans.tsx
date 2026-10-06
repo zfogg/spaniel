@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel,
   type ColumnDef, type ColumnFiltersState, type Row,
@@ -37,6 +37,23 @@ function parseAttrs(raw: string): Record<string, unknown> {
 const SLOW_NS = 250_000_000
 const PAGE_SIZE = 100
 type SpanView = 'all' | 'grouped'
+type SpanSort = 'time' | 'dur' | 'name'
+
+const SPAN_SORTS: Array<{ value: SpanSort; label: string }> = [
+  { value: 'time', label: 'time ↓' },
+  { value: 'dur', label: 'duration ↓' },
+  { value: 'name', label: 'name a→z' },
+]
+
+type SpanDrilldown = Pick<SpanGroup, 'service_name' | 'name' | 'kind'>
+
+function drilldownFromURL(params: URLSearchParams): SpanDrilldown | null {
+  const service_name = params.get('groupService')
+  const name = params.get('groupName')
+  const kind = Number(params.get('groupKind'))
+  if (!service_name || !name || !Number.isInteger(kind)) return null
+  return { service_name, name, kind }
+}
 
 // ── SvcChip ───────────────────────────────────────────────────────────────────
 
@@ -213,6 +230,7 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
 
 export default function Spans() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const initialDrilldown = drilldownFromURL(searchParams)
   const [view, setViewState] = useState<SpanView>(() => {
     const fromURL = searchParams.get('view')
     if (fromURL === 'all' || fromURL === 'grouped') return fromURL
@@ -222,21 +240,64 @@ export default function Spans() {
     const fromURL = searchParams.get('view')
     if (fromURL === 'all' || fromURL === 'grouped') setViewState(fromURL)
   }, [searchParams])
-  const [sortBy, setSortBy] = useState<'time' | 'dur' | 'name'>('time')
+  const [sortBy, setSortBy] = useState<SpanSort>('time')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [svcSel, setSvcSel] = useState<string | null>(null)
   const [kindSel, setKindSel] = useState<string | null>(null)
   const [tagSel, setTagSel] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('span'))
   const [page, setPage] = useState(1)
-  const [drilldown, setDrilldown] = useState<Pick<SpanGroup, 'service_name' | 'name' | 'kind'> | null>(null)
+  const [drilldown, setDrilldown] = useState<SpanDrilldown | null>(() => initialDrilldown)
+  const showingGroups = view === 'grouped' && drilldown === null
+
+  const updateURL = (change: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(searchParams)
+    change(params)
+    setSearchParams(params, { replace: true })
+  }
+
+  const clearSelectedSpan = () => {
+    setSelectedId(null)
+    updateURL(params => params.delete('span'))
+  }
+
+  const selectSpan = (spanID: string) => {
+    setSelectedId(spanID)
+    updateURL(params => params.set('span', spanID))
+  }
+
+  const openGroup = (group: SpanDrilldown) => {
+    setDrilldown(group)
+    setPage(1)
+    setSelectedId(null)
+    updateURL(params => {
+      params.set('view', 'grouped')
+      params.set('groupService', group.service_name)
+      params.set('groupName', group.name)
+      params.set('groupKind', String(group.kind))
+      params.delete('span')
+    })
+  }
+
+  useEffect(() => {
+    const urlDrilldown = drilldownFromURL(searchParams)
+    setDrilldown(urlDrilldown)
+    setSelectedId(searchParams.get('span'))
+  }, [searchParams])
 
   const setView = (next: SpanView) => {
     setViewState(next)
     localStorage.setItem('spaniel.spans.view', next)
-    const params = new URLSearchParams(searchParams)
-    params.set('view', next)
-    setSearchParams(params, { replace: true })
+    updateURL(params => {
+      params.set('view', next)
+      params.delete('span')
+      if (next === 'grouped') {
+        params.delete('groupService')
+        params.delete('groupName')
+        params.delete('groupKind')
+      }
+    })
     setPage(1)
     setSelectedId(null)
     if (next === 'grouped') setDrilldown(null)
@@ -248,13 +309,23 @@ export default function Spans() {
     queryKey: qk.spans({ sort: sortBy, page, drilldown }),
     queryFn: () => api.spans.list({ sort: sortBy, page, limit: PAGE_SIZE, service: drilldown?.service_name, name: drilldown?.name, kind: drilldown?.kind }),
     enabled: view === 'all' || drilldown !== null,
+    // Keep the current page visible while a newly sorted page is loading.
+    placeholderData: keepPreviousData,
   })
   const spans = spanResponse?.data ?? []
   const spanTotal = spanResponse?.meta.total ?? 0
+  const { data: selectedSpan } = useQuery({
+    queryKey: ['span', selectedId],
+    queryFn: () => api.spans.get(selectedId!),
+    enabled: selectedId !== null,
+  })
   const { data: groupResponse, isLoading: groupsLoading, isError: groupsError, error: groupsErrorDetail, refetch: refetchGroups } = useQuery({
     queryKey: qk.spans({ view: 'grouped', page }),
     queryFn: () => api.spans.groups({ page, limit: PAGE_SIZE }),
-    enabled: view === 'grouped',
+    enabled: showingGroups,
+    // Pagination and switching back to an already-loaded groups page should
+    // remain responsive while the aggregate refreshes.
+    placeholderData: keepPreviousData,
   })
   const groups = groupResponse?.data ?? []
   const groupTotal = groupResponse?.meta.total ?? 0
@@ -317,7 +388,9 @@ export default function Spans() {
   })
 
   const filtered = table.getRowModel().rows.map(r => r.original)
-  const selected = filtered.find(s => s.span_id === selectedId) ?? null
+  // A deep link may point to a span outside the currently loaded page. Fetch
+  // it directly so reloading that link always restores the inspector.
+  const selected = filtered.find(s => s.span_id === selectedId) ?? selectedSpan?.data ?? null
 
   const activeFilters: { label: string; clear: () => void }[] = []
   if (svcSel) activeFilters.push({ label: `svc: ${svcSel}`, clear: () => setSvcSel(null) })
@@ -406,7 +479,7 @@ export default function Spans() {
               data-testid="spans-search"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder={view === 'grouped' ? 'search the current page of operations…' : 'search by name, attribute key or value, trace id…'}
+              placeholder={showingGroups ? 'search the current page of operations…' : 'search by name, attribute key or value, trace id…'}
               className="flex-1 border-none outline-none bg-transparent font-mono text-xs text-foreground"
             />
             {query && (
@@ -422,24 +495,48 @@ export default function Spans() {
             <FilterChip key={f.label} label={f.label} onClear={f.clear} />
           ))}
 
-          {view === 'all' && <div className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground px-2.5 h-[30px] rounded-md bg-muted border border-border">
+          {!showingGroups && <div className="relative inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground px-2.5 h-[30px] rounded-md bg-muted border border-border">
             <span>sort</span>
-            <select
+            <button
+              type="button"
               data-testid="spans-sort"
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as typeof sortBy)}
-              className="border-none outline-none bg-transparent font-mono text-[11px] text-foreground cursor-pointer"
+              aria-haspopup="menu"
+              aria-expanded={sortMenuOpen}
+              onClick={() => setSortMenuOpen(open => !open)}
+              className="inline-flex items-center gap-1 border-0 bg-transparent p-0 font-mono text-[11px] text-foreground cursor-pointer"
             >
-              <option value="time">time ↓</option>
-              <option value="dur">duration ↓</option>
-              <option value="name">name a→z</option>
-            </select>
+              {SPAN_SORTS.find(option => option.value === sortBy)?.label}
+              <span aria-hidden="true" className="text-muted-foreground">▾</span>
+            </button>
+            {sortMenuOpen && <div role="menu" aria-label="Sort spans" className="absolute right-0 top-[34px] z-30 min-w-[126px] overflow-hidden rounded-md border border-border bg-background py-1 shadow-lg">
+              {SPAN_SORTS.map(option => <button
+                key={option.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={sortBy === option.value}
+                onClick={() => {
+                  setSortBy(option.value)
+                  setSortMenuOpen(false)
+                  setPage(1)
+                  clearSelectedSpan()
+                }}
+                className={`block w-full border-0 px-3 py-1.5 text-left font-mono text-[11px] cursor-pointer ${sortBy === option.value ? 'bg-muted text-foreground' : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >{option.label}</button>)}
+            </div>}
           </div>}
         </div>
 
-        {drilldown && view === 'all' && (
+        {drilldown && (
           <div className="flex items-center gap-2 px-3.5 py-2 border-b border-border bg-muted font-mono text-[11px]">
-            <button type="button" onClick={() => { setDrilldown(null); setPage(1) }} className="border-0 bg-transparent cursor-pointer text-[var(--accent)]">← all groups</button>
+            <button type="button" onClick={() => {
+              setDrilldown(null)
+              setPage(1)
+              updateURL(params => {
+                params.delete('groupService')
+                params.delete('groupName')
+                params.delete('groupKind')
+              })
+            }} className="border-0 bg-transparent cursor-pointer text-[var(--accent)]">← all groups</button>
             <span className="text-muted-foreground">{drilldown.service_name} / {drilldown.name}</span>
           </div>
         )}
@@ -447,25 +544,25 @@ export default function Spans() {
         {/* Column headers */}
         <div
           className="grid gap-2.5 px-3.5 py-[7px] border-b border-border font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-muted"
-          style={{ gridTemplateColumns: view === 'grouped' ? 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px' : 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px' }}
+          style={{ gridTemplateColumns: showingGroups ? 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px' : 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px' }}
         >
-          {view === 'grouped' ? <>
+          {showingGroups ? <>
             <div>operation</div><div>service</div><div>kind</div><div className="text-right">count</div><div>latest</div><div className="text-right">errors</div><div className="text-right">p50</div><div className="text-right">p95</div><div className="text-right">max</div>
           </> : <><div>name</div><div>service</div><div>kind</div><div className="text-right">dur</div><div>started</div><div>trace</div><div className="text-right">tag</div></>}
         </div>
 
         {/* Rows */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto">
-          {(view === 'grouped' ? groupsLoading : loading) ? (
+          {(showingGroups ? groupsLoading : loading) ? (
             <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">loading…</div>
-          ) : (view === 'grouped' ? groupsError : isError) ? (
-            <ErrorState what="spans" error={view === 'grouped' ? groupsErrorDetail : error} onRetry={() => view === 'grouped' ? refetchGroups() : refetch()} />
-          ) : view === 'grouped' && groups.length === 0 ? (
+          ) : (showingGroups ? groupsError : isError) ? (
+            <ErrorState what="spans" error={showingGroups ? groupsErrorDetail : error} onRetry={() => showingGroups ? refetchGroups() : refetch()} />
+          ) : showingGroups && groups.length === 0 ? (
             <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">no operations match — clear the search or try another page</div>
-          ) : view === 'grouped' ? (
+          ) : showingGroups ? (
             groups.filter(g => `${g.name} ${g.service_name}`.toLowerCase().includes(query.trim().toLowerCase())).map(g => (
               <button key={`${g.service_name}:${g.name}:${g.kind}`} type="button" data-testid={`span-group-${g.service_name}-${g.name}`}
-                onClick={() => { setDrilldown(g); setPage(1); setView('all') }}
+                onClick={() => openGroup(g)}
                 className="grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border bg-transparent"
                 style={{ gridTemplateColumns: 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px' }}>
                 <div className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{g.name}<span className="ml-2 text-[10px] text-muted-foreground">{g.attribute_variants} attribute {g.attribute_variants === 1 ? 'set' : 'sets'}</span></div>
@@ -500,7 +597,7 @@ export default function Spans() {
                 key={s.span_id}
                 type="button"
                 data-testid={`span-row-${s.span_id}`}
-                onClick={() => setSelectedId(isSel ? null : s.span_id)}
+                onClick={() => isSel ? clearSelectedSpan() : selectSpan(s.span_id)}
                 className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
                 style={{
                   gridTemplateColumns: 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
@@ -529,21 +626,21 @@ export default function Spans() {
         {/* Status footer */}
         <div className="px-3.5 py-2 border-t border-border bg-muted font-mono text-[10.5px] text-muted-foreground flex items-center gap-3.5">
           <span>
-            <strong className="text-foreground">{view === 'grouped' ? groups.length.toLocaleString() : filtered.length.toLocaleString()}</strong>
-            {' '}of {(view === 'grouped' ? groupTotal : spanTotal).toLocaleString()} {view === 'grouped' ? 'operations' : 'spans'}
+            <strong className="text-foreground">{showingGroups ? groups.length.toLocaleString() : filtered.length.toLocaleString()}</strong>
+            {' '}of {(showingGroups ? groupTotal : spanTotal).toLocaleString()} {showingGroups ? 'operations' : 'spans'}
           </span>
           <span>·</span>
           <span>page {page}</span>
           <span className="flex-1" />
           <button type="button" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="border border-border rounded px-2 py-[3px] bg-background disabled:opacity-40 cursor-pointer">prev</button>
-          <button type="button" disabled={page * PAGE_SIZE >= (view === 'grouped' ? groupTotal : spanTotal)} onClick={() => setPage(p => p + 1)} className="border border-border rounded px-2 py-[3px] bg-background disabled:opacity-40 cursor-pointer">next</button>
+          <button type="button" disabled={page * PAGE_SIZE >= (showingGroups ? groupTotal : spanTotal)} onClick={() => setPage(p => p + 1)} className="border border-border rounded px-2 py-[3px] bg-background disabled:opacity-40 cursor-pointer">next</button>
           <code className="px-2 py-[3px] rounded-[5px] border border-border bg-background text-muted-foreground font-mono text-[10px]">spaniel spans --tail</code>
         </div>
       </div>
 
       {/* Inspector */}
       {selected && (
-        <SpanInspector span={selected} onClose={() => setSelectedId(null)} />
+        <SpanInspector span={selected} onClose={clearSelectedSpan} />
       )}
     </div>
   )

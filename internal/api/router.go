@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -68,7 +69,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	r := &Router{store: store, hub: hub, forwarder: fwd, manifests: mfs, settings: settings, tp: tp, dc: dc, sp: sp}
 	mux := chi.NewRouter()
 	mux.Use(middleware.RequestID)
-	mux.Use(middleware.Logger)
+	mux.Use(accessLogMiddleware)
 	mux.Use(middleware.Recoverer)
 	mux.Use(corsMiddleware)
 	mux.Use(func(next http.Handler) http.Handler {
@@ -143,6 +144,29 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux
+}
+
+// accessLogMiddleware records Spaniel's own HTTP activity through slog rather
+// than chi's legacy logger. When self-monitoring is enabled, the OTel slog
+// bridge exports these records back to Spaniel's Logs view.
+func accessLogMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		started := time.Now()
+		wrapped := middleware.NewWrapResponseWriter(w, req.ProtoMajor)
+		next.ServeHTTP(wrapped, req)
+
+		route := req.URL.Path
+		if rctx := chi.RouteContext(req.Context()); rctx != nil && rctx.RoutePattern() != "" {
+			route = rctx.RoutePattern()
+		}
+		slog.InfoContext(req.Context(), "HTTP request completed",
+			"http.request.method", req.Method,
+			"url.path", route,
+			"http.response.status_code", wrapped.Status(),
+			"http.response.body.size", wrapped.BytesWritten(),
+			"duration_ms", time.Since(started).Milliseconds(),
+		)
+	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
