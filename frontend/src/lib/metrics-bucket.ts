@@ -16,8 +16,8 @@ export interface BucketedSeries {
  * bins are forward-filled from the previous filled bin so the chart renders
  * continuous lines instead of dropping to zero.
  *
- * For histograms the function returns separate p50/p95/p99 arrays, each
- * derived from the points whose `percentile` attribute matches.
+ * Histogram percentiles are calculated from the original bucket counts at
+ * render time, never from ingest-time synthetic rows.
  */
 export function bucketPoints(
   points: MetricSeriesPoint[],
@@ -39,14 +39,17 @@ export function bucketPoints(
     }
     for (const p of points) {
       const i = Math.min(bins - 1, Math.floor(((p.timestamp_ns - tMin) / span) * bins))
-      // If no percentile is set, distribute to all three (fallback for malformed data)
-      if (p.percentile) {
-        out[p.percentile][i] = p.value
-      } else {
-        out.p50[i] = p.value
-        out.p95[i] = p.value
-        out.p99[i] = p.value
-      }
+		if (p.bounds?.length && p.buckets?.length) {
+			out.p50[i] = histogramPercentile(p.bounds, p.buckets, 0.50)
+			out.p95[i] = histogramPercentile(p.bounds, p.buckets, 0.95)
+			out.p99[i] = histogramPercentile(p.bounds, p.buckets, 0.99)
+		} else if (p.percentile) {
+			out[p.percentile][i] = p.value
+		} else {
+			out.p50[i] = p.value
+			out.p95[i] = p.value
+			out.p99[i] = p.value
+		}
     }
     for (const k of ['p50', 'p95', 'p99'] as const) {
       forwardFill(out[k])
@@ -61,6 +64,23 @@ export function bucketPoints(
   }
   forwardFill(values)
   return { values }
+}
+
+function histogramPercentile(bounds: number[], counts: number[], q: number) {
+  const total = counts.reduce((sum, n) => sum + n, 0)
+  if (!total) return 0
+  const target = total * q
+  let cumulative = 0
+  for (let i = 0; i < counts.length; i++) {
+    const next = cumulative + counts[i]
+    if (next >= target) {
+		if (i >= bounds.length) return bounds.length ? bounds[bounds.length - 1] : 0
+      const lo = i ? bounds[i - 1] : 0
+      return counts[i] ? lo + ((target - cumulative) / counts[i]) * (bounds[i] - lo) : bounds[i]
+    }
+    cumulative = next
+  }
+	return bounds.length ? bounds[bounds.length - 1] : 0
 }
 
 function forwardFill(arr: number[]) {

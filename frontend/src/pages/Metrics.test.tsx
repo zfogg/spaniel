@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Metrics from './Metrics'
 import { bucketPoints } from '@/lib/metrics-bucket'
@@ -9,11 +9,15 @@ import { bucketPoints } from '@/lib/metrics-bucket'
 // Metrics uses useNavigate() (correlated-traces panel) and useQuery, so it
 // needs both a Router and a QueryClient context. A fresh client per render
 // (with retries off) keeps cases isolated while leaving them otherwise unchanged.
-const renderMetrics = () => {
+function LocationProbe() {
+  return <output data-testid="location-search">{useLocation().search}</output>
+}
+
+const renderMetrics = (initialEntries = ['/metrics']) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter><Metrics /></MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}><Metrics /><LocationProbe /></MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -160,6 +164,13 @@ describe('<Metrics />', () => {
     expect(screen.getByText('pool.in_use')).toBeTruthy()
   })
 
+  it('includes a SUM filter for OTLP sum instruments', async () => {
+    setup({ catalog: [{ name: 'signals', service_name: 'api', type: 'sum', unit: '1', description: '', sample_count: 1 }] })
+    renderMetrics()
+    await waitFor(() => expect(screen.getByText('signals')).toBeTruthy())
+    expect(screen.getByRole('button', { name: /^sum$/i })).toBeTruthy()
+  })
+
   it('renders chart + stats after selecting a metric', async () => {
     setup({
       catalog: [
@@ -195,6 +206,41 @@ describe('<Metrics />', () => {
     expect(screen.getByText('peak')).toBeTruthy()
     // Chart SVG exists.
     expect(document.querySelector('svg')).toBeTruthy()
+  })
+
+  it('explains when a selected metric has no points in the active range', async () => {
+    setup({
+      catalog: [
+        { name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: 'resident memory', sample_count: 1 },
+      ],
+      series: {
+        'name=memory.usage&service=api&with_traces=1': {
+          name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: 'resident memory', points: [], traces: [],
+        },
+      },
+    })
+
+    renderMetrics()
+    await waitFor(() => expect(screen.getByText(/No points in this time range/i)).toBeTruthy())
+    expect(screen.getByText(/Choose a wider range/i)).toBeTruthy()
+  })
+
+  it('stores the selected metric in the URL', async () => {
+    setup({
+      catalog: [
+        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 1 },
+        { name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '', sample_count: 1 },
+      ],
+      series: {
+        'name=http.requests&service=api&with_traces=1': { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', points: [], traces: [] },
+        'name=pool.in_use&service=postgres&with_traces=1': { name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '', points: [], traces: [] },
+      },
+    })
+
+    renderMetrics()
+    await waitFor(() => expect(screen.getByText('pool.in_use')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /pool\.in_use/i }))
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toBe('?metric=pool.in_use&service=postgres'))
   })
 
   it('buckets histogram points by percentile attribute', () => {

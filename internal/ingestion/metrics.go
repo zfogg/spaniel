@@ -1,31 +1,38 @@
 package ingestion
 
 import (
-	"time"
+	"context"
+	"fmt"
 
 	json "github.com/goccy/go-json"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
-// ingestMetrics walks an OTLP Metrics tree and emits storage.Metric rows.
-// Gauges and Sums become one row per data point. Histograms become 3 rows
-// per data point (p50/p95/p99) with the percentile encoded in attributes.
-func (p *Pipeline) ingestMetricsTree(md pmetric.Metrics, sessionID string) error {
-	receivedAt := time.Now().UnixNano()
+// The indexed metric identity is intentionally much smaller than the OTLP
+// attribute set. OTLP clients are untrusted and routinely attach IDs, URLs and
+// raw errors; those remain on the point but cannot create a query series.
+var indexedMetricAttributes = map[string]struct{}{
+	"http.request.method": {}, "http.response.status_code": {}, "http.route": {},
+	"rpc.method": {}, "rpc.service": {}, "db.system": {}, "messaging.system": {},
+	"signal": {}, "result": {}, "reason": {}, "operation": {},
+}
 
+// ingestMetrics walks the OTLP tree without changing the metric model. Every
+// OTLP data point becomes exactly one storage row.
+func (p *Pipeline) ingestMetricsTree(ctx context.Context, md pmetric.Metrics, sessionID string) error {
 	pointsSeen := 0
 	defer func() { p.tp.addMetrics(pointsSeen) }()
-
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
 		rm := md.ResourceMetrics().At(i)
-		svc := serviceNameFromAttrs(rm.Resource().Attributes())
-
+		svc, resource := serviceNameFromAttrs(rm.Resource().Attributes()), mapToJSON(rm.Resource().Attributes())
 		for j := 0; j < rm.ScopeMetrics().Len(); j++ {
 			sm := rm.ScopeMetrics().At(j)
+			scope := sm.Scope()
 			for k := 0; k < sm.Metrics().Len(); k++ {
 				m := sm.Metrics().At(k)
 				pts := metricDataPointCount(m)
@@ -34,7 +41,7 @@ func (p *Pipeline) ingestMetricsTree(md pmetric.Metrics, sessionID string) error
 					continue
 				}
 				pointsSeen += pts
-				if err := p.storeMetric(m, svc, sessionID, receivedAt); err != nil {
+				if err := p.storeMetric(ctx, m, svc, resource, scope.Name(), scope.Version(), sm.SchemaUrl(), mapToJSON(scope.Attributes()), sessionID); err != nil {
 					return err
 				}
 			}
@@ -43,8 +50,6 @@ func (p *Pipeline) ingestMetricsTree(md pmetric.Metrics, sessionID string) error
 	return nil
 }
 
-// metricDataPointCount reports how many OTLP data points a metric carries,
-// counting one per histogram point (not the p50/p95/p99 rows we expand it into).
 func metricDataPointCount(m pmetric.Metric) int {
 	switch m.Type() {
 	case pmetric.MetricTypeGauge:
@@ -53,161 +58,179 @@ func metricDataPointCount(m pmetric.Metric) int {
 		return m.Sum().DataPoints().Len()
 	case pmetric.MetricTypeHistogram:
 		return m.Histogram().DataPoints().Len()
-	default:
-		return 0
+	case pmetric.MetricTypeExponentialHistogram:
+		return m.ExponentialHistogram().DataPoints().Len()
+	case pmetric.MetricTypeSummary:
+		return m.Summary().DataPoints().Len()
 	}
+	return 0
 }
 
-func (p *Pipeline) storeMetric(m pmetric.Metric, svc, sessionID string, _ int64) error {
-	name, desc, unit := m.Name(), m.Description(), m.Unit()
+func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resource, scopeName, scopeVersion, scopeSchemaURL, scopeAttributes, sessionID string) error {
+	base := func(metricType string, attrs pcommon.Map, start, timestamp pcommon.Timestamp, flags pmetric.DataPointFlags, exemplars pmetric.ExemplarSlice) *storage.Metric {
+		attrsJSON, seriesAttrs, limitedAttrs := metricAttributes(attrs)
+		stream := sessionID + "\x00" + svc + "\x00" + m.Name()
+		if !p.metricSeries.Admit(stream, seriesAttrs) {
+			seriesAttrs = "{}"
+			telemetry.Catalog().RecordCardinalityLimited(ctx, "new_series_budget", 1)
+		}
+		if limitedAttrs > 0 {
+			telemetry.Catalog().RecordCardinalityLimited(ctx, "attribute_not_indexed", int64(limitedAttrs))
+		}
+		return &storage.Metric{Name: m.Name(), Description: m.Description(), Unit: m.Unit(), Type: metricType,
+			StartTimestampNs: int64(start), TimestampNs: int64(timestamp), Flags: uint32(flags),
+			Attributes: attrsJSON, Resource: resource, SeriesAttributes: seriesAttrs,
+			SeriesKey: m.Name() + "\x00" + svc + "\x00" + seriesAttrs, ScopeName: scopeName, ScopeVersion: scopeVersion, ScopeSchemaURL: scopeSchemaURL, ScopeAttributes: scopeAttributes,
+			Exemplars: exemplarsToJSON(exemplars), ServiceName: svc, SessionID: sessionID}
+	}
+	store := func(row *storage.Metric) error {
+		if err := p.store.AppendMetric(row); err != nil {
+			return err
+		}
+		value := row.Value
+		if row.HistogramSum != nil {
+			value = *row.HistogramSum
+		} else if row.SummarySum != nil {
+			value = *row.SummarySum
+		}
+		p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Value: value, Type: row.Type}))
+		return nil
+	}
 
 	switch m.Type() {
 	case pmetric.MetricTypeGauge:
 		for i := 0; i < m.Gauge().DataPoints().Len(); i++ {
 			dp := m.Gauge().DataPoints().At(i)
-			row := &storage.Metric{
-				Name:        name,
-				Description: desc,
-				Unit:        unit,
-				Type:        "gauge",
-				TimestampNs: int64(dp.Timestamp()),
-				Value:       numericValue(dp),
-				Attributes:  mapToJSON(dp.Attributes()),
-				Exemplars:   exemplarsToJSON(dp.Exemplars()),
-				ServiceName: svc,
-				SessionID:   sessionID,
-			}
-			if err := p.store.AppendMetric(row); err != nil {
+			row := base("gauge", dp.Attributes(), dp.StartTimestamp(), dp.Timestamp(), dp.Flags(), dp.Exemplars())
+			v := numericValue(dp)
+			row.Value = v
+			if err := store(row); err != nil {
 				return err
 			}
-			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
-				Name:        row.Name,
-				ServiceName: row.ServiceName,
-				Value:       row.Value,
-				Type:        row.Type,
-			}))
 		}
-
 	case pmetric.MetricTypeSum:
+		monotonic, temporality := m.Sum().IsMonotonic(), m.Sum().AggregationTemporality().String()
 		for i := 0; i < m.Sum().DataPoints().Len(); i++ {
 			dp := m.Sum().DataPoints().At(i)
-			row := &storage.Metric{
-				Name:        name,
-				Description: desc,
-				Unit:        unit,
-				Type:        "counter",
-				TimestampNs: int64(dp.Timestamp()),
-				Value:       numericValue(dp),
-				Attributes:  mapToJSON(dp.Attributes()),
-				Exemplars:   exemplarsToJSON(dp.Exemplars()),
-				ServiceName: svc,
-				SessionID:   sessionID,
-			}
-			if err := p.store.AppendMetric(row); err != nil {
+			row := base("sum", dp.Attributes(), dp.StartTimestamp(), dp.Timestamp(), dp.Flags(), dp.Exemplars())
+			v := numericValue(dp)
+			row.Value, row.IsMonotonic, row.AggregationTemporality = v, &monotonic, temporality
+			if err := store(row); err != nil {
 				return err
 			}
-			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
-				Name:        row.Name,
-				ServiceName: row.ServiceName,
-				Value:       row.Value,
-				Type:        row.Type,
-			}))
 		}
-
 	case pmetric.MetricTypeHistogram:
+		temporality := m.Histogram().AggregationTemporality().String()
 		for i := 0; i < m.Histogram().DataPoints().Len(); i++ {
 			dp := m.Histogram().DataPoints().At(i)
-			bounds := boundsToFloat(dp.ExplicitBounds())
-			counts := countsToInt(dp.BucketCounts())
-			exemplars := exemplarsToJSON(dp.Exemplars())
-			for _, pct := range []float64{0.50, 0.95, 0.99} {
-				var v float64
-				if len(bounds) == 0 {
-					// No explicit bucket boundaries — use sum/count mean as best estimate.
-					if dp.Count() > 0 {
-						v = dp.Sum() / float64(dp.Count())
-					}
-				} else {
-					v = HistogramPercentile(bounds, counts, pct)
-				}
-				attrs := attrsWithPercentile(dp.Attributes(), pct)
-				row := &storage.Metric{
-					Name:        name,
-					Description: desc,
-					Unit:        unit,
-					Type:        "histogram",
-					TimestampNs: int64(dp.Timestamp()),
-					Value:       v,
-					Attributes:  attrs,
-					Exemplars:   exemplars,
-					ServiceName: svc,
-					SessionID:   sessionID,
-				}
-				if err := p.store.AppendMetric(row); err != nil {
-					return err
-				}
-				p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{
-					Name:        row.Name,
-					ServiceName: row.ServiceName,
-					Value:       row.Value,
-					Type:        row.Type,
-				}))
+			row := base("histogram", dp.Attributes(), dp.StartTimestamp(), dp.Timestamp(), dp.Flags(), dp.Exemplars())
+			count := dp.Count()
+			row.HistogramCount, row.AggregationTemporality = &count, temporality
+			if dp.HasSum() {
+				v := dp.Sum()
+				row.HistogramSum = &v
+			}
+			if dp.HasMin() {
+				v := dp.Min()
+				row.HistogramMin = &v
+			}
+			if dp.HasMax() {
+				v := dp.Max()
+				row.HistogramMax = &v
+			}
+			row.ExplicitBounds, row.BucketCounts = floatSliceJSON(dp.ExplicitBounds()), uint64SliceJSON(dp.BucketCounts())
+			if err := store(row); err != nil {
+				return err
 			}
 		}
-
-	default:
-		// Summary / ExponentialHistogram unsupported in v1 — skip silently.
+	case pmetric.MetricTypeExponentialHistogram:
+		temporality := m.ExponentialHistogram().AggregationTemporality().String()
+		for i := 0; i < m.ExponentialHistogram().DataPoints().Len(); i++ {
+			dp := m.ExponentialHistogram().DataPoints().At(i)
+			row := base("exponential_histogram", dp.Attributes(), dp.StartTimestamp(), dp.Timestamp(), dp.Flags(), dp.Exemplars())
+			count, scale, zeroCount, zeroThreshold := dp.Count(), dp.Scale(), dp.ZeroCount(), dp.ZeroThreshold()
+			positiveOffset, negativeOffset := dp.Positive().Offset(), dp.Negative().Offset()
+			row.HistogramCount, row.AggregationTemporality, row.ExpScale, row.ExpZeroCount, row.ExpZeroThreshold, row.ExpPositiveOffset, row.ExpNegativeOffset = &count, temporality, &scale, &zeroCount, &zeroThreshold, &positiveOffset, &negativeOffset
+			if dp.HasSum() {
+				v := dp.Sum()
+				row.HistogramSum = &v
+			}
+			if dp.HasMin() {
+				v := dp.Min()
+				row.HistogramMin = &v
+			}
+			if dp.HasMax() {
+				v := dp.Max()
+				row.HistogramMax = &v
+			}
+			row.ExpPositiveCounts, row.ExpNegativeCounts = uint64SliceJSON(dp.Positive().BucketCounts()), uint64SliceJSON(dp.Negative().BucketCounts())
+			if err := store(row); err != nil {
+				return err
+			}
+		}
+	case pmetric.MetricTypeSummary:
+		for i := 0; i < m.Summary().DataPoints().Len(); i++ {
+			dp := m.Summary().DataPoints().At(i)
+			row := base("summary", dp.Attributes(), dp.StartTimestamp(), dp.Timestamp(), dp.Flags(), pmetric.NewExemplarSlice())
+			count, sum := dp.Count(), dp.Sum()
+			row.SummaryCount, row.SummarySum, row.SummaryQuantiles = &count, &sum, summaryQuantilesJSON(dp)
+			if err := store(row); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
 func numericValue(dp pmetric.NumberDataPoint) float64 {
-	switch dp.ValueType() {
-	case pmetric.NumberDataPointValueTypeDouble:
-		return dp.DoubleValue()
-	case pmetric.NumberDataPointValueTypeInt:
+	if dp.ValueType() == pmetric.NumberDataPointValueTypeInt {
 		return float64(dp.IntValue())
-	default:
-		return 0
 	}
+	return dp.DoubleValue()
 }
-
-func boundsToFloat(s pcommon.Float64Slice) []float64 {
+func floatSliceJSON(s pcommon.Float64Slice) string {
 	out := make([]float64, s.Len())
-	for i := 0; i < s.Len(); i++ {
+	for i := range out {
 		out[i] = s.At(i)
 	}
-	return out
+	b, _ := json.Marshal(out)
+	return string(b)
 }
-
-func countsToInt(s pcommon.UInt64Slice) []uint64 {
+func uint64SliceJSON(s pcommon.UInt64Slice) string {
 	out := make([]uint64, s.Len())
-	for i := 0; i < s.Len(); i++ {
+	for i := range out {
 		out[i] = s.At(i)
 	}
-	return out
+	b, _ := json.Marshal(out)
+	return string(b)
 }
-
-func attrsWithPercentile(attrs pcommon.Map, p float64) string {
-	raw := make(map[string]any, attrs.Len()+1)
-	attrs.Range(func(k string, v pcommon.Value) bool {
-		raw[k] = v.AsRaw()
-		return true
-	})
-	switch p {
-	case 0.50:
-		raw["percentile"] = "p50"
-	case 0.95:
-		raw["percentile"] = "p95"
-	case 0.99:
-		raw["percentile"] = "p99"
+func summaryQuantilesJSON(dp pmetric.SummaryDataPoint) string {
+	out := make(map[string]float64, dp.QuantileValues().Len())
+	for i := 0; i < dp.QuantileValues().Len(); i++ {
+		q := dp.QuantileValues().At(i)
+		out[fmt.Sprintf("%g", q.Quantile())] = q.Value()
 	}
-	b, _ := json.Marshal(raw)
+	b, _ := json.Marshal(out)
 	return string(b)
 }
 
-// exemplarsToJSON extracts exemplars (trace links) from a data point and encodes them as JSON.
-// Returns empty string if no exemplars are present.
+func metricAttributes(attrs pcommon.Map) (string, string, int) {
+	all, indexed := make(map[string]any, attrs.Len()), map[string]any{}
+	limited := 0
+	attrs.Range(func(k string, v pcommon.Value) bool {
+		all[k] = v.AsRaw()
+		if _, ok := indexedMetricAttributes[k]; ok {
+			indexed[k] = v.AsRaw()
+		} else {
+			limited++
+		}
+		return true
+	})
+	allJSON, _ := json.Marshal(all)
+	indexedJSON, _ := json.Marshal(indexed)
+	return string(allJSON), string(indexedJSON), limited
+}
+
 func exemplarsToJSON(exemplars pmetric.ExemplarSlice) string {
 	if exemplars.Len() == 0 {
 		return ""
@@ -219,14 +242,8 @@ func exemplarsToJSON(exemplars pmetric.ExemplarSlice) string {
 	out := make([]exemplar, 0, exemplars.Len())
 	for i := 0; i < exemplars.Len(); i++ {
 		ex := exemplars.At(i)
-		// Extract trace_id and span_id from the exemplar's span context
-		traceID := ex.TraceID()
-		spanID := ex.SpanID()
-		if len(traceID) > 0 {
-			out = append(out, exemplar{
-				TraceID: traceID.String(),
-				SpanID:  spanID.String(),
-			})
+		if traceID := ex.TraceID(); !traceID.IsEmpty() {
+			out = append(out, exemplar{TraceID: traceID.String(), SpanID: ex.SpanID().String()})
 		}
 	}
 	if len(out) == 0 {
@@ -236,14 +253,8 @@ func exemplarsToJSON(exemplars pmetric.ExemplarSlice) string {
 	return string(b)
 }
 
-// HistogramPercentile approximates the given percentile from explicit-bucket
-// histogram data. bounds is an ascending list of upper bounds (length N);
-// counts is the per-bucket counts (length N+1, the last bucket has no upper
-// bound). Uses linear interpolation within the bucket that contains the
-// percentile. Returns 0 if the histogram has no observations.
-//
-// This is the exported entry point so the algorithm can be unit-tested
-// without pmetric machinery.
+// Keep the old exported helper for callers/tests. Query paths use raw buckets;
+// this is only a utility and is never invoked while storing a metric point.
 func HistogramPercentile(bounds []float64, counts []uint64, p float64) float64 {
 	var total uint64
 	for _, c := range counts {
@@ -252,36 +263,26 @@ func HistogramPercentile(bounds []float64, counts []uint64, p float64) float64 {
 	if total == 0 {
 		return 0
 	}
-	target := float64(total) * p
-
-	var cum float64
+	target, cumulative := float64(total)*p, float64(0)
 	for i, c := range counts {
-		next := cum + float64(c)
+		next := cumulative + float64(c)
 		if next >= target {
-			// We are inside bucket i. Compute its [lo, hi].
-			var lo, hi float64
-			switch {
-			case i == 0 && len(bounds) > 0:
-				lo, hi = 0, bounds[0]
-			case i < len(bounds):
-				lo, hi = bounds[i-1], bounds[i]
-			default:
-				// Final overflow bucket — return its lower bound (best we can do).
-				if len(bounds) > 0 {
-					return bounds[len(bounds)-1]
+			if i >= len(bounds) {
+				if len(bounds) == 0 {
+					return 0
 				}
-				return 0
+				return bounds[len(bounds)-1]
+			}
+			lo := 0.0
+			if i > 0 {
+				lo = bounds[i-1]
 			}
 			if c == 0 {
-				return hi
+				return bounds[i]
 			}
-			frac := (target - cum) / float64(c)
-			return lo + frac*(hi-lo)
+			return lo + (target-cumulative)/float64(c)*(bounds[i]-lo)
 		}
-		cum = next
-	}
-	if len(bounds) > 0 {
-		return bounds[len(bounds)-1]
+		cumulative = next
 	}
 	return 0
 }

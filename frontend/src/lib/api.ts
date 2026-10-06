@@ -188,7 +188,9 @@ export const MetricCatalogEntrySchema = z.object({
   name: z.string(),
   description: z.string(),
   unit: z.string(),
-  type: z.enum(['gauge', 'counter', 'histogram']),
+  type: z.string(),
+\taggregation_temporality: z.string().optional(),
+\tis_monotonic: z.boolean().optional(),
   service_name: z.string(),
   sample_count: z.number(),
 })
@@ -199,9 +201,18 @@ export const MetricSeriesExemplarSchema = z.object({
 })
 
 export const MetricSeriesPointSchema = z.object({
+\tstart_timestamp_ns: z.number().optional(),
   timestamp_ns: z.number(),
+\tflags: z.number().optional(),
   value: z.number(),
-  percentile: z.enum(['p50', 'p95', 'p99']).optional(),
+\tpercentile: z.enum(['p50', 'p95', 'p99']).optional(),
+\tcount: z.number().optional(),
+\tsum: z.number().optional(),
+\tmin: z.number().optional(),
+\tmax: z.number().optional(),
+\tbounds: z.array(z.number()).optional(),
+\tbuckets: z.array(z.number()).optional(),
+\tquantiles: z.record(z.string(), z.number()).optional(),
   exemplars: z.array(MetricSeriesExemplarSchema).optional(),
 })
 
@@ -218,10 +229,14 @@ export const TraceOverlaySchema = z.object({
 export const MetricSeriesSchema = z.object({
   name: z.string(),
   service_name: z.string(),
-  type: z.enum(['gauge', 'counter', 'histogram']),
+  type: z.string(),
   unit: z.string(),
   description: z.string(),
+\taggregation_temporality: z.string().optional(),
+\tis_monotonic: z.boolean().optional(),
+\toperation: z.string().optional(),
   points: z.array(MetricSeriesPointSchema),
+\tseries: z.array(z.object({ key: z.string(), attributes: z.record(z.string(), z.unknown()), points: z.array(MetricSeriesPointSchema) })).optional(),
   dimensions: z.record(z.string(), z.array(z.string())).optional(),
   aggregation: z.string().optional(),
   // Populated only when ?with_traces=1 is requested. Always an array (server
@@ -653,12 +668,13 @@ export const api = {
   metrics: {
     list: (sessionId?: string) =>
       get(`/api/metrics${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(MetricCatalogEntrySchema)),
-    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number; withTraces?: boolean }) => {
+    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number; operation?: string; withTraces?: boolean }) => {
       const q = new URLSearchParams({ name: params.name })
       if (params.service) q.set('service', params.service)
       if (params.sessionId) q.set('sessionId', params.sessionId)
       if (params.from) q.set('from', String(params.from))
       if (params.to) q.set('to', String(params.to))
+      if (params.operation) q.set('operation', params.operation)
       if (params.withTraces) q.set('with_traces', '1')
       return get(`/api/metrics/series?${q}`, MetricSeriesSchema)
     },

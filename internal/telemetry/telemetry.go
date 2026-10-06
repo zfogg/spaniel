@@ -134,6 +134,7 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 	}
 	mp := sdkmetric.NewMeterProvider(mpOpts...)
 	otel.SetMeterProvider(mp)
+	InitMetrics()
 	shutdownFuncs = append(shutdownFuncs, mp.Shutdown)
 
 	// Go runtime metrics: start once, uses delegating global meter.

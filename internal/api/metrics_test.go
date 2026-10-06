@@ -66,20 +66,50 @@ func TestGetMetricSeries_MissingName(t *testing.T) {
 	}
 }
 
-func TestGetMetricSeries_CounterDeltasAreAggregatedPerDimension(t *testing.T) {
+func TestGetMetricSeries_EmptyWindowRetainsStreamMetadata(t *testing.T) {
 	handler, db := setupRouter(t)
+	if err := db.InsertMetric(&storage.Metric{
+		Name: "memory.usage", Type: "gauge", Unit: "By", Description: "resident memory",
+		TimestampNs: 100, Value: 42, Attributes: "{}", ServiceName: "api", SessionID: "s1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=memory.usage&service=api&sessionId=s1&from=200", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Data.Type != "gauge" || resp.Data.Unit != "By" || resp.Data.Description != "resident memory" {
+		t.Errorf("metadata = %+v, want stream metadata", resp.Data)
+	}
+	if len(resp.Data.Points) != 0 {
+		t.Errorf("points = %+v, want empty", resp.Data.Points)
+	}
+}
+
+func TestGetMetricSeries_SumsStaySeparatedByCompleteIndexedDimensions(t *testing.T) {
+	handler, db := setupRouter(t)
+	monotonic := true
 	for _, row := range []storage.Metric{
-		{Name: "signals", Type: "counter", TimestampNs: 100, Value: 10, Attributes: `{"strategy":"a"}`, ServiceName: "worker", SessionID: "s1"},
-		{Name: "signals", Type: "counter", TimestampNs: 100, Value: 20, Attributes: `{"strategy":"b"}`, ServiceName: "worker", SessionID: "s1"},
-		{Name: "signals", Type: "counter", TimestampNs: 200, Value: 13, Attributes: `{"strategy":"a"}`, ServiceName: "worker", SessionID: "s1"},
-		{Name: "signals", Type: "counter", TimestampNs: 200, Value: 2, Attributes: `{"strategy":"b"}`, ServiceName: "worker", SessionID: "s1"}, // reset
+		{Name: "signals", Type: "sum", AggregationTemporality: "Cumulative", IsMonotonic: &monotonic, TimestampNs: 100, Value: 10, Attributes: `{"result":"a"}`, SeriesAttributes: `{"result":"a"}`, SeriesKey: "a", ServiceName: "worker", SessionID: "s1"},
+		{Name: "signals", Type: "sum", AggregationTemporality: "Cumulative", IsMonotonic: &monotonic, TimestampNs: 100, Value: 20, Attributes: `{"result":"b"}`, SeriesAttributes: `{"result":"b"}`, SeriesKey: "b", ServiceName: "worker", SessionID: "s1"},
+		{Name: "signals", Type: "sum", AggregationTemporality: "Cumulative", IsMonotonic: &monotonic, TimestampNs: 200, Value: 13, Attributes: `{"result":"a"}`, SeriesAttributes: `{"result":"a"}`, SeriesKey: "a", ServiceName: "worker", SessionID: "s1"},
+		{Name: "signals", Type: "sum", AggregationTemporality: "Cumulative", IsMonotonic: &monotonic, TimestampNs: 200, Value: 2, Attributes: `{"result":"b"}`, SeriesAttributes: `{"result":"b"}`, SeriesKey: "b", ServiceName: "worker", SessionID: "s1"},
 	} {
 		if err := db.InsertMetric(&row); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=signals&service=worker&sessionId=s1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=signals&service=worker&sessionId=s1&operation=delta", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	var resp struct {
@@ -88,37 +118,21 @@ func TestGetMetricSeries_CounterDeltasAreAggregatedPerDimension(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if len(resp.Data.Points) != 2 {
-		t.Fatalf("points = %d, want 2", len(resp.Data.Points))
+	if len(resp.Data.Series) != 2 || len(resp.Data.Points) != 0 {
+		t.Fatalf("series=%d points=%d, want two separate series and no merged points", len(resp.Data.Series), len(resp.Data.Points))
 	}
-	if got := resp.Data.Points[0].Value; got != 30 {
-		t.Errorf("initial aggregate = %v, want 30", got)
+	if got := resp.Data.Dimensions["result"]; len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("result dimensions = %#v", got)
 	}
-	if got := resp.Data.Points[1].Value; got != 5 {
-		t.Errorf("reset-safe delta aggregate = %v, want 5", got)
-	}
-	if got := resp.Data.Dimensions["strategy"]; len(got) != 2 || got[0] != "a" || got[1] != "b" {
-		t.Errorf("strategy dimensions = %#v", got)
-	}
-	if resp.Data.Aggregation != "delta_sum" {
+	if resp.Data.Aggregation != "per_complete_attribute_set" {
 		t.Errorf("aggregation = %q", resp.Data.Aggregation)
 	}
 }
 
-func TestGetMetricSeries_HistogramSplitsByPercentile(t *testing.T) {
+func TestGetMetricSeries_HistogramReturnsRawBuckets(t *testing.T) {
 	handler, db := setupRouter(t)
-	// Insert one histogram data point as three rows (p50/p95/p99).
-	for _, pct := range []struct {
-		name string
-		v    float64
-	}{{"p50", 10}, {"p95", 30}, {"p99", 60}} {
-		_ = db.InsertMetric(&storage.Metric{
-			Name: "http.dur", Type: "histogram", Unit: "ms",
-			TimestampNs: 100, Value: pct.v,
-			Attributes:  `{"percentile":"` + pct.name + `"}`,
-			ServiceName: "api", SessionID: "s1",
-		})
-	}
+	count, sum := uint64(10), 120.0
+	_ = db.InsertMetric(&storage.Metric{Name: "http.dur", Type: "histogram", Unit: "ms", TimestampNs: 100, HistogramCount: &count, HistogramSum: &sum, ExplicitBounds: `[10,20,50]`, BucketCounts: `[1,3,4,2]`, Attributes: `{}`, SeriesAttributes: `{}`, SeriesKey: "one", ServiceName: "api", SessionID: "s1"})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=http.dur&service=api&sessionId=s1", nil)
 	w := httptest.NewRecorder()
@@ -135,15 +149,8 @@ func TestGetMetricSeries_HistogramSplitsByPercentile(t *testing.T) {
 	if resp.Data.Type != "histogram" || resp.Data.Unit != "ms" {
 		t.Errorf("expected histogram/ms, got type=%s unit=%s", resp.Data.Type, resp.Data.Unit)
 	}
-	if len(resp.Data.Points) != 3 {
-		t.Fatalf("expected 3 points, got %d", len(resp.Data.Points))
-	}
-	pcts := map[string]float64{}
-	for _, p := range resp.Data.Points {
-		pcts[p.Percentile] = p.Value
-	}
-	if pcts["p50"] != 10 || pcts["p95"] != 30 || pcts["p99"] != 60 {
-		t.Errorf("percentile values wrong: %+v", pcts)
+	if len(resp.Data.Points) != 1 || len(resp.Data.Points[0].Buckets) != 4 || resp.Data.Points[0].Sum == nil || *resp.Data.Points[0].Sum != 120 {
+		t.Errorf("raw histogram = %+v", resp.Data.Points)
 	}
 }
 

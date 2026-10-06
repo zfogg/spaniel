@@ -3,6 +3,7 @@ package receiver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 
 	"go.opentelemetry.io/collector/pdata/plog/plogotlp"
@@ -121,8 +122,10 @@ type traceServer struct {
 
 func (s *traceServer) Export(ctx context.Context, req ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestTraces(ctx, req.Traces()); err != nil {
+		logOTLPIngestFailure(ctx, "traces", err)
 		return ptraceotlp.NewExportResponse(), ingestGRPCError(err)
 	}
+	logOTLPIngest(ctx, "traces", req.Traces().SpanCount())
 	return ptraceotlp.NewExportResponse(), nil
 }
 
@@ -133,8 +136,10 @@ type logServer struct {
 
 func (s *logServer) Export(ctx context.Context, req plogotlp.ExportRequest) (plogotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestLogs(ctx, req.Logs()); err != nil {
+		logOTLPIngestFailure(ctx, "logs", err)
 		return plogotlp.NewExportResponse(), ingestGRPCError(err)
 	}
+	logOTLPIngest(ctx, "logs", req.Logs().LogRecordCount())
 	return plogotlp.NewExportResponse(), nil
 }
 
@@ -145,7 +150,26 @@ type metricServer struct {
 
 func (s *metricServer) Export(ctx context.Context, req pmetricotlp.ExportRequest) (pmetricotlp.ExportResponse, error) {
 	if err := s.pipeline.IngestMetrics(ctx, req.Metrics()); err != nil {
+		logOTLPIngestFailure(ctx, "metrics", err)
 		return pmetricotlp.NewExportResponse(), ingestGRPCError(err)
 	}
+	logOTLPIngest(ctx, "metrics", req.Metrics().DataPointCount())
 	return pmetricotlp.NewExportResponse(), nil
+}
+
+// logOTLPIngest makes received telemetry visible in Spaniel's own Logs view.
+// Never log the records exported by Spaniel itself: the slog bridge would
+// export that new message too and create an infinite feedback loop.
+func logOTLPIngest(ctx context.Context, signal string, count int) {
+	if isSelfTelemetryContext(ctx) {
+		return
+	}
+	slog.InfoContext(ctx, "OTLP telemetry ingested", "otel.signal", signal, "otel.record_count", count)
+}
+
+func logOTLPIngestFailure(ctx context.Context, signal string, err error) {
+	if isSelfTelemetryContext(ctx) {
+		return
+	}
+	slog.ErrorContext(ctx, "OTLP telemetry ingest failed", "otel.signal", signal, "error", err)
 }

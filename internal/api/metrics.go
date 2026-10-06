@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -11,9 +10,6 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
-// listMetrics returns one entry per (service, name) metric stream.
-//
-//	GET /api/metrics?sessionId=...
 func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
 	entries, err := r.store.WithContext(req.Context()).ListMetricCatalog(sessionID)
@@ -27,39 +23,51 @@ func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 	respond(w, entries, len(entries), 1)
 }
 
-// MetricSeriesPoint represents one metric data point with optional exemplars.
-// Histogram percentiles arrive bucketed into p50/p95/p99 slices on the client;
-// gauge/counter populate only Value. Exemplars link to traces via trace_id/span_id.
+// MetricSeriesPoint is an OTLP point plus an optional query-time derived value.
+// Histogram buckets are returned verbatim so quantiles and heatmaps are based on
+// observations rather than ingest-time estimates.
 type MetricSeriesPoint struct {
-	TimestampNs int64                  `json:"timestamp_ns"`
-	Value       float64                `json:"value"`
-	Percentile  string                 `json:"percentile,omitempty"`
-	Exemplars   []MetricSeriesExemplar `json:"exemplars,omitempty"`
+	StartTimestampNs int64                  `json:"start_timestamp_ns,omitempty"`
+	TimestampNs      int64                  `json:"timestamp_ns"`
+	Flags            uint32                 `json:"flags,omitempty"`
+	Value            float64                `json:"value"`
+	Count            *uint64                `json:"count,omitempty"`
+	Sum              *float64               `json:"sum,omitempty"`
+	Min              *float64               `json:"min,omitempty"`
+	Max              *float64               `json:"max,omitempty"`
+	Bounds           []float64              `json:"bounds,omitempty"`
+	Buckets          []uint64               `json:"buckets,omitempty"`
+	Quantiles        map[string]float64     `json:"quantiles,omitempty"`
+	Exemplars        []MetricSeriesExemplar `json:"exemplars,omitempty"`
 }
-
 type MetricSeriesExemplar struct {
 	TraceID string `json:"trace_id"`
 	SpanID  string `json:"span_id"`
 }
-
+type MetricSeries struct {
+	Key        string              `json:"key"`
+	Attributes map[string]any      `json:"attributes"`
+	Points     []MetricSeriesPoint `json:"points"`
+}
 type MetricSeriesResponse struct {
-	Name        string              `json:"name"`
-	ServiceName string              `json:"service_name"`
-	Type        string              `json:"type"`
-	Unit        string              `json:"unit"`
-	Description string              `json:"description"`
-	Points      []MetricSeriesPoint `json:"points"`
-	Dimensions  map[string][]string `json:"dimensions"`
-	Aggregation string              `json:"aggregation"`
-	// Traces is populated only when ?with_traces=1 is passed. Always
-	// materialized as [] (never null) so the frontend type can be
-	// non-optional and rendering branches stay flat.
-	Traces []*storage.TraceOverlay `json:"traces"`
+	Name                   string                  `json:"name"`
+	ServiceName            string                  `json:"service_name"`
+	Type                   string                  `json:"type"`
+	Unit                   string                  `json:"unit"`
+	Description            string                  `json:"description"`
+	AggregationTemporality string                  `json:"aggregation_temporality,omitempty"`
+	IsMonotonic            *bool                   `json:"is_monotonic,omitempty"`
+	Operation              string                  `json:"operation"`
+	Aggregation            string                  `json:"aggregation"`
+	Dimensions             map[string][]string     `json:"dimensions"`
+	Series                 []MetricSeries          `json:"series"`
+	Points                 []MetricSeriesPoint     `json:"points"`
+	Traces                 []*storage.TraceOverlay `json:"traces"`
 }
 
-// getMetricSeries returns the time series for one metric.
-//
-//	GET /api/metrics/series?name=&service=&sessionId=&from=&to=
+// GET /api/metrics/series?name=&service=&sessionId=&from=&to=&operation=
+// Repeated attr.<allowed-key>=value parameters filter indexed dimensions. Raw
+// OTLP attributes remain inspectable on the point but are never query keys.
 func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	name := q.Get("name")
@@ -67,147 +75,219 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 400, "name query param required")
 		return
 	}
-
 	from, _ := strconv.ParseInt(q.Get("from"), 10, 64)
 	to, _ := strconv.ParseInt(q.Get("to"), 10, 64)
-
-	rows, err := r.store.WithContext(req.Context()).GetMetricSeries(storage.MetricSeriesFilter{
-		Name:      name,
-		Service:   q.Get("service"),
-		SessionID: r.scopeSession(q.Get("sessionId")),
-		FromNs:    from,
-		ToNs:      to,
-	})
+	rows, err := r.store.WithContext(req.Context()).GetMetricSeries(storage.MetricSeriesFilter{Name: name, Service: q.Get("service"), SessionID: r.scopeSession(q.Get("sessionId")), FromNs: from, ToNs: to})
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
-
-	out := MetricSeriesResponse{
-		Name:       name,
-		Points:     []MetricSeriesPoint{},
-		Dimensions: map[string][]string{},
-		Traces:     []*storage.TraceOverlay{},
+	out := MetricSeriesResponse{Name: name, Operation: q.Get("operation"), Aggregation: "per_complete_attribute_set", Dimensions: map[string][]string{}, Series: []MetricSeries{}, Points: []MetricSeriesPoint{}, Traces: []*storage.TraceOverlay{}}
+	if out.Operation == "" {
+		out.Operation = "raw"
 	}
-	type pointKey struct {
-		timestamp  int64
-		percentile string
-	}
-	aggregated := make(map[pointKey]*MetricSeriesPoint)
-	dimensionValues := make(map[string]map[string]struct{})
-	counterPrevious := make(map[string]float64)
-	for _, m := range rows {
+	filters := metricDimensionFilters(q)
+	byKey := map[string]*MetricSeries{}
+	values := map[string]map[string]struct{}{}
+	for _, row := range rows {
+		attrs := map[string]any{}
+		_ = json.Unmarshal([]byte(row.SeriesAttributes), &attrs)
+		if !matchesMetricFilters(attrs, filters) {
+			continue
+		}
 		if out.ServiceName == "" {
-			out.ServiceName = m.ServiceName
-			out.Type = m.Type
-			out.Unit = m.Unit
-			out.Description = m.Description
+			out.ServiceName, out.Type, out.Unit, out.Description, out.AggregationTemporality, out.IsMonotonic = row.ServiceName, row.Type, row.Unit, row.Description, row.AggregationTemporality, row.IsMonotonic
 		}
-		percentile := ""
-		if m.Type == "histogram" {
-			percentile = extractPercentile(m.Attributes)
-		}
-		var attrs map[string]any
-		if json.Unmarshal([]byte(m.Attributes), &attrs) == nil {
-			for key, value := range attrs {
-				if key == "percentile" {
-					continue
-				}
-				text := fmt.Sprint(value)
-				if dimensionValues[key] == nil {
-					dimensionValues[key] = map[string]struct{}{}
-				}
-				dimensionValues[key][text] = struct{}{}
+		for k, v := range attrs {
+			if values[k] == nil {
+				values[k] = map[string]struct{}{}
 			}
+			values[k][stringifyMetricDimension(v)] = struct{}{}
 		}
-		key := pointKey{timestamp: m.TimestampNs, percentile: percentile}
-		p := aggregated[key]
-		if p == nil {
-			p = &MetricSeriesPoint{TimestampNs: m.TimestampNs, Percentile: percentile}
-			aggregated[key] = p
+		key := row.SeriesKey
+		if key == "" {
+			key = row.Name + "\x00" + row.ServiceName + "\x00" + row.SeriesAttributes
 		}
-		value := m.Value
-		if m.Type == "counter" {
-			seriesKey := m.ServiceName + "\x00" + m.Attributes
-			if previous, ok := counterPrevious[seriesKey]; ok && value >= previous {
-				value -= previous
-			}
-			counterPrevious[seriesKey] = m.Value
+		series := byKey[key]
+		if series == nil {
+			series = &MetricSeries{Key: key, Attributes: attrs, Points: []MetricSeriesPoint{}}
+			byKey[key] = series
 		}
-		p.Value += value
-		if m.Exemplars != "" {
-			var exemplars []MetricSeriesExemplar
-			if err := json.Unmarshal([]byte(m.Exemplars), &exemplars); err == nil {
-				p.Exemplars = append(p.Exemplars, exemplars...)
-			}
+		series.Points = append(series.Points, metricPoint(row))
+	}
+	for k, set := range values {
+		for v := range set {
+			out.Dimensions[k] = append(out.Dimensions[k], v)
+		}
+		sort.Strings(out.Dimensions[k])
+	}
+	for _, series := range byKey {
+		deriveMetricSeries(series.Points, out.Type, out.AggregationTemporality, out.Operation)
+		sort.Slice(series.Points, func(i, j int) bool { return series.Points[i].TimestampNs < series.Points[j].TimestampNs })
+		out.Series = append(out.Series, *series)
+	}
+	sort.Slice(out.Series, func(i, j int) bool { return out.Series[i].Key < out.Series[j].Key })
+	if len(out.Series) == 1 {
+		out.Points = out.Series[0].Points
+	}
+	if len(rows) == 0 {
+		metadata, err := r.store.WithContext(req.Context()).GetMetricStreamMetadata(storage.MetricSeriesFilter{Name: name, Service: q.Get("service"), SessionID: r.scopeSession(q.Get("sessionId"))})
+		if err != nil {
+			respondErr(w, req, 500, err.Error())
+			return
+		}
+		if metadata != nil {
+			out.ServiceName, out.Type, out.Unit, out.Description, out.AggregationTemporality, out.IsMonotonic = metadata.ServiceName, metadata.Type, metadata.Unit, metadata.Description, metadata.AggregationTemporality, metadata.IsMonotonic
 		}
 	}
-	for key, values := range dimensionValues {
-		for value := range values {
-			out.Dimensions[key] = append(out.Dimensions[key], value)
+	if q.Get("with_traces") == "1" && len(rows) > 0 {
+		if from == 0 {
+			from = rows[0].TimestampNs
 		}
-		sort.Strings(out.Dimensions[key])
-	}
-	for _, p := range aggregated {
-		out.Points = append(out.Points, *p)
-	}
-	sort.Slice(out.Points, func(i, j int) bool {
-		if out.Points[i].TimestampNs == out.Points[j].TimestampNs {
-			return out.Points[i].Percentile < out.Points[j].Percentile
+		if to == 0 {
+			to = rows[len(rows)-1].TimestampNs
 		}
-		return out.Points[i].TimestampNs < out.Points[j].TimestampNs
-	})
-	if out.Type == "counter" {
-		out.Aggregation = "delta_sum"
-	} else {
-		out.Aggregation = "sum"
-	}
-
-	// Optional ?with_traces=1: attach the trace overlay for the chart's
-	// time window. Use the min/max of the points we just returned as the
-	// window when explicit ?from/?to weren't supplied.
-	if q.Get("with_traces") == "1" && len(out.Points) > 0 {
-		minNs, maxNs := out.Points[0].TimestampNs, out.Points[0].TimestampNs
-		for _, p := range out.Points {
-			if p.TimestampNs < minNs {
-				minNs = p.TimestampNs
-			}
-			if p.TimestampNs > maxNs {
-				maxNs = p.TimestampNs
-			}
-		}
-		windowFrom, windowTo := from, to
-		if windowFrom == 0 {
-			windowFrom = minNs
-		}
-		if windowTo == 0 {
-			windowTo = maxNs
-		}
-		traces, err := r.store.WithContext(req.Context()).ListTracesInWindow(storage.TraceOverlayFilter{
-			Service:   q.Get("service"),
-			SessionID: r.scopeSession(q.Get("sessionId")),
-			FromNs:    windowFrom,
-			ToNs:      windowTo,
-		})
-		if err == nil && traces != nil {
+		if traces, err := r.store.WithContext(req.Context()).ListTracesInWindow(storage.TraceOverlayFilter{Service: q.Get("service"), SessionID: r.scopeSession(q.Get("sessionId")), FromNs: from, ToNs: to}); err == nil && traces != nil {
 			out.Traces = traces
 		}
 	}
-	respond(w, out, len(out.Points), 1)
+	respond(w, out, len(out.Series), 1)
 }
 
-// extractPercentile pulls the "percentile" attribute out of the JSON-encoded
-// attributes column. Returns "" if unset/unparseable.
-func extractPercentile(attrsJSON string) string {
-	const key = `"percentile":"`
-	i := strings.Index(attrsJSON, key)
-	if i < 0 {
+func metricPoint(row *storage.Metric) MetricSeriesPoint {
+	p := MetricSeriesPoint{StartTimestampNs: row.StartTimestampNs, TimestampNs: row.TimestampNs, Flags: row.Flags, Value: row.Value, Count: row.HistogramCount, Sum: row.HistogramSum, Min: row.HistogramMin, Max: row.HistogramMax, Exemplars: []MetricSeriesExemplar{}}
+	_ = json.Unmarshal([]byte(row.ExplicitBounds), &p.Bounds)
+	_ = json.Unmarshal([]byte(row.BucketCounts), &p.Buckets)
+	_ = json.Unmarshal([]byte(row.SummaryQuantiles), &p.Quantiles)
+	_ = json.Unmarshal([]byte(row.Exemplars), &p.Exemplars)
+	if p.Sum == nil && row.SummarySum != nil {
+		p.Sum = row.SummarySum
+	}
+	if p.Count == nil && row.SummaryCount != nil {
+		p.Count = row.SummaryCount
+	}
+	return p
+}
+
+func deriveMetricSeries(points []MetricSeriesPoint, typ, temporality, operation string) {
+	if typ == "gauge" && operation != "raw" {
+		var total float64
+		for i := range points {
+			total += points[i].Value
+			switch operation {
+			case "avg":
+				points[i].Value = total / float64(i+1)
+			case "min":
+				if i > 0 && points[i].Value > points[i-1].Value {
+					points[i].Value = points[i-1].Value
+				}
+			case "max":
+				if i > 0 && points[i].Value < points[i-1].Value {
+					points[i].Value = points[i-1].Value
+				}
+			case "last": // raw point value is already the last observation at its timestamp.
+			}
+		}
+		return
+	}
+	if operation == "raw" || typ != "sum" {
+		if typ == "histogram" && strings.HasPrefix(operation, "p") {
+			q, err := strconv.ParseFloat(strings.TrimPrefix(operation, "p"), 64)
+			if err == nil {
+				for i := range points {
+					points[i].Value = histogramPercentile(points[i].Bounds, points[i].Buckets, q/100)
+				}
+			}
+		}
+		return
+	}
+	for i := range points {
+		if temporality == "Cumulative" {
+			if i == 0 {
+				points[i].Value = 0
+				continue
+			}
+			delta := points[i].Value - points[i-1].Value
+			if delta < 0 || (points[i].StartTimestampNs != 0 && points[i].StartTimestampNs != points[i-1].StartTimestampNs) {
+				delta = points[i].Value
+			}
+			points[i].Value = delta
+		}
+		if operation == "rate" {
+			interval := points[i].TimestampNs - points[i].StartTimestampNs
+			if temporality == "Cumulative" && i > 0 {
+				interval = points[i].TimestampNs - points[i-1].TimestampNs
+			}
+			if interval > 0 {
+				points[i].Value /= float64(interval) / 1e9
+			} else {
+				points[i].Value = 0
+			}
+		}
+	}
+}
+func metricDimensionFilters(q map[string][]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range q {
+		if strings.HasPrefix(k, "attr.") && len(v) > 0 {
+			out[strings.TrimPrefix(k, "attr.")] = v[0]
+		}
+	}
+	return out
+}
+func matchesMetricFilters(attrs map[string]any, filters map[string]string) bool {
+	for k, want := range filters {
+		got, ok := attrs[k]
+		if !ok || stringifyMetricDimension(got) != want {
+			return false
+		}
+	}
+	return true
+}
+func stringifyMetricDimension(v any) string {
+	return strings.TrimSpace(strings.Trim(fmtSprint(v), "\""))
+}
+func fmtSprint(v any) string {
+	b, _ := json.Marshal(v)
+	if len(b) == 0 {
 		return ""
 	}
-	rest := attrsJSON[i+len(key):]
-	end := strings.IndexByte(rest, '"')
-	if end < 0 {
-		return ""
+	if b[0] == '"' {
+		var s string
+		_ = json.Unmarshal(b, &s)
+		return s
 	}
-	return rest[:end]
+	return string(b)
+}
+
+func histogramPercentile(bounds []float64, counts []uint64, p float64) float64 {
+	var total uint64
+	for _, count := range counts {
+		total += count
+	}
+	if total == 0 {
+		return 0
+	}
+	target, cumulative := float64(total)*p, float64(0)
+	for i, count := range counts {
+		next := cumulative + float64(count)
+		if next >= target {
+			if i >= len(bounds) {
+				if len(bounds) == 0 {
+					return 0
+				}
+				return bounds[len(bounds)-1]
+			}
+			lo := 0.0
+			if i > 0 {
+				lo = bounds[i-1]
+			}
+			if count == 0 {
+				return bounds[i]
+			}
+			return lo + (target-cumulative)/float64(count)*(bounds[i]-lo)
+		}
+		cumulative = next
+	}
+	return 0
 }

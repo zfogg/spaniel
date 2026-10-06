@@ -302,7 +302,38 @@ func (b *Batcher) AppendLog(l *Log) error {
 // AppendMetric buffers a metric data point for batched insertion.
 func (b *Batcher) AppendMetric(m *Metric) error {
 	return b.append("metrics",
-		m.Name, m.Description, m.Unit, m.Type, m.TimestampNs,
-		m.Value, m.Attributes, m.Exemplars, m.ServiceName, m.SessionID,
+		m.Name, m.Description, m.Unit, m.Type, m.AggregationTemporality, nullableBool(m.IsMonotonic),
+		m.StartTimestampNs, m.TimestampNs, m.Flags, m.Value,
+		nullableUint64(m.HistogramCount), nullableFloat64(m.HistogramSum), nullableFloat64(m.HistogramMin), nullableFloat64(m.HistogramMax), m.ExplicitBounds, m.BucketCounts,
+		nullableInt32(m.ExpScale), nullableUint64(m.ExpZeroCount), nullableFloat64(m.ExpZeroThreshold), nullableInt32(m.ExpPositiveOffset), m.ExpPositiveCounts, nullableInt32(m.ExpNegativeOffset), m.ExpNegativeCounts,
+		nullableUint64(m.SummaryCount), nullableFloat64(m.SummarySum), m.SummaryQuantiles,
+		m.Attributes, m.Resource, m.SeriesAttributes, m.SeriesKey, m.ScopeName, m.ScopeVersion, m.ScopeSchemaURL, m.ScopeAttributes,
+		m.Exemplars, m.ServiceName, m.SessionID,
 	)
+}
+
+func nullableBool(v *bool) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+
+func nullableUint64(v *uint64) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+func nullableFloat64(v *float64) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+func nullableInt32(v *int32) any {
+	if v == nil {
+		return nil
+	}
+	return *v
 }

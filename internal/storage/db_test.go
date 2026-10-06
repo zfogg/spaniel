@@ -398,6 +398,14 @@ func TestListTracesPagination(t *testing.T) {
 	if page1[0].StartNs <= page2[0].StartNs {
 		t.Errorf("page1 should have later timestamps than page2: %d <= %d", page1[0].StartNs, page2[0].StartNs)
 	}
+
+	total, err := db.CountTraces(TraceFilter{Service: "svc"})
+	if err != nil {
+		t.Fatalf("CountTraces: %v", err)
+	}
+	if total != 5 {
+		t.Errorf("expected truthful trace total of 5, got %d", total)
+	}
 }
 
 // An absurd Limit must be clamped to the default page size rather than honored,

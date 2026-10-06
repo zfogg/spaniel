@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import { bucketPoints, type BucketedSeries, type MetricType } from '@/lib/metrics-bucket'
@@ -12,7 +12,14 @@ import ErrorState from '@/components/ErrorState'
 
 // ── icons ────────────────────────────────────────────────────────────────────
 
-function MtIcon({ type }: { type: MetricType }) {
+function displayMetricType(type: string): MetricType {
+  if (type === 'histogram' || type === 'exponential_histogram') return 'histogram'
+  if (type === 'sum' || type === 'counter') return 'counter'
+  return 'gauge'
+}
+
+function MtIcon({ type }: { type: string }) {
+  type = displayMetricType(type)
   if (type === 'gauge') {
     return (
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
@@ -40,10 +47,11 @@ function MtIcon({ type }: { type: MetricType }) {
   )
 }
 
-function MetricKindTag({ type }: { type: MetricType }) {
+function MetricKindTag({ type }: { type: string }) {
+  const displayType = displayMetricType(type)
   const tone =
-    type === 'gauge' ? { fg: '#356a99', bd: '#7aa3c5', bg: '#dfe7ef' } :
-    type === 'counter' ? { fg: '#3e6a3e', bd: '#88b29a', bg: '#dee9de' } :
+    displayType === 'gauge' ? { fg: '#356a99', bd: '#7aa3c5', bg: '#dfe7ef' } :
+    displayType === 'counter' ? { fg: '#3e6a3e', bd: '#88b29a', bg: '#dee9de' } :
     { fg: '#7a3a23', bd: '#c89a86', bg: '#ecd9cf' }
   return (
     <span
@@ -302,29 +310,45 @@ function rangeFromNs(range: TimeRange): number {
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export default function Metrics() {
-  const [selected, setSelected] = useState<{ name: string; service: string } | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
-  const [typeSel, setTypeSel] = useState<MetricType | null>(null)
+  const [typeSel, setTypeSel] = useState<string | null>(null)
   const [range, setRange] = useState<TimeRange>('1h')
+	const [operation, setOperation] = useState('raw')
 
   const { data: catalog = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.metrics(),
     queryFn: () => api.metrics.list().then(r => r.data ?? []),
   })
 
+  const selectedName = searchParams.get('metric')
+  const selectedService = searchParams.get('service')
+  const selected = useMemo(() => {
+    if (!selectedName || !selectedService) return null
+    return catalog.find(metric => metric.name === selectedName && metric.service_name === selectedService) ?? null
+  }, [catalog, selectedName, selectedService])
+
+  const selectMetric = (metric: MetricCatalogEntry, replace = false) => {
+		setOperation(displayMetricType(metric.type) === 'histogram' ? 'p95' : 'raw')
+    const next = new URLSearchParams(searchParams)
+    next.set('metric', metric.name)
+    next.set('service', metric.service_name)
+    setSearchParams(next, { replace })
+  }
+
   // auto-select the first metric once the catalog loads
   useEffect(() => {
     if (!selected && catalog.length > 0) {
-      setSelected({ name: catalog[0].name, service: catalog[0].service_name })
+      selectMetric(catalog[0], !selectedName || !selectedService)
     }
-  }, [catalog, selected])
+  }, [catalog, selected, selectedName, selectedService])
 
   // `range` (not the computed `from`) is the key input so we don't refetch on
   // every render; the live invalidator refreshes the series on metric events.
-  const { data: series = null } = useQuery({
-    queryKey: qk.metricSeries({ name: selected?.name, service: selected?.service, range }),
+  const { data: series = null, isLoading: seriesLoading, isError: seriesIsError, error: seriesError, refetch: refetchSeries } = useQuery({
+    queryKey: qk.metricSeries({ name: selected?.name, service: selected?.service_name, range, operation }),
     queryFn: () => api.metrics
-      .series({ name: selected!.name, service: selected!.service, withTraces: true, from: rangeFromNs(range) })
+		.series({ name: selected!.name, service: selected!.service_name, operation, withTraces: true, from: rangeFromNs(range) })
       .then(r => r.data),
     enabled: !!selected,
   })
@@ -387,7 +411,7 @@ export default function Metrics() {
               className="flex-1 border-none outline-none bg-transparent font-mono text-[11.5px] text-foreground" />
           </span>
           <div className="flex gap-1.5 flex-wrap">
-            {(['gauge', 'counter', 'histogram'] as const).map(t => {
+            {(['gauge', 'counter', 'sum', 'histogram'] as const).map(t => {
               const on = typeSel === t
               return (
                 <button
@@ -419,12 +443,12 @@ export default function Metrics() {
                   <span className="text-foreground">{list.length}</span>
                 </div>
                 {list.map(m => {
-                  const isSel = selected?.name === m.name && selected?.service === m.service_name
+                  const isSel = selected?.name === m.name && selected?.service_name === m.service_name
                   return (
                     <button
                       key={m.service_name + '/' + m.name}
                       type="button"
-                      onClick={() => setSelected({ name: m.name, service: m.service_name })}
+                      onClick={() => selectMetric(m)}
                       className={`w-full px-3 py-2 border-none cursor-pointer outline-none text-left border-b border-border grid gap-2.5 items-center border-l-2 ${isSel ? 'bg-muted' : 'bg-transparent border-l-transparent'}`}
                       style={{
                         gridTemplateColumns: 'minmax(0,1fr) 60px',
@@ -455,7 +479,11 @@ export default function Metrics() {
 
       {/* main panel */}
       <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col bg-[var(--surface)]">
-        {series && selected ? <MainPanel series={series} range={range} onRangeChange={setRange} /> : (
+		{series && selected ? <MainPanel series={series} range={range} onRangeChange={setRange} operation={operation} onOperationChange={setOperation} /> : selected && seriesLoading ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Loading selected metric…</div>
+        ) : selected && seriesIsError ? (
+          <ErrorState what="selected metric" error={seriesError} onRetry={() => refetchSeries()} />
+        ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Select a metric</div>
         )}
       </div>
@@ -463,9 +491,18 @@ export default function Metrics() {
   )
 }
 
-function MainPanel({ series, range, onRangeChange }: { series: MetricSeries; range: TimeRange; onRangeChange: (r: TimeRange) => void }) {
-  const bucketed = useMemo(() => bucketPoints(series.points, series.type), [series])
-  const stats = useMemo(() => statsFor(series, bucketed), [series, bucketed])
+function MainPanel({ series, range, onRangeChange, operation, onOperationChange }: { series: MetricSeries; range: TimeRange; onRangeChange: (r: TimeRange) => void; operation: string; onOperationChange: (op: string) => void }) {
+	// The server never merges attribute variants. Until a group is selected the
+	// chart shows a complete identity, never an accidental cross-series sum.
+	const [seriesIndex, setSeriesIndex] = useState(0)
+	useEffect(() => setSeriesIndex(0), [series.name, series.service_name])
+	const selected = series.series?.[Math.min(seriesIndex, Math.max(0, (series.series?.length ?? 1) - 1))]
+	const display = selected ? { ...series, points: selected.points } : series
+  const chartType = displayMetricType(series.type)
+	const chartSeries = useMemo(() => ({ ...display, type: chartType }), [display, chartType])
+	const bucketed = useMemo(() => bucketPoints(display.points, chartType), [display, chartType])
+  const stats = useMemo(() => statsFor(chartSeries, bucketed), [chartSeries, bucketed])
+	const operations = chartType === 'histogram' ? ['raw', 'p50', 'p90', 'p95', 'p99'] : chartType === 'counter' ? ['raw', 'delta', 'rate'] : ['raw', 'last', 'min', 'max', 'avg']
 
   return (
     <>
@@ -491,7 +528,17 @@ function MainPanel({ series, range, onRangeChange }: { series: MetricSeries; ran
                 {Object.keys(series.dimensions ?? {}).length} dimensions · {series.aggregation}
               </span>
             )}
+			{(series.series?.length ?? 0) > 1 && <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">showing 1 of {series.series?.length} complete series</span>}
           </div>
+		{(series.series?.length ?? 0) > 1 && (
+			<div className="px-6 py-2.5 border-b border-border bg-[var(--surface2)] flex flex-wrap gap-1.5 items-center">
+				<span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground mr-1">complete attribute set</span>
+				{series.series!.map((candidate, index) => {
+					const label = Object.entries(candidate.attributes).map(([k, v]) => `${k}=${String(v)}`).join(', ') || 'no indexed attributes'
+					return <button key={candidate.key} type="button" onClick={() => setSeriesIndex(index)} className={`font-mono text-[10px] px-2 py-1 rounded border cursor-pointer ${index === seriesIndex ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-[var(--surface)] text-muted-foreground border-border hover:text-foreground'}`}>{label}</button>
+				})}
+			</div>
+		)}
           <h1 className="mx-0 mt-2 mb-1 font-mono text-xl font-bold tracking-[-0.01em] text-foreground break-all">{series.name}</h1>
           {series.description && (
             <div
@@ -525,18 +572,51 @@ function MainPanel({ series, range, onRangeChange }: { series: MetricSeries; ran
       <div className="grid grid-cols-4 border-b border-border">
         {stats.map((s, i) => <StatBox key={i} s={s} />)}
       </div>
+		<div className="px-6 py-2 border-b border-border flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+			<span className="uppercase tracking-[0.1em]">query</span>
+			{operations.map(op => <button key={op} type="button" onClick={() => onOperationChange(op)} className={`px-2 py-1 rounded border cursor-pointer ${operation === op ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'border-border bg-muted hover:text-foreground'}`}>{op}</button>)}
+			<span className="ml-auto">aggregation: {series.aggregation}</span>
+		</div>
 
       <div className="pt-[18px] px-4 pb-[22px]">
-        <Chart metric={series} bucketed={bucketed} traces={series.traces ?? []} />
+		{display.points.length > 0 ? <Chart metric={chartSeries} bucketed={bucketed} traces={series.traces ?? []} /> : (
+          <div className="rounded-lg border border-dashed border-border bg-[var(--surface2)] px-6 py-12 text-center">
+            <p className="font-mono text-sm font-semibold text-foreground">No points in this time range</p>
+            <p className="mt-2 text-sm text-muted-foreground">Choose a wider range to view earlier samples for this metric.</p>
+          </div>
+        )}
+		{chartType === 'histogram' && display.points.length > 0 && <HistogramHeatmap points={display.points} />}
       </div>
 
       <div className="pt-1 px-6 pb-[22px] font-mono text-[11px] text-muted-foreground">
-        {series.points.length} raw points · bucketed into 60 bins
+		{display.points.length} raw points · bucketed into 60 bins
       </div>
 
-      <CorrelatedTracesPanel series={series} bucketed={bucketed} />
+      <CorrelatedTracesPanel series={chartSeries} bucketed={bucketed} />
     </>
   )
+}
+
+function HistogramHeatmap({ points }: { points: MetricSeries['points'] }) {
+	const rows = useMemo(() => {
+		const out: { label: string; values: number[] }[] = []
+		for (const point of points) {
+			const buckets = point.buckets ?? []
+			const bounds = point.bounds ?? []
+			for (let i = 0; i < buckets.length; i++) {
+				if (!out[i]) out[i] = { label: i < bounds.length ? `≤ ${bounds[i]}` : `> ${bounds.length ? bounds[bounds.length - 1] : '∞'}`, values: [] }
+				out[i].values.push(buckets[i])
+			}
+		}
+		return out.reverse()
+	}, [points])
+	const peak = Math.max(1, ...rows.flatMap(row => row.values))
+	return <div className="mt-5 border border-border rounded-lg overflow-hidden" data-testid="histogram-heatmap">
+		<div className="px-3 py-2 border-b border-border font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">bucket heatmap · raw observations</div>
+		<div className="grid" style={{ gridTemplateColumns: `72px repeat(${Math.max(1, points.length)}, minmax(4px, 1fr))` }}>
+			{rows.map(row => <><span key={`${row.label}-label`} className="px-2 py-1 font-mono text-[9px] text-muted-foreground border-b border-border truncate">{row.label}</span>{points.map((_, index) => <span key={`${row.label}-${index}`} title={`${row.label}: ${row.values[index] ?? 0}`} className="min-h-5 border-b border-l border-border" style={{ background: `color-mix(in srgb, var(--accent) ${Math.round(((row.values[index] ?? 0) / peak) * 100)}%, transparent)` }} />)}</>)}
+		</div>
+	</div>
 }
 
 // ── correlated-traces panel ──────────────────────────────────────────────────

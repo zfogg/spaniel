@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"bytes"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -97,6 +98,27 @@ func TestHandleLogsJSON(t *testing.T) {
 	w := post(rcv.HandleLogs, "application/json", []byte(logsJSON))
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLogOTLPHTTPIngestSkipsSelfTelemetry(t *testing.T) {
+	var out bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&out, nil)))
+	t.Cleanup(func() { slog.SetDefault(old) })
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/logs", nil)
+	logOTLPHTTPIngest(req, "logs", 3)
+	if got := out.String(); !bytes.Contains([]byte(got), []byte("OTLP telemetry ingested")) {
+		t.Fatalf("external OTLP ingest was not logged: %q", got)
+	}
+
+	out.Reset()
+	self := httptest.NewRequest(http.MethodPost, "/v1/logs", nil)
+	self.Header.Set("x-spaniel-self-telemetry", "true")
+	logOTLPHTTPIngest(self, "logs", 3)
+	if got := out.String(); got != "" {
+		t.Fatalf("self-telemetry must not create a feedback log: %q", got)
 	}
 }
 

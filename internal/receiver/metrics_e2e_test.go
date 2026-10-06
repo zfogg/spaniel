@@ -69,7 +69,7 @@ func TestOTLPMetricsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMetricCatalog: %v", err)
 	}
-	// Expect 3 entries: counter / gauge / histogram (all under "api").
+	// Expect the original three OTLP streams, all under "api".
 	if len(catalog) != 3 {
 		t.Fatalf("expected 3 catalog entries, got %d: %s", len(catalog), dumpJSON(catalog))
 	}
@@ -77,35 +77,27 @@ func TestOTLPMetricsEndToEnd(t *testing.T) {
 	for _, c := range catalog {
 		byName[c.Name] = c
 	}
-	if got := byName["http.requests"]; got == nil || got.Type != "counter" || got.SampleCount != 2 {
-		t.Errorf("counter wrong: %+v", got)
+	if got := byName["http.requests"]; got == nil || got.Type != "sum" || got.AggregationTemporality != "Delta" || got.IsMonotonic == nil || !*got.IsMonotonic || got.SampleCount != 2 {
+		t.Errorf("sum metadata wrong: %+v", got)
 	}
 	if got := byName["pool.in_use"]; got == nil || got.Type != "gauge" || got.SampleCount != 2 {
 		t.Errorf("gauge wrong: %+v", got)
 	}
-	// Histogram → 3 rows (p50/p95/p99) per data point.
-	if got := byName["http.dur"]; got == nil || got.Type != "histogram" || got.SampleCount != 3 {
+	if got := byName["http.dur"]; got == nil || got.Type != "histogram" || got.AggregationTemporality != "Delta" || got.SampleCount != 1 {
 		t.Errorf("histogram wrong: %+v", got)
 	}
 
-	// And query the histogram series — every percentile must be present.
+	// The histogram is one lossless point with its original buckets, not three
+	// precomputed percentile approximations.
 	rows, err := db.GetMetricSeries(storage.MetricSeriesFilter{Name: "http.dur", SessionID: sess.ID})
 	if err != nil {
 		t.Fatalf("GetMetricSeries: %v", err)
 	}
-	if len(rows) != 3 {
-		t.Fatalf("histogram series len = %d, want 3", len(rows))
+	if len(rows) != 1 {
+		t.Fatalf("histogram series len = %d, want 1", len(rows))
 	}
-	seen := map[string]bool{}
-	for _, r := range rows {
-		for _, pct := range []string{"p50", "p95", "p99"} {
-			if bytes.Contains([]byte(r.Attributes), []byte(`"percentile":"`+pct+`"`)) {
-				seen[pct] = true
-			}
-		}
-	}
-	if !seen["p50"] || !seen["p95"] || !seen["p99"] {
-		t.Errorf("missing percentile rows: %+v", seen)
+	if rows[0].HistogramCount == nil || *rows[0].HistogramCount != 10 || rows[0].HistogramSum == nil || *rows[0].HistogramSum != 120 || rows[0].ExplicitBounds != `[10,20,50]` || rows[0].BucketCounts != `[1,3,4,2]` {
+		t.Errorf("histogram point not preserved: %+v", rows[0])
 	}
 }
 

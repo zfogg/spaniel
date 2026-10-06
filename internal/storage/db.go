@@ -201,32 +201,62 @@ type Throughput struct {
 	PeakSpansPerSec float64 `json:"peak_spans_per_sec"`
 }
 
-// Metric is one data point of an OTLP metric (gauge, counter, or one
-// percentile of a histogram). Histogram data points are stored as three rows
-// (p50/p95/p99) with the percentile encoded in attributes.percentile.
+// Metric is one lossless OTLP metric point. Attributes and resource are kept
+// verbatim; SeriesAttributes is the deliberately small, indexed subset used
+// for grouping and filtering. Do not derive a value at ingest time: sums,
+// histogram buckets and summaries all have different query semantics.
 type Metric struct {
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Unit        string  `json:"unit"`
-	Type        string  `json:"type"` // gauge | counter | histogram
-	TimestampNs int64   `json:"timestamp_ns"`
-	Value       float64 `json:"value"`
-	Attributes  string  `json:"attributes"`
-	Exemplars   string  `json:"exemplars"` // JSON array of {trace_id, span_id}
-	ServiceName string  `json:"service_name"`
-	SessionID   string  `json:"session_id"`
+	Name                   string   `json:"name"`
+	Description            string   `json:"description"`
+	Unit                   string   `json:"unit"`
+	Type                   string   `json:"type"` // gauge | sum | histogram | exponential_histogram | summary
+	AggregationTemporality string   `json:"aggregation_temporality,omitempty"`
+	IsMonotonic            *bool    `json:"is_monotonic,omitempty"`
+	StartTimestampNs       int64    `json:"start_timestamp_ns,omitempty"`
+	TimestampNs            int64    `json:"timestamp_ns"`
+	Flags                  uint32   `json:"flags,omitempty"`
+	Value                  float64  `json:"value,omitempty"`
+	HistogramCount         *uint64  `json:"histogram_count,omitempty"`
+	HistogramSum           *float64 `json:"histogram_sum,omitempty"`
+	HistogramMin           *float64 `json:"histogram_min,omitempty"`
+	HistogramMax           *float64 `json:"histogram_max,omitempty"`
+	ExplicitBounds         string   `json:"explicit_bounds,omitempty"`
+	BucketCounts           string   `json:"bucket_counts,omitempty"`
+	ExpScale               *int32   `json:"exp_scale,omitempty"`
+	ExpZeroCount           *uint64  `json:"exp_zero_count,omitempty"`
+	ExpZeroThreshold       *float64 `json:"exp_zero_threshold,omitempty"`
+	ExpPositiveOffset      *int32   `json:"exp_positive_offset,omitempty"`
+	ExpPositiveCounts      string   `json:"exp_positive_counts,omitempty"`
+	ExpNegativeOffset      *int32   `json:"exp_negative_offset,omitempty"`
+	ExpNegativeCounts      string   `json:"exp_negative_counts,omitempty"`
+	SummaryCount           *uint64  `json:"summary_count,omitempty"`
+	SummarySum             *float64 `json:"summary_sum,omitempty"`
+	SummaryQuantiles       string   `json:"summary_quantiles,omitempty"`
+	Attributes             string   `json:"attributes"`
+	Resource               string   `json:"resource"`
+	SeriesAttributes       string   `json:"series_attributes"`
+	SeriesKey              string   `json:"series_key"`
+	ScopeName              string   `json:"scope_name"`
+	ScopeVersion           string   `json:"scope_version"`
+	ScopeSchemaURL         string   `json:"scope_schema_url"`
+	ScopeAttributes        string   `json:"scope_attributes"`
+	Exemplars              string   `json:"exemplars"`
+	ServiceName            string   `json:"service_name"`
+	SessionID              string   `json:"session_id"`
 }
 
 func (Metric) TableName() string { return "metrics" }
 
 // MetricCatalogEntry summarizes one (name, service) metric stream.
 type MetricCatalogEntry struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Unit        string `json:"unit"`
-	Type        string `json:"type"`
-	ServiceName string `json:"service_name"`
-	SampleCount int    `json:"sample_count"`
+	Name                   string `json:"name"`
+	Description            string `json:"description"`
+	Unit                   string `json:"unit"`
+	Type                   string `json:"type"`
+	AggregationTemporality string `json:"aggregation_temporality,omitempty"`
+	IsMonotonic            *bool  `json:"is_monotonic,omitempty"`
+	ServiceName            string `json:"service_name"`
+	SampleCount            int    `json:"sample_count"`
 }
 
 type ServiceMapNode struct {
@@ -537,6 +567,23 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	return result, nil
 }
 
+// CountTraces returns the number of root spans matching a trace-list filter,
+// before pagination. A trace is represented by its root span in ListTraces.
+func (d *DB) CountTraces(f TraceFilter) (int, error) {
+	var count int64
+	q := d.gorm.Table("spans").Where("parent_span_id = '' OR parent_span_id IS NULL")
+	if f.SessionID != "" {
+		q = q.Where("session_id = ?", f.SessionID)
+	}
+	if f.Service != "" {
+		q = q.Where("service_name = ?", f.Service)
+	}
+	if err := q.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
 // parseKinds splits a comma-separated list of issue kind strings into a
 // deduplicated, sorted slice.
 func parseKinds(raw string) []string {
@@ -808,6 +855,7 @@ func (d *DB) CountSpanGroups(f SpanFilter) (int, error) {
 
 type LogFilter struct {
 	SessionID   string
+	Service     string
 	TraceID     string
 	SpanID      string
 	MinSeverity int
@@ -830,6 +878,9 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	if f.SessionID != "" {
 		q = q.Where("session_id = ?", f.SessionID)
 	}
+	if f.Service != "" {
+		q = q.Where("service_name = ?", f.Service)
+	}
 	if f.TraceID != "" {
 		q = q.Where("trace_id = ?", f.TraceID)
 	}
@@ -845,6 +896,33 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	var result []*Log
 	err := q.Order("timestamp_ns DESC").Limit(f.Limit).Offset(offset).Find(&result).Error
 	return result, err
+}
+
+func (d *DB) CountLogs(f LogFilter) (int, error) {
+	var count int64
+	q := d.gorm.Table("logs")
+	if f.SessionID != "" {
+		q = q.Where("session_id = ?", f.SessionID)
+	}
+	if f.Service != "" {
+		q = q.Where("service_name = ?", f.Service)
+	}
+	if f.TraceID != "" {
+		q = q.Where("trace_id = ?", f.TraceID)
+	}
+	if f.SpanID != "" {
+		q = q.Where("span_id = ?", f.SpanID)
+	}
+	if f.MinSeverity > 0 {
+		q = q.Where("severity >= ?", f.MinSeverity)
+	}
+	if f.MaxSeverity > 0 {
+		q = q.Where("severity <= ?", f.MaxSeverity)
+	}
+	if err := q.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 // ListServices returns distinct service names. An empty sessionID returns
@@ -1278,7 +1356,10 @@ func (d *DB) InsertMetric(m *Metric) error {
 // Pass "" to ignore the session filter.
 func (d *DB) ListMetricCatalog(sessionID string) ([]*MetricCatalogEntry, error) {
 	q := `
-		SELECT name, service_name, type, unit, description, COUNT(*) AS sample_count
+		SELECT name, service_name, type, unit, description,
+		       any_value(aggregation_temporality) AS aggregation_temporality,
+		       any_value(is_monotonic) AS is_monotonic,
+		       COUNT(*) AS sample_count
 		FROM metrics`
 	args := []any{}
 	if sessionID != "" {
@@ -1290,6 +1371,31 @@ func (d *DB) ListMetricCatalog(sessionID string) ([]*MetricCatalogEntry, error) 
 	var out []*MetricCatalogEntry
 	err := d.gorm.Raw(q, args...).Scan(&out).Error
 	return out, err
+}
+
+// GetMetricStreamMetadata returns the stable catalog fields for a stream,
+// without applying a time window. This lets callers describe a selected stream
+// even when its selected window contains no points.
+func (d *DB) GetMetricStreamMetadata(f MetricSeriesFilter) (*Metric, error) {
+	q := d.gorm.Table("metrics").
+		Select(`name, description, unit, type, aggregation_temporality, is_monotonic, service_name`)
+	if f.Name != "" {
+		q = q.Where("name = ?", f.Name)
+	}
+	if f.Service != "" {
+		q = q.Where("service_name = ?", f.Service)
+	}
+	if f.SessionID != "" {
+		q = q.Where("session_id = ?", f.SessionID)
+	}
+	var out Metric
+	if err := q.Order("timestamp_ns DESC").Limit(1).Find(&out).Error; err != nil {
+		return nil, err
+	}
+	if out.Name == "" {
+		return nil, nil
+	}
+	return &out, nil
 }
 
 // MetricSeriesFilter scopes a series query.
@@ -1306,7 +1412,13 @@ type MetricSeriesFilter struct {
 // split them apart by attributes.percentile.
 func (d *DB) GetMetricSeries(f MetricSeriesFilter) ([]*Metric, error) {
 	q := d.gorm.Table("metrics").
-		Select(`name, description, unit, type, timestamp_ns, value, attributes::VARCHAR AS attributes, exemplars::VARCHAR AS exemplars, service_name, session_id`)
+		Select(`name, description, unit, type, aggregation_temporality, is_monotonic,
+			start_timestamp_ns, timestamp_ns, flags, value,
+			histogram_count, histogram_sum, histogram_min, histogram_max, explicit_bounds, bucket_counts,
+			exp_scale, exp_zero_count, exp_zero_threshold, exp_positive_offset, exp_positive_counts, exp_negative_offset, exp_negative_counts,
+			summary_count, summary_sum, summary_quantiles,
+			attributes, resource, series_attributes, series_key, scope_name, scope_version, scope_schema_url, scope_attributes,
+			exemplars, service_name, session_id`)
 	if f.Name != "" {
 		q = q.Where("name = ?", f.Name)
 	}

@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
+	"github.com/zfogg/spaniel/internal/telemetry"
 )
 
 // SpoolConfig controls the disk-backed retry buffer.  Zero values cause
@@ -77,7 +78,7 @@ func registerForwarderMetrics(upstreams []*upstream) {
 			for _, up := range upstreams {
 				if up.sp != nil {
 					o.Observe(up.sp.pendingBytes(),
-						metric.WithAttributes(attribute.String("upstream", up.url)))
+						metric.WithAttributes(attribute.String("upstream_id", urlHash(up.url))))
 				}
 			}
 			return nil
@@ -202,9 +203,15 @@ func (f *Forwarder) Forward(path, contentType string, body []byte) {
 
 // send is the fire-and-forget path (no spool).
 func (f *Forwarder) send(up *upstream, path, contentType string, body []byte) {
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		telemetry.Catalog().RecordForward(context.Background(), result, float64(time.Since(started).Microseconds())/1000)
+	}()
 	target := up.url + path
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
+		result = "dropped"
 		up.errors.Add(1)
 		up.lastErr.Store(err.Error())
 		return
@@ -213,6 +220,7 @@ func (f *Forwarder) send(up *upstream, path, contentType string, body []byte) {
 
 	resp, err := f.client.Do(req)
 	if err != nil {
+		result = "dropped"
 		up.errors.Add(1)
 		up.lastErr.Store(err.Error())
 		return
@@ -220,6 +228,7 @@ func (f *Forwarder) send(up *upstream, path, contentType string, body []byte) {
 	resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
+		result = "dropped"
 		msg := fmt.Sprintf("upstream returned %d", resp.StatusCode)
 		up.errors.Add(1)
 		up.lastErr.Store(msg)
@@ -279,6 +288,7 @@ func (f *Forwarder) runLoop(up *upstream, retryMax time.Duration) {
 		}
 
 		if err := f.sendRecord(up, rec); err != nil {
+			telemetry.Catalog().RecordForward(context.Background(), "retry", 0)
 			up.errors.Add(1)
 			up.lastErr.Store(err.Error())
 			up.lastFailAt.Store(time.Now().UnixNano())

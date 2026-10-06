@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -270,12 +271,21 @@ func (h *Hub) Broadcast(ev *Event) {
 	// client can't stall this loop. A client whose buffer is full is dropped
 	// (cancel triggers async teardown) rather than blocking everyone.
 	h.mu.RLock()
+	queued, dropped := int64(0), int64(0)
 	for c := range h.clients {
 		select {
 		case c.send <- data:
+			queued++
 		default:
 			c.cancel()
+			dropped++
 		}
 	}
 	h.mu.RUnlock()
+	if queued > 0 {
+		telemetry.Catalog().RecordWebSocket(context.Background(), ev.Type, "queued", queued)
+	}
+	if dropped > 0 {
+		telemetry.Catalog().RecordWebSocket(context.Background(), ev.Type, "dropped", dropped)
+	}
 }

@@ -160,12 +160,28 @@ func migrations() []*gormigrate.Migration {
 			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0010_alert_notification_state.sql") },
 		},
 		{
+			ID:      "0011_sql_dashboard_queries",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0011_sql_dashboard_queries.sql") },
+		},
+		{
 			ID:      "0012_remove_spaniel_dashboard_variables",
 			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0012_remove_spaniel_dashboard_variables.sql") },
 		},
 		{
 			ID:      "0013_remove_legacy_dashboard_queries",
 			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0013_remove_legacy_dashboard_queries.sql") },
+		},
+		{
+			ID:      "0014_lossless_metric_points",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0014_lossless_metric_points.sql") },
+		},
+		{
+			ID:      "0015_metric_scope_attributes",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0015_metric_scope_attributes.sql") },
+		},
+		{
+			ID:      "0016_reorder_metric_scope_attributes",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0016_reorder_metric_scope_attributes.sql") },
 		},
 	}
 }
@@ -203,10 +219,16 @@ func (d *DB) migrate() error {
 		if err := execMigrationFile(tx, "0010_alert_notification_state.sql"); err != nil {
 			return err
 		}
+		if err := execMigrationFile(tx, "0011_sql_dashboard_queries.sql"); err != nil {
+			return err
+		}
 		if err := execMigrationFile(tx, "0012_remove_spaniel_dashboard_variables.sql"); err != nil {
 			return err
 		}
-		return execMigrationFile(tx, "0013_remove_legacy_dashboard_queries.sql")
+		if err := execMigrationFile(tx, "0013_remove_legacy_dashboard_queries.sql"); err != nil {
+			return err
+		}
+		return execMigrationFile(tx, "0014_lossless_metric_points.sql")
 	})
 	if err := m.Migrate(); err != nil {
 		return err
