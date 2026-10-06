@@ -1,10 +1,15 @@
-.PHONY: dev build run test test-storage generate setup
+.PHONY: dev build build-server run test test-storage generate verify-generated setup
 
 # Version string baked into the binary: the latest git tag (e.g. v0.2.1), with
 # a -N-gSHA suffix for commits past the tag and -dirty for uncommitted changes.
 # Falls back to the short commit hash when no tags exist, then to "dev".
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-BIN := spaniel
+# Keep the development server at a stable path.  Windows Defender Firewall
+# associates an allow rule with the executable path; `go run` instead creates a
+# fresh temporary executable on every invocation and repeatedly prompts.
+BIN_DIR := bin
+EXE :=
+BIN := $(BIN_DIR)/spaniel$(EXE)
 
 # DuckDB's prebuilt Windows archive is compiled for the MSYS2 UCRT ABI.  The
 # Scoop MinGW compiler has a different libstdc++ ABI and fails at link time
@@ -18,7 +23,8 @@ $(error Spaniel requires MSYS2 UCRT64 GCC for DuckDB on Windows. Install it with
 endif
 export PATH := $(UCRT64_BIN);$(PATH)
 export CC := $(UCRT64_BIN)/gcc.exe
-BIN := spaniel.exe
+EXE := .exe
+BIN := $(BIN_DIR)/spaniel$(EXE)
 endif
 
 dev:
@@ -31,17 +37,34 @@ dev:
 	  printf "waiting for vite…"; \
 	  until curl -sf http://localhost:5173 >/dev/null 2>&1; do printf '.'; sleep 0.3; done; \
 	  echo " ready"; \
-	  ENV=dev go run -ldflags "-X main.version=$(VERSION)" ./cmd/spaniel --dev
+	  $(MAKE) build-server; \
+	  ENV=dev ./$(BIN) --dev
 
 build:
 	cd frontend && pnpm build
+	$(MAKE) build-server
+
+build-server:
+	mkdir -p $(BIN_DIR)
 	go build -ldflags "-X main.version=$(VERSION)" -o $(BIN) ./cmd/spaniel
 
-run:
-	go run -ldflags "-X main.version=$(VERSION)" ./cmd/spaniel
+run: build-server
+	./$(BIN)
 
-test:
-	go test ./...
+verify-generated:
+	$(MAKE) generate
+	git diff --exit-code -- internal/storage/querygen
+
+test: verify-generated
+	@set -e; \
+	  mkdir -p $(BIN_DIR); \
+	  for package in $$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...); do \
+	    package_dir=$$(go list -f '{{.Dir}}' "$$package"); \
+	    test_name=$$(basename "$$package"); \
+	    test_binary="$(CURDIR)/$(BIN_DIR)/$$test_name.test$(EXE)"; \
+	    go test -c -o "$$test_binary" "$$package"; \
+	    ( cd "$$package_dir" && "$$test_binary" -test.timeout=10m ); \
+	  done
 
 # Focused backend verification for storage work when the embedded frontend
 # artifact has not been built in an isolated worktree.

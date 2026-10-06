@@ -373,7 +373,10 @@ func checkPort(name string, port int) checkResult {
 		r.Hint = "port must be in 1–65535"
 		return r
 	}
-	addr := fmt.Sprintf(":%d", port)
+	// This is a local availability probe, not a request to expose a listener.
+	// Binding the wildcard address makes Windows classify the transient doctor
+	// test executable as a network server and prompt for firewall access.
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		r.Status = checkFail

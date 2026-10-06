@@ -66,7 +66,7 @@ func TestCheckDBWritable_UnsetFails(t *testing.T) {
 
 func TestCheckPort_Free(t *testing.T) {
 	// Find a port nobody's using, immediately close it, then run the check.
-	ln, err := net.Listen("tcp", ":0")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestCheckPort_Free(t *testing.T) {
 }
 
 func TestCheckPort_AlreadyBoundFails(t *testing.T) {
-	ln, err := net.Listen("tcp", ":0")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestRunDoctor_SmokeOnTempDirs(t *testing.T) {
 	}
 
 	free := func() int {
-		ln, _ := net.Listen("tcp", ":0")
+		ln, _ := net.Listen("tcp", "127.0.0.1:0")
 		p := ln.Addr().(*net.TCPAddr).Port
 		_ = ln.Close()
 		return p
