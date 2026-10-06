@@ -1,4 +1,4 @@
-.PHONY: dev build build-server run test test-storage generate verify-generated setup
+.PHONY: dev build build-server run test test-extensive test-storage generate verify-generated setup
 
 # Version string baked into the binary: the latest git tag (e.g. v0.2.1), with
 # a -N-gSHA suffix for commits past the tag and -dirty for uncommitted changes.
@@ -66,6 +66,14 @@ test: verify-generated
 	    go test -c -o "$$test_binary" "$$package"; \
 	    ( cd "$$package_dir" && "$$test_binary" -test.timeout=10m ); \
 	  done
+
+# Full local confidence suite. This mirrors the test coverage in CI, while
+# keeping all Go invocations behind Make so Windows uses MSYS2 UCRT64 GCC.
+# Playwright must already have its Chromium browser installed.
+test-extensive: test
+	go test ./internal/... ./cmd/... -race -count=1
+	cd frontend && pnpm test
+	cd frontend && pnpm e2e
 
 # Focused backend verification for storage work when the embedded frontend
 # artifact has not been built in an isolated worktree.

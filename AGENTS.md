@@ -7,6 +7,12 @@ not by invoking `go build` or `go test` directly. The Makefile selects the
 MSYS2 UCRT64 GCC toolchain required by the prebuilt DuckDB library; the Scoop
 MinGW toolchain has an incompatible C++ ABI and fails during linking.
 
+Use `make test` for routine validation after changes. `make test-extensive`
+runs the complete local confidence suite: Go tests with the race detector,
+frontend unit tests, and Playwright E2E tests. Run it before meaningful
+integration milestones and approximately daily (or a few times weekly) during
+active development; it is not required after every small edit.
+
 `make build` writes `bin/spaniel.exe` on Windows and `bin/spaniel` on other platforms.
 Do not hard-code a different output name in Go code or scripts; use the
 Makefile's `BIN` variable for local build artifacts.
