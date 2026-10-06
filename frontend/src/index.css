@@ -19,6 +19,20 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ── light mode — Drift (sky · sand · slate) ──────────────────────────────── */
+/* The application shell carries text-white for the dark canvas. Its color must
+   still follow the semantic foreground token when the theme switches. */
+.light body.text-white {
+  color: var(--foreground) !important;
+  --danger: #a94335;
+}
+
+/* Destructive actions need a clear visual weight in the otherwise low-contrast
+   light palette. */
+.light button.border-danger.text-danger:not(:disabled) {
+  background: var(--danger);
+  color: white;
+}
+
 :root {
   color-scheme: light;
 

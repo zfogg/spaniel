@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,6 +70,18 @@ func TestReadOnlyQuery_DuckDBSyntax(t *testing.T) {
 		"WITH x AS (SELECT span_id::VARCHAR AS s FROM spans) SELECT s FROM x", 10)
 	if err != nil {
 		t.Fatalf("duckdb syntax query: %v", err)
+	}
+	if len(rows) != 1 || rows[0][0] != "a" {
+		t.Errorf("rows = %v", rows)
+	}
+}
+
+func TestReadOnlyQueryArgs_BindsNamedValues(t *testing.T) {
+	d := openFileDB(t)
+	_, rows, _, err := d.ReadOnlyQueryArgs(context.Background(),
+		"SELECT span_id FROM telemetry_spans WHERE service_name = $service", []any{sql.Named("service", "svc")}, 10)
+	if err != nil {
+		t.Fatalf("named argument query: %v", err)
 	}
 	if len(rows) != 1 || rows[0][0] != "a" {
 		t.Errorf("rows = %v", rows)

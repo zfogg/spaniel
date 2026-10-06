@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
+// The local Spaniel container is exposed on :8345. `make dev` supplies its
+// own API URL for the backend it starts.
+const apiTarget = process.env.SPANIEL_API_URL ?? 'http://127.0.0.1:8345'
+
 export default defineConfig({
   plugins: [tailwindcss(), react()],
   resolve: {
@@ -19,9 +23,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:9002',
+      '/api': apiTarget,
+      '/mcp': apiTarget,
       '/ws': {
-        target: 'ws://localhost:9002',
+        target: apiTarget.replace(/^http/, 'ws'),
         ws: true,
       },
     },

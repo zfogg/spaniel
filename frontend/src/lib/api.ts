@@ -399,11 +399,12 @@ export const StorageBreakdownSchema = z.object({
 })
 
 export const DashboardVariableSchema = z.object({ dashboard_id: z.string(), name: z.string(), kind: z.enum(['attribute', 'string', 'number', 'boolean', 'duration', 'time', 'enum', 'service', 'operation', 'trace_id', 'span_id', 'log_id']), source: z.string(), options_json: z.string(), default_value: z.string() })
-export const DashboardPanelSchema = z.object({ id: z.string(), dashboard_id: z.string(), title: z.string(), display_type: z.enum(['single_value', 'time_series', 'table', 'heatmap', 'trace_list', 'log_list']), query_text: z.string(), query_json: z.string(), settings_json: z.string(), layout_json: z.string(), position: z.number(), updated_at: z.number() })
+export const DashboardPanelSchema = z.object({ id: z.string(), dashboard_id: z.string(), title: z.string(), display_type: z.enum(['single_value', 'time_series', 'table', 'heatmap', 'trace_list', 'log_list']), query_sql: z.string(), query_version: z.number(), settings_json: z.string(), layout_json: z.string(), position: z.number(), updated_at: z.number() })
 export const DashboardSchema = z.object({ id: z.string(), name: z.string(), description: z.string(), created_at: z.number(), updated_at: z.number(), variables: z.array(DashboardVariableSchema).default([]), panels: z.array(DashboardPanelSchema).default([]) })
 export const QueryPreviewSchema = z.object({ display_type: z.string().optional(), columns: z.array(z.string()), rows: z.array(z.record(z.string(), z.unknown())), warnings: z.array(z.string()).default([]) })
+export const MagicVariableSchema = z.object({ name: z.string(), context: z.string() })
 export const AlertInstanceSchema = z.object({ rule_id: z.string(), group_key: z.string(), labels_json: z.string(), state: z.string(), value: z.number().nullable().optional(), first_pending_at: z.number().nullable().optional(), fired_at: z.number().nullable().optional(), resolved_at: z.number().nullable().optional(), acknowledged_at: z.number().nullable().optional(), last_evaluated_at: z.number(), last_error: z.string() })
-export const AlertRuleSchema = z.object({ id: z.string(), name: z.string(), query_json: z.string(), condition_json: z.string(), group_by_json: z.string(), pending_for_ns: z.number(), cooldown_ns: z.number(), severity: z.enum(['info', 'warning', 'critical']), enabled: z.boolean(), created_at: z.number(), updated_at: z.number(), instances: z.array(AlertInstanceSchema).default([]) })
+export const AlertRuleSchema = z.object({ id: z.string(), name: z.string(), query_sql: z.string(), query_version: z.number(), condition_json: z.string(), group_by_json: z.string(), annotations_json: z.string(), pending_for_ns: z.number(), cooldown_ns: z.number(), severity: z.enum(['info', 'warning', 'critical']), enabled: z.boolean(), created_at: z.number(), updated_at: z.number(), instances: z.array(AlertInstanceSchema).default([]) })
 
 export const CompactResultSchema = z.object({
   bytes_before: z.number(),
@@ -465,6 +466,7 @@ export type Dashboard = z.infer<typeof DashboardSchema>
 export type DashboardPanel = z.infer<typeof DashboardPanelSchema>
 export type DashboardVariable = z.infer<typeof DashboardVariableSchema>
 export type QueryPreview = z.infer<typeof QueryPreviewSchema>
+export type MagicVariable = z.infer<typeof MagicVariableSchema>
 export type AlertRule = z.infer<typeof AlertRuleSchema>
 
 // Request payload — not a response, so no runtime validation needed.
@@ -494,17 +496,21 @@ export const api = {
 		create: (body: { name: string; description?: string }) => post('/api/dashboards', body, DashboardSchema),
 		update: (id: string, body: { name: string; description?: string }) => patch(`/api/dashboards/${id}`, body, DashboardSchema),
 		remove: (id: string) => del(`/api/dashboards/${id}`, OkSchema),
-		preview: (id: string, body: { query_text: string; display_type: string; variables?: Record<string, string> }) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
-		panel: (id: string, body: { title: string; display_type: string; query_text: string; settings_json?: string; layout_json?: string; position: number }) => post(`/api/dashboards/${id}/panels`, body, DashboardPanelSchema),
-		updatePanel: (id: string, panelId: string, body: { title: string; display_type: string; query_text: string; settings_json?: string; layout_json?: string; position: number }) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
+                preview: (id: string, body: { query_sql: string; display_type?: string; variables?: Record<string, string> }) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
+                panel: (id: string, body: { title: string; display_type: string; query_sql: string; settings_json?: string; layout_json?: string; position: number }) => post(`/api/dashboards/${id}/panels`, body, DashboardPanelSchema),
+                updatePanel: (id: string, panelId: string, body: { title: string; display_type: string; query_sql: string; settings_json?: string; layout_json?: string; position: number }) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
 		removePanel: (id: string, panelId: string) => del(`/api/dashboards/${id}/panels/${panelId}`, OkSchema),
 		variable: (id: string, body: { name: string; kind: string; source: string; options_json?: string; default_value?: string }) => post(`/api/dashboards/${id}/variables`, body, DashboardVariableSchema),
 	 },
 	 alerts: {
 		list: () => get('/api/alerts', z.array(AlertRuleSchema)),
 		create: (body: Record<string, unknown>) => post('/api/alerts', body, AlertRuleSchema),
+		update: (id: string, body: Record<string, unknown>) => patch(`/api/alerts/${id}`, body, AlertRuleSchema),
 		acknowledge: (id: string) => post(`/api/alerts/${id}/acknowledge`, {}, OkSchema),
 		preview: (id: string) => post(`/api/alerts/${id}/preview`, {}, QueryPreviewSchema),
+	 },
+	 query: {
+		magicVariables: () => get('/api/query-magic-variables', z.array(MagicVariableSchema)),
 	 },
   traces: {
     list: (sessionId?: string) =>

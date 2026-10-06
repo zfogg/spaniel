@@ -59,7 +59,7 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className={`w-[38px] h-[22px] p-0 rounded-[22px] relative cursor-pointer outline-hidden transition-[background,border-color] duration-150 shrink-0 border ${on ? 'bg-accent-d border-accent-d' : 'bg-muted border-border'}`}
+      className={`w-[38px] h-[22px] p-0 rounded-[22px] relative cursor-pointer outline-hidden transition-[background,border-color] duration-150 shrink-0 border ${on ? 'bg-accent-d border-accent-d' : 'bg-[#cbd5e1] border-[#b8c4d0] dark:bg-[#334155] dark:border-[#475569]'}`}
     >
       <span
         className="absolute top-px w-[18px] h-[18px] rounded-full bg-background shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-[left] duration-[180ms] ease-[cubic-bezier(.4,.0,.2,1)]"
@@ -646,6 +646,7 @@ function GeneralSection({ s, mutate, hidden }: {
   const endpoint = `${window.location.origin}/mcp`
   const claudeAddCmd = `claude mcp add --transport http spaniel ${endpoint}`
   const codexAddCmd = `codex mcp add spaniel --url ${endpoint}`
+  const openCodeAddCmd = `opencode mcp add spaniel --url ${endpoint}`
   const mcpJson = JSON.stringify({ mcpServers: { spaniel: { type: 'http', url: endpoint } } }, null, 2)
   const codexConfig = `[mcp_servers.spaniel]\nurl = "${endpoint}"`
 
@@ -712,6 +713,7 @@ function GeneralSection({ s, mutate, hidden }: {
           <Row label="Agent CLI command" hint="Register Spaniel using the command for your agent CLI." testid="row-mcp-connect">
             <MCPConfigTable entries={[
               { label: 'Codex', value: codexAddCmd, copied: copied === 'codex-cmd', onCopy: () => copy('codex-cmd', codexAddCmd) },
+              { label: 'OpenCode', value: openCodeAddCmd, copied: copied === 'opencode-cmd', onCopy: () => copy('opencode-cmd', openCodeAddCmd) },
               { label: 'Claude Code', value: claudeAddCmd, copied: copied === 'claude-cmd', onCopy: () => copy('claude-cmd', claudeAddCmd) },
             ]} />
           </Row>
@@ -806,6 +808,14 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
           rel="noreferrer"
           className="font-sans text-xs text-accent-d underline decoration-dotted"
         >claude.ai</a>
+        <span className="font-sans text-xs text-muted-foreground">·</span>
+        <span className="font-sans text-xs text-foreground">ChatGPT</span>
+        <a
+          href="https://chatgpt.com"
+          target="_blank"
+          rel="noreferrer"
+          className="font-sans text-xs text-accent-d underline decoration-dotted"
+        >chatgpt.com</a>
       </Row>
     </Card>
   )

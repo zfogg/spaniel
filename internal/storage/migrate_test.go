@@ -87,6 +87,16 @@ func TestMigrateFreshDB(t *testing.T) {
 	if applied != 1 {
 		t.Fatalf("expected 0001_init applied, got %d rows", applied)
 	}
+	// InitSchema records 0010 as applied, so it must also have applied its
+	// DDL. This catches fresh databases that silently miss notification state.
+	var notificationColumn int64
+	if err := db.gorm.Raw(`SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_name = 'alert_instances' AND column_name = 'last_notified_at'`).Scan(&notificationColumn).Error; err != nil {
+		t.Fatalf("inspect alert_instances columns: %v", err)
+	}
+	if notificationColumn != 1 {
+		t.Fatalf("last_notified_at column missing from fresh alert_instances schema")
+	}
 	db.Close()
 }
 

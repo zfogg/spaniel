@@ -23,6 +23,12 @@ import (
 // This requires a file-backed database; an in-memory database can't be reopened
 // read-only as a second instance.
 func (d *DB) ReadOnlyQuery(ctx context.Context, query string, maxRows int) (cols []string, rows [][]any, truncated bool, err error) {
+	return d.ReadOnlyQueryArgs(ctx, query, nil, maxRows)
+}
+
+// ReadOnlyQueryArgs is ReadOnlyQuery with bound DuckDB parameters. Query text
+// is always checked before execution; values are never interpolated into SQL.
+func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, maxRows int) (cols []string, rows [][]any, truncated bool, err error) {
 	if maxRows <= 0 {
 		maxRows = 1000
 	}
@@ -45,7 +51,7 @@ func (d *DB) ReadOnlyQuery(ctx context.Context, query string, maxRows int) (cols
 		ro.SetMaxOpenConns(1)
 	}
 
-	rs, err := ro.QueryContext(ctx, query)
+	rs, err := ro.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -81,6 +87,10 @@ func (d *DB) ReadOnlyQuery(ctx context.Context, query string, maxRows int) (cols
 	}
 	return cols, rows, truncated, nil
 }
+
+// ValidateReadOnlySQL verifies that a statement is suitable for the read-only
+// query runner. Execution still occurs on DuckDB's read-only connection.
+func ValidateReadOnlySQL(query string) error { return validateReadOnlySQL(query) }
 
 var mutatingSQLKeywords = map[string]struct{}{
 	"ALTER": {}, "ANALYZE": {}, "ATTACH": {}, "BEGIN": {}, "CALL": {},

@@ -15,7 +15,7 @@ describe('api response schemas', () => {
   it('accepts a full TraceRow', () => {
     expect(TraceRowSchema.safeParse({
       trace_id: 'abc', service_name: 'api', name: 'GET /x', status_code: 0,
-      start_ns: 1, end_ns: 2, duration_ns: 1, session_id: 's1', session_label: 'main',
+      attributes: '{}', start_ns: 1, end_ns: 2, duration_ns: 1, session_id: 's1', session_label: 'main',
       has_n1: false, span_count: 3, issue_kinds: ['slow_db'],
     }).success).toBe(true)
   })
@@ -23,7 +23,7 @@ describe('api response schemas', () => {
   it('accepts a TraceRow without the optional issue_kinds', () => {
     expect(TraceRowSchema.safeParse({
       trace_id: 'abc', service_name: 'api', name: 'GET /x', status_code: 0,
-      start_ns: 1, end_ns: 2, duration_ns: 1, session_id: 's1', session_label: 'main',
+      attributes: '{}', start_ns: 1, end_ns: 2, duration_ns: 1, session_id: 's1', session_label: 'main',
       has_n1: false, span_count: 3,
     }).success).toBe(true)
   })

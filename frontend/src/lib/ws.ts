@@ -6,7 +6,18 @@ export interface MetricPayload { name: string; serviceName: string; value: numbe
 export interface IssuePayload { traceId: string; kind: string; fingerprint: string; count: number; wastedNs: number }
 export interface ForwarderPayload { url: string; sent: number; errors: number; lastError?: string; pendingBytes?: number; droppedSpool?: number }
 export interface ThroughputPayload { spansPerSec: number; logsPerSec: number }
-export interface AlertPayload { ruleId: string; state: string; name?: string; severity?: string }
+export interface AlertPayload {
+  ruleId: string
+  ruleName: string
+  severity: 'info' | 'warning' | 'critical' | string
+  state: 'pending' | 'firing' | 'resolved' | 'error' | string
+  transition: 'firing' | 'resolved' | 'acknowledged' | string
+  groupLabels: Record<string, string>
+  currentValue?: number | null
+  threshold?: number
+  operator?: string
+  link?: string
+}
 
 export type WsEvent =
   | { type: 'span';       timestamp_ns: number; payload: SpanPayload }

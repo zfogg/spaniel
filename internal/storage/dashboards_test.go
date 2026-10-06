@@ -8,7 +8,7 @@ func TestDashboardPanelPersistenceAndDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	panel := &DashboardPanel{DashboardID: dashboard.ID, Title: "Span count", DisplayType: "single_value", QueryText: "count(spans)", QueryJSON: "{}", SettingsJSON: "{}", LayoutJSON: "{}"}
+	panel := &DashboardPanel{DashboardID: dashboard.ID, Title: "Span count", DisplayType: "single_value", QuerySQL: "SELECT count(*) AS value FROM telemetry_spans", QueryVersion: 1, SettingsJSON: "{}", LayoutJSON: "{}"}
 	if err := db.CreateDashboardPanel(panel); err != nil {
 		t.Fatal(err)
 	}

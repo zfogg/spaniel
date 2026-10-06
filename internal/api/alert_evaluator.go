@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zfogg/spaniel/internal/querydsl"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
@@ -63,10 +62,6 @@ func evaluateAlerts(store *storage.DB, hub *ws.Hub, now time.Time) {
 }
 
 func evaluateAlertRule(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, now time.Time) error {
-	var query querydsl.Query
-	if err := json.Unmarshal([]byte(rule.QueryJSON), &query); err != nil {
-		return fmt.Errorf("read alert query: %w", err)
-	}
 	var condition alertCondition
 	if err := json.Unmarshal([]byte(rule.ConditionJSON), &condition); err != nil {
 		return fmt.Errorf("read alert condition: %w", err)
@@ -74,22 +69,28 @@ func evaluateAlertRule(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, 
 	if condition.Kind != "threshold" || !validAlertOperator(condition.Operator) {
 		return fmt.Errorf("unsupported alert condition")
 	}
-	compiled, err := querydsl.Compile(query, nil, store.ActiveSessionID())
-	if err != nil {
-		return fmt.Errorf("compile alert query: %w", err)
+	if err := storage.ValidateReadOnlySQL(rule.QuerySQL); err != nil {
+		return fmt.Errorf("validate alert query: %w", err)
 	}
-	rows, err := store.DashboardRows(compiled.SQL, compiled.Args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	columns, values, _, err := store.ReadOnlyQuery(ctx, rule.QuerySQL, 1000)
 	if err != nil {
 		return fmt.Errorf("execute alert query: %w", err)
 	}
+	rows := rowsForColumns(columns, values)
 
 	seen := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		key := "all"
 		labels := map[string]string{}
-		if group, ok := row["group_value"]; ok {
-			key = fmt.Sprint(group)
-			labels[query.GroupBy] = key
+		for _, column := range alertGroupColumns(rule.GroupByJSON) {
+			if group, ok := row[column]; ok {
+				labels[column] = fmt.Sprint(group)
+			}
+		}
+		if len(labels) > 0 {
+			key = StableAlertGroupKey(labels)
 		}
 		value, ok := alertNumber(row["value"])
 		if !ok {
@@ -119,6 +120,12 @@ func evaluateAlertRule(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, 
 		}
 	}
 	return nil
+}
+
+func alertGroupColumns(raw string) []string {
+	var columns []string
+	_ = json.Unmarshal([]byte(raw), &columns)
+	return columns
 }
 
 func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, key string, labels map[string]string, value float64, breached bool, now time.Time) error {

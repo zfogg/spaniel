@@ -35,8 +35,8 @@ type DashboardPanel struct {
 	DashboardID  string `json:"dashboard_id"`
 	Title        string `json:"title"`
 	DisplayType  string `json:"display_type"`
-	QueryText    string `json:"query_text"`
-	QueryJSON    string `json:"query_json"`
+	QuerySQL     string `json:"query_sql"`
+	QueryVersion int    `json:"query_version"`
 	SettingsJSON string `json:"settings_json"`
 	LayoutJSON   string `json:"layout_json"`
 	Position     int    `json:"position"`
@@ -104,7 +104,7 @@ func (d *DB) CreateDashboardPanel(p *DashboardPanel) error {
 }
 func (d *DB) UpdateDashboardPanel(p *DashboardPanel) error {
 	p.UpdatedAt = time.Now().UnixNano()
-	return d.gorm.Model(&DashboardPanel{}).Where("id = ? AND dashboard_id = ?", p.ID, p.DashboardID).Updates(map[string]any{"title": p.Title, "display_type": p.DisplayType, "query_text": p.QueryText, "query_json": p.QueryJSON, "settings_json": p.SettingsJSON, "layout_json": p.LayoutJSON, "position": p.Position, "updated_at": p.UpdatedAt}).Error
+	return d.gorm.Model(&DashboardPanel{}).Where("id = ? AND dashboard_id = ?", p.ID, p.DashboardID).Updates(map[string]any{"title": p.Title, "display_type": p.DisplayType, "query_sql": p.QuerySQL, "query_version": p.QueryVersion, "settings_json": p.SettingsJSON, "layout_json": p.LayoutJSON, "position": p.Position, "updated_at": p.UpdatedAt}).Error
 }
 func (d *DB) DeleteDashboardPanel(dashboardID, id string) error {
 	return d.gorm.Delete(&DashboardPanel{}, "id = ? AND dashboard_id = ?", id, dashboardID).Error

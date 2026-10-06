@@ -2,6 +2,8 @@ package storage
 
 import (
 	"embed"
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/go-gormigrate/gormigrate/v2"
@@ -157,6 +159,10 @@ func migrations() []*gormigrate.Migration {
 			ID:      "0010_alert_notification_state",
 			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0010_alert_notification_state.sql") },
 		},
+		{
+			ID:      "0011_sql_dashboard_queries",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0011_sql_dashboard_queries.sql") },
+		},
 	}
 }
 
@@ -184,9 +190,21 @@ func (d *DB) migrate() error {
 		}
 		// Fresh databases are stamped with every migration, so new definition
 		// tables must be included here as well as in their numbered migration.
-		return execMigrationFile(tx, "0009_dashboards_alerts.sql")
+		if err := execMigrationFile(tx, "0009_dashboards_alerts.sql"); err != nil {
+			return err
+		}
+		// InitSchema stamps every migration as applied. Include schema changes
+		// introduced after the dashboards migration, or a fresh database would
+		// be marked current while missing them.
+		if err := execMigrationFile(tx, "0010_alert_notification_state.sql"); err != nil {
+			return err
+		}
+		return execMigrationFile(tx, "0011_sql_dashboard_queries.sql")
 	})
 	if err := m.Migrate(); err != nil {
+		return err
+	}
+	if err := d.backfillLegacyDashboardSQL(); err != nil {
 		return err
 	}
 
@@ -205,6 +223,120 @@ func (d *DB) migrate() error {
 		return execMigrationFile(d.gorm, "0008_materialize_span_duration.sql")
 	}
 	return nil
+}
+
+// backfillLegacyDashboardSQL is a one-time upgrade for dashboards and alerts
+// saved before SQL became the public query language. It consumes only the
+// already-persisted, server-produced AST JSON; no legacy parser remains in the
+// runtime query path.
+func (d *DB) backfillLegacyDashboardSQL() error {
+	type filter struct{ Field, Op, Value string }
+	type legacy struct {
+		Function, Signal, Target, GroupBy string
+		Filters                           []filter
+	}
+	compile := func(raw, display string) string {
+		var q legacy
+		if json.Unmarshal([]byte(raw), &q) != nil || q.Function == "" {
+			return ""
+		}
+		table, timeColumn := "telemetry_spans", "start_ns"
+		if q.Signal == "logs" {
+			table, timeColumn = "telemetry_logs", "timestamp_ns"
+		}
+		if q.Signal == "metrics" {
+			table, timeColumn = "telemetry_metrics", "timestamp_ns"
+		}
+		if q.Signal == "traces" {
+			table = "telemetry_traces"
+		}
+		if q.Function == "records" {
+			return "SELECT * FROM " + table + " LIMIT 100"
+		}
+		field := legacySQLField(q.Target)
+		agg := map[string]string{"count": "count(*)", "rate": "count(*) / greatest((max(" + timeColumn + ") - min(" + timeColumn + ")) / 1000000000.0, 1)", "last": "max(" + field + ")", "sum": "sum(" + field + ")", "avg": "avg(" + field + ")", "p50": "quantile_cont(" + field + ", 0.5)", "p95": "quantile_cont(" + field + ", 0.95)", "p99": "quantile_cont(" + field + ", 0.99)", "heatmap": "count(*)"}[q.Function]
+		if agg == "" {
+			return ""
+		}
+		where := ""
+		for _, f := range q.Filters {
+			value := f.Value
+			if strings.HasPrefix(value, "$") {
+				value = f.Value
+			} else {
+				value = "'" + strings.ReplaceAll(value, "'", "''") + "'"
+			}
+			where += " AND " + legacySQLField(f.Field) + " " + f.Op + " " + value
+		}
+		if where != "" {
+			where = " WHERE " + strings.TrimPrefix(where, " AND ")
+		}
+		if display == "time_series" {
+			bucket := "date_trunc('minute', make_timestamp_ns(" + timeColumn + "))"
+			selectSQL := bucket + " AS timestamp, " + agg + " AS value"
+			group := bucket
+			if q.GroupBy != "" {
+				g := legacySQLField(q.GroupBy)
+				selectSQL = bucket + " AS timestamp, " + g + " AS series, " + agg + " AS value"
+				group += ", " + g
+			}
+			return "SELECT " + selectSQL + " FROM " + table + where + " GROUP BY " + group + " ORDER BY timestamp"
+		}
+		if q.GroupBy != "" {
+			g := legacySQLField(q.GroupBy)
+			return "SELECT " + g + " AS group_value, " + agg + " AS value FROM " + table + where + " GROUP BY " + g + " ORDER BY value DESC"
+		}
+		return "SELECT " + agg + " AS value FROM " + table + where
+	}
+	type panel struct{ ID, QueryJSON, DisplayType string }
+	var panels []panel
+	if err := d.gorm.Raw("SELECT id, query_json, display_type FROM dashboard_panels WHERE query_sql = ''").Scan(&panels).Error; err != nil {
+		return err
+	}
+	for _, p := range panels {
+		if sql := compile(p.QueryJSON, p.DisplayType); sql != "" {
+			if err := d.gorm.Exec("UPDATE dashboard_panels SET query_sql = ?, query_version = 1 WHERE id = ?", sql, p.ID).Error; err != nil {
+				return err
+			}
+		}
+	}
+	type rule struct{ ID, QueryJSON string }
+	var rules []rule
+	if err := d.gorm.Raw("SELECT id, query_json FROM alert_rules WHERE query_sql = ''").Scan(&rules).Error; err != nil {
+		return err
+	}
+	for _, r := range rules {
+		if sql := compile(r.QueryJSON, ""); sql != "" {
+			if err := d.gorm.Exec("UPDATE alert_rules SET query_sql = ?, query_version = 1 WHERE id = ?", sql, r.ID).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func legacySQLField(field string) string {
+	switch field {
+	case "service", "service_name":
+		return "service_name"
+	case "name":
+		return "name"
+	case "duration":
+		return "duration_ns"
+	case "status":
+		return "status_code"
+	case "severity":
+		return "severity"
+	case "body", "trace_id", "span_id", "value":
+		return field
+	}
+	if strings.HasPrefix(field, "attributes.") {
+		return "json_extract_string(attributes, '$." + strings.TrimPrefix(field, "attributes.") + "')"
+	}
+	if strings.HasPrefix(field, "resource.") {
+		return "json_extract_string(resource, '$." + strings.TrimPrefix(field, "resource.") + "')"
+	}
+	return fmt.Sprintf("%q", field)
 }
 
 // SetSpanielVersion records the running binary version in the meta table. It is

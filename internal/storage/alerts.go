@@ -9,7 +9,8 @@ import (
 type AlertRule struct {
 	ID              string           `json:"id"`
 	Name            string           `json:"name"`
-	QueryJSON       string           `json:"query_json"`
+	QuerySQL        string           `json:"query_sql"`
+	QueryVersion    int              `json:"query_version"`
 	ConditionJSON   string           `json:"condition_json"`
 	GroupByJSON     string           `json:"group_by_json"`
 	PendingForNs    int64            `json:"pending_for_ns"`
@@ -71,15 +72,35 @@ func (d *DB) CreateAlertRule(r *AlertRule) error {
 }
 func (d *DB) UpdateAlertRule(r *AlertRule) error {
 	r.UpdatedAt = time.Now().UnixNano()
-	return d.gorm.Model(&AlertRule{}).Where("id = ?", r.ID).Updates(map[string]any{"name": r.Name, "query_json": r.QueryJSON, "condition_json": r.ConditionJSON, "group_by_json": r.GroupByJSON, "pending_for_ns": r.PendingForNs, "cooldown_ns": r.CooldownNs, "severity": r.Severity, "annotations_json": r.AnnotationsJSON, "enabled": r.Enabled, "updated_at": r.UpdatedAt}).Error
+	return d.gorm.Model(&AlertRule{}).Where("id = ?", r.ID).Updates(map[string]any{"name": r.Name, "query_sql": r.QuerySQL, "query_version": r.QueryVersion, "condition_json": r.ConditionJSON, "group_by_json": r.GroupByJSON, "pending_for_ns": r.PendingForNs, "cooldown_ns": r.CooldownNs, "severity": r.Severity, "annotations_json": r.AnnotationsJSON, "enabled": r.Enabled, "updated_at": r.UpdatedAt}).Error
 }
 func (d *DB) UpsertAlertInstance(x *AlertInstance) error { return d.gorm.Save(x).Error }
-func (d *DB) AcknowledgeAlert(id string) error {
+
+// AcknowledgeAlert returns only the instances whose acknowledgement metadata
+// changed. Callers use that list to emit one genuine acknowledgement event per
+// transition; repeating the request is intentionally a no-op.
+func (d *DB) AcknowledgeAlert(id string) ([]*AlertInstance, error) {
 	now := time.Now().UnixNano()
 	// Acknowledgement is operator metadata, not an alert lifecycle state.  A
 	// firing condition must remain firing so a later evaluation can resolve it
 	// correctly (and so the UI can still communicate the actual condition).
-	return d.gorm.Model(&AlertInstance{}).Where("rule_id = ? AND state IN ('pending','firing')", id).Update("acknowledged_at", now).Error
+	var changed []*AlertInstance
+	err := d.gorm.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("rule_id = ? AND state IN ('pending','firing') AND acknowledged_at IS NULL", id).Find(&changed).Error; err != nil {
+			return err
+		}
+		if len(changed) == 0 {
+			return nil
+		}
+		return tx.Model(&AlertInstance{}).Where("rule_id = ? AND state IN ('pending','firing') AND acknowledged_at IS NULL", id).Update("acknowledged_at", now).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range changed {
+		instance.AcknowledgedAt = &now
+	}
+	return changed, nil
 }
 func (d *DB) DeleteAlertRule(id string) error {
 	return d.gorm.Transaction(func(tx *gorm.DB) error {
