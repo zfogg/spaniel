@@ -16,21 +16,22 @@ import (
 )
 
 var (
-	Q                 = new(Query)
-	AlertInstance     *alertInstance
-	AlertRule         *alertRule
-	Dashboard         *dashboard
-	DashboardPanel    *dashboardPanel
-	DashboardVariable *dashboardVariable
-	LintWarning       *lintWarning
-	Log               *log
-	Meta              *meta
-	Metric            *metric
-	Session           *session
-	Span              *span
-	SpanEvent         *spanEvent
-	SpanLink          *spanLink
-	TraceIssue        *traceIssue
+	Q                   = new(Query)
+	AlertInstance       *alertInstance
+	AlertRule           *alertRule
+	Dashboard           *dashboard
+	DashboardPanel      *dashboardPanel
+	DashboardVariable   *dashboardVariable
+	LintWarning         *lintWarning
+	Log                 *log
+	Meta                *meta
+	Metric              *metric
+	MetricSeriesCatalog *metricSeriesCatalog
+	Session             *session
+	Span                *span
+	SpanEvent           *spanEvent
+	SpanLink            *spanLink
+	TraceIssue          *traceIssue
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
@@ -44,6 +45,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	Log = &Q.Log
 	Meta = &Q.Meta
 	Metric = &Q.Metric
+	MetricSeriesCatalog = &Q.MetricSeriesCatalog
 	Session = &Q.Session
 	Span = &Q.Span
 	SpanEvent = &Q.SpanEvent
@@ -53,41 +55,43 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:                db,
-		AlertInstance:     newAlertInstance(db, opts...),
-		AlertRule:         newAlertRule(db, opts...),
-		Dashboard:         newDashboard(db, opts...),
-		DashboardPanel:    newDashboardPanel(db, opts...),
-		DashboardVariable: newDashboardVariable(db, opts...),
-		LintWarning:       newLintWarning(db, opts...),
-		Log:               newLog(db, opts...),
-		Meta:              newMeta(db, opts...),
-		Metric:            newMetric(db, opts...),
-		Session:           newSession(db, opts...),
-		Span:              newSpan(db, opts...),
-		SpanEvent:         newSpanEvent(db, opts...),
-		SpanLink:          newSpanLink(db, opts...),
-		TraceIssue:        newTraceIssue(db, opts...),
+		db:                  db,
+		AlertInstance:       newAlertInstance(db, opts...),
+		AlertRule:           newAlertRule(db, opts...),
+		Dashboard:           newDashboard(db, opts...),
+		DashboardPanel:      newDashboardPanel(db, opts...),
+		DashboardVariable:   newDashboardVariable(db, opts...),
+		LintWarning:         newLintWarning(db, opts...),
+		Log:                 newLog(db, opts...),
+		Meta:                newMeta(db, opts...),
+		Metric:              newMetric(db, opts...),
+		MetricSeriesCatalog: newMetricSeriesCatalog(db, opts...),
+		Session:             newSession(db, opts...),
+		Span:                newSpan(db, opts...),
+		SpanEvent:           newSpanEvent(db, opts...),
+		SpanLink:            newSpanLink(db, opts...),
+		TraceIssue:          newTraceIssue(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	AlertInstance     alertInstance
-	AlertRule         alertRule
-	Dashboard         dashboard
-	DashboardPanel    dashboardPanel
-	DashboardVariable dashboardVariable
-	LintWarning       lintWarning
-	Log               log
-	Meta              meta
-	Metric            metric
-	Session           session
-	Span              span
-	SpanEvent         spanEvent
-	SpanLink          spanLink
-	TraceIssue        traceIssue
+	AlertInstance       alertInstance
+	AlertRule           alertRule
+	Dashboard           dashboard
+	DashboardPanel      dashboardPanel
+	DashboardVariable   dashboardVariable
+	LintWarning         lintWarning
+	Log                 log
+	Meta                meta
+	Metric              metric
+	MetricSeriesCatalog metricSeriesCatalog
+	Session             session
+	Span                span
+	SpanEvent           spanEvent
+	SpanLink            spanLink
+	TraceIssue          traceIssue
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -96,21 +100,22 @@ func (q *Query) UnderlyingDB() *gorm.DB { return q.db }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:                db,
-		AlertInstance:     q.AlertInstance.clone(db),
-		AlertRule:         q.AlertRule.clone(db),
-		Dashboard:         q.Dashboard.clone(db),
-		DashboardPanel:    q.DashboardPanel.clone(db),
-		DashboardVariable: q.DashboardVariable.clone(db),
-		LintWarning:       q.LintWarning.clone(db),
-		Log:               q.Log.clone(db),
-		Meta:              q.Meta.clone(db),
-		Metric:            q.Metric.clone(db),
-		Session:           q.Session.clone(db),
-		Span:              q.Span.clone(db),
-		SpanEvent:         q.SpanEvent.clone(db),
-		SpanLink:          q.SpanLink.clone(db),
-		TraceIssue:        q.TraceIssue.clone(db),
+		db:                  db,
+		AlertInstance:       q.AlertInstance.clone(db),
+		AlertRule:           q.AlertRule.clone(db),
+		Dashboard:           q.Dashboard.clone(db),
+		DashboardPanel:      q.DashboardPanel.clone(db),
+		DashboardVariable:   q.DashboardVariable.clone(db),
+		LintWarning:         q.LintWarning.clone(db),
+		Log:                 q.Log.clone(db),
+		Meta:                q.Meta.clone(db),
+		Metric:              q.Metric.clone(db),
+		MetricSeriesCatalog: q.MetricSeriesCatalog.clone(db),
+		Session:             q.Session.clone(db),
+		Span:                q.Span.clone(db),
+		SpanEvent:           q.SpanEvent.clone(db),
+		SpanLink:            q.SpanLink.clone(db),
+		TraceIssue:          q.TraceIssue.clone(db),
 	}
 }
 
@@ -124,57 +129,60 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:                db,
-		AlertInstance:     q.AlertInstance.replaceDB(db),
-		AlertRule:         q.AlertRule.replaceDB(db),
-		Dashboard:         q.Dashboard.replaceDB(db),
-		DashboardPanel:    q.DashboardPanel.replaceDB(db),
-		DashboardVariable: q.DashboardVariable.replaceDB(db),
-		LintWarning:       q.LintWarning.replaceDB(db),
-		Log:               q.Log.replaceDB(db),
-		Meta:              q.Meta.replaceDB(db),
-		Metric:            q.Metric.replaceDB(db),
-		Session:           q.Session.replaceDB(db),
-		Span:              q.Span.replaceDB(db),
-		SpanEvent:         q.SpanEvent.replaceDB(db),
-		SpanLink:          q.SpanLink.replaceDB(db),
-		TraceIssue:        q.TraceIssue.replaceDB(db),
+		db:                  db,
+		AlertInstance:       q.AlertInstance.replaceDB(db),
+		AlertRule:           q.AlertRule.replaceDB(db),
+		Dashboard:           q.Dashboard.replaceDB(db),
+		DashboardPanel:      q.DashboardPanel.replaceDB(db),
+		DashboardVariable:   q.DashboardVariable.replaceDB(db),
+		LintWarning:         q.LintWarning.replaceDB(db),
+		Log:                 q.Log.replaceDB(db),
+		Meta:                q.Meta.replaceDB(db),
+		Metric:              q.Metric.replaceDB(db),
+		MetricSeriesCatalog: q.MetricSeriesCatalog.replaceDB(db),
+		Session:             q.Session.replaceDB(db),
+		Span:                q.Span.replaceDB(db),
+		SpanEvent:           q.SpanEvent.replaceDB(db),
+		SpanLink:            q.SpanLink.replaceDB(db),
+		TraceIssue:          q.TraceIssue.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	AlertInstance     IAlertInstanceDo
-	AlertRule         IAlertRuleDo
-	Dashboard         IDashboardDo
-	DashboardPanel    IDashboardPanelDo
-	DashboardVariable IDashboardVariableDo
-	LintWarning       ILintWarningDo
-	Log               ILogDo
-	Meta              IMetaDo
-	Metric            IMetricDo
-	Session           ISessionDo
-	Span              ISpanDo
-	SpanEvent         ISpanEventDo
-	SpanLink          ISpanLinkDo
-	TraceIssue        ITraceIssueDo
+	AlertInstance       IAlertInstanceDo
+	AlertRule           IAlertRuleDo
+	Dashboard           IDashboardDo
+	DashboardPanel      IDashboardPanelDo
+	DashboardVariable   IDashboardVariableDo
+	LintWarning         ILintWarningDo
+	Log                 ILogDo
+	Meta                IMetaDo
+	Metric              IMetricDo
+	MetricSeriesCatalog IMetricSeriesCatalogDo
+	Session             ISessionDo
+	Span                ISpanDo
+	SpanEvent           ISpanEventDo
+	SpanLink            ISpanLinkDo
+	TraceIssue          ITraceIssueDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		AlertInstance:     q.AlertInstance.WithContext(ctx),
-		AlertRule:         q.AlertRule.WithContext(ctx),
-		Dashboard:         q.Dashboard.WithContext(ctx),
-		DashboardPanel:    q.DashboardPanel.WithContext(ctx),
-		DashboardVariable: q.DashboardVariable.WithContext(ctx),
-		LintWarning:       q.LintWarning.WithContext(ctx),
-		Log:               q.Log.WithContext(ctx),
-		Meta:              q.Meta.WithContext(ctx),
-		Metric:            q.Metric.WithContext(ctx),
-		Session:           q.Session.WithContext(ctx),
-		Span:              q.Span.WithContext(ctx),
-		SpanEvent:         q.SpanEvent.WithContext(ctx),
-		SpanLink:          q.SpanLink.WithContext(ctx),
-		TraceIssue:        q.TraceIssue.WithContext(ctx),
+		AlertInstance:       q.AlertInstance.WithContext(ctx),
+		AlertRule:           q.AlertRule.WithContext(ctx),
+		Dashboard:           q.Dashboard.WithContext(ctx),
+		DashboardPanel:      q.DashboardPanel.WithContext(ctx),
+		DashboardVariable:   q.DashboardVariable.WithContext(ctx),
+		LintWarning:         q.LintWarning.WithContext(ctx),
+		Log:                 q.Log.WithContext(ctx),
+		Meta:                q.Meta.WithContext(ctx),
+		Metric:              q.Metric.WithContext(ctx),
+		MetricSeriesCatalog: q.MetricSeriesCatalog.WithContext(ctx),
+		Session:             q.Session.WithContext(ctx),
+		Span:                q.Span.WithContext(ctx),
+		SpanEvent:           q.SpanEvent.WithContext(ctx),
+		SpanLink:            q.SpanLink.WithContext(ctx),
+		TraceIssue:          q.TraceIssue.WithContext(ctx),
 	}
 }
 

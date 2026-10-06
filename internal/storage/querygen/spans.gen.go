@@ -224,6 +224,7 @@ type ISpanDo interface {
 	ListGroups(sessionID string, limit int, offset int) (result []model.SpanGroup, err error)
 	ListTraces(sessionID string, service string, limit int, offset int) (result []model.TraceListRow, err error)
 	CountGroups(sessionID string) (result []model.CountValue, err error)
+	CountTraces(sessionID string, service string) (result []model.CountValue, err error)
 	ListSourceStats(sessionID string) (result []model.SourceStatsRow, err error)
 	ServiceP95(serviceName string) (result []model.P95Value, err error)
 	ListServiceMapNodes(sessionID string) (result []model.ServiceMapNode, err error)
@@ -406,6 +407,26 @@ func (s spanDo) CountGroups(sessionID string) (result []model.CountValue, err er
 	params = append(params, sessionID)
 	params = append(params, sessionID)
 	generateSQL.WriteString("SELECT COUNT(*) AS count FROM (SELECT 1 FROM spans WHERE (? = '' OR session_id = ?) GROUP BY service_name, name, kind) groups ")
+
+	var executeSQL *gorm.DB
+	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
+}
+
+// CountTraces
+//
+// SELECT COUNT(*) AS count FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) AND (@service = ” OR service_name = @service)
+func (s spanDo) CountTraces(sessionID string, service string) (result []model.CountValue, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	params = append(params, service)
+	params = append(params, service)
+	generateSQL.WriteString("SELECT COUNT(*) AS count FROM spans WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (? = '' OR session_id = ?) AND (? = '' OR service_name = ?) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

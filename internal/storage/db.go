@@ -17,6 +17,7 @@ import (
 	"github.com/zfogg/spaniel/internal/storage/querygen"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -156,6 +157,9 @@ func Open(path string) (*DB, error) {
 	}
 	_ = g.Use(newGORMPlugin())
 	d.query = querygen.Use(g)
+	if count, err := d.ActiveMetricSeries(); err == nil {
+		telemetry.Catalog().SetActiveSeries(count)
+	}
 	registerDBSizeGauge(path)
 
 	// Hot-path inserts (spans, logs, metrics) go through the columnar Appender
@@ -198,6 +202,38 @@ func (d *DB) AppendLog(l *Log) error { return d.batcher.AppendLog(l) }
 
 // AppendMetric buffers a metric data point for batched insertion.
 func (d *DB) AppendMetric(m *Metric) error { return d.batcher.AppendMetric(m) }
+
+// MetricSeriesCatalog is the ingestion-facing view of durable admitted series.
+type MetricSeriesCatalog struct {
+	SessionID  string
+	Service    string
+	Name       string
+	Attributes string
+}
+
+func (d *DB) RecordMetricSeries(sessionID, service, name, attrs string, timestampNs int64) (bool, error) {
+	entry := &model.MetricSeriesCatalog{
+		SessionID: sessionID, ServiceName: service, Name: name,
+		SeriesKey: name + "\x00" + service + "\x00" + attrs, SeriesAttributes: attrs,
+		FirstTimestampNs: timestampNs, LastTimestampNs: timestampNs, PointCount: 1,
+	}
+	if err := d.query.MetricSeriesCatalog.Clauses(clause.OnConflict{DoNothing: true}).Create(entry); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (d *DB) MetricSeriesCatalog() ([]MetricSeriesCatalog, error) {
+	rows, err := d.query.MetricSeriesCatalog.Find()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MetricSeriesCatalog, len(rows))
+	for i, row := range rows {
+		out[i] = MetricSeriesCatalog{SessionID: row.SessionID, Service: row.ServiceName, Name: row.Name, Attributes: row.SeriesAttributes}
+	}
+	return out, nil
+}
 
 // FlushBatch flushes all buffered hot-path rows so they are visible to readers.
 // Ingest paths call this at the end of a request and before running detectors.
@@ -364,6 +400,19 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 		row.IssueKinds = parseKinds(row.IssueKindsRaw)
 	}
 	return result, nil
+}
+
+// CountTraces returns the number of root spans matching a trace-list filter,
+// before pagination. A trace is represented by its root span in ListTraces.
+func (d *DB) CountTraces(f TraceFilter) (int, error) {
+	rows, err := d.query.Span.CountTraces(f.SessionID, f.Service)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return int(rows[0].Count), nil
 }
 
 // parseKinds splits a comma-separated list of issue kind strings into a
@@ -551,6 +600,7 @@ func (d *DB) CountSpanGroups(f SpanFilter) (int, error) {
 
 type LogFilter struct {
 	SessionID   string
+	Service     string
 	TraceID     string
 	SpanID      string
 	MinSeverity int
@@ -572,6 +622,9 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	if f.SessionID != "" {
 		q = q.Where(d.query.Log.SessionID.Eq(f.SessionID))
 	}
+	if f.Service != "" {
+		q = q.Where(d.query.Log.ServiceName.Eq(f.Service))
+	}
 	if f.TraceID != "" {
 		q = q.Where(d.query.Log.TraceID.Eq(f.TraceID))
 	}
@@ -585,6 +638,30 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 		q = q.Where(d.query.Log.Severity.Lte(f.MaxSeverity))
 	}
 	return q.Order(d.query.Log.TimestampNs.Desc()).Limit(f.Limit).Offset(offset).Find()
+}
+
+func (d *DB) CountLogs(f LogFilter) (int, error) {
+	q := d.query.Log.Where()
+	if f.SessionID != "" {
+		q = q.Where(d.query.Log.SessionID.Eq(f.SessionID))
+	}
+	if f.Service != "" {
+		q = q.Where(d.query.Log.ServiceName.Eq(f.Service))
+	}
+	if f.TraceID != "" {
+		q = q.Where(d.query.Log.TraceID.Eq(f.TraceID))
+	}
+	if f.SpanID != "" {
+		q = q.Where(d.query.Log.SpanID.Eq(f.SpanID))
+	}
+	if f.MinSeverity > 0 {
+		q = q.Where(d.query.Log.Severity.Gte(f.MinSeverity))
+	}
+	if f.MaxSeverity > 0 {
+		q = q.Where(d.query.Log.Severity.Lte(f.MaxSeverity))
+	}
+	count, err := q.Count()
+	return int(count), err
 }
 
 // ListServices returns distinct service names. An empty sessionID returns
@@ -902,6 +979,12 @@ func (d *DB) InsertMetric(m *Metric) error {
 	return d.query.Metric.Create(m)
 }
 
+// ActiveMetricSeries returns the durable source for the observable
+// active-series gauge without reconstructing identities from raw points.
+func (d *DB) ActiveMetricSeries() (int64, error) {
+	return d.query.MetricSeriesCatalog.Count()
+}
+
 // ListMetricCatalog returns one entry per (service, name) seen in the session.
 // Pass "" to ignore the session filter.
 func (d *DB) ListMetricCatalog(sessionID string) ([]*MetricCatalogEntry, error) {
@@ -914,6 +997,19 @@ func (d *DB) ListMetricCatalog(sessionID string) ([]*MetricCatalogEntry, error) 
 		out[i] = &rows[i]
 	}
 	return out, nil
+}
+
+// GetMetricStreamMetadata returns the stable catalog fields for a stream,
+// without applying a time window.
+func (d *DB) GetMetricStreamMetadata(f MetricSeriesFilter) (*Metric, error) {
+	rows, err := d.query.Metric.GetStreamMetadata(f.Name, f.Service, f.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
 }
 
 // MetricSeriesFilter scopes a series query.

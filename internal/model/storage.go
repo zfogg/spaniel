@@ -117,6 +117,21 @@ type MetricCatalogEntry struct {
 	SampleCount            int    `json:"sample_count"`
 }
 
+// MetricSeriesCatalog is the durable identity set admitted by the cardinality
+// policy. It has no user-facing representation beyond aggregate counts.
+type MetricSeriesCatalog struct {
+	SessionID        string `gorm:"primaryKey"`
+	ServiceName      string `gorm:"primaryKey"`
+	Name             string `gorm:"primaryKey"`
+	SeriesKey        string `gorm:"primaryKey"`
+	SeriesAttributes string
+	FirstTimestampNs int64
+	LastTimestampNs  int64
+	PointCount       int64
+}
+
+func (MetricSeriesCatalog) TableName() string { return "metric_series_catalog" }
+
 type P95Value struct{ P95Ns int64 }
 
 // Meta is the persisted key-value table for small storage state such as drop

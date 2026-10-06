@@ -297,6 +297,7 @@ type IMetricDo interface {
 	schema.Tabler
 
 	ListCatalog(sessionID string) (result []model.MetricCatalogEntry, err error)
+	GetStreamMetadata(name string, service string, sessionID string) (result []model.Metric, err error)
 }
 
 // ListCatalog
@@ -309,6 +310,28 @@ func (m metricDo) ListCatalog(sessionID string) (result []model.MetricCatalogEnt
 	params = append(params, sessionID)
 	params = append(params, sessionID)
 	generateSQL.WriteString("SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count FROM metrics WHERE (? = '' OR session_id = ?) GROUP BY name, service_name, type, unit, description ORDER BY service_name, name ")
+
+	var executeSQL *gorm.DB
+	executeSQL = m.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
+}
+
+// GetStreamMetadata
+//
+// SELECT name, description, unit, type, aggregation_temporality, is_monotonic, service_name FROM @@table WHERE (@name = ” OR name = @name) AND (@service = ” OR service_name = @service) AND (@sessionID = ” OR session_id = @sessionID) ORDER BY timestamp_ns DESC LIMIT 1
+func (m metricDo) GetStreamMetadata(name string, service string, sessionID string) (result []model.Metric, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, name)
+	params = append(params, name)
+	params = append(params, service)
+	params = append(params, service)
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	generateSQL.WriteString("SELECT name, description, unit, type, aggregation_temporality, is_monotonic, service_name FROM metrics WHERE (? = '' OR name = ?) AND (? = '' OR service_name = ?) AND (? = '' OR session_id = ?) ORDER BY timestamp_ns DESC LIMIT 1 ")
 
 	var executeSQL *gorm.DB
 	executeSQL = m.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

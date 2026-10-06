@@ -78,6 +78,11 @@ type SpanListMethods interface {
 	// SELECT COUNT(*) AS count FROM (SELECT 1 FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) GROUP BY service_name, name, kind) groups
 	CountGroups(sessionID string) ([]CountValue, error)
 
+	// CountTraces
+	//
+	// SELECT COUNT(*) AS count FROM @@table WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (@sessionID = '' OR session_id = @sessionID) AND (@service = '' OR service_name = @service)
+	CountTraces(sessionID, service string) ([]CountValue, error)
+
 	// ListSourceStats
 	//
 	// SELECT service_name, COUNT(*) AS span_count, COUNT(*) FILTER (WHERE status_code = 2) AS error_count, SUM(LENGTH(attributes) + LENGTH(resource)) AS bytes_total, MIN(received_at) AS first_seen, MAX(received_at) AS last_seen FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) GROUP BY service_name ORDER BY span_count DESC
@@ -115,6 +120,11 @@ type MetricMethods interface {
 	//
 	// SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) GROUP BY name, service_name, type, unit, description ORDER BY service_name, name
 	ListCatalog(sessionID string) ([]MetricCatalogEntry, error)
+
+	// GetStreamMetadata
+	//
+	// SELECT name, description, unit, type, aggregation_temporality, is_monotonic, service_name FROM @@table WHERE (@name = '' OR name = @name) AND (@service = '' OR service_name = @service) AND (@sessionID = '' OR session_id = @sessionID) ORDER BY timestamp_ns DESC LIMIT 1
+	GetStreamMetadata(name, service, sessionID string) ([]Metric, error)
 }
 
 type SpanMetricMethods interface {
