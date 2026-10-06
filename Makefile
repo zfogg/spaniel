@@ -11,7 +11,7 @@ dev:
 	@# reload). `trap 'kill 0'` makes the vite child die with the make
 	@# process instead of orphaning when you Ctrl-C spaniel.
 	@trap 'kill 0' EXIT INT TERM; \
-	  ( cd frontend && pnpm dev --host 127.0.0.1 ) & \
+	  ( cd frontend && SPANIEL_API_URL=http://localhost:8080 pnpm dev --host 127.0.0.1 ) & \
 	  printf "waiting for vite…"; \
 	  until curl -sf http://localhost:5173 >/dev/null 2>&1; do printf '.'; sleep 0.3; done; \
 	  echo " ready"; \

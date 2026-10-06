@@ -299,6 +299,12 @@ export const SettingsSchema = z.object({
   runtime: SettingsRuntimeSchema,
 })
 
+// Older Spaniel daemons predate auto_prune. Keep the form schema strict while
+// accepting their read responses with the safe default retention policy.
+export const SettingsResponseSchema = SettingsSchema.extend({
+  auto_prune: z.boolean().default(true),
+})
+
 export const SourceStatsSchema = z.object({
   service: z.string(),
   accepted_per_sec: z.number(),
@@ -385,7 +391,8 @@ export const SessionSizeSchema = z.object({
 
 export const StorageBreakdownSchema = z.object({
   tables: z.array(TableStatSchema),
-  sessions: z.array(SessionSizeSchema),
+  // v0.2.2 emitted null when no session sizes were available.
+  sessions: z.array(SessionSizeSchema).nullish().transform(value => value ?? []),
   wal_bytes: z.number(),
   main_bytes: z.number(),
   last_checkpoint_at: z.number(),
@@ -594,7 +601,7 @@ export const api = {
     list: () => get('/api/forwarders', z.array(ForwarderStatusSchema)),
   },
   settings: {
-    get: () => get('/api/settings', SettingsSchema),
+    get: () => get('/api/settings', SettingsResponseSchema),
     update: async (patchBody: SettingsUpdate): Promise<Envelope<Settings>> => {
       const r = await fetch('/api/settings', {
         method: 'PUT',

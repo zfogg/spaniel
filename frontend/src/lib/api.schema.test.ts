@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  TraceRowSchema, SpanSchema, LogSchema, SessionSchema, SettingsSchema,
+  TraceRowSchema, SpanSchema, LogSchema, SessionSchema, SettingsSchema, SettingsResponseSchema,
+  StorageBreakdownSchema,
   ServiceMapDataSchema, MetricSeriesSchema, MetricCatalogEntrySchema,
   CoverageReportSchema, StatsSchema, LintWarningSchema, TraceIssueSchema,
 } from './api'
@@ -63,6 +64,22 @@ describe('api response schemas', () => {
       runtime: { pid: 1, uptime_ns: 1, version: 'v0', channel: 'stable', config_path: '/c',
         otlp_grpc_port: 4317, otlp_http_port: 4318, db_size_bytes: 1 },
     }).success).toBe(true)
+  })
+
+  it('accepts an older daemon response without auto-prune', () => {
+    const settings = SettingsResponseSchema.parse({
+      port: 8080, db_path: '/db', retention_days: 7, max_sessions: 50, max_db_size_mb: 500,
+      otlp_grpc_port: 4317, otlp_http_port: 4318, no_browser: false, forward: [],
+      bind_address_v4: '127.0.0.1', bind_address_v6: '::1', forward_sample: 1, source_rps: 0,
+      source_burst: 0, tls_enabled: false, bearer_token_set: false, self_monitor: false,
+      mcp_enabled: true, mcp_allow_writes: false,
+      runtime: { pid: 1, uptime_ns: 1, version: 'v0.2.2', channel: 'stable', config_path: '/c',
+        otlp_grpc_port: 4317, otlp_http_port: 4318, db_size_bytes: 1 },
+    })
+    expect(settings.auto_prune).toBe(true)
+    expect(StorageBreakdownSchema.parse({
+      tables: [], sessions: null, wal_bytes: 0, main_bytes: 0, last_checkpoint_at: 0,
+    }).sessions).toEqual([])
   })
 
   it('accepts ServiceMapData, MetricSeries, Coverage, Stats, Lint, Issue shapes', () => {

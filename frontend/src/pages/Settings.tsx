@@ -26,6 +26,31 @@ function FieldError({ name }: { name: keyof SettingsFormValues }) {
 
 // ── atoms ────────────────────────────────────────────────────────────────────
 
+function MCPConfigTable({ entries }: { entries: Array<{ label: string; value: string; copied: boolean; onCopy: () => void; block?: boolean }> }) {
+  return (
+    <table className="w-full table-fixed border-collapse">
+      <colgroup>
+        <col className="w-[132px]" />
+        <col />
+        <col className="w-[48px]" />
+      </colgroup>
+      <tbody>
+        {entries.map(({ label, value, copied, onCopy, block }) => (
+          <tr key={label} className={block ? 'align-top' : 'align-middle'}>
+            <th scope="row" className="pr-2 py-1 text-left font-mono text-[10px] font-normal text-muted-foreground">{label}</th>
+            <td className="py-1">
+              <code className={`block w-full break-all rounded bg-muted px-2 py-1 font-mono text-[10px] text-foreground ${block ? 'whitespace-pre-wrap' : 'truncate'}`}>{value}</code>
+            </td>
+            <td className="pl-2 py-1 align-top">
+              <button type="button" onClick={onCopy} className="w-full rounded border border-border px-2 py-1 font-mono text-[10px] text-foreground hover:bg-muted">{copied ? 'copied' : 'copy'}</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
@@ -619,8 +644,10 @@ function GeneralSection({ s, mutate, hidden }: {
 }) {
   const [copied, setCopied] = useState<string | null>(null)
   const endpoint = `${window.location.origin}/mcp`
-  const addCmd = `claude mcp add --transport http spaniel ${endpoint}`
+  const claudeAddCmd = `claude mcp add --transport http spaniel ${endpoint}`
+  const codexAddCmd = `codex mcp add spaniel --url ${endpoint}`
   const mcpJson = JSON.stringify({ mcpServers: { spaniel: { type: 'http', url: endpoint } } }, null, 2)
+  const codexConfig = `[mcp_servers.spaniel]\nurl = "${endpoint}"`
 
   const copy = useCallback((key: string, text: string) => {
     navigator.clipboard?.writeText(text)
@@ -651,7 +678,7 @@ function GeneralSection({ s, mutate, hidden }: {
       </Row>
     </Card>
 
-    <Card id="mcp" title="MCP" sub="Model Context Protocol endpoint for AI agents (Claude Code/Desktop)" hidden={hidden}>
+    <Card id="mcp" title="MCP" sub="Model Context Protocol endpoint for AI agents (Codex, Claude Code, Desktop)" hidden={hidden}>
       <Row label="Endpoint" hint="Streamable-HTTP MCP endpoint served on the UI port." testid="row-mcp-endpoint" align="center">
         {s.mcp_enabled
           ? <>
@@ -682,28 +709,18 @@ function GeneralSection({ s, mutate, hidden }: {
                 </>}
           </Row>
 
-          <Row label="Connect" hint="Register this server with Claude Code." testid="row-mcp-connect" align="center">
-            <code className="flex-1 min-w-0 font-mono text-[11px] text-foreground bg-muted py-1 px-1.5 rounded break-all">{addCmd}</code>
-            <button
-              type="button"
-              data-testid="mcp-copy-btn"
-              onClick={() => copy('cmd', addCmd)}
-              className="px-3 h-[28px] rounded-md bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden cursor-pointer shrink-0"
-            >
-              {copied === 'cmd' ? 'copied ✓' : 'copy'}
-            </button>
+          <Row label="Agent CLI command" hint="Register Spaniel using the command for your agent CLI." testid="row-mcp-connect">
+            <MCPConfigTable entries={[
+              { label: 'Codex', value: codexAddCmd, copied: copied === 'codex-cmd', onCopy: () => copy('codex-cmd', codexAddCmd) },
+              { label: 'Claude Code', value: claudeAddCmd, copied: copied === 'claude-cmd', onCopy: () => copy('claude-cmd', claudeAddCmd) },
+            ]} />
           </Row>
 
-          <Row label=".mcp.json" hint="Project-scoped config — commit this to your repo to share the server with collaborators." testid="row-mcp-json">
-            <pre className="flex-1 min-w-0 font-mono text-[11px] text-foreground bg-muted p-2 rounded overflow-x-auto whitespace-pre">{mcpJson}</pre>
-            <button
-              type="button"
-              data-testid="mcp-json-copy-btn"
-              onClick={() => copy('json', mcpJson)}
-              className="px-3 h-[28px] rounded-md bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden cursor-pointer shrink-0 self-start"
-            >
-              {copied === 'json' ? 'copied ✓' : 'copy'}
-            </button>
+          <Row label="Agent file config" hint="Add the configuration for your agent to its config file." testid="row-mcp-agent-config">
+            <MCPConfigTable entries={[
+              { label: '.mcp.json', value: mcpJson, copied: copied === 'json', onCopy: () => copy('json', mcpJson), block: true },
+              { label: '.codex/config.toml', value: codexConfig, copied: copied === 'codex-config', onCopy: () => copy('codex-config', codexConfig), block: true },
+            ]} />
           </Row>
         </>
       )}
