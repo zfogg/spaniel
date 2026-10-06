@@ -2,79 +2,52 @@ package storage
 
 import (
 	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"github.com/zfogg/spaniel/internal/model"
+	"github.com/zfogg/spaniel/internal/storage/querygen"
 	"time"
 )
 
-type AlertRule struct {
-	ID              string           `json:"id"`
-	Name            string           `json:"name"`
-	QuerySQL        string           `json:"query_sql"`
-	QueryVersion    int              `json:"query_version"`
-	ConditionJSON   string           `json:"condition_json"`
-	GroupByJSON     string           `json:"group_by_json"`
-	PendingForNs    int64            `json:"pending_for_ns"`
-	CooldownNs      int64            `json:"cooldown_ns"`
-	Severity        string           `json:"severity"`
-	AnnotationsJSON string           `json:"annotations_json"`
-	Enabled         bool             `json:"enabled"`
-	CreatedAt       int64            `json:"created_at"`
-	UpdatedAt       int64            `json:"updated_at"`
-	Instances       []*AlertInstance `json:"instances,omitempty" gorm:"-"`
-}
+type AlertRule = model.AlertRule
+type AlertInstance = model.AlertInstance
 
-func (AlertRule) TableName() string { return "alert_rules" }
-
-type AlertInstance struct {
-	RuleID          string   `json:"rule_id" gorm:"primaryKey"`
-	GroupKey        string   `json:"group_key" gorm:"primaryKey"`
-	LabelsJSON      string   `json:"labels_json"`
-	State           string   `json:"state"`
-	Value           *float64 `json:"value"`
-	FirstPendingAt  *int64   `json:"first_pending_at"`
-	FiredAt         *int64   `json:"fired_at"`
-	ResolvedAt      *int64   `json:"resolved_at"`
-	AcknowledgedAt  *int64   `json:"acknowledged_at"`
-	LastEvaluatedAt int64    `json:"last_evaluated_at"`
-	LastError       string   `json:"last_error"`
-	LastNotifiedAt  *int64   `json:"last_notified_at"`
-}
-
-func (AlertInstance) TableName() string { return "alert_instances" }
 func (d *DB) ListAlertRules() ([]*AlertRule, error) {
-	var xs []*AlertRule
-	if err := d.gorm.Order("updated_at DESC").Find(&xs).Error; err != nil {
+	xs, err := d.query.AlertRule.Order(d.query.AlertRule.UpdatedAt.Desc()).Find()
+	if err != nil {
 		return nil, err
 	}
 	for _, x := range xs {
-		if err := d.gorm.Where("rule_id = ?", x.ID).Order("last_evaluated_at DESC").Find(&x.Instances).Error; err != nil {
+		instances, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(x.ID)).Order(d.query.AlertInstance.LastEvaluatedAt.Desc()).Find()
+		if err != nil {
 			return nil, err
 		}
+		x.Instances = instances
 	}
 	return xs, nil
 }
 func (d *DB) GetAlertRule(id string) (*AlertRule, error) {
-	var x AlertRule
-	if err := d.gorm.First(&x, "id = ?", id).Error; err != nil {
+	x, err := d.query.AlertRule.Where(d.query.AlertRule.ID.Eq(id)).First()
+	if err != nil {
 		return nil, err
 	}
-	if err := d.gorm.Where("rule_id = ?", id).Order("last_evaluated_at DESC").Find(&x.Instances).Error; err != nil {
+	instances, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(id)).Order(d.query.AlertInstance.LastEvaluatedAt.Desc()).Find()
+	if err != nil {
 		return nil, err
 	}
-	return &x, nil
+	x.Instances = instances
+	return x, nil
 }
 func (d *DB) CreateAlertRule(r *AlertRule) error {
 	now := time.Now().UnixNano()
 	r.ID = uuid.NewString()
 	r.CreatedAt = now
 	r.UpdatedAt = now
-	return d.gorm.Create(r).Error
+	return d.query.AlertRule.Create(r)
 }
 func (d *DB) UpdateAlertRule(r *AlertRule) error {
 	r.UpdatedAt = time.Now().UnixNano()
-	return d.gorm.Model(&AlertRule{}).Where("id = ?", r.ID).Updates(map[string]any{"name": r.Name, "query_sql": r.QuerySQL, "query_version": r.QueryVersion, "condition_json": r.ConditionJSON, "group_by_json": r.GroupByJSON, "pending_for_ns": r.PendingForNs, "cooldown_ns": r.CooldownNs, "severity": r.Severity, "annotations_json": r.AnnotationsJSON, "enabled": r.Enabled, "updated_at": r.UpdatedAt}).Error
+	return d.query.AlertRule.Save(r)
 }
-func (d *DB) UpsertAlertInstance(x *AlertInstance) error { return d.gorm.Save(x).Error }
+func (d *DB) UpsertAlertInstance(x *AlertInstance) error { return d.query.AlertInstance.Save(x) }
 
 // AcknowledgeAlert returns only the instances whose acknowledgement metadata
 // changed. Callers use that list to emit one genuine acknowledgement event per
@@ -85,14 +58,22 @@ func (d *DB) AcknowledgeAlert(id string) ([]*AlertInstance, error) {
 	// firing condition must remain firing so a later evaluation can resolve it
 	// correctly (and so the UI can still communicate the actual condition).
 	var changed []*AlertInstance
-	err := d.gorm.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("rule_id = ? AND state IN ('pending','firing') AND acknowledged_at IS NULL", id).Find(&changed).Error; err != nil {
+	err := d.query.Transaction(func(tx *querygen.Query) error {
+		q := tx.AlertInstance.Where(
+			tx.AlertInstance.RuleID.Eq(id),
+			tx.AlertInstance.State.In("pending", "firing"),
+			tx.AlertInstance.AcknowledgedAt.IsNull(),
+		)
+		var err error
+		changed, err = q.Find()
+		if err != nil {
 			return err
 		}
 		if len(changed) == 0 {
 			return nil
 		}
-		return tx.Model(&AlertInstance{}).Where("rule_id = ? AND state IN ('pending','firing') AND acknowledged_at IS NULL", id).Update("acknowledged_at", now).Error
+		_, err = q.Update(tx.AlertInstance.AcknowledgedAt, now)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -103,10 +84,11 @@ func (d *DB) AcknowledgeAlert(id string) ([]*AlertInstance, error) {
 	return changed, nil
 }
 func (d *DB) DeleteAlertRule(id string) error {
-	return d.gorm.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("rule_id = ?", id).Delete(&AlertInstance{}).Error; err != nil {
+	return d.query.Transaction(func(tx *querygen.Query) error {
+		if _, err := tx.AlertInstance.Where(tx.AlertInstance.RuleID.Eq(id)).Delete(); err != nil {
 			return err
 		}
-		return tx.Delete(&AlertRule{}, "id = ?", id).Error
+		_, err := tx.AlertRule.Where(tx.AlertRule.ID.Eq(id)).Delete()
+		return err
 	})
 }

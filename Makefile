@@ -1,4 +1,4 @@
-.PHONY: dev build run test setup
+.PHONY: dev build run test test-storage generate setup
 
 # Version string baked into the binary: the latest git tag (e.g. v0.2.1), with
 # a -N-gSHA suffix for commits past the tag and -dirty for uncommitted changes.
@@ -42,6 +42,14 @@ run:
 
 test:
 	go test ./...
+
+# Focused backend verification for storage work when the embedded frontend
+# artifact has not been built in an isolated worktree.
+test-storage:
+	go test ./internal/storage
+
+generate:
+	go run ./cmd/genquery
 
 setup:
 	git config core.hooksPath git-hooks
