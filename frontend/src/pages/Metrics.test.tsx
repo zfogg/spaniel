@@ -6,6 +6,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Metrics from './Metrics'
 import { bucketPoints } from '@/lib/metrics-bucket'
 
+let liveEvent: ((event: { type: string; payload: { name?: string; serviceName?: string } }) => void) | null = null
+vi.mock('@/lib/ws', () => ({
+  onWSEvent: (listener: typeof liveEvent) => {
+    liveEvent = listener
+    return () => { liveEvent = null }
+  },
+}))
+
 // Metrics uses useNavigate() (correlated-traces panel) and useQuery, so it
 // needs both a Router and a QueryClient context. A fresh client per render
 // (with retries off) keeps cases isolated while leaving them otherwise unchanged.
@@ -39,6 +47,7 @@ function setup(opts: { catalog?: MetricCatalogEntry[]; series?: Record<string, M
 
 beforeEach(() => {
   routes = {}
+  liveEvent = null
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     // match by path; ignore query param order and additional params like 'from'
     for (const [routePath, body] of Object.entries(routes)) {
@@ -290,6 +299,23 @@ describe('<Metrics />', () => {
     })
     renderMetrics(['/metrics?metric=http.server.response.body.size&service=api'])
     await waitFor(() => expect((fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes('operation=avg'))).toBe(true))
+  })
+
+  it('refreshes the selected metric from its matching WebSocket event', async () => {
+    setup({
+      catalog: [{ name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 1 }],
+      series: {
+        'name=http.requests&service=api&operation=raw&with_traces=1': {
+          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', points: [], traces: [],
+        },
+      },
+    })
+    renderMetrics(['/metrics?metric=http.requests&service=api'])
+    await waitFor(() => expect(liveEvent).toBeTypeOf('function'))
+    const fetchMock = fetch as ReturnType<typeof vi.fn>
+    const before = fetchMock.mock.calls.length
+    liveEvent!({ type: 'metric', payload: { name: 'http.requests', serviceName: 'api' } })
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before))
   })
 
   it('buckets histogram points by percentile attribute', () => {

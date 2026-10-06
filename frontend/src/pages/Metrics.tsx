@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
@@ -7,6 +7,7 @@ import { svcColor } from '@/lib/span-utils'
 import { bucketPoints, type BucketedSeries, type MetricType } from '@/lib/metrics-bucket'
 import { fmtVal, statsFor, type Stat } from '@/lib/metrics-format'
 import { xPosForTrace, valueAtBin } from '@/lib/metrics-correlate'
+import { onWSEvent } from '@/lib/ws'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 
@@ -337,6 +338,31 @@ function displayUnit(unit: string): string {
   return names[unit] ?? unit
 }
 
+// The app-wide invalidator keeps every view eventually fresh. The selected
+// chart needs a narrower path: refresh it from its matching metric event,
+// without waiting for the global one-second invalidation sweep or refetching
+// unrelated metric views.
+function useSelectedMetricLiveRefresh(metric: MetricCatalogEntry | null, range: TimeRange, operation: string) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!metric) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const key = qk.metricSeries({ name: metric.name, service: metric.service_name, range, operation })
+    const unsubscribe = onWSEvent((event) => {
+      if (event.type !== 'metric' || event.payload.name !== metric.name || event.payload.serviceName !== metric.service_name) return
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        queryClient.invalidateQueries({ queryKey: key })
+      }, 150)
+    })
+    return () => {
+      unsubscribe()
+      if (timer) clearTimeout(timer)
+    }
+  }, [metric?.name, metric?.service_name, operation, queryClient, range])
+}
+
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export default function Metrics() {
@@ -365,6 +391,8 @@ export default function Metrics() {
     if (selected) setOperation(defaultMetricOperation(selected))
   }, [selectedName, selectedService, selected?.type])
 
+  useSelectedMetricLiveRefresh(selected, range, operation)
+
   const selectMetric = (metric: MetricCatalogEntry, replace = false) => {
 		setOperation(defaultMetricOperation(metric))
     const next = new URLSearchParams(searchParams)
@@ -381,7 +409,7 @@ export default function Metrics() {
   }, [catalog, selected, selectedName, selectedService])
 
   // `range` (not the computed `from`) is the key input so we don't refetch on
-  // every render; the live invalidator refreshes the series on metric events.
+  // every render; matching WebSocket metric events refresh this active series.
   const { data: series = null, isLoading: seriesLoading, isError: seriesIsError, error: seriesError, refetch: refetchSeries } = useQuery({
     queryKey: qk.metricSeries({ name: selected?.name, service: selected?.service_name, range, operation }),
     queryFn: () => api.metrics
