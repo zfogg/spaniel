@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel,
   type ColumnDef, type ColumnFiltersState, type Row,
 } from '@tanstack/react-table'
 import { qk } from '@/lib/query'
-import { api, type SpanRow } from '@/lib/api'
+import { api, type SpanGroup, type SpanRow } from '@/lib/api'
 import { svcColor, httpDisplayName } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
@@ -35,6 +35,8 @@ function parseAttrs(raw: string): Record<string, unknown> {
 }
 
 const SLOW_NS = 250_000_000
+const PAGE_SIZE = 100
+type SpanView = 'all' | 'grouped'
 
 // ── SvcChip ───────────────────────────────────────────────────────────────────
 
@@ -210,19 +212,52 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
 // ── Spans page ────────────────────────────────────────────────────────────────
 
 export default function Spans() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [view, setViewState] = useState<SpanView>(() => {
+    const fromURL = searchParams.get('view')
+    if (fromURL === 'all' || fromURL === 'grouped') return fromURL
+    return localStorage.getItem('spaniel.spans.view') === 'grouped' ? 'grouped' : 'all'
+  })
+  useEffect(() => {
+    const fromURL = searchParams.get('view')
+    if (fromURL === 'all' || fromURL === 'grouped') setViewState(fromURL)
+  }, [searchParams])
   const [sortBy, setSortBy] = useState<'time' | 'dur' | 'name'>('time')
   const [query, setQuery] = useState('')
   const [svcSel, setSvcSel] = useState<string | null>(null)
   const [kindSel, setKindSel] = useState<string | null>(null)
   const [tagSel, setTagSel] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [drilldown, setDrilldown] = useState<Pick<SpanGroup, 'service_name' | 'name' | 'kind'> | null>(null)
+
+  const setView = (next: SpanView) => {
+    setViewState(next)
+    localStorage.setItem('spaniel.spans.view', next)
+    const params = new URLSearchParams(searchParams)
+    params.set('view', next)
+    setSearchParams(params, { replace: true })
+    setPage(1)
+    setSelectedId(null)
+    if (next === 'grouped') setDrilldown(null)
+  }
 
   // sort is part of the server request, so it goes in the query key; live span
   // events refresh this via useLiveInvalidation() in App.tsx.
-  const { data: spans = [], isLoading: loading, isError, error, refetch } = useQuery({
-    queryKey: qk.spans({ sort: sortBy }),
-    queryFn: () => api.spans.list({ sort: sortBy }).then(r => r.data),
+  const { data: spanResponse, isLoading: loading, isError, error, refetch } = useQuery({
+    queryKey: qk.spans({ sort: sortBy, page, drilldown }),
+    queryFn: () => api.spans.list({ sort: sortBy, page, limit: PAGE_SIZE, service: drilldown?.service_name, name: drilldown?.name, kind: drilldown?.kind }),
+    enabled: view === 'all' || drilldown !== null,
   })
+  const spans = spanResponse?.data ?? []
+  const spanTotal = spanResponse?.meta.total ?? 0
+  const { data: groupResponse, isLoading: groupsLoading, isError: groupsError, error: groupsErrorDetail, refetch: refetchGroups } = useQuery({
+    queryKey: qk.spans({ view: 'grouped', page }),
+    queryFn: () => api.spans.groups({ page, limit: PAGE_SIZE }),
+    enabled: view === 'grouped',
+  })
+  const groups = groupResponse?.data ?? []
+  const groupTotal = groupResponse?.meta.total ?? 0
 
   // facet counts computed from the full dataset
   const svcFacets = useMemo(() => {
@@ -292,7 +327,7 @@ export default function Spans() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* Sidebar */}
-      <aside
+      {view === 'all' && <aside
         data-testid="spans-sidebar"
         className="w-[200px] border-r border-border bg-background flex flex-col overflow-x-hidden overflow-y-auto shrink-0 py-3"
       >
@@ -348,12 +383,19 @@ export default function Spans() {
             onClick={() => setTagSel(tagSel === 'error' ? null : 'error')}
           >errored</SbItem>
         </SbGroup>
-      </aside>
+      </aside>}
 
       {/* Main */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
         {/* Search + filters bar */}
         <div className="px-3.5 py-2.5 border-b border-border flex items-center gap-2.5 flex-wrap">
+          <div className="inline-flex h-[30px] overflow-hidden rounded-lg border border-border bg-muted font-mono text-[11px]" data-testid="spans-view-toggle">
+            {(['all', 'grouped'] as const).map(option => (
+              <button key={option} type="button" onClick={() => setView(option)}
+                className={`border-0 px-2.5 cursor-pointer ${view === option ? 'bg-[var(--accent)] text-white' : 'bg-transparent text-muted-foreground'}`}
+              >{option === 'all' ? 'All' : 'Grouped'}</button>
+            ))}
+          </div>
           <div className="inline-flex items-center gap-[7px] bg-muted border border-border rounded-lg px-2.5 h-[30px] flex-1 min-w-[240px]">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
               <circle cx="6" cy="6" r="4" stroke="var(--muted-foreground)" strokeWidth="1.4" />
@@ -364,7 +406,7 @@ export default function Spans() {
               data-testid="spans-search"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="search by name, attribute key or value, trace id…"
+              placeholder={view === 'grouped' ? 'search the current page of operations…' : 'search by name, attribute key or value, trace id…'}
               className="flex-1 border-none outline-none bg-transparent font-mono text-xs text-foreground"
             />
             {query && (
@@ -380,7 +422,7 @@ export default function Spans() {
             <FilterChip key={f.label} label={f.label} onClear={f.clear} />
           ))}
 
-          <div className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground px-2.5 h-[30px] rounded-md bg-muted border border-border">
+          {view === 'all' && <div className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground px-2.5 h-[30px] rounded-md bg-muted border border-border">
             <span>sort</span>
             <select
               data-testid="spans-sort"
@@ -392,28 +434,46 @@ export default function Spans() {
               <option value="dur">duration ↓</option>
               <option value="name">name a→z</option>
             </select>
-          </div>
+          </div>}
         </div>
+
+        {drilldown && view === 'all' && (
+          <div className="flex items-center gap-2 px-3.5 py-2 border-b border-border bg-muted font-mono text-[11px]">
+            <button type="button" onClick={() => { setDrilldown(null); setPage(1) }} className="border-0 bg-transparent cursor-pointer text-[var(--accent)]">← all groups</button>
+            <span className="text-muted-foreground">{drilldown.service_name} / {drilldown.name}</span>
+          </div>
+        )}
 
         {/* Column headers */}
         <div
           className="grid gap-2.5 px-3.5 py-[7px] border-b border-border font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-muted"
-          style={{ gridTemplateColumns: 'minmax(0,1.6fr) 130px 80px 70px 130px 60px' }}
+          style={{ gridTemplateColumns: view === 'grouped' ? 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px' : 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px' }}
         >
-          <div>name</div>
-          <div>service</div>
-          <div>kind</div>
-          <div className="text-right">dur</div>
-          <div>trace</div>
-          <div className="text-right">tag</div>
+          {view === 'grouped' ? <>
+            <div>operation</div><div>service</div><div>kind</div><div className="text-right">count</div><div>latest</div><div className="text-right">errors</div><div className="text-right">p50</div><div className="text-right">p95</div><div className="text-right">max</div>
+          </> : <><div>name</div><div>service</div><div>kind</div><div className="text-right">dur</div><div>started</div><div>trace</div><div className="text-right">tag</div></>}
         </div>
 
         {/* Rows */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto">
-          {loading ? (
+          {(view === 'grouped' ? groupsLoading : loading) ? (
             <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">loading…</div>
-          ) : isError ? (
-            <ErrorState what="spans" error={error} onRetry={() => refetch()} />
+          ) : (view === 'grouped' ? groupsError : isError) ? (
+            <ErrorState what="spans" error={view === 'grouped' ? groupsErrorDetail : error} onRetry={() => view === 'grouped' ? refetchGroups() : refetch()} />
+          ) : view === 'grouped' && groups.length === 0 ? (
+            <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">no operations match — clear the search or try another page</div>
+          ) : view === 'grouped' ? (
+            groups.filter(g => `${g.name} ${g.service_name}`.toLowerCase().includes(query.trim().toLowerCase())).map(g => (
+              <button key={`${g.service_name}:${g.name}:${g.kind}`} type="button" data-testid={`span-group-${g.service_name}-${g.name}`}
+                onClick={() => { setDrilldown(g); setPage(1); setView('all') }}
+                className="grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border bg-transparent"
+                style={{ gridTemplateColumns: 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px' }}>
+                <div className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{g.name}<span className="ml-2 text-[10px] text-muted-foreground">{g.attribute_variants} attribute {g.attribute_variants === 1 ? 'set' : 'sets'}</span></div>
+                <div><SvcChip name={g.service_name} /></div><div className="font-mono text-[10px] text-muted-foreground">{KIND_LABELS[g.kind] ?? 'unknown'}</div>
+                <div className="text-right font-mono text-[11.5px]">{g.count}</div><div className="font-mono text-[10px] text-muted-foreground">{fmtClock(g.latest_start_ns)}</div><div className="text-right font-mono text-[11.5px]" style={{ color: g.error_count ? 'var(--destructive)' : undefined }}>{g.error_count || '—'}</div>
+                <div className="text-right font-mono text-[11.5px]">{fmtDuration(g.p50_duration_ns)}</div><div className="text-right font-mono text-[11.5px]">{fmtDuration(g.p95_duration_ns)}</div><div className="text-right font-mono text-[11.5px]">{fmtDuration(g.max_duration_ns)}</div>
+              </button>
+            ))
           ) : filtered.length === 0 ? (
             spans.length === 0 ? (
               <EmptyState
@@ -443,7 +503,7 @@ export default function Spans() {
                 onClick={() => setSelectedId(isSel ? null : s.span_id)}
                 className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
                 style={{
-                  gridTemplateColumns: 'minmax(0,1.6fr) 130px 80px 70px 130px 60px',
+                  gridTemplateColumns: 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
                   background: isSel
                     ? 'color-mix(in oklch, var(--accent, #6366f1) 14%, var(--background))'
                     : undefined,
@@ -456,6 +516,7 @@ export default function Spans() {
                   className="text-right font-mono text-[11.5px] font-semibold"
                   style={{ color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)' }}
                 >{fmtDuration(s.duration_ns)}</div>
+                <div className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">{fmtClock(s.start_ns)}</div>
                 <div title={s.trace_id} className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">{s.trace_id}</div>
                 <div className="text-right">
                   <TagBadge tag={s.tag} />
@@ -468,12 +529,14 @@ export default function Spans() {
         {/* Status footer */}
         <div className="px-3.5 py-2 border-t border-border bg-muted font-mono text-[10.5px] text-muted-foreground flex items-center gap-3.5">
           <span>
-            <strong className="text-foreground">{filtered.length.toLocaleString()}</strong>
-            {' '}of {spans.length.toLocaleString()} spans
+            <strong className="text-foreground">{view === 'grouped' ? groups.length.toLocaleString() : filtered.length.toLocaleString()}</strong>
+            {' '}of {(view === 'grouped' ? groupTotal : spanTotal).toLocaleString()} {view === 'grouped' ? 'operations' : 'spans'}
           </span>
           <span>·</span>
-          <span>last 24h</span>
+          <span>page {page}</span>
           <span className="flex-1" />
+          <button type="button" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="border border-border rounded px-2 py-[3px] bg-background disabled:opacity-40 cursor-pointer">prev</button>
+          <button type="button" disabled={page * PAGE_SIZE >= (view === 'grouped' ? groupTotal : spanTotal)} onClick={() => setPage(p => p + 1)} className="border border-border rounded px-2 py-[3px] bg-background disabled:opacity-40 cursor-pointer">next</button>
           <code className="px-2 py-[3px] rounded-[5px] border border-border bg-background text-muted-foreground font-mono text-[10px]">spaniel spans --tail</code>
         </div>
       </div>

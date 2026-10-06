@@ -239,10 +239,39 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	if q.Get("view") == "grouped" {
+		filter := storage.SpanFilter{SessionID: r.scopeSession(q.Get("sessionId")), Limit: limit, Page: page}
+		groups, err := r.store.WithContext(req.Context()).ListSpanGroups(filter)
+		if err != nil {
+			respondErr(w, req, 500, err.Error())
+			return
+		}
+		total, err := r.store.WithContext(req.Context()).CountSpanGroups(filter)
+		if err != nil {
+			respondErr(w, req, 500, err.Error())
+			return
+		}
+		if groups == nil {
+			groups = []*storage.SpanGroup{}
+		}
+		respond(w, groups, total, page)
+		return
+	}
+	kind, kindErr := strconv.Atoi(q.Get("kind"))
+	hasKind := q.Get("kind") != "" && kindErr == nil
 	rows, err := r.store.WithContext(req.Context()).ListSpans(storage.SpanFilter{
 		SessionID: r.scopeSession(q.Get("sessionId")),
 		Sort:      q.Get("sort"),
 		Limit:     limit,
+		Page:      page,
+		Service:   q.Get("service"),
+		Name:      q.Get("name"),
+		Kind:      kind,
+		HasKind:   hasKind,
 	})
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -258,7 +287,15 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 		row.Events = []*storage.SpanEvent{}
 		row.Links = []*storage.SpanLink{}
 	}
-	respond(w, rows, len(rows), 1)
+	total, err := r.store.WithContext(req.Context()).CountSpans(storage.SpanFilter{
+		SessionID: r.scopeSession(q.Get("sessionId")), Service: q.Get("service"), Name: q.Get("name"),
+		Kind: kind, HasKind: hasKind,
+	})
+	if err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	respond(w, rows, total, page)
 }
 
 func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {

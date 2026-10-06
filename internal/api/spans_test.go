@@ -202,6 +202,50 @@ func TestListSpans_LimitParam(t *testing.T) {
 	}
 }
 
+func TestListSpans_PaginatesAndReportsFullTotal(t *testing.T) {
+	handler, store := setupRouter(t)
+	for i := range 101 {
+		insertSpan(t, store, "sess-1", fmt.Sprintf("trace-%d", i), fmt.Sprintf("span-%d", i), "", "svc", "op")
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/spans?page=2&limit=100", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data []map[string]any `json:"data"`
+		Meta struct {
+			Total int `json:"total"`
+			Page  int `json:"page"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Data) != 1 || resp.Meta.Total != 101 || resp.Meta.Page != 2 {
+		t.Errorf("got rows=%d total=%d page=%d, want 1/101/2", len(resp.Data), resp.Meta.Total, resp.Meta.Page)
+	}
+}
+
+func TestListSpans_GroupedByServiceNameAndKind(t *testing.T) {
+	handler, store := setupRouter(t)
+	now := int64(1_000_000_000)
+	for i := range 2 {
+		store.InsertSpan(&storage.Span{TraceID: fmt.Sprintf("t-%d", i), SpanID: fmt.Sprintf("s-%d", i), ServiceName: "svc", Name: "same-op", Kind: 2, StartNs: now + int64(i), EndNs: now + 100_000_000 + int64(i), DurationNs: 100_000_000, Attributes: `{"a":1}`, Resource: "{}", SessionID: "sess-1", SessionLabel: "sess-1", ReceivedAt: now}) //nolint:errcheck
+	}
+	data := listSpansData(t, handler, "?view=grouped")
+	if len(data) != 1 {
+		t.Fatalf("groups: got %d, want 1", len(data))
+	}
+	if count, _ := data[0]["count"].(float64); count != 2 {
+		t.Errorf("count = %v, want 2", count)
+	}
+	if variants, _ := data[0]["attribute_variants"].(float64); variants != 1 {
+		t.Errorf("attribute_variants = %v, want 1", variants)
+	}
+}
+
 func TestListSpans_NoTagForFastOkSpan(t *testing.T) {
 	handler, store := setupRouter(t)
 	now := int64(1_000_000_000)
@@ -294,8 +338,8 @@ func TestGetSpan_IncludesEvents(t *testing.T) {
 
 	var resp struct {
 		Data struct {
-			SpanID string                  `json:"span_id"`
-			Events []map[string]any        `json:"events"`
+			SpanID string           `json:"span_id"`
+			Events []map[string]any `json:"events"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -349,10 +393,10 @@ func TestGetSpan_IncludesLinks(t *testing.T) {
 		{SpanID: "span-li", TraceID: "trace-li", SessionID: "sess-1",
 			LinkedTraceID: "trace-prod-a", LinkedSpanID: "span-prod-a",
 			TraceState: "rojo=00f067aa0ba902b7",
-			Attributes:  `{"messaging.operation":"process"}`},
+			Attributes: `{"messaging.operation":"process"}`},
 		{SpanID: "span-li", TraceID: "trace-li", SessionID: "sess-1",
 			LinkedTraceID: "trace-prod-b", LinkedSpanID: "span-prod-b",
-			Attributes:  "{}"},
+			Attributes: "{}"},
 	}); err != nil {
 		t.Fatalf("InsertSpanLinks: %v", err)
 	}

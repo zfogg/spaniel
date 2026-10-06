@@ -131,6 +131,12 @@ export const SpanRowSchema = SpanSchema.extend({
   tag: z.string().optional(),
 })
 
+export const SpanGroupSchema = z.object({
+  service_name: z.string(), name: z.string(), kind: z.number(), count: z.number(),
+  latest_start_ns: z.number(), error_count: z.number(), p50_duration_ns: z.number(),
+  p95_duration_ns: z.number(), max_duration_ns: z.number(), attribute_variants: z.number(),
+})
+
 export const LogSchema = z.object({
   timestamp_ns: z.number(),
   trace_id: z.string(),
@@ -412,6 +418,7 @@ export type SpanEvent = z.infer<typeof SpanEventSchema>
 export type SpanLink = z.infer<typeof SpanLinkSchema>
 export type Span = z.infer<typeof SpanSchema>
 export type SpanRow = z.infer<typeof SpanRowSchema>
+export type SpanGroup = z.infer<typeof SpanGroupSchema>
 export type Log = z.infer<typeof LogSchema>
 export type Session = z.infer<typeof SessionSchema>
 export type ImportResult = z.infer<typeof ImportResultSchema>
@@ -469,13 +476,24 @@ export const api = {
     exportUrl: (traceId: string) => `/api/traces/${traceId}/export`,
   },
   spans: {
-    list: (params?: { sort?: string; sessionId?: string; limit?: number }) => {
+    list: (params?: { sort?: string; sessionId?: string; limit?: number; page?: number; service?: string; name?: string; kind?: number }) => {
       const q = new URLSearchParams()
       if (params?.sort) q.set('sort', params.sort)
       if (params?.sessionId) q.set('sessionId', params.sessionId)
       if (params?.limit) q.set('limit', String(params.limit))
+      if (params?.page) q.set('page', String(params.page))
+      if (params?.service) q.set('service', params.service)
+      if (params?.name) q.set('name', params.name)
+      if (params?.kind !== undefined) q.set('kind', String(params.kind))
       const qs = q.toString()
       return get(`/api/spans${qs ? `?${qs}` : ''}`, z.array(SpanRowSchema))
+    },
+    groups: (params?: { sessionId?: string; limit?: number; page?: number }) => {
+      const q = new URLSearchParams({ view: 'grouped' })
+      if (params?.sessionId) q.set('sessionId', params.sessionId)
+      if (params?.limit) q.set('limit', String(params.limit))
+      if (params?.page) q.set('page', String(params.page))
+      return get(`/api/spans?${q}`, z.array(SpanGroupSchema))
     },
     get: (spanId: string) => get(`/api/spans/${spanId}`, SpanSchema),
   },

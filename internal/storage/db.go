@@ -650,6 +650,11 @@ type SpanFilter struct {
 	SessionID string
 	Sort      string // "time" | "dur" | "name"
 	Limit     int
+	Page      int
+	Service   string
+	Name      string
+	Kind      int
+	HasKind   bool
 }
 
 type SpanRow struct {
@@ -662,7 +667,10 @@ type SpanRow struct {
 // and lint_warnings (lint). Priority: n+1 > error > slow > lint.
 func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 	if f.Limit <= 0 || f.Limit > 1000 {
-		f.Limit = 500
+		f.Limit = 100
+	}
+	if f.Page < 1 {
+		f.Page = 1
 	}
 	orderBy := "s.start_ns DESC"
 	switch f.Sort {
@@ -690,13 +698,94 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 		LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw
 			ON s.span_id = lw.span_id
 		WHERE (? = '' OR s.session_id = ?)
+		  AND (? = '' OR s.service_name = ?)
+		  AND (? = '' OR s.name = ?)
+		  AND (? = FALSE OR s.kind = ?)
 		ORDER BY ` + orderBy + `
-		LIMIT ?`
+		LIMIT ? OFFSET ?`
 	var result []*SpanRow
-	if err := d.gorm.Raw(query, f.SessionID, f.SessionID, f.Limit).Scan(&result).Error; err != nil {
+	if err := d.gorm.Raw(query,
+		f.SessionID, f.SessionID, f.Service, f.Service, f.Name, f.Name, f.HasKind, f.Kind,
+		f.Limit, (f.Page-1)*f.Limit,
+	).Scan(&result).Error; err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+// CountSpans returns the full number of spans matching a list filter, before
+// pagination. Keeping this separate from ListSpans makes the API metadata
+// truthful without making callers load every row.
+func (d *DB) CountSpans(f SpanFilter) (int, error) {
+	var count int64
+	q := d.gorm.Table("spans")
+	if f.SessionID != "" {
+		q = q.Where("session_id = ?", f.SessionID)
+	}
+	if f.Service != "" {
+		q = q.Where("service_name = ?", f.Service)
+	}
+	if f.Name != "" {
+		q = q.Where("name = ?", f.Name)
+	}
+	if f.HasKind {
+		q = q.Where("kind = ?", f.Kind)
+	}
+	if err := q.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
+// SpanGroup is an operation-level aggregate. A group deliberately includes
+// service and kind: the same name in different services or roles is not the
+// same operation.
+type SpanGroup struct {
+	ServiceName       string `json:"service_name"`
+	Name              string `json:"name"`
+	Kind              int    `json:"kind"`
+	Count             int    `json:"count"`
+	LatestStartNs     int64  `json:"latest_start_ns"`
+	ErrorCount        int    `json:"error_count"`
+	P50DurationNs     int64  `json:"p50_duration_ns"`
+	P95DurationNs     int64  `json:"p95_duration_ns"`
+	MaxDurationNs     int64  `json:"max_duration_ns"`
+	AttributeVariants int    `json:"attribute_variants"`
+}
+
+func (d *DB) ListSpanGroups(f SpanFilter) ([]*SpanGroup, error) {
+	if f.Limit <= 0 || f.Limit > 1000 {
+		f.Limit = 100
+	}
+	if f.Page < 1 {
+		f.Page = 1
+	}
+	query := `SELECT service_name, name, kind, COUNT(*) AS count,
+		MAX(start_ns) AS latest_start_ns,
+		SUM(CASE WHEN status_code = 2 THEN 1 ELSE 0 END) AS error_count,
+		CAST(quantile_cont(duration_ns, 0.5) AS BIGINT) AS p50_duration_ns,
+		CAST(quantile_cont(duration_ns, 0.95) AS BIGINT) AS p95_duration_ns,
+		MAX(duration_ns) AS max_duration_ns,
+		COUNT(DISTINCT attributes) AS attribute_variants
+		FROM spans
+		WHERE (? = '' OR session_id = ?)
+		GROUP BY service_name, name, kind
+		ORDER BY latest_start_ns DESC, service_name, name
+		LIMIT ? OFFSET ?`
+	var result []*SpanGroup
+	if err := d.gorm.Raw(query, f.SessionID, f.SessionID, f.Limit, (f.Page-1)*f.Limit).Scan(&result).Error; err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (d *DB) CountSpanGroups(f SpanFilter) (int, error) {
+	var count int64
+	query := `SELECT COUNT(*) FROM (SELECT 1 FROM spans WHERE (? = '' OR session_id = ?) GROUP BY service_name, name, kind) groups`
+	if err := d.gorm.Raw(query, f.SessionID, f.SessionID).Scan(&count).Error; err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 type LogFilter struct {
