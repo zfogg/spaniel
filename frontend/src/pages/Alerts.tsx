@@ -448,10 +448,22 @@ export default function Alerts() {
         <div className="p-4">
           <div className="mb-3 flex gap-1">
             <button
-              onClick={() => setTab('board')}
-              className={`rounded px-2 py-1 text-xs ${tab === 'board' ? 'bg-accent-bg' : 'bg-muted'}`}
+              onClick={() => {
+                setTab('board')
+                setState('attention')
+              }}
+              className={`rounded px-2 py-1 text-xs ${tab === 'board' && state === 'attention' ? 'bg-accent-bg' : 'bg-muted'}`}
             >
               Needs attention
+            </button>
+            <button
+              onClick={() => {
+                setTab('board')
+                setState('all')
+              }}
+              className={`rounded px-2 py-1 text-xs ${tab === 'board' && state === 'all' ? 'bg-accent-bg' : 'bg-muted'}`}
+            >
+              All
             </button>
             <button
               onClick={() => setTab('history')}
@@ -462,18 +474,14 @@ export default function Alerts() {
           </div>
           {tab === 'board' && (
             <div className="mb-3 flex gap-1">
-              {['attention', 'all', 'firing', 'pending', 'resolved'].map((x) => (
+              {['firing', 'pending', 'resolved'].map((x) => (
                 <button
                   key={x}
                   onClick={() => setState(x)}
                   className={`rounded px-2 py-1 text-xs ${state === x ? 'bg-accent-bg' : 'bg-muted'}`}
                 >
                   {x}{' '}
-                  {x === 'all'
-                    ? rules.reduce((count, rule) => count + (rule.instances?.length ?? 0), 0)
-                    : x === 'attention'
-                      ? (instanceCounts.firing ?? 0) + (instanceCounts.pending ?? 0)
-                      : (instanceCounts[x] ?? 0)}
+                  {instanceCounts[x] ?? 0}
                 </button>
               ))}
             </div>
