@@ -98,7 +98,7 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
 
 function DocsMenu() {
   const [open, setOpen] = useState(false)
-  return <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+  return <div className="relative" onMouseEnter={() => setOpen(true)}>
     <button type="button" onClick={() => setOpen((value) => !value)} className="inline-flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-muted-foreground hover:text-foreground">
       Docs {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
     </button>
