@@ -17,7 +17,15 @@ export default function OpenAPI() {
     const target = ref.current
     if (!target) return
     let cancelled = false
-    const mount = () => { if (!cancelled && window.Redoc) window.Redoc.init('/api/openapi.json', options(resolvedTheme === 'dark'), target) }
+    const mount = () => {
+      if (cancelled || !window.Redoc) return
+      window.Redoc.init('/api/openapi.json', options(resolvedTheme === 'dark'), target)
+      const dark = resolvedTheme === 'dark'
+      const ink = dark ? '#edf5fb' : '#1f2937'
+      const style = document.createElement('style')
+      style.textContent = `.redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}.redoc-wrap [role="tab"]{color:${ink}!important}`
+      target.appendChild(style)
+    }
     const id = 'spaniel-redoc-runtime'
     const script = document.getElementById(id) as HTMLScriptElement | null
     if (window.Redoc) mount()
