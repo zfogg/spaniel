@@ -47,7 +47,6 @@ function isZeroTraceId(id: string): boolean {
 
 // ── severity filter chip levels ───────────────────────────────────────────────
 
-type SevFilter = 'ALL' | 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'
 type TimeFilter = '15m' | '1h' | '24h' | 'all'
 
 const SEV_ORDER: SevFilter[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']

@@ -76,10 +76,12 @@ function Ruler({ traceDurNs, spanCount }: { traceDurNs: number; spanCount: numbe
 function MiniTimeline({
   flatSpans,
   traceStartNs,
+  traceDurNs,
   zoom,
 }: {
   flatSpans: FlatSpan[]
   traceStartNs: number
+  traceDurNs: number
   zoom: [number, number]
 }) {
   const [zStart, zEnd] = zoom

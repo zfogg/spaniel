@@ -28,58 +28,7 @@ import { SqlCode, SqlEditor } from '@/components/SqlCode'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-const displays = [
-  'single_value',
-  'time_series',
-  'table',
-  'heatmap',
-  'entity_list',
-  'trace_list',
-  'span_list',
-  'log_list',
-  'deploy_correlation',
-] as const
 const localKey = 'spaniel.local-dashboards'
-const variablePresets: Array<
-  Pick<DashboardVariable, 'name' | 'kind' | 'source' | 'default_value'>
-> = [
-  {
-    name: 'service',
-    kind: 'string',
-    source: 'telemetry_spans.service_name',
-    default_value: '',
-  },
-  {
-    name: 'operation',
-    kind: 'string',
-    source: 'telemetry_spans.name',
-    default_value: '',
-  },
-  {
-    name: 'status_code',
-    kind: 'number',
-    source: 'telemetry_spans.status_code',
-    default_value: '',
-  },
-  {
-    name: 'severity',
-    kind: 'enum',
-    source: 'telemetry_logs.severity',
-    default_value: '',
-  },
-  {
-    name: 'trace_id',
-    kind: 'string',
-    source: 'telemetry_spans.trace_id',
-    default_value: '',
-  },
-  {
-    name: 'min_duration_ms',
-    kind: 'number',
-    source: 'duration_ns / 1000000',
-    default_value: '0',
-  },
-]
 
 const panelRecipes = [
   {
@@ -1820,7 +1769,7 @@ export function DashboardEditor() {
           <Link
             key={d.id}
             to={`/dashboards/${d.id}`}
-            className={`block w-full cursor-pointer border-b border-border px-3 py-3 text-left ${active?.id === d.id ? 'bg-accent-bg' : 'hover:bg-muted'}`}
+            className="block w-full cursor-pointer border-b border-border px-3 py-3 text-left hover:bg-muted"
           >
             <div className="truncate text-sm font-medium">{d.name}</div>
             <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
@@ -1830,142 +1779,30 @@ export function DashboardEditor() {
         ))}
       </aside>
       <main className="flex-1 overflow-auto bg-background">
-        <header className="flex items-start gap-4 border-b border-border bg-surface px-6 py-5">
+        <header className="border-b border-border bg-surface px-6 py-5">
           <div className="min-w-0 flex-1">
             <div className="flex max-w-xl items-center gap-1">
-              <input
-                ref={titleInputRef}
-                aria-label="Dashboard name"
-                disabled={!active}
-                value={active ? dashboardName : 'New dashboard'}
-                onChange={(event) => setDashboardName(event.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground disabled:cursor-default"
-              />
-              <button
-                type="button"
-                aria-label="Edit dashboard name"
-                title="Edit dashboard name"
-                disabled={!active}
-                onClick={() => titleInputRef.current?.focus()}
-                className="cursor-pointer rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-default disabled:opacity-40"
-              >
-                <Pencil size={15} />
-              </button>
+              <h1 className="text-xl font-semibold tracking-tight">New dashboard</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {nameSave.pending
-                ? 'Saving dashboard name…'
-                : active?.description ||
-                  'DuckDB SQL telemetry views, kept locally with your traces.'}
+              Create an editable, query-backed telemetry view.
             </p>
           </div>
-          <button
-            onClick={() => void deleteActive()}
-            disabled={!active}
-            className="cursor-pointer rounded border border-danger px-3 py-2 text-xs text-danger disabled:opacity-40"
-          >
-            Delete dashboard
-          </button>
         </header>
-        {!active ? (
-          <NewDashboardStarter
-            name={name}
-            setName={setName}
-            description={description}
-            setDescription={setDescription}
-            create={() => void create()}
-            templateId={templateId}
-            setTemplateId={setTemplateId}
-            pending={creating}
-            error={createError}
-            importYAML={(yaml) => void importYAML(yaml)}
-            importing={importing}
-            importError={importError}
-          />
-        ) : (
-          <>
-            <section className="mx-6 mt-6 rounded-lg border border-border bg-surface">
-              <div className="border-b border-border px-4 py-3">
-                <h2 className="font-semibold">{editing ? 'Edit panel' : 'Design a panel'}</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Choose a display shape first, then write the read-only query that produces it.
-                </p>
-              </div>
-              <div className="grid gap-3 p-4 sm:grid-cols-2">
-                <label className="block text-xs font-medium">
-                  Panel title
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="mt-1 w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
-                  />
-                </label>
-                <label className="block text-xs font-medium">
-                  Display
-                  <select
-                    value={display}
-                    onChange={(e) => setDisplay(e.target.value)}
-                    className="mt-1 w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
-                  >
-                    {displays.map((x) => (
-                      <option key={x}>{x}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-xs font-medium sm:col-span-2">
-                  Read-only DuckDB SQL
-                  <SqlEditor value={query} onChange={setQuery} />
-                </label>
-                <div className="sm:col-span-2 flex flex-wrap justify-end gap-2">
-                  <button
-                    onClick={() => preview.mutate()}
-                    disabled={preview.isPending}
-                    className="cursor-pointer rounded border border-border px-3 py-2 text-sm"
-                  >
-                    {preview.isPending ? 'Running preview…' : 'Run preview'}
-                  </button>
-                  <button
-                    onClick={savePanel}
-                    className="cursor-pointer rounded bg-accent px-3 py-2 text-sm font-medium text-accent-ink"
-                  >
-                    {editing ? 'Save changes' : 'Add panel'}
-                  </button>
-                </div>
-                {preview.isError && (
-                  <p role="alert" className="sm:col-span-2 text-sm text-danger">
-                    Preview failed: {preview.error.message}
-                  </p>
-                )}
-                {preview.data && (
-                  <div className="sm:col-span-2 rounded border border-border bg-background p-3">
-                    <p className="font-mono text-[10px] text-muted-foreground">
-                      PREVIEW · {preview.data.rows.length} rows · {preview.data.columns.join(', ')}
-                    </p>
-                    <pre className="mt-2 max-h-36 overflow-auto text-[11px]">
-                      {JSON.stringify(preview.data.rows.slice(0, 5), null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </section>
-            <div className="grid gap-4 p-6 xl:grid-cols-2">
-              {active.panels.map((p) => (
-                <Panel
-                  key={p.id}
-                  panel={p}
-                  dashboardId={active.id}
-                  refresh={refresh}
-                  onEdit={edit}
-                />
-              ))}
-              {active.panels.length === 0 && (
-                <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                  Use Design a panel to add the first panel.
-                </div>
-              )}
-            </div>
-          </>
-        )}
+        <NewDashboardStarter
+          name={name}
+          setName={setName}
+          description={description}
+          setDescription={setDescription}
+          create={() => void create()}
+          templateId={templateId}
+          setTemplateId={setTemplateId}
+          pending={creating}
+          error={createError}
+          importYAML={(yaml) => void importYAML(yaml)}
+          importing={importing}
+          importError={importError}
+        />
       </main>
       <aside className="w-[360px] shrink-0 overflow-auto border-l border-border bg-surface p-4">
         <section>
@@ -1999,106 +1836,10 @@ export function DashboardEditor() {
           ))}
         </section>
         <section className="mt-6 border-t border-border pt-4">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Variable size={14} /> Dashboard parameters
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Start with an observed-telemetry field, then reference it as <code>$name</code> in
-            DuckDB SQL.
+          <h2 className="text-sm font-semibold">Next step</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Create or import a dashboard, then add panels, variables, and layout from its editor.
           </p>
-          <div className="mt-3 flex flex-wrap gap-1">
-            {variablePresets.map((preset) => (
-              <button
-                key={preset.name}
-                onClick={() => {
-                  setVariableName(preset.name)
-                  setVariableKind(preset.kind)
-                  setVariableSource(preset.source)
-                  setVariableDefault(preset.default_value)
-                }}
-                className="cursor-pointer rounded border border-border bg-background px-2 py-1 font-mono text-[10px] hover:bg-muted"
-              >
-                ${preset.name}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 grid gap-2">
-            <input
-              aria-label="Variable name"
-              value={variableName}
-              onChange={(e) => setVariableName(e.target.value)}
-              placeholder="service"
-              className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                aria-label="Variable datatype"
-                value={variableKind}
-                onChange={(e) => setVariableKind(e.target.value as DashboardVariable['kind'])}
-                className="rounded border border-input bg-background px-2 py-1.5 text-xs"
-              >
-                <option value="string">string</option>
-                <option value="number">number</option>
-                <option value="boolean">boolean</option>
-                <option value="duration">duration</option>
-                <option value="time">time range</option>
-                <option value="enum">enum</option>
-              </select>
-              <input
-                aria-label="Variable default value"
-                value={variableDefault}
-                onChange={(e) => setVariableDefault(e.target.value)}
-                placeholder="Default value"
-                className="min-w-0 rounded border border-input bg-background px-2 py-1.5 text-xs"
-              />
-            </div>
-            <input
-              aria-label="Variable value source"
-              value={variableSource}
-              onChange={(e) => setVariableSource(e.target.value)}
-              placeholder={
-                variableKind === 'enum' ? 'info, warn, error' : 'telemetry_spans.service_name'
-              }
-              className="w-full rounded border border-input bg-background px-2 py-1.5 font-mono text-xs"
-            />
-            <button
-              onClick={addVariable}
-              disabled={!active || !variableName.trim() || !variableSource.trim()}
-              className="cursor-pointer rounded border border-border px-2 py-1.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Add parameter
-            </button>
-          </div>
-          {active?.variables.map((v) => (
-            <button
-              key={v.name}
-              onClick={() => setQuery((current) => `${current}$${v.name}`)}
-              className="mt-2 grid w-full grid-cols-[90px_1fr_60px] gap-2 truncate border-b border-border px-2 py-2 text-left font-mono text-[10px] hover:bg-muted"
-              title={`Insert $${v.name}`}
-            >
-              <span>${v.name}</span>
-              <span className="truncate">{v.source}</span>
-              <span>{v.kind}</span>
-            </button>
-          ))}
-        </section>
-        <section className="mt-6 border-t border-border pt-4">
-          <h2 className="text-sm font-semibold">Draft canvas</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {active
-              ? `${active.panels.length} SQL panel${active.panels.length === 1 ? '' : 's'}`
-              : 'Create a dashboard to begin.'}
-          </p>
-          <div className="mt-3 space-y-2">
-            {active?.panels.map((panel) => (
-              <DraftPanelEntry key={panel.id} panel={panel} edit={edit} />
-            ))}
-            {active?.panels.length === 0 && (
-              <div className="rounded border border-dashed border-border p-4 text-xs text-muted-foreground">
-                Panels you add appear here.
-              </div>
-            )}
-          </div>
         </section>
       </aside>
     </div>
