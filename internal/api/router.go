@@ -13,11 +13,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	nethttpmiddleware "github.com/oapi-codegen/nethttp-middleware"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
@@ -74,6 +76,14 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Use(accessLogMiddleware)
 	mux.Use(middleware.Recoverer)
 	mux.Use(corsMiddleware)
+	spec, err := apigen.GetSwagger()
+	if err != nil {
+		panic("load generated OpenAPI contract: " + err.Error())
+	}
+	mux.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(spec, &nethttpmiddleware.Options{
+		DoNotValidateServers: true,
+		Skipper:              func(req *http.Request) bool { return req.URL.Path == "/ws" },
+	}))
 	mux.Use(apiMetricsMiddleware)
 	mux.Use(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "spaniel.api",
@@ -93,85 +103,10 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	// handlers are allowed to read while they execute.
 	mux.Use(drainRequestBodyMiddleware)
 
-	mux.Get("/api/health", r.health)
-	mux.Get("/api/openapi.json", r.openAPI)
-	mux.Get("/api/traces", r.listTraces)
-	mux.Get("/api/traces/{traceId}", r.getTrace)
-	mux.Get("/api/traces/{traceId}/export", r.exportTrace)
-	mux.Get("/api/traces/{traceId}/incoming-links", r.listIncomingLinks)
-	mux.Get("/api/spans", r.listSpans)
-	mux.Get("/api/spans/{spanId}", r.getSpan)
-	mux.Get("/api/logs", r.listLogs)
-	mux.Get("/api/services", r.listServices)
-	mux.Get("/api/sessions", r.listSessions)
-	mux.Post("/api/sessions", r.createSession)
-	mux.Post("/api/sessions/import", r.importSession)
-	mux.Get("/api/sessions/active", r.getActiveSession)
-	mux.Get("/api/sessions/{sessionId}", r.getSession)
-	mux.Patch("/api/sessions/{sessionId}", r.patchSession)
-	mux.Post("/api/sessions/{sessionId}/activate", r.activateSession)
-	mux.Post("/api/sessions/{sessionId}/baseline", r.baselineSession)
-	mux.Delete("/api/sessions/{sessionId}", r.deleteSession)
-	mux.Get("/api/lint", r.listLint)
-	mux.Get("/api/stats", r.getStats)
-	mux.Get("/api/service-map", r.getServiceMap)
-	mux.Get("/api/issues", r.getIssues)
-	mux.Get("/api/diff", r.getDiff)
-	mux.Get("/api/forwarders", r.listForwarders)
-	mux.Get("/api/search", r.search)
-	mux.Get("/api/sessions/{sessionId}/baseline-export", r.exportBaseline)
-	mux.Get("/api/metrics", r.listMetrics)
-	mux.Get("/api/metrics/cardinality", r.getMetricCardinality)
-	mux.Get("/api/metrics/series", r.getMetricSeries)
-	mux.Get("/api/dashboards", r.listDashboards)
-	mux.Post("/api/dashboards", r.createDashboard)
-	mux.Post("/api/dashboards/reorder", r.reorderDashboards)
-	mux.Get("/api/dashboards/{id}", r.getDashboard)
-	mux.Get("/api/dashboards/{id}/config", r.exportDashboardConfig)
-	mux.Post("/api/dashboards/import", r.importDashboardConfig)
-	mux.Patch("/api/dashboards/{id}", r.patchDashboard)
-	mux.Delete("/api/dashboards/{id}", r.deleteDashboard)
-	mux.Post("/api/dashboards/{id}/query-preview", r.previewDashboardQuery)
-	mux.Post("/api/dashboards/{id}/panels", func(w http.ResponseWriter, q *http.Request) { r.savePanel(w, q, false) })
-	mux.Patch("/api/dashboards/{id}/panels/{panelId}", func(w http.ResponseWriter, q *http.Request) { r.savePanel(w, q, true) })
-	mux.Delete("/api/dashboards/{id}/panels/{panelId}", r.deletePanel)
-	mux.Post("/api/dashboards/{id}/panels/{panelId}/move", r.movePanel)
-	mux.Post("/api/dashboards/{id}/variables", r.saveVariable)
-	mux.Delete("/api/dashboards/{id}/variables/{name}", r.deleteVariable)
-	mux.Get("/api/query-catalog", r.queryCatalog)
-	mux.Get("/api/database-schema", r.databaseSchema)
-	mux.Get("/api/alerts", r.listAlerts)
-	mux.Post("/api/alerts", r.createAlert)
-	mux.Post("/api/alerts/import", r.importAlertConfig)
-	mux.Post("/api/alerts/reload", r.reloadAlertDefinitions)
-	// Static routes must precede /{id}/preview so Chi does not parse their
-	// final path segment as an alert ID.
-	mux.Post("/api/alerts/preview", r.previewAlertDraft)
-	mux.Get("/api/alerts/history", r.listAlertHistory)
-	mux.Get("/api/alerts/{id}", r.getAlert)
-	mux.Get("/api/alerts/{id}/config", r.exportAlertConfig)
-	mux.Post("/api/alerts/{id}/duplicate", r.duplicateAlert)
-	mux.Post("/api/alerts/{id}/test-notification", r.testAlertNotification)
-	mux.Patch("/api/alerts/{id}", r.patchAlert)
-	mux.Delete("/api/alerts/{id}", r.deleteAlert)
-	mux.Post("/api/alerts/{id}/preview", r.previewAlert)
-	mux.Post("/api/alerts/{id}/acknowledge", r.acknowledgeAlert)
-	mux.Post("/api/alerts/{id}/instances/acknowledge", r.acknowledgeAlertInstance)
-	mux.Post("/api/alerts/{id}/instances/unacknowledge", r.unacknowledgeAlertInstance)
-	mux.Get("/api/alerts/{id}/events", r.listAlertEvents)
-	mux.Get("/api/alerts/{id}/silences", r.listAlertSilences)
-	mux.Post("/api/alerts/{id}/silences", r.createAlertSilence)
-	mux.Patch("/api/alerts/{id}/silences/{silenceID}", r.updateAlertSilence)
-	mux.Delete("/api/alerts/{id}/silences/{silenceID}", r.deleteAlertSilence)
-	mux.Get("/api/coverage", r.getCoverage)
-	mux.Get("/api/settings", r.getSettings)
-	mux.Put("/api/settings", r.putSettings)
-	mux.Delete("/api/settings/data", r.dropAllData)
-	mux.Post("/api/settings/compact", r.compact)
-	mux.Post("/api/settings/prune", r.prune)
-	mux.Post("/api/settings/check-updates", r.checkUpdates)
-	mux.Get("/api/storage", r.getStorageBreakdown)
-	mux.Get("/api/sources", r.listSources)
+	// Routes are generated from api/openapi.json. Router implements the generated
+	// interface through openapi_adapter.gen.go, keeping the runtime surface and
+	// the published contract inseparable.
+	apigen.HandlerFromMux(r, mux)
 	mux.Get("/ws", hub.ServeWS)
 
 	return mux
