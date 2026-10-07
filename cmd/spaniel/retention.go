@@ -18,8 +18,11 @@ import (
 
 const (
 	storageGuardInterval      = 5 * time.Second
-	storageHighWaterPercent   = int64(80)
-	storagePruneTargetPercent = int64(70)
+	// Defer automatic pruning until the database is close to its cap, then
+	// reclaim enough room for a meaningful ingest burst. This preserves more
+	// recent telemetry than the former 80% -> 70% policy.
+	storageHighWaterPercent   = int64(95)
+	storagePruneTargetPercent = int64(65)
 )
 
 var (
@@ -152,7 +155,7 @@ type storageGuardStore interface {
 
 // checkStorageGuard applies one storage policy pass. With auto-prune disabled,
 // it never deletes and marks storage full only at the hard cap. With it enabled,
-// pruning begins at 80% and targets 70%, leaving headroom for ingest bursts. If
+// pruning begins at 95% and targets 65%, leaving headroom for ingest bursts. If
 // pruning cannot restore that headroom, ingestion pauses before the hard cap.
 func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	maxBytes := policy.maxBytes.Load()
