@@ -41,7 +41,7 @@ func TestEvaluateAlerts_NestsStorageSpans(t *testing.T) {
 	}
 
 	before := len(recorder.Ended())
-	evaluateAlerts(context.Background(), store, ws.NewHub(), time.Now())
+	evaluateAlerts(context.Background(), store, ws.NewHub(), time.Now(), time.Second)
 
 	var root sdktrace.ReadOnlySpan
 	for _, span := range recorder.Ended()[before:] {

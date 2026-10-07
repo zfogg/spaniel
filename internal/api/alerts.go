@@ -49,6 +49,10 @@ func (r *Router) importAlertConfig(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 400, e.Error())
 		return
 	}
+	if e = validateAlertRuleSemantics(x); e != nil {
+		respondErr(w, q, 400, e.Error())
+		return
+	}
 	if existing, err := r.store.WithContext(q.Context()).GetAlertRule(x.ID); err == nil && existing.SourceFile != "" {
 		respondErr(w, q, http.StatusConflict, "alert is managed by YAML file "+existing.SourceFile+"; edit the file and reload it")
 		return
@@ -61,19 +65,19 @@ func (r *Router) importAlertConfig(w http.ResponseWriter, q *http.Request) {
 }
 
 type alertInput struct {
-	Name             string            `json:"name" validate:"required,max=120"`
-	QuerySQL         string            `json:"query_sql" validate:"required,max=16000"`
-	Condition        map[string]any    `json:"condition"`
-	GroupBy          []string          `json:"group_by"`
-	PendingForNs     int64             `json:"pending_for_ns"`
-	CooldownNs       int64             `json:"cooldown_ns"`
-	RepeatIntervalNs int64             `json:"repeat_interval_ns"`
-	Severity         string            `json:"severity" validate:"omitempty,oneof=info warning critical"`
-	Enabled          *bool             `json:"enabled"`
-	BrowserEnabled   *bool             `json:"browser_enabled"`
-	PushoverEnabled  *bool             `json:"pushover_enabled"`
+	Name              string                  `json:"name" validate:"required,max=120"`
+	QuerySQL          string                  `json:"query_sql" validate:"required,max=16000"`
+	Condition         map[string]any          `json:"condition"`
+	GroupBy           []string                `json:"group_by"`
+	PendingForNs      int64                   `json:"pending_for_ns"`
+	CooldownNs        int64                   `json:"cooldown_ns"`
+	RepeatIntervalNs  int64                   `json:"repeat_interval_ns"`
+	Severity          string                  `json:"severity" validate:"omitempty,oneof=info warning critical"`
+	Enabled           *bool                   `json:"enabled"`
+	BrowserEnabled    *bool                   `json:"browser_enabled"`
+	PushoverEnabled   *bool                   `json:"pushover_enabled"`
 	InstanceDiscovery *instanceDiscoveryInput `json:"instance_discovery"`
-	Annotations      map[string]string `json:"annotations"`
+	Annotations       map[string]string       `json:"annotations"`
 }
 
 // instanceDiscoveryInput supplies the expected label sets for a grouped alert.
@@ -91,20 +95,36 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	}
 	var condition alertCondition
 	conditionJSON, _ := json.Marshal(in.Condition)
-	if err := json.Unmarshal(conditionJSON, &condition); err != nil ||
-		((condition.Kind != "threshold" && condition.Kind != "count" && condition.Kind != "no_data" && condition.Kind != "log_match" && condition.Kind != "any_of" && condition.Kind != "all_of") ||
-			((condition.Kind == "threshold" || condition.Kind == "count") && !validAlertOperator(condition.Operator)) ||
-			(condition.Kind == "log_match" && strings.TrimSpace(condition.Pattern) == "") ||
-			((condition.Kind == "any_of" || condition.Kind == "all_of") && len(condition.RuleIDs) == 0)) {
+	if err := json.Unmarshal(conditionJSON, &condition); err != nil {
 		return nil, &dslError{"alert condition must be threshold, count, no_data, log_match, any_of, or all_of"}
+	}
+	_, hasValue := in.Condition["value"]
+	if hasValue {
+		if _, ok := alertNumber(in.Condition["value"]); !ok {
+			return nil, &dslError{"alert condition value must be numeric"}
+		}
+	}
+	if (condition.Kind == "threshold" || condition.Kind == "count") && !hasValue {
+		return nil, &dslError{"threshold and count alerts require a numeric value"}
+	}
+	if condition.Kind == "log_match" && ((condition.Operator == "" && hasValue) || (condition.Operator != "" && !hasValue)) {
+		return nil, &dslError{"log_match operator and value must be specified together"}
 	}
 	condition.Pattern = strings.TrimSpace(condition.Pattern)
 	groups := make([]string, 0, len(in.GroupBy))
 	for _, group := range in.GroupBy {
 		group = strings.TrimSpace(group)
 		if group != "" {
+			for _, existing := range groups {
+				if strings.EqualFold(existing, group) {
+					return nil, &dslError{"group_by columns must be unique"}
+				}
+			}
 			groups = append(groups, group)
 		}
+	}
+	if in.PendingForNs < 0 || in.CooldownNs < 0 || in.RepeatIntervalNs < 0 {
+		return nil, &dslError{"pending_for, cooldown, and repeat_interval must not be negative"}
 	}
 	discoverySQL, discoveryEvery, discoveryStale := "", int64(0), int64(0)
 	if in.InstanceDiscovery != nil && strings.TrimSpace(in.InstanceDiscovery.Query) != "" {
@@ -139,7 +159,60 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	if in.PushoverEnabled != nil {
 		pushover = *in.PushoverEnabled
 	}
-	return &storage.AlertRule{Name: in.Name, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, ConditionJSON: string(c), GroupByJSON: string(g), PendingForNs: in.PendingForNs, CooldownNs: in.CooldownNs, RepeatIntervalNs: in.RepeatIntervalNs, Severity: sev, Enabled: on, BrowserEnabled: browser, PushoverEnabled: pushover, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(a)}, nil
+	rule := &storage.AlertRule{Name: in.Name, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, ConditionJSON: string(c), GroupByJSON: string(g), PendingForNs: in.PendingForNs, CooldownNs: in.CooldownNs, RepeatIntervalNs: in.RepeatIntervalNs, Severity: sev, Enabled: on, BrowserEnabled: browser, PushoverEnabled: pushover, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(a)}
+	if err := validateAlertRuleSemantics(rule); err != nil {
+		return nil, err
+	}
+	return rule, nil
+}
+
+// validateAlertRuleSemantics is used by both JSON and YAML import paths so a
+// saved rule cannot defer basic definition errors until its first evaluation.
+func validateAlertRuleSemantics(rule *storage.AlertRule) error {
+	var condition alertCondition
+	if err := json.Unmarshal([]byte(rule.ConditionJSON), &condition); err != nil {
+		return &dslError{"alert condition must be valid JSON"}
+	}
+	groups := alertGroupColumns(rule.GroupByJSON)
+	seenGroups := map[string]bool{}
+	for _, group := range groups {
+		key := strings.ToLower(strings.TrimSpace(group))
+		if key == "" || seenGroups[key] {
+			return &dslError{"group_by columns must be unique and non-empty"}
+		}
+		seenGroups[key] = true
+	}
+	if rule.PendingForNs < 0 || rule.CooldownNs < 0 || rule.RepeatIntervalNs < 0 {
+		return &dslError{"pending_for, cooldown, and repeat_interval must not be negative"}
+	}
+	switch condition.Kind {
+	case "threshold", "count":
+		if !validAlertOperator(condition.Operator) {
+			return &dslError{"threshold and count alerts require a valid operator and value"}
+		}
+	case "no_data":
+		if len(groups) != 0 || condition.Operator != "" {
+			return &dslError{"no_data alerts cannot group results or specify an operator"}
+		}
+	case "log_match":
+		if strings.TrimSpace(condition.Pattern) == "" || (condition.Operator != "" && !validAlertOperator(condition.Operator)) {
+			return &dslError{"log_match alerts require a pattern and an optional valid operator"}
+		}
+	case "any_of", "all_of":
+		if len(groups) != 0 || len(condition.RuleIDs) == 0 {
+			return &dslError{"composite alerts require source rules and cannot group results"}
+		}
+		seen := map[string]bool{}
+		for _, id := range condition.RuleIDs {
+			if strings.TrimSpace(id) == "" || seen[id] {
+				return &dslError{"composite alert source rule IDs must be unique and non-empty"}
+			}
+			seen[id] = true
+		}
+	default:
+		return &dslError{"alert condition must be threshold, count, no_data, log_match, any_of, or all_of"}
+	}
+	return nil
 }
 func (r *Router) listAlerts(w http.ResponseWriter, q *http.Request) {
 	x, e := r.store.WithContext(q.Context()).ListAlertRules()

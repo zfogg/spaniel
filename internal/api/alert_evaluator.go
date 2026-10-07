@@ -478,7 +478,6 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 		if err := store.UpsertAlertInstance(current); err != nil {
 			return err
 		}
-		_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
 		if prior != "" && prior != "resolved" {
 			emitAlert(hub, rule, current, "resolved", now, true)
 			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "resolved", State: current.State, Value: current.Value})
@@ -501,7 +500,6 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 	if err := store.UpsertAlertInstance(current); err != nil {
 		return err
 	}
-	_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
 	if prior != "firing" && current.State == "firing" {
 		silenced, err := store.IsAlertSilenced(rule.ID, key, now.UnixNano())
 		if err != nil {
@@ -518,8 +516,19 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 		}
 	}
 	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && current.LastNotifiedAt != nil && now.UnixNano()-*current.LastNotifiedAt >= rule.RepeatIntervalNs {
-		emitAlert(hub, rule, current, "repeat", now, true)
-		_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "repeat", State: current.State, Value: current.Value})
+		// Acknowledgement is operator metadata, not a notification mute: a
+		// firing incident may still repeat. Use an explicit silence to suppress
+		// both its initial and repeat deliveries.
+		silenced, err := store.IsAlertSilenced(rule.ID, key, now.UnixNano())
+		if err != nil {
+			return err
+		}
+		if silenced {
+			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "notification_suppressed", State: current.State, Value: current.Value, Detail: "silenced repeat"})
+		} else {
+			emitAlert(hub, rule, current, "repeat", now, true)
+			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "repeat", State: current.State, Value: current.Value})
+		}
 		if err := store.UpsertAlertInstance(current); err != nil {
 			return err
 		}

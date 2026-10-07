@@ -213,6 +213,8 @@ func migrations() []*gormigrate.Migration {
 		},
 		{ID: "0033_alert_acknowledgement_note", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0033_alert_acknowledgement_note.sql") }},
 		{ID: "0034_remove_alert_ownership", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0034_remove_alert_ownership.sql") }},
+		{ID: "0035_alert_timestamp_nanoseconds", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0035_alert_timestamp_nanoseconds.sql") }},
+		{ID: "0036_prune_alert_evaluation_events", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0036_prune_alert_evaluation_events.sql") }},
 		{ID: "0025_alert_instance_state_index", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0025_alert_instance_state_index.sql") }},
 		{ID: "0026_alert_instance_discovery", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0026_alert_instance_discovery.sql") }},
 		{ID: "0027_dashboard_panel_order", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0027_dashboard_panel_order.sql") }},
@@ -295,6 +297,12 @@ func (d *DB) migrate() error {
 			return err
 		}
 		if err := execMigrationFile(tx, "0034_remove_alert_ownership.sql"); err != nil {
+			return err
+		}
+		if err := execMigrationFile(tx, "0035_alert_timestamp_nanoseconds.sql"); err != nil {
+			return err
+		}
+		if err := execMigrationFile(tx, "0036_prune_alert_evaluation_events.sql"); err != nil {
 			return err
 		}
 		if err := execMigrationFile(tx, "0025_alert_instance_state_index.sql"); err != nil {

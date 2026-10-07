@@ -38,6 +38,9 @@ func TestAlertsAPI_CreateExportAndPreview(t *testing.T) {
 	if id == "" {
 		t.Fatalf("created alert missing id: %#v", rule)
 	}
+	if updatedAt, ok := rule["updated_at"].(float64); !ok || updatedAt < 1_000_000_000_000_000_000 {
+		t.Fatalf("updated_at must be nanoseconds, got %#v", rule["updated_at"])
+	}
 	if _, exists := rule["owner"]; exists {
 		t.Fatalf("alert response unexpectedly exposes owner: %#v", rule)
 	}
@@ -84,6 +87,62 @@ func TestAlertsAPI_RejectsInvalidInstanceDiscovery(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "instance discovery requires") {
 		t.Fatalf("unexpected validation error: %s", w.Body.String())
+	}
+}
+
+func TestAlertsAPI_RejectsDefinitionsThatWouldFailAtEvaluation(t *testing.T) {
+	handler, _ := setupRouter(t)
+	for name, mutate := range map[string]func(map[string]any){
+		"grouped no-data": func(payload map[string]any) {
+			payload["condition"] = map[string]any{"kind": "no_data"}
+		},
+		"grouped composite": func(payload map[string]any) {
+			payload["condition"] = map[string]any{"kind": "all_of", "rule_ids": []string{"a", "b"}}
+		},
+		"duplicate groups": func(payload map[string]any) {
+			payload["group_by"] = []string{"service_name", "SERVICE_NAME"}
+		},
+		"negative lifecycle duration": func(payload map[string]any) {
+			payload["cooldown_ns"] = int64(-1)
+		},
+		"invalid log-match operator": func(payload map[string]any) {
+			payload["condition"] = map[string]any{"kind": "log_match", "pattern": "timeout", "operator": "~"}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			payload := alertPayload()
+			mutate(payload)
+			w := do(t, handler, http.MethodPost, "/api/alerts", payload)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d, want 400; body=%s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestNotificationPreviewHonorsGlobalDelivery(t *testing.T) {
+	previous := currentAlertDelivery()
+	t.Cleanup(func() { ConfigureAlertDelivery(previous) })
+	rule := &storage.AlertRule{BrowserEnabled: true, PushoverEnabled: true}
+	ConfigureAlertDelivery(AlertDelivery{
+		BrowserEnabled:   func() bool { return false },
+		PushoverEnabled:  func() bool { return false },
+		PushoverUserKey:  "user",
+		PushoverAPIToken: "token",
+	})
+	preview := notificationPreview(rule)
+	if preview[0]["status"] != "suppressed" || preview[1]["status"] != "suppressed" {
+		t.Fatalf("disabled global delivery preview=%#v", preview)
+	}
+	ConfigureAlertDelivery(AlertDelivery{
+		BrowserEnabled:   func() bool { return true },
+		PushoverEnabled:  func() bool { return true },
+		PushoverUserKey:  "user",
+		PushoverAPIToken: "token",
+	})
+	preview = notificationPreview(rule)
+	if preview[0]["status"] != "would_send" || preview[1]["status"] != "would_send" {
+		t.Fatalf("enabled global delivery preview=%#v", preview)
 	}
 }
 

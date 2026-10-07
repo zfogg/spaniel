@@ -382,34 +382,34 @@ type DashboardPanel struct {
 func (DashboardPanel) TableName() string { return "dashboard_panels" }
 
 type AlertRule struct {
-	ID               string           `json:"id"`
-	Name             string           `json:"name"`
-	QuerySQL         string           `json:"query_sql"`
-	QueryVersion     int              `json:"query_version"`
-	ConditionJSON    string           `json:"condition_json"`
-	GroupByJSON      string           `json:"group_by_json"`
-	PendingForNs     int64            `json:"pending_for_ns"`
-	CooldownNs       int64            `json:"cooldown_ns"`
-	RepeatIntervalNs int64            `json:"repeat_interval_ns"`
-	Severity         string           `json:"severity"`
-	AnnotationsJSON  string           `json:"annotations_json"`
-	Enabled          bool             `json:"enabled"`
-	BrowserEnabled   bool             `json:"browser_enabled"`
-	PushoverEnabled  bool             `json:"pushover_enabled"`
-	InstanceDiscoverySQL          string `json:"instance_discovery_sql"`
-	InstanceDiscoveryIntervalNs   int64  `json:"instance_discovery_interval_ns"`
-	InstanceDiscoveryStaleAfterNs int64  `json:"instance_discovery_stale_after_ns"`
-	InstanceDiscoveryLastRunAt    int64  `json:"instance_discovery_last_run_at"`
-	LastEvaluatedAt  int64            `json:"last_evaluated_at"`
-	LastSuccessAt    int64            `json:"last_success_at"`
-	LastDurationNs   int64            `json:"last_duration_ns"`
-	NextEvaluationAt int64            `json:"next_evaluation_at"`
-	LastError        string           `json:"last_error"`
-	SourceFile       string           `json:"source_file"`
-	SourceHash       string           `json:"source_hash"`
-	CreatedAt        int64            `json:"created_at"`
-	UpdatedAt        int64            `json:"updated_at"`
-	Instances        []*AlertInstance `json:"instances,omitempty" gorm:"-"`
+	ID                            string           `json:"id"`
+	Name                          string           `json:"name"`
+	QuerySQL                      string           `json:"query_sql"`
+	QueryVersion                  int              `json:"query_version"`
+	ConditionJSON                 string           `json:"condition_json"`
+	GroupByJSON                   string           `json:"group_by_json"`
+	PendingForNs                  int64            `json:"pending_for_ns"`
+	CooldownNs                    int64            `json:"cooldown_ns"`
+	RepeatIntervalNs              int64            `json:"repeat_interval_ns"`
+	Severity                      string           `json:"severity"`
+	AnnotationsJSON               string           `json:"annotations_json"`
+	Enabled                       bool             `json:"enabled"`
+	BrowserEnabled                bool             `json:"browser_enabled"`
+	PushoverEnabled               bool             `json:"pushover_enabled"`
+	InstanceDiscoverySQL          string           `json:"instance_discovery_sql"`
+	InstanceDiscoveryIntervalNs   int64            `json:"instance_discovery_interval_ns"`
+	InstanceDiscoveryStaleAfterNs int64            `json:"instance_discovery_stale_after_ns"`
+	InstanceDiscoveryLastRunAt    int64            `json:"instance_discovery_last_run_at"`
+	LastEvaluatedAt               int64            `json:"last_evaluated_at"`
+	LastSuccessAt                 int64            `json:"last_success_at"`
+	LastDurationNs                int64            `json:"last_duration_ns"`
+	NextEvaluationAt              int64            `json:"next_evaluation_at"`
+	LastError                     string           `json:"last_error"`
+	SourceFile                    string           `json:"source_file"`
+	SourceHash                    string           `json:"source_hash"`
+	CreatedAt                     int64            `json:"created_at" gorm:"autoCreateTime:nano"`
+	UpdatedAt                     int64            `json:"updated_at" gorm:"autoUpdateTime:nano"`
+	Instances                     []*AlertInstance `json:"instances,omitempty" gorm:"-"`
 }
 
 func (AlertRule) TableName() string { return "alert_rules" }

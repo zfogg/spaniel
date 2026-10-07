@@ -63,3 +63,38 @@ func TestValidateAlertDiscoveryColumns(t *testing.T) {
 		t.Fatal("missing group column should fail discovery validation")
 	}
 }
+
+func TestAdvanceAlertInstance_SilenceSuppressesRepeat(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "silence-repeat.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	now := time.Now()
+	previousNotification := now.Add(-2 * time.Minute).UnixNano()
+	rule := &storage.AlertRule{ID: "repeat-rule", Name: "Repeat rule", QuerySQL: "SELECT 1 AS value", ConditionJSON: `{"kind":"threshold","operator":">","value":0}`, GroupByJSON: `[]`, Enabled: true, RepeatIntervalNs: int64(time.Minute)}
+	if err := store.CreateAlertRule(rule); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertAlertInstance(&storage.AlertInstance{RuleID: rule.ID, GroupKey: "all", LabelsJSON: "{}", State: "firing", Value: func() *float64 { v := 1.0; return &v }(), LastNotifiedAt: &previousNotification}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateAlertSilence(&storage.AlertSilence{RuleID: rule.ID, StartsAt: now.Add(-time.Minute).UnixNano(), EndsAt: now.Add(time.Hour).UnixNano()}); err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := store.GetAlertRule(rule.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule.Instances = persisted.Instances
+	if err := advanceAlertInstance(store, ws.NewHub(), rule, "all", map[string]string{}, 1, true, now); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.GetAlertRule(rule.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Instances[0].LastNotifiedAt == nil || *got.Instances[0].LastNotifiedAt != previousNotification {
+		t.Fatalf("silenced repeat updated last notification: %#v", got.Instances[0])
+	}
+}

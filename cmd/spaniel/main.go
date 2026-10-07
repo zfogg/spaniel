@@ -921,6 +921,19 @@ func run(cfg runConfig) error {
 			return setupOTel(endpoint)
 		},
 	}
+	api.ConfigureAlertDelivery(api.AlertDelivery{
+		BrowserEnabled:   func() bool { return cfg.Viper.GetBool("alerts.browser_enabled") },
+		PushoverEnabled:  func() bool { return cfg.Viper.GetBool("alerts.pushover_enabled") },
+		BrowserTemplate:  func() string { return cfg.Viper.GetString("alerts.browser_template") },
+		PushoverTemplate: func() string { return cfg.Viper.GetString("alerts.pushover_template") },
+		PushoverUserKey:  os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"),
+		PushoverAPIToken: os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"),
+		RecordEvent: func(event *storage.AlertEvent) {
+			if err := store.RecordAlertEvent(event); err != nil {
+				slog.Warn("record alert delivery event", "err", err)
+			}
+		},
+	})
 	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters(), pipeline)
 
 	var uiHandler http.Handler

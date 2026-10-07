@@ -140,6 +140,10 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("self_monitor", true)
 	v.SetDefault("mcp_enabled", true)
 	v.SetDefault("mcp_allow_writes", false)
+	v.SetDefault("alerts.browser_enabled", true)
+	v.SetDefault("alerts.pushover_enabled", true)
+	v.SetDefault("alerts.browser_template", "")
+	v.SetDefault("alerts.pushover_template", "")
 
 	// ENV: SPANIEL_PORT, SPANIEL_DB_PATH, etc.
 	v.SetEnvPrefix("SPANIEL")
