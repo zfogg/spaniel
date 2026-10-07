@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "fingerprint": "e533c99d42e2794520bd1a11a1ff1cf0146a2b904998649318759aaceb288f63",
+  "fingerprint": "a4ca9b130e795e9d76d0677065c83a764b664a5e00b1da7daf8d8f4636ba0f94",
   "views": [
     {
       "name": "telemetry_spans",
@@ -558,6 +558,321 @@
           "explanation": "A generic metric starting point; add a metric-name filter before saving."
         }
       ]
+    },
+    {
+      "name": "telemetry_span_events",
+      "purpose": "Timestamped OpenTelemetry events attached to spans.",
+      "columns": [
+        {
+          "name": "span_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry span identifier.",
+          "use_it_for": "Span-list links and parent-child investigation.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "trace_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry trace identifier.",
+          "use_it_for": "Trace-list links and correlating logs with spans.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "time_ns",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR",
+          "description": "Operation, log, or metric name.",
+          "use_it_for": "Operation breakdowns and metric selection.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "attributes",
+          "type": "JSON",
+          "description": "Serialized span or log attributes as JSON.",
+          "use_it_for": "Filtering known semantic-convention fields with json_extract_string.",
+          "sensitivity": "may contain user data"
+        }
+      ],
+      "samples": null
+    },
+    {
+      "name": "telemetry_span_links",
+      "purpose": "Cross-trace and asynchronous span relationships.",
+      "columns": [
+        {
+          "name": "span_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry span identifier.",
+          "use_it_for": "Span-list links and parent-child investigation.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "trace_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry trace identifier.",
+          "use_it_for": "Trace-list links and correlating logs with spans.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "linked_trace_id",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "linked_span_id",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "trace_state",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "attributes",
+          "type": "JSON",
+          "description": "Serialized span or log attributes as JSON.",
+          "use_it_for": "Filtering known semantic-convention fields with json_extract_string.",
+          "sensitivity": "may contain user data"
+        }
+      ],
+      "samples": null
+    },
+    {
+      "name": "telemetry_metric_series",
+      "purpose": "Bounded directory of observed metric streams.",
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "service_name",
+          "type": "VARCHAR",
+          "description": "Service that emitted the record.",
+          "use_it_for": "Grouping or filtering by service.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR",
+          "description": "Operation, log, or metric name.",
+          "use_it_for": "Operation breakdowns and metric selection.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "series_key",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "series_attributes",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "first_timestamp_ns",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "last_timestamp_ns",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "point_count",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        }
+      ],
+      "samples": null
+    },
+    {
+      "name": "telemetry_findings",
+      "purpose": "Normalized Spaniel lint and trace findings.",
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "source",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "severity",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry log severity number.",
+          "use_it_for": "Severity breakdowns and alert filters.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "kind",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "message",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "trace_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry trace identifier.",
+          "use_it_for": "Trace-list links and correlating logs with spans.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "span_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry span identifier.",
+          "use_it_for": "Span-list links and parent-child investigation.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "count",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "wasted_ns",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "created_at",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        }
+      ],
+      "samples": null
+    },
+    {
+      "name": "telemetry_sessions",
+      "purpose": "Capture sessions for advanced comparisons.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "label",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "created_at",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "is_baseline",
+          "type": "BOOLEAN",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "is_imported",
+          "type": "BOOLEAN",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "span_count",
+          "type": "INTEGER",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "services",
+          "type": "JSON",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "note",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "last_activity_ns",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        }
+      ],
+      "samples": null
     }
   ],
   "parameters": [

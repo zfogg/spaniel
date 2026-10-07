@@ -1,6 +1,6 @@
 <!doctype html><meta charset=utf-8><title>Spaniel database schema</title><pre># Spaniel database schema
 
-Catalog version `1`; schema fingerprint `e533c99d42e2794520bd1a11a1ff1cf0146a2b904998649318759aaceb288f63`.
+Catalog version `1`; schema fingerprint `a4ca9b130e795e9d76d0677065c83a764b664a5e00b1da7daf8d8f4636ba0f94`.
 
 ## `telemetry_spans`
 
@@ -126,4 +126,74 @@ One row per metric point.
 ```sql
 SELECT timestamp_ns, avg(value) AS value FROM telemetry_metrics WHERE session_id = $session_id GROUP BY 1 ORDER BY 1
 ```
+## `telemetry_span_events`
+
+Timestamped OpenTelemetry events attached to spans.
+
+| Column | DuckDB type | Use it for |
+|---|---|---|
+| `span_id` | `VARCHAR` | Span-list links and parent-child investigation. |
+| `trace_id` | `VARCHAR` | Trace-list links and correlating logs with spans. |
+| `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
+| `time_ns` | `BIGINT` |  |
+| `name` | `VARCHAR` | Operation breakdowns and metric selection. |
+| `attributes` | `JSON` | Filtering known semantic-convention fields with json_extract_string. |
+## `telemetry_span_links`
+
+Cross-trace and asynchronous span relationships.
+
+| Column | DuckDB type | Use it for |
+|---|---|---|
+| `span_id` | `VARCHAR` | Span-list links and parent-child investigation. |
+| `trace_id` | `VARCHAR` | Trace-list links and correlating logs with spans. |
+| `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
+| `linked_trace_id` | `VARCHAR` |  |
+| `linked_span_id` | `VARCHAR` |  |
+| `trace_state` | `VARCHAR` |  |
+| `attributes` | `JSON` | Filtering known semantic-convention fields with json_extract_string. |
+## `telemetry_metric_series`
+
+Bounded directory of observed metric streams.
+
+| Column | DuckDB type | Use it for |
+|---|---|---|
+| `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
+| `service_name` | `VARCHAR` | Grouping or filtering by service. |
+| `name` | `VARCHAR` | Operation breakdowns and metric selection. |
+| `series_key` | `VARCHAR` |  |
+| `series_attributes` | `VARCHAR` |  |
+| `first_timestamp_ns` | `BIGINT` |  |
+| `last_timestamp_ns` | `BIGINT` |  |
+| `point_count` | `BIGINT` |  |
+## `telemetry_findings`
+
+Normalized Spaniel lint and trace findings.
+
+| Column | DuckDB type | Use it for |
+|---|---|---|
+| `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
+| `source` | `VARCHAR` |  |
+| `severity` | `VARCHAR` | Severity breakdowns and alert filters. |
+| `kind` | `VARCHAR` |  |
+| `message` | `VARCHAR` |  |
+| `trace_id` | `VARCHAR` | Trace-list links and correlating logs with spans. |
+| `span_id` | `VARCHAR` | Span-list links and parent-child investigation. |
+| `count` | `BIGINT` |  |
+| `wasted_ns` | `BIGINT` |  |
+| `created_at` | `BIGINT` |  |
+## `telemetry_sessions`
+
+Capture sessions for advanced comparisons.
+
+| Column | DuckDB type | Use it for |
+|---|---|---|
+| `id` | `VARCHAR` |  |
+| `label` | `VARCHAR` |  |
+| `created_at` | `BIGINT` |  |
+| `is_baseline` | `BOOLEAN` |  |
+| `is_imported` | `BOOLEAN` |  |
+| `span_count` | `INTEGER` |  |
+| `services` | `JSON` |  |
+| `note` | `VARCHAR` |  |
+| `last_activity_ns` | `BIGINT` |  |
 </pre>
