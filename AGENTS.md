@@ -42,4 +42,12 @@ working tree is already formatted with `pnpm run format:check` and that
 Use GORM Gen for Spaniel's typed reads/writes and named SQL (including DML).
 Raw GORM is reserved for migrations/schema repair, dynamic retention cleanup,
 and DuckDB maintenance; user SQL remains read-only and is separately traced.
-Run `make generate` after changing storage models or named query interfaces.
+
+## Generated code
+
+Run `make generate` after changing a storage model, a GORM Gen named-query
+interface, the OpenAPI specification, or any other generator input—and before
+building, testing, or committing the change. The command regenerates typed
+storage query code, schema-derived artifacts, and the OpenAPI server/client
+adapter so checked-in generated code stays aligned with its sources. Do not
+hand-edit those generated outputs; update their inputs and regenerate instead.
