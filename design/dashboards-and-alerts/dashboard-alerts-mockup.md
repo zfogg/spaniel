@@ -22,7 +22,7 @@ Keep magic variables distinct from reusable variables. A dashboard author can na
 SQL authors need three layers of help, using **one canonical schema catalog**:
 
 1. The query composer gets a quiet `Schema & SQL` action beside the read-only SQL label. It opens the schema reference in the same tab and returns the author to their unsaved dashboard or alert draft.
-2. `/docs/database-schema` is the full reference. It lists the stable `telemetry_*` DuckDB views, their columns/types/descriptions, panel-result-shape conventions, named parameter rules, and small working query samples.
+2. `/docs/database` is the full reference. It lists the stable `telemetry_*` DuckDB views, their columns/types/descriptions, panel-result-shape conventions, named parameter rules, and small working query samples.
 3. Existing telemetry search remains the fast path: metrics, spans, traces, logs, and attributes can insert a known-good sample into the composer. The docs page is for understanding and adaptation, not a competing query builder.
 
 Do not create a hard-coded “documentation schema” separate from the query catalog. Define an internal `SchemaCatalog` model and publish it through `GET /api/database-schema` (or extend the existing catalog response with a versioned `schema` resource). The catalog is the single source for:
@@ -48,7 +48,7 @@ docs/database-schema.html                # static, standalone reference for GitH
 frontend/src/generated/schemaCatalog.ts  # optional typed fallback for editor loading states/tests
 ```
 
-The runtime `/docs/database-schema` page should usually fetch the API catalog so it always matches the running binary. The generated HTML is a portable snapshot for people who want to browse documentation outside Spaniel; stamp it with the catalog version and Spaniel build version. Do not hand-edit any generated output.
+The runtime `/docs/database` page should usually fetch the API catalog so it always matches the running binary. The generated HTML is a portable snapshot for people who want to browse documentation outside Spaniel; stamp it with the catalog version and Spaniel build version. Do not hand-edit any generated output.
 
 ### DuckDB introspection details
 
@@ -172,7 +172,7 @@ internal/api/database_schema.go                 # new GET /api/database-schema
 internal/api/database_schema_test.go
 internal/api/dashboards_test.go
 internal/api/alerts_test.go
-frontend/src/pages/DatabaseSchema.tsx           # /docs/database-schema
+frontend/src/pages/DatabaseSchema.tsx           # /docs/database
 frontend/src/components/dashboard-panels/SchemaHelpLink.tsx
 frontend/src/components/dashboard-panels/SchemaReferenceDrawer.tsx
 frontend/src/pages/Dashboards.tsx
@@ -373,7 +373,7 @@ Keep notification delivery out of the first dashboard PR. Store notification con
 Use the mockup as the interaction spec:
 
 - **Dashboard list/editor**: saved dashboards, panel grid, edit mode, draft panel selection, and a query composer with title + display type.
-- **Query composer**: telemetry search tabs (metrics/spans/traces/logs), reserved parameter insertion, custom variable editing, preview, and inline errors that retain the query. Put a compact `Schema & SQL` action in the SQL toolbar; it opens `/docs/database-schema` without discarding the draft.
+- **Query composer**: telemetry search tabs (metrics/spans/traces/logs), reserved parameter insertion, custom variable editing, preview, and inline errors that retain the query. Put a compact `Schema & SQL` action in the SQL toolbar; it opens `/docs/database` without discarding the draft.
 - **Database schema docs**: `DatabaseSchema.tsx` consumes the same typed schema-catalog endpoint as composer tooltips. It provides a searchable view list, column/type/meaning table, parameter guardrails, a capped “Preview sample · 30 rows” result grid, and a “Copy to clipboard” action beside each working sample.
 - **Panel renderer**: one component per display type, sharing a typed `PanelResult`; reuse the existing SVG metric chart work in `Metrics.tsx` before adding a chart library.
 - **Alerts**: signal-board rows, a state filter, and inspector with query, resolved labels, timeline, trace links, acknowledgement, and eventual silence flow.
