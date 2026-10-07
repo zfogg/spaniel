@@ -124,6 +124,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Get("/api/metrics/series", r.getMetricSeries)
 	mux.Get("/api/dashboards", r.listDashboards)
 	mux.Post("/api/dashboards", r.createDashboard)
+	mux.Post("/api/dashboards/reorder", r.reorderDashboards)
 	mux.Get("/api/dashboards/{id}", r.getDashboard)
 	mux.Get("/api/dashboards/{id}/config", r.exportDashboardConfig)
 	mux.Post("/api/dashboards/import", r.importDashboardConfig)

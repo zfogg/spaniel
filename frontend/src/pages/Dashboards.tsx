@@ -14,6 +14,7 @@ import { MagicParameters } from '@/components/dashboard-panels/MagicParameters'
 import { ReusableParameterList } from '@/components/dashboard-panels/ReusableParameterList'
 import { PanelPreview, type PreviewSnapshot } from '@/components/dashboard-panels/PanelPreview'
 import { NewDashboardStarter } from '@/components/dashboard-panels/NewDashboardStarter'
+import { DashboardList } from '@/components/dashboard-panels/DashboardList'
 import { dashboardTemplates } from '@/components/dashboard-panels/dashboard-templates'
 import { SqlCode, SqlEditor } from '@/components/SqlCode'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -70,9 +71,35 @@ function DashboardGallery() {
   const navigate = useNavigate()
   const { data: savedDashboards = [] } = useQuery({ queryKey: qk.dashboards(), queryFn: () => api.dashboards.list().then(x => x.data) })
   const [local, setLocal] = useState<Dashboard[]>(readLocalDashboards)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = searchParams.get('id')
+  const [reordering, setReordering] = useState(false)
+  const reorderPending = useRef(false)
   const dashboards = [...savedDashboards, ...local.filter(localDashboard => !savedDashboards.some(saved => saved.id === localDashboard.id))]
   const selected = dashboards.find(dashboard => dashboard.id === selectedId) ?? dashboards[0]
+  const dashboardHref = (id: string, index: number) => {
+    const next = new URLSearchParams(searchParams)
+    if (index === 0) next.delete('id'); else next.set('id', id)
+    return `/dashboards${next.size ? `?${next}` : ''}`
+  }
+  const reorder = async (from: string, to: string) => {
+    if (from === to || reorderPending.current) return
+    const next = [...dashboards]
+    const source = next.findIndex(item => item.id === from), target = next.findIndex(item => item.id === to)
+    if (source < 0 || target < 0) return
+    next.splice(target, 0, ...next.splice(source, 1))
+    reorderPending.current = true
+    setReordering(true)
+    try {
+      await api.dashboards.reorder(next.filter(item => !item.id.startsWith('local-')).map(item => item.id))
+      // Preserve the viewed dashboard when moving a different entry to first.
+      setSearchParams(current => { const params = new URLSearchParams(current); if (selected && selected.id !== next[0]?.id) params.set('id', selected.id); else params.delete('id'); return params }, { replace: true })
+      qc.setQueryData(qk.dashboards(), next.filter(item => !item.id.startsWith('local-')))
+      await qc.invalidateQueries({ queryKey: qk.dashboards() })
+    } catch (error) {
+      toast.error(`Could not reorder dashboards: ${error instanceof Error ? error.message : String(error)}`)
+    } finally { reorderPending.current = false; setReordering(false) }
+  }
   const syncLocal = (next: Dashboard[]) => { setLocal(next); saveLocalDashboards(next) }
   const remove = async (dashboard: Dashboard) => {
     if (!window.confirm(`Delete “${dashboard.name}”? This cannot be undone.`)) return
@@ -86,7 +113,7 @@ function DashboardGallery() {
     else { await api.dashboards.update(dashboard.id, { name, description: dashboard.description }); await qc.invalidateQueries({ queryKey: qk.dashboards() }) }
   }
   return <div className="dashboard-workspace flex min-h-0 flex-1 overflow-hidden bg-background text-foreground">
-    <aside className="w-56 shrink-0 overflow-auto border-r border-border bg-surface"><p className="px-4 pb-2 pt-5 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground">Dashboards</p>{dashboards.map(dashboard => <button key={dashboard.id} onClick={() => setSelectedId(dashboard.id)} className={`flex w-full cursor-pointer items-center gap-2 border-l-2 px-4 py-2 text-left text-sm ${selected?.id === dashboard.id ? 'border-accent bg-accent-bg font-semibold text-accent-ink' : 'border-transparent text-muted-foreground hover:bg-muted'}`}><LayoutDashboard size={14}/><span className="min-w-0 flex-1 truncate">{dashboard.name}</span><small className="font-mono text-[10px] text-muted-foreground">{dashboard.panels.length}</small></button>)}<Link to="/dashboards/new" className="mx-3 mt-3 flex cursor-pointer items-center justify-center gap-1 rounded-md border border-dashed border-accent px-2 py-2 text-xs font-semibold text-accent-ink"><Plus size={14}/> New dashboard</Link></aside>
+    <aside className="w-56 shrink-0 overflow-auto border-r border-border bg-surface"><p className="px-4 pb-2 pt-5 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground">Dashboards</p><DashboardList dashboards={dashboards} selectedId={selected?.id} href={dashboardHref} reorder={reorder} pending={reordering}/><Link to="/dashboards/new" className="mx-3 mt-3 flex cursor-pointer items-center justify-center gap-1 rounded-md border border-dashed border-accent px-2 py-2 text-xs font-semibold text-accent-ink"><Plus size={14}/> New dashboard</Link></aside>
     <main className="min-w-0 flex-1 overflow-auto"><header className="flex items-start gap-4 border-b border-border bg-surface px-6 py-5"><div><h1 className="text-[22px] font-semibold tracking-tight">{selected?.name ?? 'Dashboards'}</h1><p className="mt-1 text-xs text-muted-foreground">{selected?.description || 'Query-backed telemetry views.'}</p></div><div className="ml-auto"><button onClick={() => selected && navigate(`/dashboards/${selected.id}`)} className="cursor-pointer rounded-md bg-[#315b7d] px-3 py-2 text-xs font-medium text-white hover:brightness-110">Edit dashboard</button></div></header>{selected ? <div className="mx-auto max-w-6xl p-5"><div className="mb-4 flex flex-wrap gap-2">{selected.variables.map(variable => <span key={variable.name} className="rounded border border-border bg-surface px-2 py-1.5 font-mono text-[11px] text-muted-foreground">${variable.name}{variable.default_value ? ` = ${variable.default_value}` : ''}</span>)}</div><div className="grid gap-4 lg:grid-cols-2">{selected.panels.map(panel => <Panel key={panel.id} panel={panel} dashboardId={selected.id} refresh={() => qc.invalidateQueries({queryKey:qk.dashboards()})} onEdit={() => navigate(`/dashboards/${selected.id}`)}/>)}{selected.panels.length === 0 && <div className="rounded-lg border border-dashed border-border bg-surface p-12 text-center text-sm text-muted-foreground">This dashboard has no panels yet. Select <b>Edit dashboard</b> to add one.</div>}</div></div> : <div className="p-12 text-center"><h2 className="text-lg font-semibold">No dashboards yet</h2><Link to="/dashboards/new" className="mt-4 inline-flex rounded bg-accent px-3 py-2 text-sm text-accent-ink">Create dashboard</Link></div>}</main>
   </div>
 }

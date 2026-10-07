@@ -19,6 +19,36 @@ import (
 
 const dashboardQueryVersion = 1
 
+func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
+	var in struct {
+		IDs []string `json:"ids" validate:"required,max=10000,dive,required"`
+	}
+	if !decodeAndValidate(w, req, &in) {
+		return
+	}
+	dashboards, err := r.store.WithContext(req.Context()).ListDashboards()
+	if err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	available := make(map[string]bool, len(dashboards))
+	for _, dashboard := range dashboards {
+		available[dashboard.ID] = true
+	}
+	for _, id := range in.IDs {
+		if !available[id] {
+			respondErr(w, req, 400, "unknown or duplicate dashboard ID")
+			return
+		}
+		delete(available, id)
+	}
+	if err := r.store.WithContext(req.Context()).ReorderDashboards(in.IDs); err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, 1, 1)
+}
+
 func (r *Router) movePanel(w http.ResponseWriter, req *http.Request) {
 	var in struct {
 		Direction int `json:"direction" validate:"oneof=-1 1"`

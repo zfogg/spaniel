@@ -3,10 +3,12 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/model"
 	"github.com/zfogg/spaniel/internal/storage/querygen"
+	"sort"
 	"time"
 )
 
@@ -54,12 +56,43 @@ func (d *DB) ListDashboards() ([]*Dashboard, error) {
 	if err != nil {
 		return nil, err
 	}
+	order, err := d.query.Meta.Where(d.query.Meta.Key.Eq("dashboard_order")).Find()
+	if err != nil {
+		return nil, err
+	}
+	if len(order) > 0 {
+		var ids []string
+		if err := json.Unmarshal([]byte(order[0].Value), &ids); err != nil {
+			return nil, err
+		}
+		ranks := make(map[string]int, len(ids))
+		for i, id := range ids {
+			ranks[id] = i
+		}
+		rank := func(id string) int {
+			if i, ok := ranks[id]; ok {
+				return i
+			}
+			return len(ids)
+		}
+		sort.SliceStable(out, func(i, j int) bool { return rank(out[i].ID) < rank(out[j].ID) })
+	}
 	for _, x := range out {
 		if err := d.hydrateDashboard(x); err != nil {
 			return nil, err
 		}
 	}
 	return out, nil
+}
+
+// Persist the list as one metadata value so ordering changes are atomic and
+// cannot overwrite dashboard definitions. New dashboards remain visible.
+func (d *DB) ReorderDashboards(ids []string) error {
+	encoded, err := json.Marshal(ids)
+	if err != nil {
+		return err
+	}
+	return d.namedQuery("storage.ReorderDashboards").Meta.UpsertValue("dashboard_order", string(encoded))
 }
 func (d *DB) GetDashboard(id string) (*Dashboard, error) {
 	x, err := d.query.Dashboard.Where(d.query.Dashboard.ID.Eq(id)).First()

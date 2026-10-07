@@ -532,6 +532,7 @@ export interface SettingsUpdate {
 
 export const api = {
 	 dashboards: {
+		reorder: (ids: string[]) => post('/api/dashboards/reorder', { ids }, OkSchema),
 		list: () => get('/api/dashboards', z.array(DashboardSchema)),
 		get: (id: string) => get(`/api/dashboards/${id}`, DashboardSchema),
 		create: (body: { name: string; description?: string; panels?: Array<Pick<DashboardPanel, 'title' | 'display_type' | 'query_sql'>> }) => post('/api/dashboards', body, DashboardSchema),
