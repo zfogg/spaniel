@@ -50,6 +50,20 @@
   color: white;
 }
 
+/* Every actionable control should advertise that it can be clicked. Text
+   inputs intentionally retain their text caret. */
+button:not(:disabled),
+select:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[role='button'][aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
 :root {
   color-scheme: light;
 
