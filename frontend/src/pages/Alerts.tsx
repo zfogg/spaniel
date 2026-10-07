@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { BellRing, Search } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { api, type AlertRule, type AlertEvent, type AlertSilence } from '@/lib/api'
@@ -1684,9 +1684,17 @@ function AlertEditor({
       </label>
 
       <section>
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Query
-        </h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Query
+          </h3>
+          <Link
+            to="/docs/database-schema"
+            className="rounded border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted"
+          >
+            Schema &amp; SQL
+          </Link>
+        </div>
         <SqlEditor
           value={draft.query}
           onChange={(value) => set('query', value)}

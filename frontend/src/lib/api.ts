@@ -562,6 +562,33 @@ export const QueryCatalogEntrySchema = z.object({
   display_type: z.string(),
   attributes: z.record(z.string(), z.unknown()).optional(),
 })
+export const DatabaseSchemaColumnSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  description: z.string(),
+  use_it_for: z.string(),
+  sensitivity: z.string(),
+})
+export const DatabaseSchemaSampleSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  display_type: z.string(),
+  sql: z.string(),
+  explanation: z.string(),
+})
+export const DatabaseSchemaCatalogSchema = z.object({
+  version: z.string(),
+  fingerprint: z.string(),
+  parameters: z.array(z.string()),
+  views: z.array(
+    z.object({
+      name: z.string(),
+      purpose: z.string(),
+      columns: z.array(DatabaseSchemaColumnSchema),
+      samples: z.array(DatabaseSchemaSampleSchema),
+    }),
+  ),
+})
 export const AlertInstanceSchema = z.object({
   rule_id: z.string(),
   group_key: z.string(),
@@ -693,6 +720,7 @@ export type DashboardPanel = z.infer<typeof DashboardPanelSchema>
 export type DashboardVariable = z.infer<typeof DashboardVariableSchema>
 export type QueryPreview = z.infer<typeof QueryPreviewSchema>
 export type QueryCatalogEntry = z.infer<typeof QueryCatalogEntrySchema>
+export type DatabaseSchemaCatalog = z.infer<typeof DatabaseSchemaCatalogSchema>
 export type AlertRule = z.infer<typeof AlertRuleSchema>
 export type AlertEvent = z.infer<typeof AlertEventSchema>
 export type AlertSilence = z.infer<typeof AlertSilenceSchema>
@@ -724,6 +752,7 @@ export interface SettingsUpdate {
 }
 
 export const api = {
+  databaseSchema: { get: () => get('/api/database-schema', DatabaseSchemaCatalogSchema) },
   dashboards: {
     list: () => get('/api/dashboards', z.array(DashboardSchema)),
     get: (id: string) => get(`/api/dashboards/${id}`, DashboardSchema),

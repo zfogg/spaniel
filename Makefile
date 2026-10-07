@@ -88,6 +88,7 @@ test-storage: verify-generated
 
 generate:
 	go run ./cmd/genquery
+	go run ./cmd/genschema
 
 setup:
 	git config core.hooksPath git-hooks

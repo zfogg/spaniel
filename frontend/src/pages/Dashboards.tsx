@@ -21,6 +21,7 @@ import { MagicParameters } from '@/components/dashboard-panels/MagicParameters'
 import { ReusableParameterList } from '@/components/dashboard-panels/ReusableParameterList'
 import { PanelPreview, type PreviewSnapshot } from '@/components/dashboard-panels/PanelPreview'
 import { NewDashboardStarter } from '@/components/dashboard-panels/NewDashboardStarter'
+import { SchemaHelpLink } from '@/components/dashboard-panels/SchemaHelpLink'
 import { DashboardList } from '@/components/dashboard-panels/DashboardList'
 import { dashboardTemplates } from '@/components/dashboard-panels/dashboard-templates'
 import { SqlCode, SqlEditor } from '@/components/SqlCode'
@@ -873,8 +874,9 @@ function PanelStudio({
         </aside>
       </div>
       <section className="border-t border-border bg-background">
-        <div className="w-full border-b border-border bg-accent-bg px-3 py-2">
+        <div className="flex w-full items-center justify-between border-b border-border bg-accent-bg px-3 py-2">
           <strong className="block whitespace-nowrap text-[11px]">Read-only DuckDB SQL</strong>
+          <SchemaHelpLink />
         </div>
         <div className="grid gap-2 border-b border-border bg-muted/30 p-2.5 sm:grid-cols-2">
           <label className="font-mono text-[10px] text-muted-foreground">

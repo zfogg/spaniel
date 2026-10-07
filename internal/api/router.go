@@ -138,6 +138,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Post("/api/dashboards/{id}/variables", r.saveVariable)
 	mux.Delete("/api/dashboards/{id}/variables/{name}", r.deleteVariable)
 	mux.Get("/api/query-catalog", r.queryCatalog)
+	mux.Get("/api/database-schema", r.databaseSchema)
 	mux.Get("/api/alerts", r.listAlerts)
 	mux.Post("/api/alerts", r.createAlert)
 	mux.Post("/api/alerts/import", r.importAlertConfig)

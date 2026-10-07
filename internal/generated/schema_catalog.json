@@ -1,0 +1,566 @@
+{
+  "version": "1",
+  "fingerprint": "e533c99d42e2794520bd1a11a1ff1cf0146a2b904998649318759aaceb288f63",
+  "views": [
+    {
+      "name": "telemetry_spans",
+      "purpose": "One row per recorded span; use for operation latency and errors.",
+      "columns": [
+        {
+          "name": "trace_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry trace identifier.",
+          "use_it_for": "Trace-list links and correlating logs with spans.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "span_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry span identifier.",
+          "use_it_for": "Span-list links and parent-child investigation.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "parent_span_id",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "service_name",
+          "type": "VARCHAR",
+          "description": "Service that emitted the record.",
+          "use_it_for": "Grouping or filtering by service.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR",
+          "description": "Operation, log, or metric name.",
+          "use_it_for": "Operation breakdowns and metric selection.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "kind",
+          "type": "INTEGER",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "start_ns",
+          "type": "BIGINT",
+          "description": "Start time in Unix nanoseconds.",
+          "use_it_for": "Time-series buckets and ordering.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "end_ns",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "duration_ns",
+          "type": "BIGINT",
+          "description": "Duration in nanoseconds.",
+          "use_it_for": "Latency percentiles, slow-operation tables, and heatmaps.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "status_code",
+          "type": "INTEGER",
+          "description": "OpenTelemetry status code.",
+          "use_it_for": "Error-rate filters and status summaries.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "status_message",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "attributes",
+          "type": "VARCHAR",
+          "description": "Serialized span or log attributes as JSON.",
+          "use_it_for": "Filtering known semantic-convention fields with json_extract_string.",
+          "sensitivity": "may contain user data"
+        },
+        {
+          "name": "resource",
+          "type": "VARCHAR",
+          "description": "Serialized resource attributes as JSON.",
+          "use_it_for": "Filtering deployment and service resource fields.",
+          "sensitivity": "may contain user data"
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "session_label",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "received_at",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "sampled",
+          "type": "BOOLEAN",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        }
+      ],
+      "samples": [
+        {
+          "id": "span-count-over-time",
+          "title": "Span count over time",
+          "display_type": "time_series",
+          "sql": "SELECT (start_ns // 60000000000) * 60000000000 AS timestamp_ns, count(*) AS value FROM telemetry_spans WHERE session_id = $session_id GROUP BY 1 ORDER BY 1",
+          "explanation": "A one-minute request volume series scoped to the active session."
+        },
+        {
+          "id": "slow-spans",
+          "title": "Slow spans",
+          "display_type": "table",
+          "sql": "SELECT service_name, name, duration_ns / 1000000.0 AS duration_ms, trace_id, span_id FROM telemetry_spans WHERE session_id = $session_id ORDER BY duration_ns DESC LIMIT 30",
+          "explanation": "The slowest spans with links back to their trace."
+        }
+      ]
+    },
+    {
+      "name": "telemetry_traces",
+      "purpose": "One row per trace, derived from its spans.",
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "trace_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry trace identifier.",
+          "use_it_for": "Trace-list links and correlating logs with spans.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "start_ns",
+          "type": "BIGINT",
+          "description": "Start time in Unix nanoseconds.",
+          "use_it_for": "Time-series buckets and ordering.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "duration_ns",
+          "type": "BIGINT",
+          "description": "Duration in nanoseconds.",
+          "use_it_for": "Latency percentiles, slow-operation tables, and heatmaps.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "service_name",
+          "type": "VARCHAR",
+          "description": "Service that emitted the record.",
+          "use_it_for": "Grouping or filtering by service.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR",
+          "description": "Operation, log, or metric name.",
+          "use_it_for": "Operation breakdowns and metric selection.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "span_count",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        }
+      ],
+      "samples": [
+        {
+          "id": "errored-traces",
+          "title": "Recent traces",
+          "display_type": "trace_list",
+          "sql": "SELECT trace_id, service_name, name, start_ns, duration_ns, span_count FROM telemetry_traces WHERE session_id = $session_id ORDER BY start_ns DESC LIMIT 30",
+          "explanation": "A trace-list starting point."
+        }
+      ]
+    },
+    {
+      "name": "telemetry_logs",
+      "purpose": "One row per structured log record.",
+      "columns": [
+        {
+          "name": "timestamp_ns",
+          "type": "BIGINT",
+          "description": "Event time in Unix nanoseconds.",
+          "use_it_for": "Time-series buckets and ordering.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "trace_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry trace identifier.",
+          "use_it_for": "Trace-list links and correlating logs with spans.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "span_id",
+          "type": "VARCHAR",
+          "description": "OpenTelemetry span identifier.",
+          "use_it_for": "Span-list links and parent-child investigation.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "severity",
+          "type": "INTEGER",
+          "description": "OpenTelemetry log severity number.",
+          "use_it_for": "Severity breakdowns and alert filters.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "body",
+          "type": "VARCHAR",
+          "description": "Log body.",
+          "use_it_for": "Log search and log-list panels.",
+          "sensitivity": "may contain user data"
+        },
+        {
+          "name": "attributes",
+          "type": "VARCHAR",
+          "description": "Serialized span or log attributes as JSON.",
+          "use_it_for": "Filtering known semantic-convention fields with json_extract_string.",
+          "sensitivity": "may contain user data"
+        },
+        {
+          "name": "service_name",
+          "type": "VARCHAR",
+          "description": "Service that emitted the record.",
+          "use_it_for": "Grouping or filtering by service.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        },
+        {
+          "name": "received_at",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        }
+      ],
+      "samples": [
+        {
+          "id": "log-volume",
+          "title": "Log volume by severity",
+          "display_type": "time_series",
+          "sql": "SELECT (timestamp_ns // 60000000000) * 60000000000 AS timestamp_ns, severity AS group_value, count(*) AS value FROM telemetry_logs WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2",
+          "explanation": "A grouped log volume chart."
+        }
+      ]
+    },
+    {
+      "name": "telemetry_metrics",
+      "purpose": "One row per metric point.",
+      "columns": [
+        {
+          "name": "name",
+          "type": "VARCHAR",
+          "description": "Operation, log, or metric name.",
+          "use_it_for": "Operation breakdowns and metric selection.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "description",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "unit",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "type",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "aggregation_temporality",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "is_monotonic",
+          "type": "BOOLEAN",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "start_timestamp_ns",
+          "type": "BIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "timestamp_ns",
+          "type": "BIGINT",
+          "description": "Event time in Unix nanoseconds.",
+          "use_it_for": "Time-series buckets and ordering.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "flags",
+          "type": "UINTEGER",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "value",
+          "type": "DOUBLE",
+          "description": "Recorded numeric metric value.",
+          "use_it_for": "Metric charts and scalar values.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "histogram_count",
+          "type": "UBIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "histogram_sum",
+          "type": "DOUBLE",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "histogram_min",
+          "type": "DOUBLE",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "histogram_max",
+          "type": "DOUBLE",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "explicit_bounds",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "bucket_counts",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exp_scale",
+          "type": "INTEGER",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exp_zero_count",
+          "type": "UBIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exp_zero_threshold",
+          "type": "DOUBLE",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exp_positive_offset",
+          "type": "INTEGER",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exp_positive_counts",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exp_negative_offset",
+          "type": "INTEGER",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exp_negative_counts",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "summary_count",
+          "type": "UBIGINT",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "summary_sum",
+          "type": "DOUBLE",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "summary_quantiles",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "attributes",
+          "type": "VARCHAR",
+          "description": "Serialized span or log attributes as JSON.",
+          "use_it_for": "Filtering known semantic-convention fields with json_extract_string.",
+          "sensitivity": "may contain user data"
+        },
+        {
+          "name": "resource",
+          "type": "VARCHAR",
+          "description": "Serialized resource attributes as JSON.",
+          "use_it_for": "Filtering deployment and service resource fields.",
+          "sensitivity": "may contain user data"
+        },
+        {
+          "name": "series_attributes",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "series_key",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "scope_name",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "scope_version",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "scope_schema_url",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "scope_attributes",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "exemplars",
+          "type": "VARCHAR",
+          "description": "",
+          "use_it_for": "",
+          "sensitivity": ""
+        },
+        {
+          "name": "service_name",
+          "type": "VARCHAR",
+          "description": "Service that emitted the record.",
+          "use_it_for": "Grouping or filtering by service.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR",
+          "description": "Spaniel capture session identifier.",
+          "use_it_for": "The automatic $session_id scope; normally do not hard-code it.",
+          "sensitivity": "identifier"
+        }
+      ],
+      "samples": [
+        {
+          "id": "metric-values",
+          "title": "Metric values over time",
+          "display_type": "time_series",
+          "sql": "SELECT timestamp_ns, avg(value) AS value FROM telemetry_metrics WHERE session_id = $session_id GROUP BY 1 ORDER BY 1",
+          "explanation": "A generic metric starting point; add a metric-name filter before saving."
+        }
+      ]
+    }
+  ],
+  "parameters": [
+    "$session_id (resolved to the active session by Spaniel)"
+  ]
+}

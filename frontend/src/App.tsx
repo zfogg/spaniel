@@ -18,6 +18,7 @@ import Coverage from './pages/Coverage'
 import Settings from './pages/Settings'
 import Dashboards, { DashboardEditor } from './pages/Dashboards'
 import Alerts from './pages/Alerts'
+import DatabaseSchema from './pages/DatabaseSchema'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
 import AlertToast from './components/AlertToast'
@@ -283,6 +284,7 @@ function AppShell() {
             <Route path="/dashboards/new" element={<DashboardEditor />} />
             <Route path="/dashboards/:dashboardId" element={<DashboardEditor />} />
             <Route path="/alerts" element={<Alerts />} />
+            <Route path="/docs/database-schema" element={<DatabaseSchema />} />
             <Route path="/coverage" element={<Coverage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/services" element={<ServiceMap />} />
