@@ -19,6 +19,24 @@ const styles: Record<NotificationSeverity, { border: string; background: string;
   critical: { border: 'border-danger', background: 'bg-danger-bg', ink: 'text-danger-ink' },
 }
 
+const nativeNotificationPrefix = 'spaniel-native-notification:'
+
+// A live Spaniel page can be open in several browser tabs. Each receives the
+// same WebSocket frame, but the operating system should see one native alert
+// for that frame rather than one per tab. localStorage is shared by tabs on
+// the same origin and gives us a durable, race-resistant claim for its event
+// ID. A storage failure must not prevent the notification entirely.
+function claimNativeNotification(dedupeKey: string) {
+  try {
+    const key = `${nativeNotificationPrefix}${dedupeKey}`
+    if (window.localStorage.getItem(key)) return false
+    window.localStorage.setItem(key, String(Date.now()))
+    return true
+  } catch {
+    return true
+  }
+}
+
 // One presentation path for alerts and lints: severity treatment, navigation,
 // deduplication, and the optional native browser delivery all live here.
 export function showNotification(event: NotificationEvent) {
@@ -43,7 +61,15 @@ export function showNotification(event: NotificationEvent) {
     ),
     { id: event.dedupeKey, duration: 12_000 },
   )
-  if (event.native && 'Notification' in window && Notification.permission === 'granted') {
-    new Notification(`Spaniel · ${event.title}`, { body: event.detail })
+  if (
+    event.native &&
+    'Notification' in window &&
+    Notification.permission === 'granted' &&
+    claimNativeNotification(event.dedupeKey)
+  ) {
+    new Notification(`Spaniel · ${event.title}`, {
+      body: event.detail,
+      tag: `${nativeNotificationPrefix}${event.dedupeKey}`,
+    })
   }
 }
