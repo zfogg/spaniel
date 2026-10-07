@@ -140,6 +140,16 @@
         height: calc(100vh - 50px);
         min-height: 700px;
       }
+      /* Alerts and schema docs have their own local navigation and context.
+         Let those focused views use the full workspace rather than carrying
+         dashboard-only rails along with them. */
+      .workspace.focused-view {
+        grid-template-columns: minmax(620px, 1fr);
+      }
+      .workspace.focused-view > .left,
+      .workspace.focused-view > .right {
+        display: none;
+      }
       .left,
       .right {
         background: var(--surface);
@@ -2365,6 +2375,7 @@
         window.toastTimer = setTimeout(() => t.classList.remove("show"), 3400);
       }
       const main = document.querySelector("main");
+      const workspace = document.querySelector(".workspace");
       const dashboard = [...main.children];
       dashboard.forEach((x) => (x.id = "dashboard-page"));
       const alerts = document.createElement("section");
@@ -3350,6 +3361,7 @@
         const onAlerts = page === "alerts",
           onCreator = page === "create",
           onDocs = page === "docs";
+        workspace.classList.toggle("focused-view", onAlerts || onDocs);
         document
           .querySelectorAll("#dashboard-page")
           .forEach((x) => (x.style.display = onAlerts || onCreator || onDocs ? "none" : ""));
