@@ -24,7 +24,7 @@ const (
 	maxDashboardNameLength        = 120
 	maxDashboardDescriptionLength = 1000
 	maxVariableNameLength         = 64
-	maxVariableSourceLength       = 160
+	maxVariableSourceLength       = 16000
 	maxPanelTitleLength           = 160
 	maxPanelQueryLength           = 16000
 )

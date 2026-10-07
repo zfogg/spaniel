@@ -34,7 +34,7 @@ type panelInput struct {
 type variableInput struct {
 	Name         string `json:"name" validate:"required,max=64"`
 	Kind         string `json:"kind" validate:"required,oneof=attribute string number boolean duration time enum service operation trace_id span_id log_id"`
-	Source       string `json:"source" validate:"required,max=160"`
+	Source       string `json:"source" validate:"required,max=16000"`
 	OptionsJSON  string `json:"options_json"`
 	DefaultValue string `json:"default_value"`
 }
