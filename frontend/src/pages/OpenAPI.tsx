@@ -7,7 +7,7 @@ function options(dark: boolean) {
   const c = dark
     ? { bg: '#111f2e', side: '#152536', edge: '#29445b', ink: '#edf5fb', muted: '#a8bdcc', accent: '#75b9e6' }
     : { bg: '#f5f9fc', side: '#edf3f7', edge: '#cbdde8', ink: '#1f2937', muted: '#54616e', accent: '#176d9c' }
-  return { theme: { colors: { primary: { main: c.accent }, text: { primary: c.ink, secondary: c.muted }, border: { dark: c.edge, light: c.edge } }, sidebar: { backgroundColor: c.side, textColor: c.muted, activeTextColor: c.ink }, rightPanel: { backgroundColor: c.bg, textColor: c.ink }, typography: { fontFamily: 'Inter, sans-serif', headings: { fontFamily: 'Fraunces, serif' }, code: { fontFamily: 'JetBrains Mono, monospace' } } }, hideDownloadButton: true, pathInMiddlePanel: true }
+  return { theme: { colors: { primary: { main: c.accent }, text: { primary: c.ink, secondary: c.muted }, border: { dark: c.edge, light: c.edge }, responses: { success: { color: c.ink, backgroundColor: c.bg } } }, sidebar: { backgroundColor: c.side, textColor: c.muted, activeTextColor: c.ink }, rightPanel: { backgroundColor: c.bg, textColor: c.ink }, codeBlock: { backgroundColor: c.side }, typography: { fontFamily: 'Inter, sans-serif', headings: { fontFamily: 'Fraunces, serif' }, code: { fontFamily: 'JetBrains Mono, monospace', color: c.ink, backgroundColor: c.side } } }, hideDownloadButton: true, pathInMiddlePanel: true }
 }
 
 export default function OpenAPI() {
