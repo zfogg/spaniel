@@ -101,7 +101,7 @@ export default function Alerts() {
   )
   useEffect(() => {
     if (active && !editing) setDraft(draftFor(active))
-  }, [active?.id, editing])
+  }, [active, editing])
   const refresh = () => qc.invalidateQueries({ queryKey: qk.alerts() })
   const save = useMutation({
     mutationFn: () =>

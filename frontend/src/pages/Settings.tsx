@@ -1184,7 +1184,7 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
         {updateResult && (
           <div data-testid="update-result" className="font-mono text-[11px]">
             {updateResult.error ? (
-              <span className="text-muted-foreground">couldn't reach github</span>
+              <span className="text-muted-foreground">couldn{"'"}t reach github</span>
             ) : updateResult.is_outdated ? (
               <a
                 href={updateResult.release_notes_url}
@@ -1372,7 +1372,7 @@ export default function Settings() {
     return (
       <div className="flex-1 flex items-center justify-center p-10">
         <div className="text-center max-w-[460px]">
-          <div className="font-mono text-[13px] text-danger mb-2">Couldn't load settings</div>
+          <div className="font-mono text-[13px] text-danger mb-2">Couldn{"'"}t load settings</div>
           <div className="font-mono text-[11px] text-muted-foreground">{error}</div>
         </div>
       </div>

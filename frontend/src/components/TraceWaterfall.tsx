@@ -4,7 +4,6 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
 import {
-  SPAN_PALETTE as PALETTE,
   SPAN_ACCENT as ACCENT,
   svcColor,
   flatten,
@@ -77,12 +76,10 @@ function Ruler({ traceDurNs, spanCount }: { traceDurNs: number; spanCount: numbe
 function MiniTimeline({
   flatSpans,
   traceStartNs,
-  traceDurNs,
   zoom,
 }: {
   flatSpans: FlatSpan[]
   traceStartNs: number
-  traceDurNs: number
   zoom: [number, number]
 }) {
   const [zStart, zEnd] = zoom
@@ -283,7 +280,6 @@ function SpanRow({
 function FlameView({
   flatSpans,
   traceStartNs,
-  traceDurNs,
   tags,
   selectedId,
   hoveredId,
@@ -294,7 +290,6 @@ function FlameView({
 }: {
   flatSpans: FlatSpan[]
   traceStartNs: number
-  traceDurNs: number
   tags: Map<string, string>
   selectedId: string | null
   hoveredId: string | null
@@ -1567,7 +1562,6 @@ export default function TraceWaterfall({
             <FlameView
               flatSpans={flatSpans}
               traceStartNs={traceStartNs}
-              traceDurNs={traceDurNs}
               tags={tags}
               selectedId={selectedId}
               hoveredId={hoveredId}

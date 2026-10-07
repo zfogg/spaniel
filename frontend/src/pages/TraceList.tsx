@@ -383,8 +383,6 @@ function SbMore({ count }: { count: number }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-type QuickFilter = 'lint' | 'slow' | 'errors'
-
 export default function TraceList() {
   // Filters live in the URL (typed, via nuqs) so they're shareable/bookmarkable.
   const [filterService, setFilterService] = useQueryState('service', { defaultValue: 'all' })

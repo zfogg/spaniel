@@ -221,7 +221,7 @@ function DashboardGallery() {
     queryKey: qk.dashboards(),
     queryFn: () => api.dashboards.list().then((x) => x.data),
   })
-  const [local, setLocal] = useState<Dashboard[]>(readLocalDashboards)
+  const [local] = useState<Dashboard[]>(readLocalDashboards)
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('id')
   const [reordering, setReordering] = useState(false)
@@ -274,33 +274,6 @@ function DashboardGallery() {
     } finally {
       reorderPending.current = false
       setReordering(false)
-    }
-  }
-  const syncLocal = (next: Dashboard[]) => {
-    setLocal(next)
-    saveLocalDashboards(next)
-  }
-  const remove = async (dashboard: Dashboard) => {
-    if (!window.confirm(`Delete “${dashboard.name}”? This cannot be undone.`)) return
-    if (dashboard.id.startsWith('local-'))
-      syncLocal(local.filter((item) => item.id !== dashboard.id))
-    else {
-      await api.dashboards.remove(dashboard.id)
-      await qc.invalidateQueries({ queryKey: qk.dashboards() })
-    }
-  }
-  const rename = async (dashboard: Dashboard) => {
-    const name = window.prompt('Dashboard name', dashboard.name)?.trim()
-    if (!name || name === dashboard.name) return
-    if (dashboard.id.startsWith('local-'))
-      syncLocal(
-        local.map((item) =>
-          item.id === dashboard.id ? { ...item, name, updated_at: Date.now() * 1_000_000 } : item,
-        ),
-      )
-    else {
-      await api.dashboards.update(dashboard.id, { name, description: dashboard.description })
-      await qc.invalidateQueries({ queryKey: qk.dashboards() })
     }
   }
   return (
@@ -419,7 +392,7 @@ function Panel({
         dashboard.variables.map((variable) => [variable.name, variable.default_value]),
       ),
     )
-  }, [dashboard?.variables])
+  }, [dashboard])
   return (
     <article className="min-h-[180px] overflow-hidden rounded-lg border border-border bg-surface">
       <header className="border-b border-border px-4 py-3">
@@ -812,7 +785,7 @@ export function DashboardEditor() {
       setCreateError('')
     }
   }, [dashboardId])
-  const [selected, setSelected] = useState<string | null>(dashboardId ?? null)
+  const [, setSelected] = useState<string | null>(dashboardId ?? null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [dashboardName, setDashboardName] = useState('')
@@ -829,12 +802,15 @@ export function DashboardEditor() {
   const [catalogSearch, setCatalogSearch] = useState('')
   const [configText, setConfigText] = useState<string | null>(null)
   const [configError, setConfigError] = useState<string | null>(null)
-  const dashboards = [
-    ...savedDashboards,
-    ...localDashboards.filter(
-      (localDashboard) => !savedDashboards.some((saved) => saved.id === localDashboard.id),
-    ),
-  ]
+  const dashboards = useMemo(
+    () => [
+      ...savedDashboards,
+      ...localDashboards.filter(
+        (localDashboard) => !savedDashboards.some((saved) => saved.id === localDashboard.id),
+      ),
+    ],
+    [localDashboards, savedDashboards],
+  )
   // /dashboards/new is a real creation canvas, not an implicit edit of the
   // first saved dashboard.
   // The creation route must never inherit a dashboard selected earlier in this
@@ -872,8 +848,8 @@ export function DashboardEditor() {
         : Promise.reject(new Error('Create a dashboard before previewing SQL')),
   })
   useEffect(() => {
-    setDashboardName(active?.name ?? '')
-  }, [active?.id])
+    if (active) setDashboardName(active.name)
+  }, [active])
   const saveDashboardName = async (nextName: string) => {
     if (!active || !nextName.trim() || nextName.trim() === active.name) return
     const name = nextName.trim()
@@ -1160,7 +1136,7 @@ export function DashboardEditor() {
       setConfigText('')
     }
   }
-  if (Boolean(active)) {
+  if (active) {
     const dashboard = active!
     return (
       <div className="flex min-h-0 flex-1 overflow-hidden">

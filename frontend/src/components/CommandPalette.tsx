@@ -223,7 +223,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
         {query.trim() && !loading && results.length === 0 && (
           <CommandEmpty className="px-4 py-8 text-center font-sans text-sm text-muted-foreground">
-            No results for <span className="font-medium text-foreground">"{query}"</span>
+            No results for <span className="font-medium text-foreground">{`"${query}"`}</span>
           </CommandEmpty>
         )}
       </CommandList>

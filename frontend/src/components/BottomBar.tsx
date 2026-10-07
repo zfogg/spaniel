@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, Stats } from '@/lib/api'
 import { useWSStatus } from '@/lib/ws'
 import SourcesPanel from './SourcesPanel'
+import { fmtRate } from './bottom-bar-format'
 
 function fmtBytes(n: number): string {
   if (!n) return '0 B'
@@ -21,15 +22,8 @@ function fmtCount(n: number): string {
   return `${(n / 1_000_000).toFixed(1)}M`
 }
 
-export function fmtRate(n: number): string {
-  if (n <= 0) return '0 / s'
-  if (n < 1) return '< 1 / s'
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k / s`
-  return `${Math.round(n)} / s`
-}
-
 // fmtDuration renders an elapsed millisecond span compactly: 5s, 1m 5s, 1h 2m.
-export function fmtDuration(ms: number): string {
+function fmtDuration(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000))
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60)

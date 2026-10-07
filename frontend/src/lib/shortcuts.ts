@@ -63,7 +63,9 @@ export function useGlobalShortcuts() {
               const cur = await api.sessions.get(active.data.id)
               await api.sessions.baseline(active.data.id, !cur.data?.is_baseline)
             }
-          } catch {}
+          } catch {
+            // Shortcut failures are intentionally non-disruptive.
+          }
           return
         }
         case 'd': {

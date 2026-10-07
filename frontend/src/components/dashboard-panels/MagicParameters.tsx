@@ -38,10 +38,6 @@ const parameters = [
   },
 ] as const
 
-export function parameterDescription(name: string) {
-  return parameters.find((parameter) => parameter.name === name)?.detail
-}
-
 export function MagicParameters({ insert }: { insert: (value: string) => void }) {
   return (
     <section className="rounded-lg border border-border bg-background p-3">

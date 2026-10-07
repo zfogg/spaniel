@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { DashboardVariable } from '@/lib/api'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { parameterDescription } from './MagicParameters'
+import { parameterDescription } from './magic-parameter-descriptions'
 
 export function ReusableParameterList({
   variables,

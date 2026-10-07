@@ -335,9 +335,11 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
               ● no traces — instrument this route
             </div>
             <div className="font-sans text-xs text-foreground leading-[1.5]">
-              Spaniel hasn't seen any span with{' '}
+              Spaniel hasn{"'"}t seen any span with{' '}
               <code className="font-mono text-[11px] bg-muted py-px px-1 rounded-[3px]">
-                http.route = "{route.path}"
+                {'http.route = "'}
+                {route.path}
+                {'"'}
               </code>
               .
             </div>

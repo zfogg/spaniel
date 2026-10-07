@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtRate } from './BottomBar'
+import { fmtRate } from './bottom-bar-format'
 
 describe('fmtRate', () => {
   it('returns "0 / s" for zero', () => {

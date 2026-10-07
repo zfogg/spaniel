@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sevLabel, matchesSevFilter } from './LogViewer'
+import { sevLabel, matchesSevFilter } from './log-severity-filter'
 
 // OTLP severity number boundaries:
 //   1–4 TRACE, 5–8 DEBUG, 9–12 INFO, 13–16 WARN, 17–20 ERROR, 21+ FATAL.

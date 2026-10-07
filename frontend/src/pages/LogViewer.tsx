@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -8,16 +8,12 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 import { fmtClock, fmtRelative } from '@/lib/fmt-relative'
-import { logSeverityLabel } from '@/lib/log-severity'
+import { matchesSevFilter, sevLabel, type SevFilter } from './log-severity-filter'
 import PaginationControls from '@/components/PaginationControls'
 
 const PAGE_SIZE = 100
 
 // ── severity helpers ──────────────────────────────────────────────────────────
-
-export function sevLabel(n: number): string {
-  return logSeverityLabel(n)
-}
 
 function sevBadgeStyle(n: number): React.CSSProperties {
   const base: React.CSSProperties = {
@@ -137,17 +133,6 @@ function chipInactiveStyle(): React.CSSProperties {
     background: 'transparent',
     color: 'var(--ink3)',
   }
-}
-
-export function matchesSevFilter(severity: number, filter: SevFilter): boolean {
-  if (filter === 'ALL') return true
-  if (filter === 'FATAL') return severity >= 21
-  if (filter === 'ERROR') return severity >= 17 && severity < 21
-  if (filter === 'WARN') return severity >= 13 && severity < 17
-  if (filter === 'INFO') return severity >= 9 && severity < 13
-  if (filter === 'DEBUG') return severity >= 5 && severity < 9
-  if (filter === 'TRACE') return severity < 5
-  return true
 }
 
 function logSource(log: Log): string {

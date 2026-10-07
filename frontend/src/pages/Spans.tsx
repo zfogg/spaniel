@@ -379,7 +379,7 @@ export default function Spans() {
     // Keep the current page visible while a newly sorted page is loading.
     placeholderData: keepPreviousData,
   })
-  const spans = spanResponse?.data ?? []
+  const spans = useMemo(() => spanResponse?.data ?? [], [spanResponse])
   const spanTotal = spanResponse?.meta.total ?? 0
   const { data: selectedSpan } = useQuery({
     queryKey: ['span', selectedId],

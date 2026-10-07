@@ -51,7 +51,7 @@ export default function ErrorState({ what, error, onRetry, glyph }: ErrorStatePr
         )}
       </div>
       <div className="font-mono text-[13px] font-semibold text-foreground">
-        Couldn't load {what}
+        Couldn{"'"}t load {what}
       </div>
       <div className="max-w-[380px] font-mono text-[11px] leading-relaxed text-muted-foreground">
         {detail ? (
@@ -59,7 +59,7 @@ export default function ErrorState({ what, error, onRetry, glyph }: ErrorStatePr
             The server returned an error: <span className="text-foreground">{detail}</span>.
           </>
         ) : (
-          <>Couldn't reach spaniel. Is the server still running?</>
+          <>Couldn{"'"}t reach spaniel. Is the server still running?</>
         )}
       </div>
       {onRetry && (

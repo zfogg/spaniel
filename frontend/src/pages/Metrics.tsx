@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import debounce from 'debounce-fn'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
@@ -104,35 +104,6 @@ function MetricKindTag({ type }: { type: string }) {
       <MtIcon type={type} />
       {type}
     </span>
-  )
-}
-
-// ── sparkline ────────────────────────────────────────────────────────────────
-
-function Spark({ series, color }: { series: number[]; color: string }) {
-  const w = 60,
-    h = 22
-  if (series.length === 0) return <svg width={w} height={h} />
-  const min = Math.min(...series),
-    max = Math.max(...series)
-  const span = max - min || 1
-  const pts = series
-    .map(
-      (v, i) =>
-        `${(i / Math.max(1, series.length - 1)) * w},${h - ((v - min) / span) * (h - 2) - 1}`,
-    )
-    .join(' ')
-  return (
-    <svg width={w} height={h} className="flex-none overflow-visible">
-      <polyline
-        points={pts}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
   )
 }
 
@@ -513,7 +484,7 @@ function useSelectedMetricLiveRefresh(
       unsubscribe()
       if (timer) clearTimeout(timer)
     }
-  }, [metric?.name, metric?.service_name, operation, queryClient, range])
+  }, [metric, operation, queryClient, range])
 }
 
 // Sidebar counts and ordering come from the catalog aggregate. Metric frames
@@ -630,25 +601,28 @@ export default function Metrics() {
       setOperation(defaultMetricOperation(selected))
       setDimensionFilters({})
     }
-  }, [selectedName, selectedService, selected?.type])
+  }, [selected, selectedName, selectedService])
 
   useSelectedMetricLiveRefresh(selected, range, operation)
   const recentMetricUpdates = useMetricCatalogLiveRefresh()
 
-  const selectMetric = (metric: MetricCatalogEntry, replace = false) => {
-    setOperation(defaultMetricOperation(metric))
-    const next = new URLSearchParams(searchParams)
-    next.set('metric', metric.name)
-    next.set('service', metric.service_name)
-    setSearchParams(next, { replace })
-  }
+  const selectMetric = useCallback(
+    (metric: MetricCatalogEntry, replace = false) => {
+      setOperation(defaultMetricOperation(metric))
+      const next = new URLSearchParams(searchParams)
+      next.set('metric', metric.name)
+      next.set('service', metric.service_name)
+      setSearchParams(next, { replace })
+    },
+    [searchParams, setSearchParams],
+  )
 
   // auto-select the first metric once the catalog loads
   useEffect(() => {
     if (!selected && catalog.length > 0) {
       selectMetric(catalog[0], !selectedName || !selectedService)
     }
-  }, [catalog, selected, selectedName, selectedService])
+  }, [catalog, selected, selectedName, selectedService, selectMetric])
 
   // `range` (not the computed `from`) is the key input so we don't refetch on
   // every render; matching WebSocket metric events refresh this active series.
@@ -958,7 +932,10 @@ function MainPanel({
     ),
   )
   const selected = candidates[Math.min(seriesIndex, Math.max(0, candidates.length - 1))]
-  const display = selected ? { ...series, points: selected.points } : series
+  const display = useMemo(
+    () => (selected ? { ...series, points: selected.points } : series),
+    [selected, series],
+  )
   const chartType = displayMetricType(series.type)
   const chartSeries = useMemo(() => ({ ...display, type: chartType }), [display, chartType])
   const bucketed = useMemo(() => bucketPoints(display.points, chartType), [display, chartType])

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryState } from 'nuqs'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
-import { api, type Span, type Session } from '@/lib/api'
+import { api, type Span } from '@/lib/api'
 import { fmtNs, svcColor, flatten, httpDisplayName } from '@/lib/span-utils'
 import {
   diffStatusFor,
@@ -331,7 +331,6 @@ export default function DiffPage() {
     'font-mono text-[11px] bg-surface2 text-ink border border-line rounded-md h-7 px-2 outline-none cursor-pointer min-w-[160px]'
 
   const baselineSess = sessions.find((s) => s.id === baselineId)
-  const compareSess = sessions.find((s) => s.id === compareId)
 
   // Shared time scale so both columns' bars are proportionally comparable.
   const windowNs = useMemo(
