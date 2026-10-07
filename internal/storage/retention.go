@@ -33,9 +33,10 @@ type PruneResult struct {
 }
 
 // Prune applies the retention policy. Age and count retention preserve the
-// active and baseline sessions. The hard size limit instead evicts the oldest
-// telemetry inside every session, including the active session, because a
-// continuously active session must not be allowed to grow past the cap.
+// active and baseline sessions. Size retention first removes complete oldest
+// sessions until only the active session remains. It then evicts the oldest
+// telemetry from that final session, because a continuously active session
+// must not be allowed to grow past the cap.
 func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 	var res PruneResult
 	started := time.Now()
@@ -149,6 +150,26 @@ func (d *DB) deleteByCount(maxSessions int, activeID string) (int, error) {
 func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 	deleted := 0
 	for d.UsedSize() > maxBytes {
+		// Prefer deleting a complete old session. This keeps each retained
+		// session internally consistent. Unlike age/count retention, size
+		// pressure may evict an old baseline as well: the active session is
+		// the one record set that must survive continued ingestion.
+		removed, err := d.deleteOldestSessionForSize(activeID)
+		if err != nil {
+			return deleted, err
+		}
+		if removed {
+			deleted++
+			if err := d.checkpointWithRetry(); err != nil {
+				return deleted, err
+			}
+			continue
+		}
+
+		// Once the active session is the only session left (or there was only
+		// one to begin with), reclaim its telemetry by age. One batch includes
+		// oldest trace groups, logs, and metrics, rather than exhausting a
+		// signal type before considering the others.
 		n, err := d.deleteOldestTelemetryBatch(activeID)
 		if err != nil {
 			return deleted, err
@@ -162,6 +183,36 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 		}
 	}
 	return deleted, nil
+}
+
+// deleteOldestSessionForSize deletes one complete oldest non-active session
+// when more than one session exists. It returns false once the active session
+// is the only session left, which tells size retention to trim telemetry in
+// that final session instead.
+func (d *DB) deleteOldestSessionForSize(activeID string) (bool, error) {
+	count, err := d.query.Session.Count()
+	if err != nil {
+		return false, err
+	}
+	if count <= 1 {
+		return false, nil
+	}
+
+	var ids []string
+	q := d.query.Session.Order(d.query.Session.CreatedAt).Limit(1)
+	if activeID != "" {
+		q = q.Where(d.query.Session.ID.Neq(activeID))
+	}
+	if err := q.Pluck(d.query.Session.ID, &ids); err != nil {
+		return false, err
+	}
+	if len(ids) == 0 {
+		return false, nil
+	}
+	if err := d.DeleteSession(ids[0]); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // deleteOldestTelemetryBatch removes coherent oldest trace groups first, then
