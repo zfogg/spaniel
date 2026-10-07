@@ -1,6 +1,7 @@
 package dashboardconfig
 
 import (
+	"encoding/json"
 	"github.com/zfogg/spaniel/internal/model"
 	"strings"
 	"testing"
@@ -28,6 +29,36 @@ func TestDashboardYAMLRoundTripExcludesData(t *testing.T) {
 	}
 	if restored.Name != d.Name || len(restored.Variables) != 1 || len(restored.Panels) != 1 || restored.Panels[0].SettingsJSON == "{}" {
 		t.Fatalf("definition did not round trip: %#v", restored)
+	}
+}
+
+func TestDeployCorrelationYAMLRoundTripPreservesAnnotationSettingsAndLayout(t *testing.T) {
+	dashboard := &model.Dashboard{Name: "Deploy correlation", Panels: []*model.DashboardPanel{{
+		Title:        "Releases against latency",
+		DisplayType:  "deploy_correlation",
+		QuerySQL:     "SELECT 1 AS timestamp_ns, 1 AS value",
+		SettingsJSON: `{"annotation_label":"Releases","annotation_query":"SELECT 1 AS timestamp_ns, 'v1' AS version"}`,
+		LayoutJSON:   `{"x":3,"y":2,"w":8,"h":3}`,
+	}}}
+	data, err := Marshal(dashboard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := definition.Dashboard("local-copy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	panel := restored.Panels[0]
+	var layout map[string]int
+	if err := json.Unmarshal([]byte(panel.LayoutJSON), &layout); err != nil {
+		t.Fatal(err)
+	}
+	if panel.DisplayType != "deploy_correlation" || !strings.Contains(panel.SettingsJSON, "annotation_query") || layout["x"] != 3 || layout["y"] != 2 || layout["w"] != 8 || layout["h"] != 3 {
+		t.Fatalf("deploy definition did not round trip: %#v", panel)
 	}
 }
 

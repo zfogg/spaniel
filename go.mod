@@ -13,6 +13,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/goccy/go-json v0.10.6
 	github.com/google/uuid v1.6.0
+	github.com/gregdel/pushover v1.4.0
 	github.com/marcboeker/go-duckdb v1.8.5
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/spf13/cobra v1.10.2
@@ -67,7 +68,6 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
-	github.com/gregdel/pushover v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

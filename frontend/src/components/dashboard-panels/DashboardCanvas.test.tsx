@@ -70,4 +70,13 @@ describe('DashboardCanvas', () => {
     expect(content.className).toContain('overflow-auto')
     expect(content.className).not.toContain('line-clamp')
   })
+
+  it('preserves explicitly-authored gallery coordinates and dimensions', () => {
+    expect(panelLayout({ ...panel, layout_json: '{"x":4,"y":3,"w":8,"h":3}' })).toEqual({
+      x: 4,
+      y: 3,
+      w: 8,
+      h: 3,
+    })
+  })
 })

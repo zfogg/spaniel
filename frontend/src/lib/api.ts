@@ -6,7 +6,7 @@ interface Meta {
   total: number
   page?: number
 }
-interface Envelope<T> {
+export interface Envelope<T> {
   data: T
   meta: Meta
 }
@@ -39,11 +39,13 @@ async function post<S extends z.ZodTypeAny>(
   path: string,
   body: unknown,
   schema: S,
+  signal?: AbortSignal,
 ): Promise<Envelope<z.infer<S>>> {
   const res = await fetch(BASE + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   })
   if (!res.ok) {
     const detail = await res.json().catch(() => null)
@@ -776,7 +778,7 @@ export const api = {
         body: yaml,
       })
       if (!response.ok) throw new Error(await response.text())
-      return response.json() as Promise<{ data: Dashboard }>
+      return response.json() as Promise<Envelope<Dashboard>>
     },
     preview: (
       id: string,
@@ -786,7 +788,9 @@ export const api = {
         display_type?: string
         variables?: Record<string, string>
       },
-    ) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
+      abortSignal?: AbortSignal,
+    ) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema, abortSignal),
+    reorder: (ids: string[]) => post('/api/dashboards/reorder', { ids }, OkSchema),
     catalog: (signal?: string, search?: string, abortSignal?: AbortSignal) => {
       const query = new URLSearchParams()
       if (signal) query.set('signal', signal)
@@ -822,6 +826,8 @@ export const api = {
     ) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
     removePanel: (id: string, panelId: string) =>
       del(`/api/dashboards/${id}/panels/${panelId}`, OkSchema),
+    movePanel: (id: string, panelId: string, direction: -1 | 1) =>
+      post(`/api/dashboards/${id}/panels/${panelId}/move`, { direction }, OkSchema),
     variable: (
       id: string,
       body: {
@@ -832,6 +838,8 @@ export const api = {
         default_value?: string
       },
     ) => post(`/api/dashboards/${id}/variables`, body, DashboardVariableSchema),
+    deleteVariable: (id: string, name: string) =>
+      del(`/api/dashboards/${id}/variables/${encodeURIComponent(name)}`, OkSchema),
   },
   alerts: {
     list: () => get('/api/alerts', z.array(AlertRuleSchema)),

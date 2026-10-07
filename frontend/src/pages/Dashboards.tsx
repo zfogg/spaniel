@@ -43,12 +43,42 @@ const localKey = 'spaniel.local-dashboards'
 const variablePresets: Array<
   Pick<DashboardVariable, 'name' | 'kind' | 'source' | 'default_value'>
 > = [
-  { name: 'service', kind: 'string', source: 'telemetry_spans.service_name', default_value: '' },
-  { name: 'operation', kind: 'string', source: 'telemetry_spans.name', default_value: '' },
-  { name: 'status_code', kind: 'number', source: 'telemetry_spans.status_code', default_value: '' },
-  { name: 'severity', kind: 'enum', source: 'telemetry_logs.severity', default_value: '' },
-  { name: 'trace_id', kind: 'string', source: 'telemetry_spans.trace_id', default_value: '' },
-  { name: 'min_duration_ms', kind: 'number', source: 'duration_ns / 1000000', default_value: '0' },
+  {
+    name: 'service',
+    kind: 'string',
+    source: 'telemetry_spans.service_name',
+    default_value: '',
+  },
+  {
+    name: 'operation',
+    kind: 'string',
+    source: 'telemetry_spans.name',
+    default_value: '',
+  },
+  {
+    name: 'status_code',
+    kind: 'number',
+    source: 'telemetry_spans.status_code',
+    default_value: '',
+  },
+  {
+    name: 'severity',
+    kind: 'enum',
+    source: 'telemetry_logs.severity',
+    default_value: '',
+  },
+  {
+    name: 'trace_id',
+    kind: 'string',
+    source: 'telemetry_spans.trace_id',
+    default_value: '',
+  },
+  {
+    name: 'min_duration_ms',
+    kind: 'number',
+    source: 'duration_ns / 1000000',
+    default_value: '0',
+  },
 ]
 
 const panelRecipes = [
@@ -451,7 +481,13 @@ function Panel({
       ),
     )
   }, [dashboard])
-  let layout: { width?: string; x?: number; y?: number; w?: number; h?: number } = {}
+  let layout: {
+    width?: string
+    x?: number
+    y?: number
+    w?: number
+    h?: number
+  } = {}
   try {
     layout = JSON.parse(panel.layout_json) as typeof layout
   } catch {
@@ -522,7 +558,10 @@ function Panel({
                   aria-label={`Dashboard variable ${variable.name}`}
                   value={variables[variable.name] ?? ''}
                   onChange={(event) =>
-                    setVariables((current) => ({ ...current, [variable.name]: event.target.value }))
+                    setVariables((current) => ({
+                      ...current,
+                      [variable.name]: event.target.value,
+                    }))
                   }
                   className="ml-1 rounded border border-border bg-background px-1 py-0.5 text-foreground"
                 />
@@ -800,6 +839,31 @@ export function TelemetryBrowser({
   )
 }
 
+function ReadOnlyDashboardNotice({
+  copy,
+  compact = false,
+}: {
+  copy: () => void
+  compact?: boolean
+}) {
+  return (
+    <section className={`rounded-md border border-border bg-muted/40 p-3 ${compact ? '' : 'my-3'}`}>
+      <h2 className="text-sm font-semibold">YAML is authoritative</h2>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+        This dashboard is loaded from a file. Editing is disabled because the source YAML replaces
+        it at startup.
+      </p>
+      <button
+        type="button"
+        onClick={copy}
+        className="mt-3 rounded border border-accent bg-accent-bg px-2.5 py-1.5 text-xs font-medium text-accent-ink"
+      >
+        Export as editable copy
+      </button>
+    </section>
+  )
+}
+
 function PanelStudio({
   recipe,
   title,
@@ -829,7 +893,11 @@ function PanelStudio({
   layout: { x: number; y: number; w: number; h: number }
   setLayout: (value: { x: number; y: number; w: number; h: number }) => void
   preview: () => void
-  previewState: { data?: PreviewSnapshot; isPending: boolean; error: Error | null }
+  previewState: {
+    data?: PreviewSnapshot
+    isPending: boolean
+    error: Error | null
+  }
   save: () => void
   editing: boolean
 }) {
@@ -842,8 +910,8 @@ function PanelStudio({
           editable sample SQL—it does not guess your telemetry.
         </p>
       </header>
-      <div className="grid grid-cols-4 gap-2 border-b border-border py-2.5">
-        {panelRecipes.slice(0, 8).map((item) => (
+      <div className="grid grid-cols-2 gap-2 border-b border-border py-2.5 sm:grid-cols-3 lg:grid-cols-4">
+        {panelRecipes.map((item) => (
           <button
             key={item.type}
             onClick={() => setDisplay(item.type)}
@@ -901,7 +969,10 @@ function PanelStudio({
                     max={key === 'w' ? 12 : key === 'h' ? 6 : 99}
                     value={layout[key]}
                     onChange={(event) =>
-                      setLayout({ ...layout, [key]: Math.max(1, Number(event.target.value) || 1) })
+                      setLayout({
+                        ...layout,
+                        [key]: Math.max(1, Number(event.target.value) || 1),
+                      })
                     }
                     className="mt-1 w-full rounded border border-input bg-background px-1 py-1 text-[11px]"
                   />
@@ -1050,7 +1121,11 @@ export function DashboardEditor() {
     mutationFn: () =>
       active
         ? api.dashboards
-            .preview(active.id, { query_sql: query, name: title, display_type: display })
+            .preview(active.id, {
+              query_sql: query,
+              name: title,
+              display_type: display,
+            })
             .then((x) => ({ ...x.data, querySQL: query, displayType: display }))
         : Promise.reject(new Error('Create a dashboard before previewing SQL')),
   })
@@ -1072,7 +1147,10 @@ export function DashboardEditor() {
       })
       return
     }
-    await api.dashboards.update(active.id, { name, description: active.description })
+    await api.dashboards.update(active.id, {
+      name,
+      description: active.description,
+    })
     refresh()
   }
   const nameSave = useDebouncedSave({
@@ -1209,7 +1287,11 @@ export function DashboardEditor() {
       setLocalDashboards((current) => {
         const next = current.map((dashboard) =>
           dashboard.id === active.id
-            ? { ...dashboard, updated_at: now, panels: [...dashboard.panels, panel] }
+            ? {
+                ...dashboard,
+                updated_at: now,
+                panels: [...dashboard.panels, panel],
+              }
             : dashboard,
         )
         saveLocalDashboards(next)
@@ -1268,7 +1350,10 @@ export function DashboardEditor() {
             const target = index + direction
             if (index < 0 || target < 0 || target >= panels.length) return dashboard
             ;[panels[index], panels[target]] = [panels[target], panels[index]]
-            return { ...dashboard, panels: panels.map((item, position) => ({ ...item, position })) }
+            return {
+              ...dashboard,
+              panels: panels.map((item, position) => ({ ...item, position })),
+            }
           })
           saveLocalDashboards(next)
           return next
@@ -1386,7 +1471,9 @@ export function DashboardEditor() {
     } else {
       await api.dashboards.deleteVariable(active.id, name)
       await refresh()
-      await qc.invalidateQueries({ queryKey: ['dashboard-runtime', active.id] })
+      await qc.invalidateQueries({
+        queryKey: ['dashboard-runtime', active.id],
+      })
       await qc.invalidateQueries({ queryKey: ['dashboard-panel', active.id] })
     }
   }
@@ -1425,8 +1512,23 @@ export function DashboardEditor() {
       setConfigText('')
     }
   }
+  const exportAsEditableCopy = async () => {
+    if (!active || !active.id.startsWith('file-')) return
+    try {
+      const yaml = await api.dashboards.config(active.id)
+      const copy = await api.dashboards.importConfig(yaml)
+      await refresh()
+      toast.success('Created an editable local copy.')
+      editorNavigate(`/dashboards/${copy.data.id}`)
+    } catch (error) {
+      toast.error(
+        `Could not export editable copy: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
   if (active) {
     const dashboard = active!
+    const fileManaged = dashboard.id.startsWith('file-')
     return (
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className="w-64 shrink-0 overflow-auto border-r border-border bg-surface">
@@ -1463,13 +1565,15 @@ export function DashboardEditor() {
                   aria-label="Dashboard name"
                   value={dashboardName}
                   onChange={(event) => setDashboardName(event.target.value)}
-                  className="min-w-0 flex-1 bg-transparent text-xl font-semibold tracking-tight outline-none"
+                  disabled={fileManaged}
+                  className="min-w-0 flex-1 bg-transparent text-xl font-semibold tracking-tight outline-none disabled:cursor-default"
                 />
                 <button
                   type="button"
                   aria-label="Edit dashboard name"
+                  disabled={fileManaged}
                   onClick={() => titleInputRef.current?.focus()}
-                  className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+                  className="rounded p-1.5 text-muted-foreground hover:bg-muted disabled:cursor-default disabled:opacity-40"
                 >
                   <Pencil size={15} />
                 </button>
@@ -1486,14 +1590,29 @@ export function DashboardEditor() {
             >
               View YAML
             </button>
-            <button
-              onClick={() => void deleteActive()}
-              className="rounded border border-danger px-3 py-2 text-xs text-danger"
-            >
-              Delete dashboard
-            </button>
+            {fileManaged ? (
+              <button
+                onClick={() => void exportAsEditableCopy()}
+                className="rounded border border-accent bg-accent-bg px-3 py-2 text-xs font-medium text-accent-ink"
+              >
+                Export as editable copy
+              </button>
+            ) : (
+              <button
+                onClick={() => void deleteActive()}
+                className="rounded border border-danger px-3 py-2 text-xs text-danger"
+              >
+                Delete dashboard
+              </button>
+            )}
           </header>
           <div className="mx-auto max-w-5xl space-y-4 p-6">
+            {fileManaged && (
+              <section className="rounded-md border border-amber-400/60 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+                <strong>File-managed dashboard.</strong> YAML is authoritative and will replace UI
+                edits at startup. Export an editable local copy to make changes here.
+              </section>
+            )}
             <Tabs value={editorTab} onValueChange={(value) => setEditorTab(String(value))}>
               <TabsList
                 variant="line"
@@ -1511,47 +1630,55 @@ export function DashboardEditor() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="design" keepMounted>
-                <PanelStudio
-                  recipe={panelRecipes.find((item) => item.type === display) ?? panelRecipes[0]}
-                  title={title}
-                  setTitle={setTitle}
-                  display={display}
-                  setDisplay={setDisplay}
-                  query={query}
-                  setQuery={setQuery}
-                  settingsJSON={settingsJSON}
-                  setSettingsJSON={setSettingsJSON}
-                  layout={layout}
-                  setLayout={setLayout}
-                  preview={() => preview.mutate()}
-                  previewState={preview}
-                  save={savePanel}
-                  editing={Boolean(editing)}
-                />
+                {fileManaged ? (
+                  <ReadOnlyDashboardNotice copy={exportAsEditableCopy} />
+                ) : (
+                  <PanelStudio
+                    recipe={panelRecipes.find((item) => item.type === display) ?? panelRecipes[0]}
+                    title={title}
+                    setTitle={setTitle}
+                    display={display}
+                    setDisplay={setDisplay}
+                    query={query}
+                    setQuery={setQuery}
+                    settingsJSON={settingsJSON}
+                    setSettingsJSON={setSettingsJSON}
+                    layout={layout}
+                    setLayout={setLayout}
+                    preview={() => preview.mutate()}
+                    previewState={preview}
+                    save={savePanel}
+                    editing={Boolean(editing)}
+                  />
+                )}
               </TabsContent>
               <TabsContent value="library" keepMounted>
-                <TelemetryBrowser
-                  loading={catalog.isPending || debouncedSearch !== catalogSearch.trim()}
-                  error={catalog.error?.message}
-                  search={catalogSearch}
-                  setSearch={setCatalogSearch}
-                  catalog={catalog.data ?? []}
-                  select={(item) => {
-                    setTitle(item.name)
-                    setQuery(item.query)
-                    setDisplay(item.display_type)
-                  }}
-                  createPanel={createCatalogPanel}
-                />
+                {fileManaged ? (
+                  <ReadOnlyDashboardNotice copy={exportAsEditableCopy} />
+                ) : (
+                  <TelemetryBrowser
+                    loading={catalog.isPending || debouncedSearch !== catalogSearch.trim()}
+                    error={catalog.error?.message}
+                    search={catalogSearch}
+                    setSearch={setCatalogSearch}
+                    catalog={catalog.data ?? []}
+                    select={(item) => {
+                      setTitle(item.name)
+                      setQuery(item.query)
+                      setDisplay(item.display_type)
+                    }}
+                    createPanel={createCatalogPanel}
+                  />
+                )}
               </TabsContent>
               <TabsContent value="panels">
                 <section className="pt-3">
                   <DashboardCanvas
                     panels={dashboard.panels}
-                    onEdit={edit}
-                    onCommit={saveCanvasLayout}
-                    onMove={movePanel}
-                    saving={movingPanel}
+                    onEdit={fileManaged ? () => undefined : edit}
+                    onCommit={fileManaged ? () => undefined : saveCanvasLayout}
+                    onMove={fileManaged ? undefined : movePanel}
+                    saving={fileManaged || movingPanel}
                   />
                 </section>
               </TabsContent>
@@ -1587,76 +1714,87 @@ export function DashboardEditor() {
           </div>
         )}
         <aside className="w-[320px] shrink-0 overflow-auto border-l border-border bg-surface p-4">
-          <MagicParameters insert={(value) => setQuery((current) => current + value)} />
-          <section className="mt-4 rounded-lg border border-border bg-background p-3">
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Variable size={14} /> Reusable parameters
-            </h2>
-            <p className="mt-1 text-xs leading-4 text-muted-foreground">
-              New dashboards include service, operation, status_code (0: unset), and severity (9:
-              INFO). Set service and operation values before using them.
-            </p>
-            <div className="mt-3 grid gap-2">
-              <input
-                aria-label="Variable name"
-                value={variableName}
-                onChange={(event) => setVariableName(event.target.value)}
-                placeholder="service"
-                className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  aria-label="Variable datatype"
-                  value={variableKind}
-                  onChange={(event) =>
-                    setVariableKind(event.target.value as DashboardVariable['kind'])
-                  }
-                  className="rounded border border-input bg-background px-2 py-1.5 text-xs"
-                >
-                  <option value="string">string</option>
-                  <option value="number">number</option>
-                  <option value="boolean">boolean</option>
-                  <option value="duration">duration</option>
-                  <option value="time">time range</option>
-                  <option value="enum">enum</option>
-                </select>
-                <input
-                  aria-label="Variable default value"
-                  value={variableDefault}
-                  onChange={(event) => setVariableDefault(event.target.value)}
-                  placeholder="Default"
-                  className="min-w-0 rounded border border-input bg-background px-2 py-1.5 text-xs"
+          {fileManaged ? (
+            <ReadOnlyDashboardNotice copy={exportAsEditableCopy} compact />
+          ) : (
+            <>
+              <MagicParameters insert={(value) => setQuery((current) => current + value)} />
+              <section className="mt-4 rounded-lg border border-border bg-background p-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  <Variable size={14} /> Reusable parameters
+                </h2>
+                <p className="mt-1 text-xs leading-4 text-muted-foreground">
+                  New dashboards include service, operation, status_code (0: unset), and severity
+                  (9: INFO). Set service and operation values before using them.
+                </p>
+                <div className="mt-3 grid gap-2">
+                  <input
+                    aria-label="Variable name"
+                    value={variableName}
+                    onChange={(event) => setVariableName(event.target.value)}
+                    placeholder="service"
+                    className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      aria-label="Variable datatype"
+                      value={variableKind}
+                      onChange={(event) =>
+                        setVariableKind(event.target.value as DashboardVariable['kind'])
+                      }
+                      className="rounded border border-input bg-background px-2 py-1.5 text-xs"
+                    >
+                      <option value="string">string</option>
+                      <option value="number">number</option>
+                      <option value="boolean">boolean</option>
+                      <option value="duration">duration</option>
+                      <option value="time">time range</option>
+                      <option value="enum">enum</option>
+                    </select>
+                    <input
+                      aria-label="Variable default value"
+                      value={variableDefault}
+                      onChange={(event) => setVariableDefault(event.target.value)}
+                      placeholder="Default"
+                      className="min-w-0 rounded border border-input bg-background px-2 py-1.5 text-xs"
+                    />
+                  </div>
+                  <input
+                    aria-label="Variable value source"
+                    value={variableSource}
+                    onChange={(event) => setVariableSource(event.target.value)}
+                    placeholder="telemetry_spans.service_name"
+                    className="w-full rounded border border-input bg-background px-2 py-1.5 font-mono text-xs"
+                  />
+                  <button
+                    onClick={addVariable}
+                    disabled={!variableName.trim() || !variableSource.trim()}
+                    className="rounded border border-border px-2 py-1.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Add parameter
+                  </button>
+                </div>
+                <ReusableParameterList
+                  variables={dashboard.variables}
+                  insert={(value) => setQuery((current) => current + value)}
+                  remove={removeVariable}
                 />
-              </div>
-              <input
-                aria-label="Variable value source"
-                value={variableSource}
-                onChange={(event) => setVariableSource(event.target.value)}
-                placeholder="telemetry_spans.service_name"
-                className="w-full rounded border border-input bg-background px-2 py-1.5 font-mono text-xs"
-              />
-              <button
-                onClick={addVariable}
-                disabled={!variableName.trim() || !variableSource.trim()}
-                className="rounded border border-border px-2 py-1.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Add parameter
-              </button>
-            </div>
-            <ReusableParameterList
-              variables={dashboard.variables}
-              insert={(value) => setQuery((current) => current + value)}
-              remove={removeVariable}
-            />
-          </section>
+              </section>
+            </>
+          )}
           <section className="mt-4 rounded-lg border border-border bg-background p-3">
             <h2 className="text-sm font-semibold">Draft canvas</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              {dashboard.panels.length} query-backed panel{dashboard.panels.length === 1 ? '' : 's'}
+              {dashboard.panels.length} query-backed panel
+              {dashboard.panels.length === 1 ? '' : 's'}
             </p>
             <div className="mt-3 space-y-2">
               {dashboard.panels.map((panel) => (
-                <DraftPanelEntry key={panel.id} panel={panel} edit={edit} />
+                <DraftPanelEntry
+                  key={panel.id}
+                  panel={panel}
+                  edit={fileManaged ? () => undefined : edit}
+                />
               ))}
             </div>
           </section>

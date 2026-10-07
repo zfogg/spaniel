@@ -3,7 +3,10 @@ import { TimeSeriesPanel } from './TimeSeriesPanel'
 import type { DashboardPanelRendererProps, PanelRow } from './types'
 
 export function DeployCorrelationPanel(
-  props: DashboardPanelRendererProps & { annotations: PanelRow[]; annotationError?: string },
+  props: DashboardPanelRendererProps & {
+    annotations: PanelRow[]
+    annotationError?: string
+  },
 ) {
   let label = 'Releases'
   try {
@@ -20,7 +23,8 @@ export function DeployCorrelationPanel(
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-xs font-semibold">{label}</h3>
           <span className="text-[10px] text-muted-foreground">
-            {props.annotations.length} event{props.annotations.length === 1 ? '' : 's'}
+            {props.annotations.length} event
+            {props.annotations.length === 1 ? '' : 's'}
           </span>
         </div>
         {props.annotationError ? (
@@ -28,17 +32,25 @@ export function DeployCorrelationPanel(
             Could not load {label.toLowerCase()}: {props.annotationError}
           </p>
         ) : props.annotations.length ? (
-          <ul className="space-y-1.5">
+          <ul className="flex flex-wrap gap-1.5">
             {props.annotations.slice(0, 8).map((event, index) => (
-              <li key={index} className="flex gap-2 text-xs">
+              <li
+                key={index}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2 py-1 text-xs"
+              >
                 <time className="shrink-0 font-mono text-[10px] text-muted-foreground">
                   {timeLabel(event.timestamp ?? event.timestamp_ns ?? event.time)}
                 </time>
-                <span>
+                <span className="truncate font-medium">
                   {String(event.label ?? event.release ?? event.version ?? event.name ?? 'Release')}
                 </span>
               </li>
             ))}
+            {props.annotations.length > 8 && (
+              <li className="inline-flex items-center rounded-full border border-border px-2 py-1 text-[10px] text-muted-foreground">
+                +{props.annotations.length - 8} more
+              </li>
+            )}
           </ul>
         ) : (
           <p className="text-xs text-muted-foreground">

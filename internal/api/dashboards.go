@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/dashboardconfig"
+	"github.com/zfogg/spaniel/internal/model"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -62,7 +63,9 @@ func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) movePanel(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) { return }
+	if rejectFileManagedDashboard(w, req) {
+		return
+	}
 	var in struct {
 		Direction int `json:"direction" validate:"oneof=-1 1"`
 	}
@@ -135,6 +138,10 @@ func (r *Router) createDashboard(w http.ResponseWriter, req *http.Request) {
 			respondErr(w, req, 400, err.Error())
 			return
 		}
+		if err := r.validatePanelSettings(req.Context(), &model.Dashboard{}, p); err != nil {
+			respondErr(w, req, 400, err.Error())
+			return
+		}
 		panels = append(panels, &storage.DashboardPanel{Title: p.Title, DisplayType: p.DisplayType, QuerySQL: p.QuerySQL, QueryVersion: dashboardQueryVersion, SettingsJSON: or(p.SettingsJSON, "{}"), LayoutJSON: or(p.LayoutJSON, "{}")})
 	}
 	x, err := r.store.WithContext(req.Context()).CreateDashboardWithPanels(in.Name, in.Description, panels)
@@ -188,6 +195,10 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 			respondErr(w, req, 400, fmt.Sprintf("panel %q: %v", panel.Title, err))
 			return
 		}
+		if err := r.validatePanelSettings(req.Context(), dashboard, panelInput{Title: panel.Title, DisplayType: panel.DisplayType, QuerySQL: panel.QuerySQL, SettingsJSON: panel.SettingsJSON, LayoutJSON: panel.LayoutJSON, Position: panel.Position}); err != nil {
+			respondErr(w, req, 400, fmt.Sprintf("panel %q: %v", panel.Title, err))
+			return
+		}
 	}
 	if err := r.store.ReplaceDashboardDefinition(dashboard); err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -196,7 +207,9 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 	respond(w, dashboard, 1, 1)
 }
 func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) { return }
+	if rejectFileManagedDashboard(w, req) {
+		return
+	}
 	x, err := r.store.GetDashboard(chi.URLParam(req, "id"))
 	if err != nil {
 		respondErr(w, req, 404, "dashboard not found")
@@ -214,7 +227,9 @@ func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
 	respond(w, x, 1, 1)
 }
 func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) { return }
+	if rejectFileManagedDashboard(w, req) {
+		return
+	}
 	if err := r.store.DeleteDashboard(chi.URLParam(req, "id")); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -223,13 +238,16 @@ func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) savePanel(w http.ResponseWriter, req *http.Request, update bool) {
-	if rejectFileManagedDashboard(w, req) { return }
+	if rejectFileManagedDashboard(w, req) {
+		return
+	}
 	var in panelInput
 	if !decodeAndValidate(w, req, &in) {
 		return
 	}
 	id := chi.URLParam(req, "id")
-	if _, err := r.store.GetDashboard(id); err != nil {
+	dashboard, err := r.store.GetDashboard(id)
+	if err != nil {
 		respondErr(w, req, 404, "dashboard not found")
 		return
 	}
@@ -237,8 +255,11 @@ func (r *Router) savePanel(w http.ResponseWriter, req *http.Request, update bool
 		respondErr(w, req, 400, err.Error())
 		return
 	}
+	if err := r.validatePanelSettings(req.Context(), dashboard, in); err != nil {
+		respondErr(w, req, 400, err.Error())
+		return
+	}
 	p := &storage.DashboardPanel{DashboardID: id, Title: in.Title, DisplayType: in.DisplayType, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, SettingsJSON: or(in.SettingsJSON, "{}"), LayoutJSON: or(in.LayoutJSON, "{}"), Position: in.Position}
-	var err error
 	if update {
 		p.ID = chi.URLParam(req, "panelId")
 		err = r.store.UpdateDashboardPanel(p)
@@ -252,6 +273,89 @@ func (r *Router) savePanel(w http.ResponseWriter, req *http.Request, update bool
 	respond(w, p, 1, 1)
 }
 
+func (r *Router) validatePanelSettings(ctx context.Context, dashboard *model.Dashboard, panel panelInput) error {
+	raw := strings.TrimSpace(or(panel.SettingsJSON, "{}"))
+	settings := map[string]json.RawMessage{}
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil || settings == nil {
+		return &dslError{"panel settings must be a valid JSON object"}
+	}
+	if panel.DisplayType != "deploy_correlation" {
+		return nil
+	}
+	// Deploy Correlation has two contracts: the chart itself and its release
+	// annotations. Validate the chart now so an unusable deploy panel cannot be
+	// persisted and then fail only when it renders.
+	columns, _, _, err := r.store.ReadOnlyQueryArgs(ctx, panel.QuerySQL, r.dashboardQueryArgs(dashboard, panel.QuerySQL), 1)
+	if err != nil {
+		return fmt.Errorf("deploy query: %w", err)
+	}
+	if err := validatePanelResult(panel.DisplayType, columns); err != nil {
+		return err
+	}
+	annotation, ok := settings["annotation_query"]
+	if !ok || len(annotation) == 0 {
+		return nil
+	}
+	var query string
+	if err := json.Unmarshal(annotation, &query); err != nil {
+		return &dslError{"deploy annotation_query must be a SQL string"}
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil
+	}
+	if err := storage.ValidateReadOnlySQL(query); err != nil {
+		return fmt.Errorf("deploy annotation_query: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	columns, _, _, err = r.store.ReadOnlyQueryArgs(ctx, query, r.dashboardQueryArgs(dashboard, query), 1)
+	if err != nil {
+		return fmt.Errorf("deploy annotation_query: %w", err)
+	}
+	if err := validateDeployAnnotationResult(columns); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Router) dashboardQueryArgs(dashboard *model.Dashboard, query string) []any {
+	values := map[string]string{}
+	for _, variable := range dashboard.Variables {
+		values[variable.Name] = variable.DefaultValue
+	}
+	if usesSessionParameter(query) {
+		values["session_id"] = r.store.ActiveSessionID()
+	}
+	args := make([]any, 0, len(values))
+	for name, value := range values {
+		if usesNamedParameter(query, name) {
+			args = append(args, sql.Named(name, value))
+		}
+	}
+	return args
+}
+
+func validateDeployAnnotationResult(columns []string) error {
+	has := func(names ...string) bool {
+		for _, candidate := range names {
+			for _, column := range columns {
+				if strings.EqualFold(column, candidate) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if !has("timestamp", "timestamp_ns", "time_ns") {
+		return &dslError{"deploy annotation_query requires a timestamp, timestamp_ns, or time_ns column"}
+	}
+	if !has("label", "release", "version") {
+		return &dslError{"deploy annotation_query requires a label, release, or version column"}
+	}
+	return nil
+}
+
 type dslError struct{ s string }
 
 func (e *dslError) Error() string { return e.s }
@@ -262,7 +366,9 @@ func or(a, b string) string {
 	return a
 }
 func (r *Router) saveVariable(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) { return }
+	if rejectFileManagedDashboard(w, req) {
+		return
+	}
 	var in variableInput
 	if !decodeAndValidate(w, req, &in) {
 		return
@@ -315,7 +421,9 @@ func validateDashboardVariable(variable *storage.DashboardVariable, value string
 	return nil
 }
 func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) { return }
+	if rejectFileManagedDashboard(w, req) {
+		return
+	}
 	if err := r.store.DeleteDashboardPanel(chi.URLParam(req, "id"), chi.URLParam(req, "panelId")); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -323,7 +431,9 @@ func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) { return }
+	if rejectFileManagedDashboard(w, req) {
+		return
+	}
 	if err := r.store.DeleteDashboardVariable(chi.URLParam(req, "id"), chi.URLParam(req, "name")); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
