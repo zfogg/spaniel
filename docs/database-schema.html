@@ -26,16 +26,28 @@ One row per recorded span; use for operation latency and errors.
 | `received_at` | `BIGINT` | Ingestion-rate analysis and arrival-time ordering. |
 | `sampled` | `BOOLEAN` | Separating sampled telemetry from unsampled records. |
 
-### Span count over time
+### Request volume over time
 
 ```sql
 SELECT (start_ns // 60000000000) * 60000000000 AS timestamp_ns, count(*) AS value FROM telemetry_spans WHERE session_id = $session_id GROUP BY 1 ORDER BY 1
 ```
 
-### Slow spans
+### Slowest operations
 
 ```sql
 SELECT service_name, name, duration_ns / 1000000.0 AS duration_ms, trace_id, span_id FROM telemetry_spans WHERE session_id = $session_id ORDER BY duration_ns DESC LIMIT 30
+```
+
+### HTTP route errors
+
+```sql
+SELECT json_extract_string(attributes, &#39;$.&#34;http.route&#34;&#39;) AS route, json_extract_string(attributes, &#39;$.&#34;http.request.method&#34;&#39;) AS method, count(*) AS errors FROM telemetry_spans WHERE session_id = $session_id AND status_code = 2 GROUP BY 1, 2 ORDER BY errors DESC LIMIT 30
+```
+
+### Sampling coverage by service
+
+```sql
+SELECT service_name, count(*) AS spans, count(*) FILTER (WHERE sampled) AS sampled_spans, round(100.0 * count(*) FILTER (WHERE sampled) / nullif(count(*), 0), 1) AS sampled_percent FROM telemetry_spans WHERE session_id = $session_id GROUP BY 1 ORDER BY spans DESC
 ```
 ## `telemetry_traces`
 
@@ -55,6 +67,18 @@ One row per trace, derived from its spans.
 
 ```sql
 SELECT trace_id, service_name, name, start_ns, duration_ns, span_count FROM telemetry_traces WHERE session_id = $session_id ORDER BY start_ns DESC LIMIT 30
+```
+
+### P95 trace latency by operation
+
+```sql
+SELECT service_name, name, count(*) AS traces, round(approx_quantile(duration_ns, 0.95) / 1000000.0, 1) AS p95_ms FROM telemetry_traces WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY p95_ms DESC LIMIT 30
+```
+
+### Most complex traces
+
+```sql
+SELECT trace_id, service_name, name, start_ns, duration_ns, span_count FROM telemetry_traces WHERE session_id = $session_id ORDER BY span_count DESC, duration_ns DESC LIMIT 30
 ```
 ## `telemetry_logs`
 
@@ -76,6 +100,18 @@ One row per structured log record.
 
 ```sql
 SELECT (timestamp_ns // 60000000000) * 60000000000 AS timestamp_ns, severity AS group_value, count(*) AS value FROM telemetry_logs WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2
+```
+
+### Exception fingerprints
+
+```sql
+SELECT service_name, json_extract_string(attributes, &#39;$.&#34;exception.type&#34;&#39;) AS exception_type, json_extract_string(attributes, &#39;$.&#34;exception.message&#34;&#39;) AS exception_message, count(*) AS occurrences FROM telemetry_logs WHERE session_id = $session_id AND json_extract_string(attributes, &#39;$.&#34;exception.type&#34;&#39;) IS NOT NULL GROUP BY 1, 2, 3 ORDER BY occurrences DESC LIMIT 30
+```
+
+### Noisiest services
+
+```sql
+SELECT service_name, severity, count(*) AS logs, min(timestamp_ns) AS first_log_ns, max(timestamp_ns) AS last_log_ns FROM telemetry_logs WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY logs DESC LIMIT 30
 ```
 ## `telemetry_metrics`
 
@@ -121,10 +157,28 @@ One row per metric point.
 | `service_name` | `VARCHAR` | Grouping or filtering by service. |
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
 
-### Metric values over time
+### Metric directory
 
 ```sql
-SELECT timestamp_ns, avg(value) AS value FROM telemetry_metrics WHERE session_id = $session_id GROUP BY 1 ORDER BY 1
+SELECT service_name, name, type, unit, count(*) AS points, max(timestamp_ns) AS last_seen_ns FROM telemetry_metrics WHERE session_id = $session_id GROUP BY 1, 2, 3, 4 ORDER BY last_seen_ns DESC LIMIT 30
+```
+
+### Counter growth by stream
+
+```sql
+SELECT service_name, name, series_key, max(value) - min(value) AS growth, min(timestamp_ns) AS first_point_ns, max(timestamp_ns) AS last_point_ns FROM telemetry_metrics WHERE session_id = $session_id AND is_monotonic = TRUE GROUP BY 1, 2, 3 ORDER BY growth DESC LIMIT 30
+```
+
+### HTTP method metric streams
+
+```sql
+SELECT service_name, name, json_extract_string(series_attributes, &#39;$.&#34;http.request.method&#34;&#39;) AS method, count(*) AS points, avg(value) AS average_value FROM telemetry_metrics WHERE session_id = $session_id AND json_extract_string(series_attributes, &#39;$.&#34;http.request.method&#34;&#39;) IS NOT NULL GROUP BY 1, 2, 3 ORDER BY points DESC LIMIT 30
+```
+
+### Histogram averages
+
+```sql
+SELECT service_name, name, sum(histogram_count) AS observations, round(sum(histogram_sum) / nullif(sum(histogram_count), 0), 3) AS average_value FROM telemetry_metrics WHERE session_id = $session_id AND histogram_count IS NOT NULL GROUP BY 1, 2 ORDER BY observations DESC LIMIT 30
 ```
 ## `telemetry_span_events`
 
@@ -138,6 +192,24 @@ Timestamped OpenTelemetry events attached to spans.
 | `time_ns` | `BIGINT` | Ordering span events and building event timelines. |
 | `name` | `VARCHAR` | Operation breakdowns and metric selection. |
 | `attributes` | `JSON` | Filtering known semantic-convention fields with json_extract_string. |
+
+### Span event volume over time
+
+```sql
+SELECT (time_ns // 60000000000) * 60000000000 AS timestamp_ns, name AS group_value, count(*) AS value FROM telemetry_span_events WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2
+```
+
+### Exception events
+
+```sql
+SELECT json_extract_string(attributes, &#39;$.&#34;exception.type&#34;&#39;) AS exception_type, json_extract_string(attributes, &#39;$.&#34;exception.message&#34;&#39;) AS exception_message, count(*) AS events FROM telemetry_span_events WHERE session_id = $session_id AND json_extract_string(attributes, &#39;$.&#34;exception.type&#34;&#39;) IS NOT NULL GROUP BY 1, 2 ORDER BY events DESC LIMIT 30
+```
+
+### Traces with the most events
+
+```sql
+SELECT trace_id, count(*) AS event_count, min(time_ns) AS first_event_ns, max(time_ns) AS last_event_ns FROM telemetry_span_events WHERE session_id = $session_id GROUP BY 1 ORDER BY event_count DESC LIMIT 30
+```
 ## `telemetry_span_links`
 
 Cross-trace and asynchronous span relationships.
@@ -151,6 +223,24 @@ Cross-trace and asynchronous span relationships.
 | `linked_span_id` | `VARCHAR` | Following cross-trace and asynchronous relationships. |
 | `trace_state` | `VARCHAR` | Diagnosing propagated trace routing state. |
 | `attributes` | `JSON` | Filtering known semantic-convention fields with json_extract_string. |
+
+### Cross-trace relationships
+
+```sql
+SELECT trace_id, linked_trace_id, count(*) AS links FROM telemetry_span_links WHERE session_id = $session_id AND linked_trace_id &lt;&gt; trace_id GROUP BY 1, 2 ORDER BY links DESC LIMIT 30
+```
+
+### Span-link fan-out
+
+```sql
+SELECT trace_id, span_id, count(*) AS linked_spans, count(DISTINCT linked_trace_id) AS linked_traces FROM telemetry_span_links WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY linked_spans DESC LIMIT 30
+```
+
+### Linked message operations
+
+```sql
+SELECT json_extract_string(attributes, &#39;$.&#34;messaging.operation&#34;&#39;) AS operation, json_extract_string(attributes, &#39;$.&#34;messaging.destination.name&#34;&#39;) AS destination, count(*) AS links FROM telemetry_span_links WHERE session_id = $session_id AND json_extract_string(attributes, &#39;$.&#34;messaging.operation&#34;&#39;) IS NOT NULL GROUP BY 1, 2 ORDER BY links DESC LIMIT 30
+```
 ## `telemetry_metric_series`
 
 Bounded directory of observed metric streams.
@@ -165,6 +255,24 @@ Bounded directory of observed metric streams.
 | `first_timestamp_ns` | `BIGINT` | Finding when a metric stream first appeared. |
 | `last_timestamp_ns` | `BIGINT` | Finding stale or recently active metric streams. |
 | `point_count` | `BIGINT` | Comparing stream volume and cardinality. |
+
+### Busiest metric series
+
+```sql
+SELECT service_name, name, series_key, point_count, first_timestamp_ns, last_timestamp_ns FROM telemetry_metric_series WHERE session_id = $session_id ORDER BY point_count DESC LIMIT 30
+```
+
+### Metric cardinality by service
+
+```sql
+SELECT service_name, name, count(*) AS series, sum(point_count) AS points FROM telemetry_metric_series WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY series DESC, points DESC LIMIT 30
+```
+
+### HTTP route metric series
+
+```sql
+SELECT service_name, name, json_extract_string(series_attributes, &#39;$.&#34;http.route&#34;&#39;) AS route, point_count FROM telemetry_metric_series WHERE session_id = $session_id AND json_extract_string(series_attributes, &#39;$.&#34;http.route&#34;&#39;) IS NOT NULL ORDER BY point_count DESC LIMIT 30
+```
 ## `telemetry_findings`
 
 Normalized Spaniel lint and trace findings.
@@ -181,6 +289,24 @@ Normalized Spaniel lint and trace findings.
 | `count` | `BIGINT` | Prioritizing recurring trace or lint issues. |
 | `wasted_ns` | `BIGINT` | Ranking findings by potential latency impact. |
 | `created_at` | `BIGINT` | Ordering findings and capture-session metadata. |
+
+### Most costly findings
+
+```sql
+SELECT source, severity, kind, count(*) AS findings, sum(coalesce(count, 1)) AS occurrences, round(sum(coalesce(wasted_ns, 0)) / 1000000.0, 1) AS wasted_ms FROM telemetry_findings WHERE session_id = $session_id GROUP BY 1, 2, 3 ORDER BY wasted_ms DESC, occurrences DESC LIMIT 30
+```
+
+### Findings over time
+
+```sql
+SELECT (created_at // 60000000000) * 60000000000 AS timestamp_ns, kind AS group_value, count(*) AS value FROM telemetry_findings WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2
+```
+
+### Actionable finding examples
+
+```sql
+SELECT severity, kind, message, trace_id, span_id, coalesce(count, 1) AS occurrences FROM telemetry_findings WHERE session_id = $session_id ORDER BY severity DESC, occurrences DESC LIMIT 30
+```
 ## `telemetry_sessions`
 
 Capture sessions for advanced comparisons.
@@ -196,4 +322,22 @@ Capture sessions for advanced comparisons.
 | `services` | `JSON` | Understanding session coverage before comparing it. |
 | `note` | `VARCHAR` | Adding context to a session comparison. |
 | `last_activity_ns` | `BIGINT` | Finding active sessions and ordering recent captures. |
+
+### Capture session inventory
+
+```sql
+SELECT id, label, span_count, is_baseline, is_imported, created_at, last_activity_ns FROM telemetry_sessions ORDER BY last_activity_ns DESC LIMIT 30
+```
+
+### Comparison baselines
+
+```sql
+SELECT id, label, span_count, services, note, last_activity_ns FROM telemetry_sessions WHERE is_baseline = TRUE ORDER BY last_activity_ns DESC
+```
+
+### Active session context
+
+```sql
+SELECT id, label, span_count, services, note, created_at, last_activity_ns FROM telemetry_sessions WHERE id = $session_id
+```
 </pre>

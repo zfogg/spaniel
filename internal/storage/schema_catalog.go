@@ -126,13 +126,61 @@ var columnHints = map[string]struct{ description, use, sensitivity string }{
 func samplesFor(view string) []SchemaSample {
 	switch view {
 	case "telemetry_spans":
-		return []SchemaSample{{"span-count-over-time", "Span count over time", "time_series", "SELECT (start_ns // 60000000000) * 60000000000 AS timestamp_ns, count(*) AS value FROM telemetry_spans WHERE session_id = $session_id GROUP BY 1 ORDER BY 1", "A one-minute request volume series scoped to the active session."}, {"slow-spans", "Slow spans", "table", "SELECT service_name, name, duration_ns / 1000000.0 AS duration_ms, trace_id, span_id FROM telemetry_spans WHERE session_id = $session_id ORDER BY duration_ns DESC LIMIT 30", "The slowest spans with links back to their trace."}}
+		return []SchemaSample{
+			{"span-count-over-time", "Request volume over time", "time_series", "SELECT (start_ns // 60000000000) * 60000000000 AS timestamp_ns, count(*) AS value FROM telemetry_spans WHERE session_id = $session_id GROUP BY 1 ORDER BY 1", "A one-minute request-volume series for the active capture."},
+			{"slow-spans", "Slowest operations", "table", "SELECT service_name, name, duration_ns / 1000000.0 AS duration_ms, trace_id, span_id FROM telemetry_spans WHERE session_id = $session_id ORDER BY duration_ns DESC LIMIT 30", "The slowest spans, ready to pivot into a trace investigation."},
+			{"http-route-errors", "HTTP route errors", "table", "SELECT json_extract_string(attributes, '$.\"http.route\"') AS route, json_extract_string(attributes, '$.\"http.request.method\"') AS method, count(*) AS errors FROM telemetry_spans WHERE session_id = $session_id AND status_code = 2 GROUP BY 1, 2 ORDER BY errors DESC LIMIT 30", "Uses semantic-convention JSON attributes to find failing HTTP routes."},
+			{"sampling-coverage", "Sampling coverage by service", "table", "SELECT service_name, count(*) AS spans, count(*) FILTER (WHERE sampled) AS sampled_spans, round(100.0 * count(*) FILTER (WHERE sampled) / nullif(count(*), 0), 1) AS sampled_percent FROM telemetry_spans WHERE session_id = $session_id GROUP BY 1 ORDER BY spans DESC", "Shows how much telemetry each service retained after sampling."},
+		}
 	case "telemetry_traces":
-		return []SchemaSample{{"errored-traces", "Recent traces", "trace_list", "SELECT trace_id, service_name, name, start_ns, duration_ns, span_count FROM telemetry_traces WHERE session_id = $session_id ORDER BY start_ns DESC LIMIT 30", "A trace-list starting point."}}
+		return []SchemaSample{
+			{"recent-traces", "Recent traces", "trace_list", "SELECT trace_id, service_name, name, start_ns, duration_ns, span_count FROM telemetry_traces WHERE session_id = $session_id ORDER BY start_ns DESC LIMIT 30", "A trace-list starting point for the active capture."},
+			{"p95-trace-latency", "P95 trace latency by operation", "table", "SELECT service_name, name, count(*) AS traces, round(approx_quantile(duration_ns, 0.95) / 1000000.0, 1) AS p95_ms FROM telemetry_traces WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY p95_ms DESC LIMIT 30", "Ranks operations by 95th-percentile end-to-end trace duration."},
+			{"trace-complexity", "Most complex traces", "trace_list", "SELECT trace_id, service_name, name, start_ns, duration_ns, span_count FROM telemetry_traces WHERE session_id = $session_id ORDER BY span_count DESC, duration_ns DESC LIMIT 30", "Surfaces fan-out, retries, and unexpectedly large trace trees."},
+		}
 	case "telemetry_logs":
-		return []SchemaSample{{"log-volume", "Log volume by severity", "time_series", "SELECT (timestamp_ns // 60000000000) * 60000000000 AS timestamp_ns, severity AS group_value, count(*) AS value FROM telemetry_logs WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2", "A grouped log volume chart."}}
+		return []SchemaSample{
+			{"log-volume", "Log volume by severity", "time_series", "SELECT (timestamp_ns // 60000000000) * 60000000000 AS timestamp_ns, severity AS group_value, count(*) AS value FROM telemetry_logs WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2", "A grouped log-volume chart for spotting noisy periods."},
+			{"exception-fingerprints", "Exception fingerprints", "table", "SELECT service_name, json_extract_string(attributes, '$.\"exception.type\"') AS exception_type, json_extract_string(attributes, '$.\"exception.message\"') AS exception_message, count(*) AS occurrences FROM telemetry_logs WHERE session_id = $session_id AND json_extract_string(attributes, '$.\"exception.type\"') IS NOT NULL GROUP BY 1, 2, 3 ORDER BY occurrences DESC LIMIT 30", "Groups logs by OpenTelemetry exception attributes instead of raw message text."},
+			{"noisiest-loggers", "Noisiest services", "table", "SELECT service_name, severity, count(*) AS logs, min(timestamp_ns) AS first_log_ns, max(timestamp_ns) AS last_log_ns FROM telemetry_logs WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY logs DESC LIMIT 30", "Shows which services and levels are producing the most log traffic."},
+		}
 	case "telemetry_metrics":
-		return []SchemaSample{{"metric-values", "Metric values over time", "time_series", "SELECT timestamp_ns, avg(value) AS value FROM telemetry_metrics WHERE session_id = $session_id GROUP BY 1 ORDER BY 1", "A generic metric starting point; add a metric-name filter before saving."}}
+		return []SchemaSample{
+			{"metric-directory", "Metric directory", "table", "SELECT service_name, name, type, unit, count(*) AS points, max(timestamp_ns) AS last_seen_ns FROM telemetry_metrics WHERE session_id = $session_id GROUP BY 1, 2, 3, 4 ORDER BY last_seen_ns DESC LIMIT 30", "A compact directory of recent metric streams; add a name filter before charting one."},
+			{"counter-growth", "Counter growth by stream", "table", "SELECT service_name, name, series_key, max(value) - min(value) AS growth, min(timestamp_ns) AS first_point_ns, max(timestamp_ns) AS last_point_ns FROM telemetry_metrics WHERE session_id = $session_id AND is_monotonic = TRUE GROUP BY 1, 2, 3 ORDER BY growth DESC LIMIT 30", "Finds the largest cumulative counter changes in the capture."},
+			{"http-method-metrics", "HTTP method metric streams", "table", "SELECT service_name, name, json_extract_string(series_attributes, '$.\"http.request.method\"') AS method, count(*) AS points, avg(value) AS average_value FROM telemetry_metrics WHERE session_id = $session_id AND json_extract_string(series_attributes, '$.\"http.request.method\"') IS NOT NULL GROUP BY 1, 2, 3 ORDER BY points DESC LIMIT 30", "Uses canonical series JSON to break metric streams down by HTTP method."},
+			{"histogram-averages", "Histogram averages", "table", "SELECT service_name, name, sum(histogram_count) AS observations, round(sum(histogram_sum) / nullif(sum(histogram_count), 0), 3) AS average_value FROM telemetry_metrics WHERE session_id = $session_id AND histogram_count IS NOT NULL GROUP BY 1, 2 ORDER BY observations DESC LIMIT 30", "Computes weighted averages from histogram count and sum fields."},
+		}
+	case "telemetry_span_events":
+		return []SchemaSample{
+			{"event-volume", "Span event volume over time", "time_series", "SELECT (time_ns // 60000000000) * 60000000000 AS timestamp_ns, name AS group_value, count(*) AS value FROM telemetry_span_events WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2", "Shows event bursts, grouped by event name."},
+			{"exception-events", "Exception events", "table", "SELECT json_extract_string(attributes, '$.\"exception.type\"') AS exception_type, json_extract_string(attributes, '$.\"exception.message\"') AS exception_message, count(*) AS events FROM telemetry_span_events WHERE session_id = $session_id AND json_extract_string(attributes, '$.\"exception.type\"') IS NOT NULL GROUP BY 1, 2 ORDER BY events DESC LIMIT 30", "Groups recorded exception events using their OpenTelemetry JSON attributes."},
+			{"event-rich-traces", "Traces with the most events", "table", "SELECT trace_id, count(*) AS event_count, min(time_ns) AS first_event_ns, max(time_ns) AS last_event_ns FROM telemetry_span_events WHERE session_id = $session_id GROUP BY 1 ORDER BY event_count DESC LIMIT 30", "Finds traces with unusually event-heavy execution."},
+		}
+	case "telemetry_span_links":
+		return []SchemaSample{
+			{"cross-trace-links", "Cross-trace relationships", "table", "SELECT trace_id, linked_trace_id, count(*) AS links FROM telemetry_span_links WHERE session_id = $session_id AND linked_trace_id <> trace_id GROUP BY 1, 2 ORDER BY links DESC LIMIT 30", "Highlights asynchronous or cross-trace relationships."},
+			{"link-fanout", "Span-link fan-out", "table", "SELECT trace_id, span_id, count(*) AS linked_spans, count(DISTINCT linked_trace_id) AS linked_traces FROM telemetry_span_links WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY linked_spans DESC LIMIT 30", "Shows spans that fan out to many linked traces or spans."},
+			{"linked-attributes", "Linked message operations", "table", "SELECT json_extract_string(attributes, '$.\"messaging.operation\"') AS operation, json_extract_string(attributes, '$.\"messaging.destination.name\"') AS destination, count(*) AS links FROM telemetry_span_links WHERE session_id = $session_id AND json_extract_string(attributes, '$.\"messaging.operation\"') IS NOT NULL GROUP BY 1, 2 ORDER BY links DESC LIMIT 30", "Uses link attributes to inspect messaging and asynchronous handoffs."},
+		}
+	case "telemetry_metric_series":
+		return []SchemaSample{
+			{"busiest-series", "Busiest metric series", "table", "SELECT service_name, name, series_key, point_count, first_timestamp_ns, last_timestamp_ns FROM telemetry_metric_series WHERE session_id = $session_id ORDER BY point_count DESC LIMIT 30", "Ranks bounded metric streams by the number of admitted points."},
+			{"cardinality-by-metric", "Metric cardinality by service", "table", "SELECT service_name, name, count(*) AS series, sum(point_count) AS points FROM telemetry_metric_series WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY series DESC, points DESC LIMIT 30", "Finds metric names that are creating the most distinct series."},
+			{"http-route-series", "HTTP route metric series", "table", "SELECT service_name, name, json_extract_string(series_attributes, '$.\"http.route\"') AS route, point_count FROM telemetry_metric_series WHERE session_id = $session_id AND json_extract_string(series_attributes, '$.\"http.route\"') IS NOT NULL ORDER BY point_count DESC LIMIT 30", "Uses canonical series JSON to explore route-level metric streams."},
+		}
+	case "telemetry_findings":
+		return []SchemaSample{
+			{"most-costly-findings", "Most costly findings", "table", "SELECT source, severity, kind, count(*) AS findings, sum(coalesce(count, 1)) AS occurrences, round(sum(coalesce(wasted_ns, 0)) / 1000000.0, 1) AS wasted_ms FROM telemetry_findings WHERE session_id = $session_id GROUP BY 1, 2, 3 ORDER BY wasted_ms DESC, occurrences DESC LIMIT 30", "Prioritizes lint and trace findings by estimated latency waste."},
+			{"findings-over-time", "Findings over time", "time_series", "SELECT (created_at // 60000000000) * 60000000000 AS timestamp_ns, kind AS group_value, count(*) AS value FROM telemetry_findings WHERE session_id = $session_id GROUP BY 1, 2 ORDER BY 1, 2", "Shows when each kind of lint or trace issue was detected."},
+			{"actionable-examples", "Actionable finding examples", "table", "SELECT severity, kind, message, trace_id, span_id, coalesce(count, 1) AS occurrences FROM telemetry_findings WHERE session_id = $session_id ORDER BY severity DESC, occurrences DESC LIMIT 30", "Gives an operator-ready list of findings with trace and span references."},
+		}
+	case "telemetry_sessions":
+		return []SchemaSample{
+			{"session-inventory", "Capture session inventory", "table", "SELECT id, label, span_count, is_baseline, is_imported, created_at, last_activity_ns FROM telemetry_sessions ORDER BY last_activity_ns DESC LIMIT 30", "Lists recent captures, their sizes, and comparison roles."},
+			{"comparison-baselines", "Comparison baselines", "table", "SELECT id, label, span_count, services, note, last_activity_ns FROM telemetry_sessions WHERE is_baseline = TRUE ORDER BY last_activity_ns DESC", "Shows sessions explicitly marked as a baseline for diffing."},
+			{"active-session-context", "Active session context", "table", "SELECT id, label, span_count, services, note, created_at, last_activity_ns FROM telemetry_sessions WHERE id = $session_id", "Returns the session metadata behind the currently scoped telemetry."},
+		}
 	}
 	return nil
 }

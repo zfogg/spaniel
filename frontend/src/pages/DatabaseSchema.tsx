@@ -130,7 +130,7 @@ export default function DatabaseSchema() {
         </aside>
         <section className="h-fit overflow-hidden rounded-lg border border-[#cbdde8] bg-white dark:border-border dark:bg-surface">
           <header className="border-b border-[#d8e5ed] bg-[#f8fbfd] px-4 py-3 dark:border-border dark:bg-muted">
-            <h2 className="font-mono text-[13px] font-semibold text-[#315d7e] dark:text-accent-ink">
+            <h2 className="font-mono text-[13px] font-semibold text-[#315d7e] dark:text-[#9bd2ff]">
               {selected.name}
             </h2>
             <p className="mt-1 text-[11px] leading-relaxed text-[#627789] dark:text-muted-foreground">
@@ -171,13 +171,18 @@ export default function DatabaseSchema() {
                 </tbody>
               </table>
             </div>
+            {(selected.samples ?? []).length > 0 && (
+              <h3 className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-wide text-[#315d7e] dark:text-[#9bd2ff]">
+                Working samples
+              </h3>
+            )}
             {(selected.samples ?? []).map((sample) => (
               <section
                 key={sample.id}
-                className="mt-4 overflow-hidden rounded-md border border-[#cbdce8] bg-[#f5faff] dark:border-border dark:bg-muted"
+                className="mt-3 overflow-hidden rounded-md border border-[#cbdce8] bg-[#f5faff] dark:border-[#314a61] dark:bg-[#102033]"
               >
-                <header className="border-b border-[#d5e5ef] bg-[#edf5fa] px-3 py-2 font-mono text-[10px] text-[#315d7e] dark:border-border dark:bg-surface">
-                  Working sample · adjust the filter, then preview it
+                <header className="border-b border-[#d5e5ef] bg-[#edf5fa] px-3 py-2 font-mono text-[10px] font-semibold text-[#315d7e] dark:border-[#314a61] dark:bg-[#172d43] dark:text-[#9bd2ff]">
+                  {sample.title}
                 </header>
                 <p className="px-3 pt-2 text-[10px] text-[#627789] dark:text-muted-foreground">
                   {sample.explanation}
@@ -188,14 +193,14 @@ export default function DatabaseSchema() {
                 <div className="flex gap-2 px-3 pb-3">
                   <button
                     onClick={() => copy(sample.sql)}
-                    className="inline-flex items-center gap-1 rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] text-[#315d7e] hover:bg-[#e8f3fa] dark:bg-background"
+                    className="inline-flex items-center gap-1 rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] font-medium text-[#315d7e] hover:bg-[#e8f3fa] dark:border-[#3d6482] dark:bg-[#183652] dark:text-[#b8e2ff] dark:hover:bg-[#214766]"
                   >
                     <Copy size={11} />
                     Copy to clipboard
                   </button>
                   <button
                     title="Use the dashboard or alert SQL editor to preview this sample in authoring context."
-                    className="rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] text-[#315d7e] hover:bg-[#e8f3fa] dark:bg-background"
+                    className="rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] font-medium text-[#315d7e] hover:bg-[#e8f3fa] dark:border-[#3d6482] dark:bg-[#183652] dark:text-[#b8e2ff] dark:hover:bg-[#214766]"
                   >
                     Preview sample · 30 rows
                   </button>
