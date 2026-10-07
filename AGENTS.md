@@ -35,8 +35,7 @@ intentionally externally reachable, approve only its corresponding stable
 When editing the frontend, run `pnpm run format` and `pnpm run lint` from the
 `frontend` directory after each coherent edit. Before committing, confirm the
 working tree is already formatted with `pnpm run format:check` and that
-`pnpm run lint` passes. The formatter is Oxfmt; ESLint enforces the TypeScript,
-React, React Hooks, and React Fast Refresh rules.
+`pnpm run lint` passes.
 
 ## Storage query boundary
 
