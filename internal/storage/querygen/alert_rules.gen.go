@@ -37,8 +37,6 @@ func newAlertRule(db *gorm.DB, opts ...gen.DOOption) alertRule {
 	_alertRule.PendingForNs = field.NewInt64(tableName, "pending_for_ns")
 	_alertRule.CooldownNs = field.NewInt64(tableName, "cooldown_ns")
 	_alertRule.RepeatIntervalNs = field.NewInt64(tableName, "repeat_interval_ns")
-	_alertRule.Owner = field.NewString(tableName, "owner")
-	_alertRule.Team = field.NewString(tableName, "team")
 	_alertRule.Severity = field.NewString(tableName, "severity")
 	_alertRule.AnnotationsJSON = field.NewString(tableName, "annotations_json")
 	_alertRule.Enabled = field.NewBool(tableName, "enabled")
@@ -76,8 +74,6 @@ type alertRule struct {
 	PendingForNs                  field.Int64
 	CooldownNs                    field.Int64
 	RepeatIntervalNs              field.Int64
-	Owner                         field.String
-	Team                          field.String
 	Severity                      field.String
 	AnnotationsJSON               field.String
 	Enabled                       field.Bool
@@ -121,8 +117,6 @@ func (a *alertRule) updateTableName(table string) *alertRule {
 	a.PendingForNs = field.NewInt64(table, "pending_for_ns")
 	a.CooldownNs = field.NewInt64(table, "cooldown_ns")
 	a.RepeatIntervalNs = field.NewInt64(table, "repeat_interval_ns")
-	a.Owner = field.NewString(table, "owner")
-	a.Team = field.NewString(table, "team")
 	a.Severity = field.NewString(table, "severity")
 	a.AnnotationsJSON = field.NewString(table, "annotations_json")
 	a.Enabled = field.NewBool(table, "enabled")
@@ -157,7 +151,7 @@ func (a *alertRule) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (a *alertRule) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 29)
+	a.fieldMap = make(map[string]field.Expr, 27)
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["name"] = a.Name
 	a.fieldMap["query_sql"] = a.QuerySQL
@@ -167,8 +161,6 @@ func (a *alertRule) fillFieldMap() {
 	a.fieldMap["pending_for_ns"] = a.PendingForNs
 	a.fieldMap["cooldown_ns"] = a.CooldownNs
 	a.fieldMap["repeat_interval_ns"] = a.RepeatIntervalNs
-	a.fieldMap["owner"] = a.Owner
-	a.fieldMap["team"] = a.Team
 	a.fieldMap["severity"] = a.Severity
 	a.fieldMap["annotations_json"] = a.AnnotationsJSON
 	a.fieldMap["enabled"] = a.Enabled

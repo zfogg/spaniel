@@ -25,8 +25,6 @@ type Definition struct {
 	PendingFor      string            `yaml:"pending_for"`
 	Cooldown        string            `yaml:"cooldown"`
 	RepeatInterval  string            `yaml:"repeat_interval,omitempty"`
-	Owner           string            `yaml:"owner,omitempty"`
-	Team            string            `yaml:"team,omitempty"`
 	Severity        string            `yaml:"severity"`
 	Enabled         *bool             `yaml:"enabled,omitempty"`
 	BrowserEnabled  *bool             `yaml:"browser_enabled,omitempty"`
@@ -208,7 +206,7 @@ func (d Definition) Alert(id string) (*model.AlertRule, error) {
 	if d.PushoverEnabled != nil {
 		push = *d.PushoverEnabled
 	}
-	return &model.AlertRule{ID: id, Name: d.Name, QuerySQL: d.Query, QueryVersion: 1, ConditionJSON: string(condition), GroupByJSON: string(groups), PendingForNs: p, CooldownNs: c, RepeatIntervalNs: repeatInterval, Owner: d.Owner, Team: d.Team, Severity: d.Severity, Enabled: enabled, BrowserEnabled: browser, PushoverEnabled: push, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(annotations)}, nil
+	return &model.AlertRule{ID: id, Name: d.Name, QuerySQL: d.Query, QueryVersion: 1, ConditionJSON: string(condition), GroupByJSON: string(groups), PendingForNs: p, CooldownNs: c, RepeatIntervalNs: repeatInterval, Severity: d.Severity, Enabled: enabled, BrowserEnabled: browser, PushoverEnabled: push, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(annotations)}, nil
 }
 func Marshal(r *model.AlertRule) ([]byte, error) {
 	var c Condition
@@ -243,7 +241,7 @@ func Marshal(r *model.AlertRule) ([]byte, error) {
 	if r.InstanceDiscoverySQL != "" {
 		discovery = &InstanceDiscovery{Query: r.InstanceDiscoverySQL, Every: durationString(r.InstanceDiscoveryIntervalNs), StaleAfter: durationString(r.InstanceDiscoveryStaleAfterNs)}
 	}
-	return yaml.Marshal(Definition{Version: Version, ID: r.ID, Name: r.Name, Query: r.QuerySQL, Condition: c, GroupBy: groups, PendingFor: durationString(r.PendingForNs), Cooldown: durationString(r.CooldownNs), RepeatInterval: durationString(r.RepeatIntervalNs), Owner: r.Owner, Team: r.Team, Severity: r.Severity, Enabled: &e, BrowserEnabled: &b, PushoverEnabled: &p, InstanceDiscovery: discovery, Annotations: a})
+	return yaml.Marshal(Definition{Version: Version, ID: r.ID, Name: r.Name, Query: r.QuerySQL, Condition: c, GroupBy: groups, PendingFor: durationString(r.PendingForNs), Cooldown: durationString(r.CooldownNs), RepeatInterval: durationString(r.RepeatIntervalNs), Severity: r.Severity, Enabled: &e, BrowserEnabled: &b, PushoverEnabled: &p, InstanceDiscovery: discovery, Annotations: a})
 }
 
 func durationString(ns int64) string {

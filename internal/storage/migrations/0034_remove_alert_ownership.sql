@@ -1,0 +1,2 @@
+ALTER TABLE alert_rules DROP COLUMN IF EXISTS owner;
+ALTER TABLE alert_rules DROP COLUMN IF EXISTS team;

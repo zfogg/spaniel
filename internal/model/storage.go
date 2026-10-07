@@ -391,8 +391,6 @@ type AlertRule struct {
 	PendingForNs     int64            `json:"pending_for_ns"`
 	CooldownNs       int64            `json:"cooldown_ns"`
 	RepeatIntervalNs int64            `json:"repeat_interval_ns"`
-	Owner            string           `json:"owner"`
-	Team             string           `json:"team"`
 	Severity         string           `json:"severity"`
 	AnnotationsJSON  string           `json:"annotations_json"`
 	Enabled          bool             `json:"enabled"`

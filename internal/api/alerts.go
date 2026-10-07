@@ -68,8 +68,6 @@ type alertInput struct {
 	PendingForNs     int64             `json:"pending_for_ns"`
 	CooldownNs       int64             `json:"cooldown_ns"`
 	RepeatIntervalNs int64             `json:"repeat_interval_ns"`
-	Owner            string            `json:"owner" validate:"max=120"`
-	Team             string            `json:"team" validate:"max=120"`
 	Severity         string            `json:"severity" validate:"omitempty,oneof=info warning critical"`
 	Enabled          *bool             `json:"enabled"`
 	BrowserEnabled   *bool             `json:"browser_enabled"`
@@ -141,7 +139,7 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	if in.PushoverEnabled != nil {
 		pushover = *in.PushoverEnabled
 	}
-	return &storage.AlertRule{Name: in.Name, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, ConditionJSON: string(c), GroupByJSON: string(g), PendingForNs: in.PendingForNs, CooldownNs: in.CooldownNs, RepeatIntervalNs: in.RepeatIntervalNs, Owner: in.Owner, Team: in.Team, Severity: sev, Enabled: on, BrowserEnabled: browser, PushoverEnabled: pushover, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(a)}, nil
+	return &storage.AlertRule{Name: in.Name, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, ConditionJSON: string(c), GroupByJSON: string(g), PendingForNs: in.PendingForNs, CooldownNs: in.CooldownNs, RepeatIntervalNs: in.RepeatIntervalNs, Severity: sev, Enabled: on, BrowserEnabled: browser, PushoverEnabled: pushover, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(a)}, nil
 }
 func (r *Router) listAlerts(w http.ResponseWriter, q *http.Request) {
 	x, e := r.store.WithContext(q.Context()).ListAlertRules()

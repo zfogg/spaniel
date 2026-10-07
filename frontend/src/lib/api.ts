@@ -606,8 +606,6 @@ export const AlertRuleSchema = z.object({
   pending_for_ns: z.number(),
   cooldown_ns: z.number(),
   repeat_interval_ns: z.number(),
-  owner: z.string(),
-  team: z.string(),
   severity: z.enum(['info', 'warning', 'critical']),
   enabled: z.boolean(),
   browser_enabled: z.boolean(),
