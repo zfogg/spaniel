@@ -515,7 +515,10 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 			return err
 		}
 	}
-	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && current.LastNotifiedAt != nil && now.UnixNano()-*current.LastNotifiedAt >= rule.RepeatIntervalNs {
+	// A firing instance can predate notification configuration (or an earlier
+	// delivery failure). Once repeats are enabled, give that active incident its
+	// first delivery rather than leaving LastNotifiedAt nil forever.
+	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && (current.LastNotifiedAt == nil || now.UnixNano()-*current.LastNotifiedAt >= rule.RepeatIntervalNs) {
 		// Acknowledgement is operator metadata, not a notification mute: a
 		// firing incident may still repeat. Use an explicit silence to suppress
 		// both its initial and repeat deliveries.

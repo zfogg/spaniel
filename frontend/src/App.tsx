@@ -383,7 +383,7 @@ function AppShell() {
       <BottomBar />
       <IssueToast />
       <AlertToast />
-      <Toaster position="top-right" offset={72} visibleToasts={3} />
+      <Toaster position="top-right" offset={72} visibleToasts={3} style={{ zIndex: 40 }} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )

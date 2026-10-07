@@ -18,7 +18,22 @@ export default function AlertToast() {
       p.transition === 'resolved'
         ? `${state}: ${p.ruleName}${group ? ` — ${group}` : ''}`
         : `${state}: ${p.ruleName}${group ? ` — ${group}` : ''}${p.currentValue != null && p.operator && p.threshold != null ? ` (${p.currentValue} ${p.operator} ${p.threshold})` : ''}`
-    showNotification({ title: `Alert ${p.state}`, detail, link: p.link ?? '/alerts', linkLabel: 'open alerts →', severity: p.severity === 'critical' ? 'critical' : p.severity === 'warning' ? 'warning' : 'info', dedupeKey: `alert:${p.ruleId}:${p.transition}:${Object.values(p.groupLabels ?? {}).join('|')}`, native: p.browser === true })
+    showNotification({
+      title: `Alert ${p.state}`,
+      detail,
+      link: p.link ?? '/alerts',
+      linkLabel: 'open alerts →',
+      severity:
+        p.severity === 'critical' || p.severity === 'error'
+          ? 'critical'
+          : p.severity === 'warning'
+            ? 'warning'
+            : 'info',
+      // Each delivered repeat is operator-relevant. Do not collapse distinct
+      // websocket events into the first toast for that firing instance.
+      dedupeKey: `alert:${p.ruleId}:${p.transition}:${Object.values(p.groupLabels ?? {}).join('|')}:${event.timestamp_ns}`,
+      native: p.browser === true,
+    })
   })
   return null
 }

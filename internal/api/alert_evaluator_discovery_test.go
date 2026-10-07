@@ -98,3 +98,35 @@ func TestAdvanceAlertInstance_SilenceSuppressesRepeat(t *testing.T) {
 		t.Fatalf("silenced repeat updated last notification: %#v", got.Instances[0])
 	}
 }
+
+func TestAdvanceAlertInstance_StartsRepeatDeliveryWithoutPriorNotification(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "repeat-recovery.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	now := time.Now()
+	rule := &storage.AlertRule{ID: "repeat-recovery", Name: "Repeat recovery", QuerySQL: "SELECT 1 AS value", ConditionJSON: `{"kind":"threshold","operator":">","value":0}`, GroupByJSON: `[]`, Enabled: true, BrowserEnabled: true, RepeatIntervalNs: int64(time.Minute)}
+	if err := store.CreateAlertRule(rule); err != nil {
+		t.Fatal(err)
+	}
+	value := 1.0
+	if err := store.UpsertAlertInstance(&storage.AlertInstance{RuleID: rule.ID, GroupKey: "all", LabelsJSON: "{}", State: "firing", Value: &value}); err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := store.GetAlertRule(rule.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule.Instances = persisted.Instances
+	if err := advanceAlertInstance(store, ws.NewHub(), rule, "all", map[string]string{}, value, true, now); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.GetAlertRule(rule.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Instances[0].LastNotifiedAt == nil {
+		t.Fatalf("repeat without prior notification did not mark delivery: %#v", got.Instances[0])
+	}
+}

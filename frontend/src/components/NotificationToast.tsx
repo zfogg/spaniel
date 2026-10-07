@@ -15,7 +15,7 @@ export type NotificationEvent = {
 
 const styles: Record<NotificationSeverity, { border: string; background: string; ink: string }> = {
   info: { border: 'border-accent', background: 'bg-accent-bg', ink: 'text-accent-ink' },
-  warning: { border: 'border-warning', background: 'bg-warning-bg', ink: 'text-warning-ink' },
+  warning: { border: 'border-warn', background: 'bg-warn-bg', ink: 'text-warn-ink' },
   critical: { border: 'border-danger', background: 'bg-danger-bg', ink: 'text-danger-ink' },
 }
 
