@@ -59,8 +59,8 @@ run: build-server
 
 verify-generated:
 	$(MAKE) generate
-	git diff --exit-code -- api/openapi.json internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
-	test -z "$$(git ls-files --others --exclude-standard -- internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
+	git diff --exit-code -- api/openapi.json frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
+	test -z "$$(git ls-files --others --exclude-standard -- frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
 
 test: verify-generated
 	@set -e; \
@@ -92,6 +92,7 @@ generate:
 	go run ./cmd/enrichopenapi
 	go tool oapi-codegen --config api/oapi-codegen.yaml api/openapi.json
 	go run ./cmd/genopenapi
+	cd frontend && pnpm run generate:openapi
 
 setup:
 	git config core.hooksPath git-hooks
