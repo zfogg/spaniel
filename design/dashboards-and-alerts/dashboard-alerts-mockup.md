@@ -17,6 +17,113 @@ The user-facing model:
 
 Keep magic variables distinct from reusable variables. A dashboard author can name a custom variable anything useful; they cannot redefine what `$service_name` means.
 
+## SQL help and schema reference
+
+SQL authors need three layers of help, using **one canonical schema catalog**:
+
+1. The query composer gets a quiet `Schema & SQL` action beside the read-only SQL label. It opens the schema reference in the same tab and returns the author to their unsaved dashboard or alert draft.
+2. `/docs/database-schema` is the full reference. It lists the stable `telemetry_*` DuckDB views, their columns/types/descriptions, panel-result-shape conventions, named parameter rules, and small working query samples.
+3. Existing telemetry search remains the fast path: metrics, spans, traces, logs, and attributes can insert a known-good sample into the composer. The docs page is for understanding and adaptation, not a competing query builder.
+
+Do not create a hard-coded “documentation schema” separate from the query catalog. Define an internal `SchemaCatalog` model and publish it through `GET /api/database-schema` (or extend the existing catalog response with a versioned `schema` resource). The catalog is the single source for:
+
+- the documentation page and its table/column search;
+- composer table/column tooltips and result-shape hints;
+- query-catalog descriptions and generated sample SQL;
+- backend result-shape validation messages where a human-readable column name is useful.
+
+### Generated artifacts
+
+Yes—generate the docs. Add `cmd/genschema` and make it a `make generate` step. It should combine two inputs:
+
+- **Curated metadata in source**: view purpose, column descriptions, sensitivity, supported panel shapes, parameter notes, and hand-written examples. DuckDB cannot infer those useful semantics from a column type.
+- **Live DuckDB introspection**: `DESCRIBE telemetry_spans`, `DESCRIBE telemetry_traces`, `DESCRIBE telemetry_logs`, and the other allowlisted views. The generator fails if the curated catalog is stale, points at a missing view/column, or exposes an unallowlisted physical table.
+
+From that one validated catalog, generate:
+
+```text
+internal/generated/schema_catalog.json   # embedded by the binary and served by /api/database-schema
+docs/database-schema.md                  # repository-readable reference
+docs/database-schema.html                # static, standalone reference for GitHub Pages or file sharing
+frontend/src/generated/schemaCatalog.ts  # optional typed fallback for editor loading states/tests
+```
+
+The runtime `/docs/database-schema` page should usually fetch the API catalog so it always matches the running binary. The generated HTML is a portable snapshot for people who want to browse documentation outside Spaniel; stamp it with the catalog version and Spaniel build version. Do not hand-edit any generated output.
+
+### DuckDB introspection details
+
+`cmd/genschema` should open the same initialized, read-only DuckDB database that Spaniel uses for query previews. It must inspect only an explicit allowlist of public query views; never enumerate and publish every table in the database.
+
+For each catalog entry, issue both of these read-only queries:
+
+```sql
+DESCRIBE telemetry_spans;
+
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'main' AND table_name = 'telemetry_spans'
+ORDER BY ordinal_position;
+```
+
+`DESCRIBE` is convenient for a compact human-friendly report; `information_schema.columns` provides a stable machine-readable assertion. The generator compares the observed column names/types against the catalog entry, fails on a missing or incompatible documented column, and writes the observed schema fingerprint into the generated catalog. It should also inspect `duckdb_views()`/`information_schema.views` only to assert that each allowlisted `telemetry_*` view exists—not to discover extra public API surface automatically.
+
+The runtime API should return the generated catalog rather than repeat introspection per browser request. Re-run generation whenever migrations or curated view definitions change. In tests, initialize a fresh DuckDB database, run migrations, load the catalog, and assert its fingerprint and each documented view/column.
+
+### Where “Use it for” comes from
+
+DuckDB knows a column is `BIGINT`; it does not know whether `duration_ns` represents latency or whether `trace_id` should become a clickable trace link. Therefore “Use it for” comes from a small, reviewed metadata record next to the query-view definitions. For example:
+
+```go
+ColumnSpec{
+    Name: "duration_ns",
+    Description: "Span duration in nanoseconds.",
+    UseItFor: "Latency percentiles, slow-operation tables, and heatmap buckets.",
+    SemanticType: "duration_ns",
+    PanelRoles: []string{"value", "table", "heatmap"},
+    Format: "duration",
+}
+```
+
+Keep this metadata close to `internal/storage/catalog.go` (for example, `internal/storage/schema_catalog.go`), so the same `SemanticType`, `PanelRoles`, and `Format` drive:
+
+- docs-table “Use it for” copy;
+- composer column tooltips and SQL snippets;
+- renderer defaults such as duration/timestamp formatting and trace links;
+- validation hints such as “time series needs a timestamp and a numeric value.”
+
+Write the prose once per stable semantic column. Reuse a shared `ColumnSpec` for columns with the same meaning across views (`trace_id`, `service_name`, `start_ns`, `duration_ns`) and only add a view-local override when the meaning changes. That keeps the copy coherent without pretending introspection can author product documentation.
+
+### Where preview/sample SQL comes from
+
+Do not generate a complete query just by seeing a table and its columns. The catalog should carry small, reviewed `SampleQuerySpec` records, each with a stable ID, title, target view(s), intended panel display type, SQL text, required named parameters, expected result columns, and a one-line explanation. Examples include “span count over time,” “slow spans,” “errored traces,” and “log volume by severity.”
+
+The generator can use introspection to validate that every referenced view and column exists. Tests should run every sample against a seeded DuckDB fixture, bind representative safe parameter values, and verify its declared result shape. This lets the UI confidently offer:
+
+- **Use sample SQL** in the panel or alert composer;
+- a telemetry catalog that filters samples by signal and display type;
+- schema-doc examples with “Preview sample · 30 rows” and “Use in current query” actions.
+
+The author may then edit the sample freely. A future helper can assemble a draft from a selected view + column + panel role, but it must label that draft as a starting point and never claim it knows the user’s actual metric/filter intent.
+
+### Preview execution
+
+Dashboard and alert authors need an actual query preview before save. Add a shared `POST /api/query-preview` service (existing dashboard/alert preview routes can delegate to it) with this contract:
+
+```text
+input:  query_sql, named parameters, requested display type
+policy: validate read-only SQL, bind only declared dashboard/alert parameters,
+        apply the active session context, 30-second timeout, maximum 30 returned rows
+output: columns, rows, truncated, resolved_parameters, duration_ms, warnings
+```
+
+The server, not the browser, enforces the 30-row cap. Prefer the storage query API’s row-limit argument; do not depend on a user-written `LIMIT`, and do not mutate a query string by naïvely appending `LIMIT 30`. If the query returns more than 30 rows, return `truncated: true` so the UI says “Showing the first 30 rows” and guides the author to add an intentional `ORDER BY`/`LIMIT`.
+
+The composer’s `Preview` button stays near the SQL editor. Its result area renders a compact, horizontally scrollable table with at most 30 rows, column/type hints, resolved named parameters, and execution/error feedback. It must keep the editor contents intact on failure. For panel types, the normal visual renderer can appear above the raw grid, but the raw 30-row table is the debugging truth. For alert rules, show the scalar/grouped result table alongside the threshold evaluation.
+
+Start with curated, stable query views—not physical DuckDB tables: `telemetry_spans`, `telemetry_traces`, `telemetry_logs`, `telemetry_metrics`, and any explicitly supported deployment/release view. Each catalog entry needs a view name, purpose, columns (`name`, DuckDB type, description, sensitivity), useful join/link metadata, and example queries. The storage migration that changes a view must update this catalog in the same change. Add a catalog-version test that asserts every documented view/column exists in the read-only DuckDB connection.
+
+The only currently automatic magic parameter is `$session_id`. Dashboard and alert filters such as `$service` are explicit, user-defined named DuckDB parameters; do not advertise invented automatic service/environment/window values until the backend resolves them.
+
 ## Existing implementation anchors
 
 Start from these files rather than creating parallel conventions:
@@ -32,6 +139,7 @@ Start from these files rather than creating parallel conventions:
 | Client API schemas | `frontend/src/lib/api.ts` | Add Zod schemas and typed client methods. |
 | App navigation | `frontend/src/App.tsx` | Add `Dashboards` and `Alerts` routes/nav. |
 | Existing chart behavior | `frontend/src/pages/Metrics.tsx` | Reuse bucketing, range choices, charts, and trace overlay behavior where suitable. |
+| Existing query catalog | `internal/storage/catalog.go` and `internal/api/dashboards.go` | Extend this backend-owned catalog rather than duplicating telemetry names/columns in the browser. |
 
 ## New files and primary responsibilities
 
@@ -45,24 +153,20 @@ Suggested names are intentionally boring:
 internal/storage/migrations/0009_dashboards_alerts.sql
 internal/storage/dashboards.go
 internal/storage/alerts.go
-internal/querydsl/ast.go
-internal/querydsl/parse.go
-internal/querydsl/compile.go
-internal/querydsl/catalog.go
-internal/querydsl/querydsl_test.go
+internal/storage/catalog.go
+internal/storage/schema_catalog.go              # new canonical schema metadata
+internal/storage/schema_catalog_test.go
 internal/api/dashboards.go
 internal/api/alerts.go
+internal/api/database_schema.go                 # new GET /api/database-schema
+internal/api/database_schema_test.go
 internal/api/dashboards_test.go
 internal/api/alerts_test.go
-internal/alerts/evaluator.go
-internal/alerts/evaluator_test.go
+frontend/src/pages/DatabaseSchema.tsx           # /docs/database-schema
+frontend/src/components/dashboard-panels/SchemaHelpLink.tsx
+frontend/src/components/dashboard-panels/SchemaReferenceDrawer.tsx
 frontend/src/pages/Dashboards.tsx
-frontend/src/pages/DashboardEditor.tsx
 frontend/src/pages/Alerts.tsx
-frontend/src/components/dashboard/PanelRenderer.tsx
-frontend/src/components/dashboard/QueryComposer.tsx
-frontend/src/components/dashboard/VariableEditor.tsx
-frontend/src/components/alerts/AlertInspector.tsx
 ```
 
 It is fine to defer a background evaluator until dashboard querying is correct. The persisted rule and alert state schema should still arrive together so there is no migration churn.
@@ -203,6 +307,7 @@ POST   /api/dashboards/{id}/panels
 PATCH  /api/dashboards/{id}/panels/{panelId}
 DELETE /api/dashboards/{id}/panels/{panelId}
 GET    /api/query-catalog?signal=metrics&q=duration
+GET    /api/database-schema
 
 GET    /api/alerts
 POST   /api/alerts
@@ -214,7 +319,7 @@ POST   /api/alerts/{id}/silence
 GET    /api/alerts/history
 ```
 
-Preview must compile and execute the exact same AST/evaluator used after save. Return a typed result envelope with `display_type`, columns, rows/series, resolved variables, warnings, and links to relevant trace IDs. The query catalog should aggregate known metric streams plus bounded observed span names, routes, log severities, and allowlisted attribute keys.
+Preview must execute the exact same read-only SQL path used after save. Return a typed result envelope with `display_type`, columns, rows/series, resolved variables, warnings, and links to relevant trace IDs. The query catalog should aggregate known metric streams plus bounded observed span names, routes, log severities, and allowlisted attribute keys. `GET /api/database-schema` returns the canonical, versioned schema catalog; it must not execute user SQL or expose arbitrary physical tables.
 
 ## Alert evaluator
 
@@ -234,7 +339,8 @@ Keep notification delivery out of the first dashboard PR. Store notification con
 Use the mockup as the interaction spec:
 
 - **Dashboard list/editor**: saved dashboards, panel grid, edit mode, draft panel selection, and a query composer with title + display type.
-- **Query composer**: telemetry search tabs (metrics/spans/traces/logs), reserved parameter insertion, custom variable editing, preview, and inline errors that retain the query.
+- **Query composer**: telemetry search tabs (metrics/spans/traces/logs), reserved parameter insertion, custom variable editing, preview, and inline errors that retain the query. Put a compact `Schema & SQL` action in the SQL toolbar; it opens `/docs/database-schema` without discarding the draft.
+- **Database schema docs**: `DatabaseSchema.tsx` consumes the same typed schema-catalog endpoint as composer tooltips. It provides a searchable view list, column/type/meaning table, parameter guardrails, a capped “Preview sample · 30 rows” result grid, and “Use this sample” actions that return to the originating dashboard or alert draft.
 - **Panel renderer**: one component per display type, sharing a typed `PanelResult`; reuse the existing SVG metric chart work in `Metrics.tsx` before adding a chart library.
 - **Alerts**: signal-board rows, a state filter, and inspector with query, resolved labels, timeline, trace links, acknowledgement, and eventual silence flow.
 
@@ -243,6 +349,7 @@ Add client schemas/methods to `frontend/src/lib/api.ts`, query keys to `frontend
 ## Minimum test matrix
 
 - Read-only SQL rejection, named parameter binding, display-shape validation, and query cancellation/row limits.
+- Schema catalog contract: every catalog entry resolves against the read-only DuckDB connection; every listed column exists; docs and composer consume the same API fixture/version.
 - Storage CRUD and dashboard-scoped panel ordering.
 - Preview response shape for each display type.
 - Session scoping and time-window boundaries.

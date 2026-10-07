@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { DashboardCanvas, panelLayout } from './DashboardCanvas'
+import { DashboardCanvas } from './DashboardCanvas'
+import { movedPanelLayout, panelLayout } from './panel-layout'
 import type { DashboardPanel } from '@/lib/api'
 
 const panel: DashboardPanel = {
@@ -20,7 +21,7 @@ const panel: DashboardPanel = {
 afterEach(cleanup)
 
 describe('DashboardCanvas', () => {
-  it('normalizes legacy placement and persists pointer moves and resizes as grid coordinates', () => {
+  it('normalizes legacy placement and persists pointer resizes as grid coordinates', () => {
     expect(panelLayout({ ...panel, layout_json: '{"width":"wide"}' })).toEqual({
       x: 1,
       y: 1,
@@ -40,19 +41,33 @@ describe('DashboardCanvas', () => {
       toJSON: () => ({}),
     })
     render(<DashboardCanvas panels={[panel]} onEdit={() => {}} onCommit={commit} />)
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Move Latency' }), {
-      clientX: 40,
-      clientY: 40,
+    expect(movedPanelLayout({ x: 1, y: 1, w: 6, h: 1 }, { x: 200, y: 112 }, 1200)).toEqual({
+      x: 3,
+      y: 2,
+      w: 6,
+      h: 1,
     })
-    fireEvent.pointerMove(window, { clientX: 240, clientY: 152 })
-    fireEvent.pointerUp(window)
-    expect(commit).toHaveBeenLastCalledWith(panel, { x: 3, y: 2, w: 6, h: 1 })
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Resize Latency' }), {
       clientX: 40,
       clientY: 40,
     })
     fireEvent.pointerMove(window, { clientX: 240, clientY: 152 })
     fireEvent.pointerUp(window)
-    expect(commit).toHaveBeenLastCalledWith(panel, { x: 3, y: 2, w: 8, h: 2 })
+    expect(commit).toHaveBeenLastCalledWith(panel, { x: 1, y: 1, w: 8, h: 2 })
+  })
+
+  it('keeps the complete panel query available in the resized card', () => {
+    const longQuery = `SELECT\n  duration_ns,\n  service_name\nFROM telemetry_spans\nWHERE duration_ns > 1000000000`
+    render(
+      <DashboardCanvas
+        panels={[{ ...panel, query_sql: longQuery }]}
+        onEdit={() => {}}
+        onCommit={() => {}}
+      />,
+    )
+    const content = screen.getByText(/duration_ns/)
+    expect(content.textContent).toContain(longQuery)
+    expect(content.className).toContain('overflow-auto')
+    expect(content.className).not.toContain('line-clamp')
   })
 })

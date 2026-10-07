@@ -1,9 +1,15 @@
 .PHONY: dev build build-server run test test-extensive test-storage generate verify-generated setup
 
-# Version string baked into the binary: the latest git tag (e.g. v0.2.1), with
-# a -N-gSHA suffix for commits past the tag and -dirty for uncommitted changes.
-# Falls back to the short commit hash when no tags exist, then to "dev".
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Use MSYS2 Bash when available; otherwise use Bash from PATH. Scoop's sh.exe
+# shim may select a broken Zsh process on Windows.
+ifeq ($(OS),Windows_NT)
+ifeq ($(wildcard C:/msys64/usr/bin/bash.exe),)
+SHELL := bash
+else
+SHELL := C:/msys64/usr/bin/bash.exe
+endif
+endif
+
 # Keep the development server at a stable path.  Windows Defender Firewall
 # associates an allow rule with the executable path; `go run` instead creates a
 # fresh temporary executable on every invocation and repeatedly prompts.
@@ -46,7 +52,7 @@ build:
 
 build-server:
 	mkdir -p $(BIN_DIR)
-	go build -ldflags "-X main.version=$(VERSION)" -o $(BIN) ./cmd/spaniel
+	go build -ldflags "-X main.version=$$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o $(BIN) ./cmd/spaniel
 
 run: build-server
 	./$(BIN) $(ARGS)

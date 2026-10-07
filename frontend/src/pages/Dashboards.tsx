@@ -222,17 +222,20 @@ function DashboardGallery() {
     queryKey: qk.dashboards(),
     queryFn: () => api.dashboards.list().then((x) => x.data),
   })
-  const [local, setLocal] = useState<Dashboard[]>(readLocalDashboards)
+  const [local] = useState<Dashboard[]>(readLocalDashboards)
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('id')
   const [reordering, setReordering] = useState(false)
   const reorderPending = useRef(false)
-  const dashboards = [
-    ...savedDashboards,
-    ...local.filter(
-      (localDashboard) => !savedDashboards.some((saved) => saved.id === localDashboard.id),
-    ),
-  ]
+  const dashboards = useMemo(
+    () => [
+      ...savedDashboards,
+      ...local.filter(
+        (localDashboard) => !savedDashboards.some((saved) => saved.id === localDashboard.id),
+      ),
+    ],
+    [savedDashboards, local],
+  )
   const selected = dashboards.find((dashboard) => dashboard.id === selectedId) ?? dashboards[0]
   const [variables, setVariables] = useState<Record<string, string>>({})
   const [panelStatus, setPanelStatus] = useState<
@@ -245,7 +248,7 @@ function DashboardGallery() {
           selected.variables.map((variable) => [variable.name, variable.default_value]),
         ),
       )
-  }, [selected?.id])
+  }, [selected])
   const dashboardHref = (id: string, index: number) => {
     const next = new URLSearchParams(searchParams)
     if (index === 0) next.delete('id')
@@ -287,33 +290,6 @@ function DashboardGallery() {
     } finally {
       reorderPending.current = false
       setReordering(false)
-    }
-  }
-  const syncLocal = (next: Dashboard[]) => {
-    setLocal(next)
-    saveLocalDashboards(next)
-  }
-  const remove = async (dashboard: Dashboard) => {
-    if (!window.confirm(`Delete “${dashboard.name}”? This cannot be undone.`)) return
-    if (dashboard.id.startsWith('local-'))
-      syncLocal(local.filter((item) => item.id !== dashboard.id))
-    else {
-      await api.dashboards.remove(dashboard.id)
-      await qc.invalidateQueries({ queryKey: qk.dashboards() })
-    }
-  }
-  const rename = async (dashboard: Dashboard) => {
-    const name = window.prompt('Dashboard name', dashboard.name)?.trim()
-    if (!name || name === dashboard.name) return
-    if (dashboard.id.startsWith('local-'))
-      syncLocal(
-        local.map((item) =>
-          item.id === dashboard.id ? { ...item, name, updated_at: Date.now() * 1_000_000 } : item,
-        ),
-      )
-    else {
-      await api.dashboards.update(dashboard.id, { name, description: dashboard.description })
-      await qc.invalidateQueries({ queryKey: qk.dashboards() })
     }
   }
   return (
@@ -473,7 +449,7 @@ function Panel({
         dashboard.variables.map((variable) => [variable.name, variable.default_value]),
       ),
     )
-  }, [dashboard?.variables])
+  }, [dashboard])
   let layout: { width?: string; x?: number; y?: number; w?: number; h?: number } = {}
   try {
     layout = JSON.parse(panel.layout_json) as typeof layout
@@ -606,10 +582,6 @@ function readSettings(value: string): Record<string, unknown> {
     return {}
   }
 }
-function writeSettings(value: string, change: (settings: Record<string, unknown>) => void) {
-  change(readSettings(value))
-}
-
 function RendererSettings({
   display,
   value,
@@ -1017,7 +989,6 @@ export function DashboardEditor() {
       setImportError('')
     }
   }, [dashboardId])
-  const [selected, setSelected] = useState<string | null>(dashboardId ?? null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [dashboardName, setDashboardName] = useState('')
@@ -1036,12 +1007,15 @@ export function DashboardEditor() {
   const [catalogSearch, setCatalogSearch] = useState('')
   const [configText, setConfigText] = useState<string | null>(null)
   const [configError, setConfigError] = useState<string | null>(null)
-  const dashboards = [
-    ...savedDashboards,
-    ...localDashboards.filter(
-      (localDashboard) => !savedDashboards.some((saved) => saved.id === localDashboard.id),
-    ),
-  ]
+  const dashboards = useMemo(
+    () => [
+      ...savedDashboards,
+      ...localDashboards.filter(
+        (localDashboard) => !savedDashboards.some((saved) => saved.id === localDashboard.id),
+      ),
+    ],
+    [savedDashboards, localDashboards],
+  )
   // /dashboards/new is a real creation canvas, not an implicit edit of the
   // first saved dashboard.
   // The creation route must never inherit a dashboard selected earlier in this
@@ -1059,7 +1033,7 @@ export function DashboardEditor() {
   const activeSession = useQuery({
     queryKey: qk.activeSession(),
     queryFn: () => api.sessions.getActive().then((response) => response.data),
-    enabled: Boolean(active),
+    enabled: !!active,
     refetchInterval: 5000,
     staleTime: 5000,
   })
@@ -1080,7 +1054,7 @@ export function DashboardEditor() {
   })
   useEffect(() => {
     setDashboardName(active?.name ?? '')
-  }, [active?.id])
+  }, [active?.name])
   const saveDashboardName = async (nextName: string) => {
     if (!active || !nextName.trim() || nextName.trim() === active.name) return
     const name = nextName.trim()
@@ -1102,7 +1076,7 @@ export function DashboardEditor() {
   const nameSave = useDebouncedSave({
     key: active?.id ?? 'new-dashboard',
     value: dashboardName,
-    enabled: Boolean(active),
+    enabled: !!active,
     save: saveDashboardName,
   })
   const create = async () => {
@@ -1119,7 +1093,6 @@ export function DashboardEditor() {
     }
     try {
       const result = await api.dashboards.create(body)
-      setSelected(result.data.id)
       qc.setQueryData<Dashboard[]>(qk.dashboards(), (current) => [...(current ?? []), result.data])
       void refresh()
       editorNavigate(`/dashboards/${result.data.id}`)
@@ -1138,7 +1111,6 @@ export function DashboardEditor() {
     setImportError('')
     try {
       const result = await api.dashboards.importConfig(yaml)
-      setSelected(result.data.id)
       qc.setQueryData<Dashboard[]>(qk.dashboards(), (current) => [...(current ?? []), result.data])
       void refresh()
       editorNavigate(`/dashboards/${result.data.id}`)
@@ -1451,7 +1423,7 @@ export function DashboardEditor() {
       setConfigText('')
     }
   }
-  if (Boolean(active)) {
+  if (active) {
     const dashboard = active!
     return (
       <div className="flex min-h-0 flex-1 overflow-hidden">

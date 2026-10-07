@@ -1,9 +1,6 @@
 version: 1
 name: YAML browser check
 description: A portable dashboard definition.
-magic_variables:
-  - name: service_name
-    kind: string
 variables:
   - name: service
     kind: string
