@@ -94,6 +94,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Use(drainRequestBodyMiddleware)
 
 	mux.Get("/api/health", r.health)
+	mux.Get("/api/openapi.json", r.openAPI)
 	mux.Get("/api/traces", r.listTraces)
 	mux.Get("/api/traces/{traceId}", r.getTrace)
 	mux.Get("/api/traces/{traceId}/export", r.exportTrace)

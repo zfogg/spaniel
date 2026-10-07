@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useTheme } from 'next-themes'
-import { Moon, Sun, Search } from 'lucide-react'
+import { ChevronDown, ChevronUpRight, Moon, Sun, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -19,6 +19,7 @@ import Settings from './pages/Settings'
 import Dashboards, { DashboardEditor } from './pages/Dashboards'
 import Alerts from './pages/Alerts'
 import DatabaseSchema from './pages/DatabaseSchema'
+import OpenAPI from './pages/OpenAPI'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
 import AlertToast from './components/AlertToast'
@@ -93,6 +94,16 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
       )}
     </NavLink>
   )
+}
+
+function DocsMenu() {
+  const [open, setOpen] = useState(false)
+  return <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <button type="button" onClick={() => setOpen((value) => !value)} className="inline-flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-muted-foreground hover:text-foreground">
+      Docs {open ? <ChevronDown size={13} /> : <ChevronUpRight size={13} />}
+    </button>
+    {open && <div className="absolute left-0 top-full z-50 w-48 rounded-md border border-border bg-background p-1 shadow-lg"><NavLink to="/docs/openapi" className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">OpenAPI schema</NavLink><NavLink to="/docs/database-schema" className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Database schema</NavLink></div>}
+  </div>
 }
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
@@ -206,6 +217,7 @@ function Chrome() {
         <NavPill to="/metrics" label="Metrics" />
         <NavPill to="/dashboards" label="Dashboards" />
         <NavPill to="/alerts" label="Alerts" />
+        <DocsMenu />
         <NavPill to="/services" label="Services" />
         <NavPill to="/coverage" label="Coverage" />
         <NavPill to="/lint" label="Lint" />
@@ -285,6 +297,7 @@ function AppShell() {
             <Route path="/dashboards/:dashboardId" element={<DashboardEditor />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/docs/database-schema" element={<DatabaseSchema />} />
+			<Route path="/docs/openapi" element={<OpenAPI />} />
             <Route path="/coverage" element={<Coverage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/services" element={<ServiceMap />} />
