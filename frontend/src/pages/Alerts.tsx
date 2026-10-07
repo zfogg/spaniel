@@ -303,7 +303,8 @@ export default function Alerts() {
     [state, setState] = useState(searchParams.get('state') ?? 'attention'),
     [historyFilters, setHistoryFilters] = useState<HistoryFilters>(historyFiltersFromURL),
     [historyPage, setHistoryPage] = useState(1),
-    [yaml, setYaml] = useState<string | null>(null)
+    [yaml, setYaml] = useState<string | null>(null),
+    [pageLoadSelection, setPageLoadSelection] = useState<string | null>(null)
   const selectedId = searchParams.get('id')
   const mode = searchParams.get('mode')
   const setLocation = (id: string | null, nextMode?: string | null) =>
@@ -348,8 +349,20 @@ export default function Alerts() {
   useWS((e) => {
     if (e.type === 'alert' || e.type === 'alert_sync') refresh()
   })
-  const selected: AlertRule | undefined = rules.find((x) => x.id === selectedId) ?? rules[0]
-  const setSelectedId = (id: string) => setLocation(rules[0]?.id === id ? null : id, null)
+  // With no id in the URL, choose the first rule once after page load. Keep
+  // that identity as live evaluation re-sorts the list instead of changing the
+  // inspector to whichever rule happens to move into first position.
+  useEffect(() => {
+    if (selectedId || pageLoadSelection || !rules[0]) return
+    setPageLoadSelection(rules[0].id)
+  }, [pageLoadSelection, rules, selectedId])
+  const selected: AlertRule | undefined =
+    rules.find((x) => x.id === (selectedId ?? pageLoadSelection)) ??
+    (selectedId ? undefined : rules[0])
+  const setSelectedId = (id: string) => {
+    setPageLoadSelection(id)
+    setLocation(rules[0]?.id === id ? null : id, null)
+  }
   const shownRules = useMemo(
     () =>
       rules.filter(
