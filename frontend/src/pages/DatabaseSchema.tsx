@@ -154,13 +154,13 @@ export default function DatabaseSchema() {
                       key={column.name}
                       className="border-b border-[#e2e9ee] align-top dark:border-border"
                     >
-                      <td className="px-2 py-2 font-mono text-[10px] font-semibold text-[#315d7e]">
+                      <td className="px-2 py-2 font-mono text-[10px] font-semibold text-[#315d7e] dark:text-[#9bd2ff]">
                         {column.name}
                         <div className="mt-1 font-sans text-[10px] font-normal text-[#627789] dark:text-muted-foreground">
                           {column.description}
                         </div>
                       </td>
-                      <td className="px-2 py-2 font-mono text-[10px] text-[#326348]">
+                      <td className="px-2 py-2 font-mono text-[10px] text-[#326348] dark:text-[#9bd8ad]">
                         {column.type}
                       </td>
                       <td className="px-2 py-2 text-[11px] leading-relaxed text-[#546d7f] dark:text-muted-foreground">
