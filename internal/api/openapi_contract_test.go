@@ -51,10 +51,24 @@ func TestOpenAPIContract(t *testing.T) {
 		}
 	}
 	for path, item := range generated.Paths.Map() {
-		for method := range item.Operations() {
+		for method, operation := range item.Operations() {
 			if !registered[strings.ToUpper(method)+" "+path] {
 				t.Errorf("documented operation %s %s is not registered", strings.ToUpper(method), path)
 			}
+			if len(operation.Tags) == 0 {
+				t.Errorf("documented operation %s %s has no Redoc group", strings.ToUpper(method), path)
+			}
+			response := operation.Responses.Value("200")
+			if response == nil || response.Value == nil {
+				continue
+			}
+			jsonResponse := response.Value.Content.Get("application/json")
+			if jsonResponse != nil && len(jsonResponse.Examples) == 0 {
+				t.Errorf("documented operation %s %s has no response example", strings.ToUpper(method), path)
+			}
 		}
+	}
+	if len(generated.Tags) == 0 {
+		t.Fatal("OpenAPI document has no Redoc group definitions")
 	}
 }
