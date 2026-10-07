@@ -844,47 +844,26 @@ func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 func (d *DB) GetStats(sessionID string) (*Stats, error) {
 	s := &Stats{StorageFull: d.Full()}
 
-	spanQ := d.query.Span.Where()
 	// Every complete OpenTelemetry trace has exactly one root span. Counting
 	// roots avoids an exact COUNT(DISTINCT trace_id), whose hash table grew to
 	// multiple GiB on a modest on-disk store and stalled the stats endpoint.
-	traceQ := d.query.Span.Where(d.query.Span.ParentSpanID.Eq(""))
-	logQ := d.query.Log.Where()
-	if sessionID != "" {
-		spanQ = spanQ.Where(d.query.Span.SessionID.Eq(sessionID))
-		traceQ = traceQ.Where(d.query.Span.SessionID.Eq(sessionID))
-		logQ = logQ.Where(d.query.Log.SessionID.Eq(sessionID))
-	}
-
-	var spanCount, traceCount, logCount int64
-	var err error
-	spanCount, err = spanQ.Count()
+	// This named query combines all dashboard aggregates into one round trip.
+	rows, err := d.namedQuery("storage.GetStats").Span.GetStats(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	traceCount, err = traceQ.Count()
-	if err != nil {
-		return nil, err
+	if len(rows) > 0 {
+		s.SpanCount = int(rows[0].SpanCount)
+		s.TraceCount = int(rows[0].TraceCount)
+		s.LogCount = int(rows[0].LogCount)
+		s.SessionCount = int(rows[0].SessionCount)
+		s.OldestSessionAt = rows[0].OldestSessionAt
 	}
-	logCount, err = logQ.Count()
-	if err != nil {
-		return nil, err
-	}
-	s.SpanCount = int(spanCount)
-	s.TraceCount = int(traceCount)
-	s.LogCount = int(logCount)
 
 	if d.path != "" && d.path != ":memory:" {
 		if fi, err := os.Stat(d.path); err == nil {
 			s.DBSize = fi.Size()
 		}
-	}
-	sessionCount, _ := d.query.Session.Count()
-	s.SessionCount = int(sessionCount)
-	oldest, err := d.query.Session.Select(d.query.Session.CreatedAt).
-		Order(d.query.Session.CreatedAt).Limit(1).Find()
-	if err == nil && len(oldest) > 0 {
-		s.OldestSessionAt = oldest[0].CreatedAt
 	}
 	return s, nil
 }

@@ -80,6 +80,17 @@ type TraceListRow struct {
 
 type CountValue struct{ Count int64 }
 
+// StatsRow is the single-row aggregate backing the dashboard stats endpoint.
+// Keeping its related counts in one projection avoids issuing a query (and
+// therefore recording a storage span) for every individual statistic.
+type StatsRow struct {
+	SpanCount       int64
+	TraceCount      int64
+	LogCount        int64
+	SessionCount    int64
+	OldestSessionAt int64
+}
+
 type SourceStatsRow struct {
 	ServiceName string
 	SpanCount   int64

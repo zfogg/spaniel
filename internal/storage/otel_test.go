@@ -187,3 +187,33 @@ func TestWithContext_NamesActiveMetricSeriesSpan(t *testing.T) {
 	}
 	t.Fatal("no storage.ActiveMetricSeries span nested under parent")
 }
+
+func TestWithContext_GetStatsEmitsOneStorageSpan(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = tp.Shutdown(context.Background()) })
+
+	d, err := Open(filepath.Join(t.TempDir(), "stats.duckdb"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	ctx, parent := otel.Tracer("test").Start(context.Background(), "parent")
+	if _, err := d.WithContext(ctx).GetStats(""); err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	parent.End()
+
+	var count int
+	for _, span := range sr.Ended() {
+		if span.Name() == "storage.GetStats" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("storage.GetStats spans = %d, want 1", count)
+	}
+}

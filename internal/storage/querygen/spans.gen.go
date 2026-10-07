@@ -230,6 +230,7 @@ type ISpanDo interface {
 	ListServiceMapNodes(sessionID string) (result []model.ServiceMapNode, err error)
 	ListServiceMapEdges(sessionID string) (result []model.ServiceMapEdge, err error)
 	ListTopOperations(service string, sessionID string, limit int) (result []model.ServiceMapOpStat, err error)
+	GetStats(sessionID string) (result []model.StatsRow, err error)
 	StorageTableSizes() (result []model.TableSizeRow, err error)
 	TopSessionSizes() (result []model.SessionSize, err error)
 }
@@ -518,6 +519,26 @@ func (s spanDo) ListTopOperations(service string, sessionID string, limit int) (
 	params = append(params, sessionID)
 	params = append(params, limit)
 	generateSQL.WriteString("SELECT name, COUNT(*) AS count, CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns FROM spans WHERE service_name = ? AND (? = '' OR session_id = ?) GROUP BY name ORDER BY count DESC LIMIT ? ")
+
+	var executeSQL *gorm.DB
+	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
+}
+
+// GetStats
+//
+// SELECT COUNT(*) AS span_count, COUNT(*) FILTER (WHERE parent_span_id = ” OR parent_span_id IS NULL) AS trace_count, (SELECT COUNT(*) FROM logs WHERE (@sessionID = ” OR session_id = @sessionID)) AS log_count, (SELECT COUNT(*) FROM sessions) AS session_count, COALESCE((SELECT MIN(created_at) FROM sessions), 0) AS oldest_session_at FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID)
+func (s spanDo) GetStats(sessionID string) (result []model.StatsRow, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	generateSQL.WriteString("SELECT COUNT(*) AS span_count, COUNT(*) FILTER (WHERE parent_span_id = '' OR parent_span_id IS NULL) AS trace_count, (SELECT COUNT(*) FROM logs WHERE (? = '' OR session_id = ?)) AS log_count, (SELECT COUNT(*) FROM sessions) AS session_count, COALESCE((SELECT MIN(created_at) FROM sessions), 0) AS oldest_session_at FROM spans WHERE (? = '' OR session_id = ?) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

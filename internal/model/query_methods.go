@@ -161,6 +161,11 @@ type SpanServiceMapMethods interface {
 }
 
 type SpanStorageMethods interface {
+	// GetStats
+	//
+	// SELECT COUNT(*) AS span_count, COUNT(*) FILTER (WHERE parent_span_id = '' OR parent_span_id IS NULL) AS trace_count, (SELECT COUNT(*) FROM logs WHERE (@sessionID = '' OR session_id = @sessionID)) AS log_count, (SELECT COUNT(*) FROM sessions) AS session_count, COALESCE((SELECT MIN(created_at) FROM sessions), 0) AS oldest_session_at FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID)
+	GetStats(sessionID string) ([]StatsRow, error)
+
 	// StorageTableSizes
 	//
 	// SELECT 'spans' AS name, COUNT(*) AS row_count, CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300), 0) AS BIGINT) AS payload_bytes FROM @@table UNION ALL SELECT 'logs', COUNT(*), CAST(COALESCE(SUM(LENGTH(body) + LENGTH(attributes::VARCHAR) + 100), 0) AS BIGINT) FROM logs UNION ALL SELECT 'metrics', COUNT(*), CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT) FROM metrics UNION ALL SELECT 'span_events', COUNT(*), CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT) FROM span_events UNION ALL SELECT 'span_links', COUNT(*), CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + 120), 0) AS BIGINT) FROM span_links UNION ALL SELECT 'sessions', COUNT(*), CAST(COUNT(*) * 200 AS BIGINT) FROM sessions UNION ALL SELECT 'trace_issues', COUNT(*), CAST(COALESCE(SUM(LENGTH(fingerprint) + 150), 0) AS BIGINT) FROM trace_issues UNION ALL SELECT 'lint_warnings', COUNT(*), CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT) FROM lint_warnings
