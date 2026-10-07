@@ -162,7 +162,7 @@ function DocsMenu() {
             OpenAPI schema
           </NavLink>
           <NavLink
-            to="/docs/database-schema"
+            to="/docs/database"
             className={({ isActive }) =>
               `block rounded px-2.5 py-2 text-xs transition-colors ${
                 isActive
@@ -369,7 +369,7 @@ function AppShell() {
             <Route path="/dashboards/new" element={<DashboardEditor />} />
             <Route path="/dashboards/:dashboardId" element={<DashboardEditor />} />
             <Route path="/alerts" element={<Alerts />} />
-            <Route path="/docs/database-schema" element={<DatabaseSchema />} />
+            <Route path="/docs/database" element={<DatabaseSchema />} />
             <Route path="/docs/openapi" element={<OpenAPI />} />
             <Route path="/coverage" element={<Coverage />} />
             <Route path="/settings" element={<Settings />} />

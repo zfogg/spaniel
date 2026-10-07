@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom'
 export function SchemaHelpLink() {
   return (
     <Link
-      to="/docs/database-schema"
+      to="/docs/database"
       className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
       title="Open the telemetry schema, SQL examples, and parameter rules"
     >

@@ -1896,7 +1896,7 @@ function AlertEditor({
             Query
           </h3>
           <Link
-            to="/docs/database-schema"
+            to="/docs/database"
             className="rounded border border-[#b7cddd] bg-[#e8f3fa] px-2.5 py-1 text-[10px] font-medium text-[#315d7e] hover:bg-[#d8eaf5] dark:border-border dark:bg-accent-bg dark:text-accent-ink"
           >
             Schema &amp; SQL docs
@@ -2040,7 +2040,7 @@ function AlertEditor({
               </span>
             </label>
             <Link
-              to="/docs/database-schema"
+              to="/docs/database"
               className="shrink-0 rounded border border-[#b7cddd] bg-[#e8f3fa] px-2.5 py-1 text-[10px] font-medium text-[#315d7e] hover:bg-[#d8eaf5] dark:border-border dark:bg-accent-bg dark:text-accent-ink"
             >
               Schema &amp; SQL docs
