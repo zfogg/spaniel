@@ -392,6 +392,15 @@ export default function Alerts() {
         }, {}),
     [rules],
   )
+  const stateRuleCounts = useMemo(
+    () =>
+      rules.reduce<Record<string, number>>((counts, rule) => {
+        const ruleStateName = ruleState(rule)
+        counts[ruleStateName] = (counts[ruleStateName] ?? 0) + 1
+        return counts
+      }, {}),
+    [rules],
+  )
   const showYaml = async () => {
     if (!selected) return
     try {
@@ -500,7 +509,7 @@ export default function Alerts() {
                   onClick={() => setState(x)}
                   className={`rounded px-2 py-1 text-xs ${state === x ? 'bg-accent-bg' : 'bg-muted'}`}
                 >
-                  {x} {instanceCounts[x] ?? 0}
+                  {x} · {stateRuleCounts[x] ?? 0} rules, {instanceCounts[x] ?? 0} instances
                 </button>
               ))}
             </div>
@@ -1276,7 +1285,7 @@ function AlertSummaryStrip({
             {counts[state] ?? 0}
           </strong>
           <span className="mt-1 block font-mono text-[10px] text-[#627e94] dark:text-muted-foreground">
-            {state === 'resolved' ? 'resolved' : state}
+            {state === 'resolved' ? 'resolved instances' : `${state} instances`}
           </span>
         </div>
       ))}
