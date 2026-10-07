@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, useMatch } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { ChevronDown, ChevronRight, Moon, Sun, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -97,6 +97,7 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
 }
 
 function DocsMenu() {
+  const docsActive = Boolean(useMatch('/docs/*'))
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -133,7 +134,12 @@ function DocsMenu() {
       <button
         type="button"
         onClick={show}
-        className="inline-flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-muted-foreground hover:text-foreground"
+        aria-current={docsActive ? 'page' : undefined}
+        className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-[5px] text-xs font-medium transition-colors ${
+          docsActive
+            ? 'border-border bg-muted text-foreground'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        }`}
       >
         Docs {visible && !fading ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
       </button>
@@ -145,13 +151,25 @@ function DocsMenu() {
         >
           <NavLink
             to="/docs/openapi"
-            className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            className={({ isActive }) =>
+              `block rounded px-2.5 py-2 text-xs transition-colors ${
+                isActive
+                  ? 'bg-muted font-medium text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`
+            }
           >
             OpenAPI schema
           </NavLink>
           <NavLink
             to="/docs/database-schema"
-            className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            className={({ isActive }) =>
+              `block rounded px-2.5 py-2 text-xs transition-colors ${
+                isActive
+                  ? 'bg-muted font-medium text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`
+            }
           >
             Database schema
           </NavLink>
