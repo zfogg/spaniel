@@ -53,6 +53,9 @@ type SettingsService struct {
 	// nil = settings are persisted but take effect on the next restart.
 	SetStoragePolicy func(maxDBSizeMB int, autoPrune bool)
 
+	// ReloadAlerts revalidates and reconciles configured alert YAML files.
+	ReloadAlerts func() error
+
 	// GithubClient is injected in tests to stub the GitHub API. nil = use
 	// http.DefaultClient.
 	GithubClient *http.Client
@@ -79,6 +82,7 @@ type UpdateCheckResult struct {
 type SettingsResponse struct {
 	Port                  int      `json:"port"`
 	DBPath                string   `json:"db_path"`
+	AlertsDir             string   `json:"alerts_dir"`
 	RetentionDays         int      `json:"retention_days"`
 	MaxSessions           int      `json:"max_sessions"`
 	MaxDBSizeMB           int      `json:"max_db_size_mb"`
@@ -98,6 +102,11 @@ type SettingsResponse struct {
 	SelfMonitor           bool     `json:"self_monitor"`
 	MCPEnabled            bool     `json:"mcp_enabled"`
 	MCPAllowWrites        bool     `json:"mcp_allow_writes"`
+	AlertsBrowserEnabled     bool   `json:"alerts_browser_enabled"`
+	AlertsPushoverEnabled    bool   `json:"alerts_pushover_enabled"`
+	AlertsPushoverConfigured bool   `json:"alerts_pushover_configured"`
+	AlertsBrowserTemplate    string `json:"alerts_browser_template"`
+	AlertsPushoverTemplate   string `json:"alerts_pushover_template"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -119,6 +128,7 @@ type SettingsRuntime struct {
 type SettingsUpdate struct {
 	Port                  *int      `json:"port,omitempty"`
 	DBPath                *string   `json:"db_path,omitempty"`
+	AlertsDir              *string   `json:"alerts_dir,omitempty"`
 	RetentionDays         *int      `json:"retention_days,omitempty"`
 	MaxSessions           *int      `json:"max_sessions,omitempty"`
 	MaxDBSizeMB           *int      `json:"max_db_size_mb,omitempty"`
@@ -134,6 +144,10 @@ type SettingsUpdate struct {
 	SourceRPS             *float64  `json:"source_rps,omitempty"`
 	SourceBurst           *int      `json:"source_burst,omitempty"`
 	SelfMonitor           *bool     `json:"self_monitor,omitempty"`
+	AlertsBrowserEnabled   *bool     `json:"alerts_browser_enabled,omitempty"`
+	AlertsPushoverEnabled  *bool     `json:"alerts_pushover_enabled,omitempty"`
+	AlertsBrowserTemplate  *string   `json:"alerts_browser_template,omitempty"`
+	AlertsPushoverTemplate *string   `json:"alerts_pushover_template,omitempty"`
 }
 
 func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
@@ -191,6 +205,7 @@ func (r *Router) buildSettings() SettingsResponse {
 	resp := SettingsResponse{
 		Port:                  v.GetInt("port"),
 		DBPath:                v.GetString("db_path"),
+		AlertsDir:             v.GetString("alerts_dir"),
 		RetentionDays:         v.GetInt("retention_days"),
 		MaxSessions:           v.GetInt("max_sessions"),
 		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
@@ -210,6 +225,11 @@ func (r *Router) buildSettings() SettingsResponse {
 		SelfMonitor:           v.GetBool("self_monitor"),
 		MCPEnabled:            s.MCPEnabled,
 		MCPAllowWrites:        s.MCPAllowWrites,
+		AlertsBrowserEnabled:     v.GetBool("alerts.browser_enabled"),
+		AlertsPushoverEnabled:    v.GetBool("alerts.pushover_enabled"),
+		AlertsPushoverConfigured: os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY") != "" && os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN") != "",
+		AlertsBrowserTemplate:    v.GetString("alerts.browser_template"),
+		AlertsPushoverTemplate:   v.GetString("alerts.pushover_template"),
 		Runtime: SettingsRuntime{
 			PID:          os.Getpid(),
 			UptimeNs:     time.Since(s.StartedAt).Nanoseconds(),
@@ -302,6 +322,9 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if u.DBPath != nil {
 		s.Viper.Set("db_path", *u.DBPath)
 	}
+	if u.AlertsDir != nil {
+		s.Viper.Set("alerts_dir", *u.AlertsDir)
+	}
 	if u.RetentionDays != nil {
 		s.Viper.Set("retention_days", *u.RetentionDays)
 	}
@@ -365,6 +388,18 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 			}
 		}
 	}
+	if u.AlertsBrowserEnabled != nil {
+		s.Viper.Set("alerts.browser_enabled", *u.AlertsBrowserEnabled)
+	}
+	if u.AlertsPushoverEnabled != nil {
+		s.Viper.Set("alerts.pushover_enabled", *u.AlertsPushoverEnabled)
+	}
+	if u.AlertsBrowserTemplate != nil {
+		s.Viper.Set("alerts.browser_template", *u.AlertsBrowserTemplate)
+	}
+	if u.AlertsPushoverTemplate != nil {
+		s.Viper.Set("alerts.pushover_template", *u.AlertsPushoverTemplate)
+	}
 
 	if s.ConfigPath == "" {
 		// In-memory only (tests). Nothing to persist.
@@ -373,7 +408,7 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor"} {
+	for _, k := range []string{"port", "db_path", "alerts_dir", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor", "alerts.browser_enabled", "alerts.pushover_enabled", "alerts.browser_template", "alerts.pushover_template"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {
