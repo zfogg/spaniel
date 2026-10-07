@@ -49,7 +49,7 @@ build-server:
 	go build -ldflags "-X main.version=$(VERSION)" -o $(BIN) ./cmd/spaniel
 
 run: build-server
-	./$(BIN)
+	./$(BIN) $(ARGS)
 
 verify-generated:
 	$(MAKE) generate

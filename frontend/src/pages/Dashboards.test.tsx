@@ -55,3 +55,17 @@ describe('dashboard SQL preview', () => {
     expect(preview).toHaveBeenCalledWith('test-dashboard', expect.objectContaining({ display_type: 'single_value' }))
   })
 })
+
+describe('dashboard YAML config', () => {
+  it('opens the exported syntax-highlighted text configuration', async () => {
+    vi.spyOn(api.dashboards, 'list').mockResolvedValue({ data: [{ id: 'test-dashboard', name: 'Test dashboard', description: '', created_at: 1, updated_at: 1, panels: [], variables: [] }], meta: { total: 1 } })
+    vi.spyOn(api.dashboards, 'catalog').mockResolvedValue({ data: [], meta: { total: 0 } })
+    const config = vi.spyOn(api.dashboards, 'config').mockResolvedValue('version: 1\nname: Test dashboard\n')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/dashboards/test-dashboard']}><Routes><Route path="/dashboards/:dashboardId" element={<DashboardEditor />} /></Routes></MemoryRouter></QueryClientProvider>)
+    await screen.findByRole('button', { name: 'View text config' })
+    fireEvent.click(screen.getByRole('button', { name: 'View text config' }))
+    expect((await screen.findByRole('dialog', { name: 'Dashboard YAML configuration' })).textContent).toContain('version: 1')
+    expect(config).toHaveBeenCalledWith('test-dashboard')
+  })
+})

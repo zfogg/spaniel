@@ -140,6 +140,7 @@ func main() {
 		port              int
 		dev               bool
 		dbPath            string
+		dashboardsDir     string
 		noBrowser         bool
 		apiBase           string
 		retentionDays     int
@@ -173,6 +174,9 @@ func main() {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, tlsCert, tlsKey, bearerToken)
+			if f := cmd.Flags().Lookup("dashboards-dir"); f != nil && f.Changed {
+				cfg.DashboardsDir = expandHome(dashboardsDir)
+			}
 			cfg.RoutesFile = routesFile
 			if f := cmd.Flags().Lookup("sample-rate"); f != nil && f.Changed {
 				cfg.SampleRate = sampleRate
@@ -200,6 +204,7 @@ func main() {
 	}
 
 	root.PersistentFlags().StringVar(&dbPath, "db-path", "", "Path to DuckDB file")
+	root.Flags().StringVar(&dashboardsDir, "dashboards-dir", "", "Directory of dashboard YAML files (default ~/.spaniel/dashboards)")
 	root.PersistentFlags().IntVar(&retentionDays, "retention", 0, "Delete sessions older than N days (0 = use config)")
 	root.PersistentFlags().IntVar(&maxSessions, "max-sessions", 0, "Keep at most N sessions (0 = use config)")
 	root.PersistentFlags().IntVar(&maxDBSizeMB, "max-db-size", 0, "Shrink DB to at most N MB (0 = use config)")
@@ -376,6 +381,7 @@ type runConfig struct {
 	Port                  int
 	Dev                   bool
 	DBPath                string
+	DashboardsDir         string
 	NoBrowser             bool
 	RetentionDays         int
 	MaxSessions           int
@@ -415,6 +421,7 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		Port:                  v.GetInt("port"),
 		Dev:                   dev,
 		DBPath:                expandHome(v.GetString("db_path")),
+		DashboardsDir:         expandHome(v.GetString("dashboards_dir")),
 		NoBrowser:             v.GetBool("no_browser"),
 		RetentionDays:         v.GetInt("retention_days"),
 		MaxSessions:           v.GetInt("max_sessions"),
@@ -597,6 +604,9 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("open storage: %w", err)
 	}
 	defer store.Close() //nolint:errcheck
+	if err := loadDashboardDefinitions(store, cfg.DashboardsDir); err != nil {
+		return err
+	}
 	_ = store.SetSpanielVersion(version)
 
 	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)

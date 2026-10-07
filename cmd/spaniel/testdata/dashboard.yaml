@@ -1,0 +1,20 @@
+version: 1
+name: YAML browser check
+description: A portable dashboard definition.
+magic_variables:
+  - name: service_name
+    kind: string
+variables:
+  - name: service
+    kind: string
+    source: spans.service_name
+    default_value: api
+panels:
+  - title: Span count
+    display_type: single_value
+    query: SELECT count(*) AS value FROM spans
+    settings:
+      unit: spans
+    layout:
+      w: 6
+    position: 0

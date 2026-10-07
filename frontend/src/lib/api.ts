@@ -526,6 +526,11 @@ export const api = {
 		create: (body: { name: string; description?: string; panels?: Array<Pick<DashboardPanel, 'title' | 'display_type' | 'query_sql'>> }) => post('/api/dashboards', body, DashboardSchema),
 		update: (id: string, body: { name: string; description?: string }) => patch(`/api/dashboards/${id}`, body, DashboardSchema),
 		remove: (id: string) => del(`/api/dashboards/${id}`, OkSchema),
+		config: async (id: string) => {
+			const response = await fetch(`/api/dashboards/${id}/config`)
+			if (!response.ok) throw new Error(await response.text())
+			return response.text()
+		},
 				preview: (id: string, body: { query_sql: string; name?: string; display_type?: string; variables?: Record<string, string> }) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
                 catalog: (signal?: string, search?: string, abortSignal?: AbortSignal) => {
                   const query = new URLSearchParams()

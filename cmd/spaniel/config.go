@@ -20,6 +20,9 @@ port: 8080
 # Path to the DuckDB database file
 db_path: ~/.spaniel/spaniel.duckdb
 
+# Directory containing declarative dashboard YAML files, loaded at startup.
+dashboards_dir: ~/.spaniel/dashboards
+
 # Retention: delete sessions older than N days (0 = disabled)
 retention_days: 7
 
@@ -104,6 +107,7 @@ func initViper(v *viper.Viper) {
 	// Defaults
 	v.SetDefault("port", 8080)
 	v.SetDefault("db_path", defaultDBPath())
+	v.SetDefault("dashboards_dir", "~/.spaniel/dashboards")
 	v.SetDefault("retention_days", 7)
 	v.SetDefault("max_sessions", 50)
 	v.SetDefault("max_db_size_mb", 500)
