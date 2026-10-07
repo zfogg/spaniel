@@ -63,6 +63,47 @@ func (d *DB) DeleteDashboard(id string) error {
 		return err
 	})
 }
+
+// ReplaceDashboardDefinition replaces a dashboard and all declarative children.
+// DuckDB cannot delete and reinsert the dashboard_id index key in one
+// transaction, so the deletion must commit before the replacement is written.
+// It is used for file/API imports, never for telemetry.
+func (d *DB) ReplaceDashboardDefinition(x *Dashboard) error {
+	now := time.Now().UnixNano()
+	x.CreatedAt, x.UpdatedAt = now, now
+	for _, panel := range x.Panels {
+		panel.ID = uuid.NewString()
+		panel.DashboardID = x.ID
+		panel.UpdatedAt = now
+	}
+	for _, variable := range x.Variables {
+		variable.DashboardID = x.ID
+	}
+	if err := d.DeleteDashboard(x.ID); err != nil {
+		return err
+	}
+	q := d.namedQuery("storage.ReplaceDashboardDefinition")
+	// Create the parent on its own. GORM otherwise persists the preloaded
+	// association slices here and the explicit child creates below attempt to
+	// write them a second time.
+	dashboard := *x
+	dashboard.Variables = nil
+	dashboard.Panels = nil
+	if err := q.Dashboard.Create(&dashboard); err != nil {
+		return err
+	}
+	if len(x.Variables) > 0 {
+		if err := q.DashboardVariable.Create(x.Variables...); err != nil {
+			return err
+		}
+	}
+	if len(x.Panels) > 0 {
+		if err := q.DashboardPanel.Create(x.Panels...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (d *DB) SaveDashboardVariable(v *DashboardVariable) error {
 	return d.namedQuery("storage.SaveDashboardVariable").DashboardVariable.Save(v)
 }

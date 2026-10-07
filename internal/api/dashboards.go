@@ -4,12 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/zfogg/spaniel/internal/dashboardconfig"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -30,7 +34,7 @@ type panelInput struct {
 type variableInput struct {
 	Name         string `json:"name" validate:"required,max=64"`
 	Kind         string `json:"kind" validate:"required,oneof=attribute string number boolean duration time enum service operation trace_id span_id log_id"`
-	Source       string `json:"source" validate:"required,max=160"`
+	Source       string `json:"source" validate:"required,max=16000"`
 	OptionsJSON  string `json:"options_json"`
 	DefaultValue string `json:"default_value"`
 }
@@ -62,6 +66,49 @@ func (r *Router) getDashboard(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	respond(w, x, 1, 1)
+}
+func (r *Router) exportDashboardConfig(w http.ResponseWriter, req *http.Request) {
+	x, err := r.store.GetDashboard(chi.URLParam(req, "id"))
+	if err != nil {
+		respondErr(w, req, 404, "dashboard not found")
+		return
+	}
+	data, err := dashboardconfig.Marshal(x)
+	if err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, req.Body, 1<<20))
+	if err != nil {
+		respondErr(w, req, 400, "read dashboard YAML: "+err.Error())
+		return
+	}
+	definition, err := dashboardconfig.Parse(data)
+	if err != nil {
+		respondErr(w, req, 400, "invalid dashboard YAML: "+err.Error())
+		return
+	}
+	dashboard, err := definition.Dashboard(uuid.NewString())
+	if err != nil {
+		respondErr(w, req, 400, "invalid dashboard YAML: "+err.Error())
+		return
+	}
+	for _, panel := range dashboard.Panels {
+		if err := storage.ValidateReadOnlySQL(panel.QuerySQL); err != nil {
+			respondErr(w, req, 400, fmt.Sprintf("panel %q: %v", panel.Title, err))
+			return
+		}
+	}
+	if err := r.store.ReplaceDashboardDefinition(dashboard); err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	respond(w, dashboard, 1, 1)
 }
 func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
 	x, err := r.store.GetDashboard(chi.URLParam(req, "id"))
