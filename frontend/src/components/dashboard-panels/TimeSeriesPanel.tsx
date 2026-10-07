@@ -61,12 +61,9 @@ export function TimeSeriesPanel({
     series[Math.floor((series.length - 1) / 2)]?.label ?? series[0].label,
     series[series.length - 1].label,
   ]
-  const minWidth =
-    settings.min_width_px ??
-    (series.length > 80 ? Math.min(2400, Math.max(720, series.length * 12)) : 0)
-  // A dense series deliberately grows beyond its panel. Give it a horizontal
-  // scroll container by default instead of allowing the dashboard card to clip
-  // the widened SVG. Explicit settings still let a panel opt in or out.
+  // SVG viewBoxes scale dense series to the available panel width. Only panels
+  // that explicitly ask for a minimum width need a horizontal scroll container.
+  const minWidth = settings.min_width_px ?? 0
   const scroll = settings.scroll ?? minWidth > 0
   return (
     <div className="min-w-0">
