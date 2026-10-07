@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useTheme } from 'next-themes'
-import { ArrowUpRight, ChevronDown, Moon, Sun, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Moon, Sun, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -100,7 +100,7 @@ function DocsMenu() {
   const [open, setOpen] = useState(false)
   return <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
     <button type="button" onClick={() => setOpen((value) => !value)} className="inline-flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-muted-foreground hover:text-foreground">
-      Docs {open ? <ChevronDown size={13} /> : <ArrowUpRight size={13} />}
+      Docs {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
     </button>
     {open && <div className="absolute left-0 top-full z-50 w-48 rounded-md border border-border bg-background p-1 shadow-lg"><NavLink to="/docs/openapi" className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">OpenAPI schema</NavLink><NavLink to="/docs/database-schema" className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Database schema</NavLink></div>}
   </div>
@@ -196,7 +196,7 @@ function ForwardingPills() {
 
 function Chrome() {
   return (
-    <header className="h-[46px] px-4 border-b border-border bg-background flex items-center gap-[14px] shrink-0 overflow-x-auto overflow-y-hidden scrollbar-thin">
+    <header className="relative z-50 h-[46px] px-4 border-b border-border bg-background flex items-center gap-[14px] shrink-0 overflow-visible scrollbar-thin">
       {/* brand */}
       <div className="flex items-center gap-2 shrink-0">
         <SpanielLogo size={22} />
@@ -217,11 +217,11 @@ function Chrome() {
         <NavPill to="/metrics" label="Metrics" />
         <NavPill to="/dashboards" label="Dashboards" />
         <NavPill to="/alerts" label="Alerts" />
-        <DocsMenu />
         <NavPill to="/services" label="Services" />
         <NavPill to="/coverage" label="Coverage" />
         <NavPill to="/lint" label="Lint" />
         <NavPill to="/sessions" label="Sessions" />
+        <DocsMenu />
         <NavPill to="/settings" label="Settings" />
       </nav>
 
