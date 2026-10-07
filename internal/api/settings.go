@@ -201,6 +201,7 @@ func (r *Router) dropAllData(w http.ResponseWriter, req *http.Request) {
 func (r *Router) buildSettings() SettingsResponse {
 	s := r.settings
 	v := s.Viper
+	delivery := currentAlertDelivery()
 
 	resp := SettingsResponse{
 		Port:                  v.GetInt("port"),
@@ -227,7 +228,7 @@ func (r *Router) buildSettings() SettingsResponse {
 		MCPAllowWrites:        s.MCPAllowWrites,
 		AlertsBrowserEnabled:     v.GetBool("alerts.browser_enabled"),
 		AlertsPushoverEnabled:    v.GetBool("alerts.pushover_enabled"),
-		AlertsPushoverConfigured: os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY") != "" && os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN") != "",
+		AlertsPushoverConfigured: delivery.PushoverUserKey != "" && delivery.PushoverAPIToken != "",
 		AlertsBrowserTemplate:    v.GetString("alerts.browser_template"),
 		AlertsPushoverTemplate:   v.GetString("alerts.pushover_template"),
 		Runtime: SettingsRuntime{

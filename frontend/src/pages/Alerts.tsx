@@ -35,6 +35,12 @@ const stateRowTone: Record<string, string> = {
   resolved: 'border-l-[#518a6a] bg-[#f4faf6] hover:bg-[#edf7f0]',
   error: 'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb]',
 }
+const stateSignalColor: Record<string, string> = {
+  firing: '#bd5c52',
+  pending: '#b9872f',
+  resolved: '#518a6a',
+  error: '#bd5c52',
+}
 const ruleState = (rule: AlertRule) =>
   rule.instances?.find((instance) => instance.state === 'firing')?.state ??
   rule.instances?.find((instance) => instance.state === 'pending')?.state ??
@@ -401,21 +407,6 @@ export default function Alerts() {
       }, {}),
     [rules],
   )
-  const latestFiring = useMemo(() => {
-    let latest: { name: string; firedAt: number; instanceCount: number } | undefined
-    for (const rule of rules) {
-      const firingInstances = (rule.instances ?? []).filter(
-        (instance) => instance.state === 'firing' && instance.fired_at,
-      )
-      for (const instance of firingInstances) {
-        const firedAt = Number(instance.fired_at)
-        if (!latest || firedAt > latest.firedAt) {
-          latest = { name: rule.name, firedAt, instanceCount: firingInstances.length }
-        }
-      }
-    }
-    return latest
-  }, [rules])
   const showYaml = async () => {
     if (!selected) return
     try {
@@ -489,7 +480,12 @@ export default function Alerts() {
           </div>
         </header>
         <div className="p-4">
-          <AlertSummaryStrip latestFiring={latestFiring} counts={instanceCounts} />
+          <AlertSummaryStrip
+            counts={instanceCounts}
+            ruleCounts={stateRuleCounts}
+            totalRules={rules.length}
+            totalInstances={rules.flatMap((rule) => rule.instances ?? []).length}
+          />
           <div className="mb-3 flex gap-1">
             <button
               onClick={() => {
@@ -572,10 +568,16 @@ export default function Alerts() {
                 <button
                   key={rule.id}
                   onClick={() => setSelectedId(rule.id)}
-                  className={`mb-2 grid w-full grid-cols-[1fr_auto] gap-3 rounded-md border border-[#cbd9e4] border-l-4 p-3 text-left shadow-[0_1px_0_rgba(31,56,83,0.04)] transition-colors dark:border-border ${stateRowTone[currentState] ?? 'border-l-[#8ba0b1] bg-white hover:bg-[#f4f8fb]'} ${selected?.id === rule.id ? 'ring-1 ring-[#6f9fc4] ring-offset-1' : ''}`}
+                  className={`mb-2 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border border-[#cbd9e4] border-l-4 p-3 text-left shadow-[0_1px_0_rgba(31,56,83,0.04)] transition-colors dark:border-border sm:grid-cols-[minmax(0,1fr)_160px_auto] ${stateRowTone[currentState] ?? 'border-l-[#8ba0b1] bg-white hover:bg-[#f4f8fb]'} ${selected?.id === rule.id ? 'ring-1 ring-[#6f9fc4] ring-offset-1' : ''}`}
                 >
                   <span>
-                    <b className="block text-sm">{rule.name}</b>
+                    <b className="flex items-center gap-2 text-sm">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: stateSignalColor[currentState] ?? '#8ba0b1' }}
+                      />
+                      <span className="truncate">{rule.name}</span>
+                    </b>
                     <span className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
                       <span>{rule.instances?.length ?? 0} instances</span>
                       <span
@@ -585,6 +587,11 @@ export default function Alerts() {
                       </span>
                     </span>
                   </span>
+                  <RuleSparkline
+                    instances={rule.instances ?? []}
+                    state={currentState}
+                    className="hidden self-center sm:block"
+                  />
                   <span
                     className={`h-fit rounded px-1.5 py-0.5 font-mono text-[10px] ${tone[currentState] ?? ''}`}
                   >
@@ -1264,49 +1271,116 @@ function InspectorSection({ title, children }: { title: string; children: ReactN
     </section>
   )
 }
-function AlertSummaryStrip({
-  latestFiring,
-  counts,
+
+function RuleSparkline({
+  instances,
+  state,
+  className,
 }: {
-  latestFiring?: { name: string; firedAt: number; instanceCount: number }
+  instances: Array<{ value?: number | null }>
+  state: string
+  className?: string
+}) {
+  const values = instances.flatMap((instance) =>
+    typeof instance.value === 'number' && Number.isFinite(instance.value) ? [instance.value] : [],
+  )
+  if (!values.length) {
+    return <span className={className} />
+  }
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const spread = max - min || 1
+  const width = 160
+  const height = 34
+  const inset = 3
+  const points = values
+    .map((value, index) => {
+      const x =
+        values.length === 1
+          ? width / 2
+          : inset + (index / (values.length - 1)) * (width - inset * 2)
+      const y = inset + (1 - (value - min) / spread) * (height - inset * 2)
+      return `${x},${y}`
+    })
+    .join(' ')
+  const color = stateSignalColor[state] ?? '#6f9fc4'
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className={className}
+      role="img"
+      aria-label="Current instance values"
+    >
+      <line
+        x1={inset}
+        x2={width - inset}
+        y1={height - inset}
+        y2={height - inset}
+        stroke="#cbd9e4"
+        strokeWidth="1"
+      />
+      {values.length > 1 ? (
+        <polyline
+          fill="none"
+          points={points}
+          stroke={color}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2.5"
+        />
+      ) : (
+        <circle cx={width / 2} cy={height / 2} fill={color} r="3.5" />
+      )}
+    </svg>
+  )
+}
+
+function AlertSummaryStrip({
+  counts,
+  ruleCounts,
+  totalRules,
+  totalInstances,
+}: {
   counts: Record<string, number>
+  ruleCounts: Record<string, number>
+  totalRules: number
+  totalInstances: number
 }) {
   return (
-    <div className="mb-4 grid overflow-hidden rounded-lg border border-[#c9d7e3] bg-white shadow-[0_1px_0_rgba(31,56,83,0.04)] dark:border-border dark:bg-background sm:grid-cols-[1.4fr_repeat(3,minmax(0,0.7fr))]">
-      <div
-        className={`flex min-w-0 items-center gap-2 border-b border-[#d7e1e9] px-3 py-3 sm:border-b-0 sm:border-r dark:border-border ${latestFiring ? stateRowTone.firing : 'bg-[#f7fafc]'}`}
-      >
-        <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-80" />
+    <div className="mb-4 grid overflow-hidden rounded-lg border border-[#c9d7e3] bg-white shadow-[0_1px_0_rgba(31,56,83,0.04)] dark:border-border dark:bg-background sm:grid-cols-[1.4fr_repeat(4,minmax(0,0.7fr))]">
+      <div className="flex min-w-0 items-center gap-4 border-b border-[#d7e1e9] bg-[#f7fafc] px-3 py-3 sm:border-b-0 sm:border-r dark:border-border">
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold">
-            {latestFiring?.name ?? 'No firing alerts'}
-          </p>
-          <p className="mt-0.5 font-mono text-[10px] opacity-70">
-            {latestFiring ? (
-              <>
-                Latest firing · {latestFiring.instanceCount} instances ·{' '}
-                <TimestampWithAgo nanoseconds={latestFiring.firedAt} />
-              </>
-            ) : (
-              'No rule is currently firing'
-            )}
-          </p>
+          <strong className="block text-xl leading-none text-[#235178]">{totalInstances}</strong>
+          <span className="mt-1 block font-mono text-[10px] text-[#627e94] dark:text-muted-foreground">
+            instances
+          </span>
+        </div>
+        <div className="min-w-0 border-l border-[#d7e1e9] pl-4 dark:border-border">
+          <strong className="block text-xl leading-none text-[#235178]">{totalRules}</strong>
+          <span className="mt-1 block font-mono text-[10px] text-[#627e94] dark:text-muted-foreground">
+            alert rules
+          </span>
         </div>
       </div>
       {[
-        ['firing', '#a34339'],
-        ['pending', '#9a6a14'],
-        ['resolved', '#387558'],
-      ].map(([state, color]) => (
+        ['firing_instances', 'firing', '#a34339'],
+        ['firing_rules', 'firing', '#a34339'],
+        ['pending', 'pending', '#9a6a14'],
+        ['resolved', 'resolved', '#387558'],
+      ].map(([key, state, color]) => (
         <div
-          key={state}
+          key={key}
           className="border-b border-[#d7e1e9] px-3 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 dark:border-border"
         >
           <strong className="block text-xl leading-none" style={{ color }}>
-            {counts[state] ?? 0}
+            {key === 'firing_rules' ? (ruleCounts.firing ?? 0) : (counts[state] ?? 0)}
           </strong>
           <span className="mt-1 block font-mono text-[10px] text-[#627e94] dark:text-muted-foreground">
-            {state === 'resolved' ? 'resolved instances' : `${state} instances`}
+            {key === 'firing_rules'
+              ? 'firing alert rules'
+              : state === 'resolved'
+                ? 'resolved instances'
+                : `${state} instances`}
           </span>
         </div>
       ))}
