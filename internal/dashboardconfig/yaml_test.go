@@ -60,7 +60,7 @@ panels:
 		"duplicate-position":   strings.Replace(valid, "position: 1", "position: 0", 1),
 		"position-gap":         strings.Replace(valid, "position: 1", "position: 2", 1),
 		"bad-variable":         strings.Replace(valid, "name: service", "name: service-name", 1),
-		"magic-collision":      strings.Replace(valid, "name: service", "name: service_name", 1),
+		"magic-collision":      strings.Replace(valid, "name: service", "name: session_id", 1),
 		"bad-display":          strings.Replace(valid, "display_type: single_value", "display_type: chart", 1),
 		"scalar-settings":      strings.Replace(valid, "settings: {}", "settings: compact", 1),
 		"invalid-enum-default": strings.Replace(valid, "default_value: api", "default_value: web", 1),

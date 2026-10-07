@@ -2,14 +2,8 @@ import { z } from 'zod'
 
 const BASE = ''
 
-interface Meta {
-  total: number
-  page?: number
-}
-interface Envelope<T> {
-  data: T
-  meta: Meta
-}
+interface Meta { total: number; page?: number }
+interface Envelope<T> { data: T; meta: Meta }
 
 // Validate a response payload against its schema at the network boundary.
 // Drift between the backend and these schemas surfaces as a loud, specific
@@ -24,35 +18,47 @@ function parse<S extends z.ZodTypeAny>(schema: S, data: unknown, where: string):
   return data as z.infer<S>
 }
 
-async function get<S extends z.ZodTypeAny>(
-  path: string,
-  schema: S,
-  signal?: AbortSignal,
-): Promise<Envelope<z.infer<S>>> {
+async function get<S extends z.ZodTypeAny>(path: string, schema: S, signal?: AbortSignal): Promise<Envelope<z.infer<S>>> {
   const res = await fetch(BASE + path, { signal })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   const json = await res.json()
   return { data: parse(schema, json.data, `GET ${path}`), meta: json.meta }
 }
 
-async function post<S extends z.ZodTypeAny>(
-  path: string,
-  body: unknown,
-  schema: S,
-): Promise<Envelope<z.infer<S>>> {
+async function post<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S, signal?: AbortSignal): Promise<Envelope<z.infer<S>>> {
   const res = await fetch(BASE + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   })
   if (!res.ok) {
     const detail = await res.json().catch(() => null)
-    throw new Error(
-      typeof detail?.error === 'string' ? detail.error : `${res.status} ${res.statusText}`,
-    )
+    throw new Error(typeof detail?.error === 'string' ? detail.error : `${res.status} ${res.statusText}`)
   }
   const json = await res.json()
   return { data: parse(schema, json.data, `POST ${path}`), meta: json.meta }
+}
+
+// Dashboards can contain many independent SQL panels. Queue preview work in
+// the browser so opening a large board does not stampede the local DuckDB
+// connection. Requests still carry TanStack's AbortSignal while queued/running.
+let previewActive = 0
+const previewQueue: Array<() => void> = []
+async function limitedPreview<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  await new Promise<void>((resolve, reject) => {
+    let queued = false
+    const start = () => { signal?.removeEventListener('abort', cancel); previewActive++; resolve() }
+    const cancel = () => {
+      if (!queued) return
+      const index = previewQueue.indexOf(start)
+      if (index >= 0) previewQueue.splice(index, 1)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return }
+    if (previewActive < 4) start(); else { queued = true; previewQueue.push(start); signal?.addEventListener('abort', cancel, { once: true }) }
+  })
+  try { return await task() } finally { previewActive--; previewQueue.shift()?.() }
 }
 
 async function del<S extends z.ZodTypeAny>(path: string, schema: S): Promise<Envelope<z.infer<S>>> {
@@ -62,11 +68,7 @@ async function del<S extends z.ZodTypeAny>(path: string, schema: S): Promise<Env
   return { data: parse(schema, json.data, `DELETE ${path}`), meta: json.meta }
 }
 
-async function patch<S extends z.ZodTypeAny>(
-  path: string,
-  body: unknown,
-  schema: S,
-): Promise<Envelope<z.infer<S>>> {
+async function patch<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S): Promise<Envelope<z.infer<S>>> {
   const res = await fetch(BASE + path, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -155,16 +157,9 @@ export const SpanRowSchema = SpanSchema.extend({
 })
 
 export const SpanGroupSchema = z.object({
-  service_name: z.string(),
-  name: z.string(),
-  kind: z.number(),
-  count: z.number(),
-  latest_start_ns: z.number(),
-  error_count: z.number(),
-  p50_duration_ns: z.number(),
-  p95_duration_ns: z.number(),
-  max_duration_ns: z.number(),
-  attribute_variants: z.number(),
+  service_name: z.string(), name: z.string(), kind: z.number(), count: z.number(),
+  latest_start_ns: z.number(), error_count: z.number(), p50_duration_ns: z.number(),
+  p95_duration_ns: z.number(), max_duration_ns: z.number(), attribute_variants: z.number(),
 })
 
 export const LogSchema = z.object({
@@ -216,8 +211,8 @@ export const MetricCatalogEntrySchema = z.object({
   description: z.string(),
   unit: z.string(),
   type: z.string(),
-  aggregation_temporality: z.string().optional(),
-  is_monotonic: z.boolean().optional(),
+	aggregation_temporality: z.string().optional(),
+	is_monotonic: z.boolean().optional(),
   service_name: z.string(),
   sample_count: z.number(),
   last_timestamp_ns: z.number(),
@@ -229,29 +224,29 @@ export const MetricSeriesExemplarSchema = z.object({
 })
 
 export const MetricSeriesPointSchema = z.object({
-  start_timestamp_ns: z.number().optional(),
+	start_timestamp_ns: z.number().optional(),
   timestamp_ns: z.number(),
-  flags: z.number().optional(),
+	flags: z.number().optional(),
   value: z.number(),
-  percentile: z.enum(['p50', 'p95', 'p99']).optional(),
-  count: z.number().optional(),
-  sum: z.number().optional(),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  bounds: z.array(z.number()).optional(),
-  buckets: z.array(z.number()).optional(),
-  quantiles: z.record(z.string(), z.number()).optional(),
-  exp_scale: z.number().optional(),
-  exp_zero_count: z.number().optional(),
-  exp_zero_threshold: z.number().optional(),
-  exp_positive_offset: z.number().optional(),
-  exp_positive_counts: z.array(z.number()).optional(),
-  exp_negative_offset: z.number().optional(),
-  exp_negative_counts: z.array(z.number()).optional(),
-  scope_name: z.string().optional(),
-  scope_version: z.string().optional(),
-  scope_schema_url: z.string().optional(),
-  scope_attributes: z.record(z.string(), z.unknown()).optional(),
+	percentile: z.enum(['p50', 'p95', 'p99']).optional(),
+	count: z.number().optional(),
+	sum: z.number().optional(),
+	min: z.number().optional(),
+	max: z.number().optional(),
+	bounds: z.array(z.number()).optional(),
+	buckets: z.array(z.number()).optional(),
+	quantiles: z.record(z.string(), z.number()).optional(),
+	  exp_scale: z.number().optional(),
+	  exp_zero_count: z.number().optional(),
+	  exp_zero_threshold: z.number().optional(),
+	  exp_positive_offset: z.number().optional(),
+	  exp_positive_counts: z.array(z.number()).optional(),
+	  exp_negative_offset: z.number().optional(),
+	  exp_negative_counts: z.array(z.number()).optional(),
+	  scope_name: z.string().optional(),
+	  scope_version: z.string().optional(),
+	  scope_schema_url: z.string().optional(),
+	  scope_attributes: z.record(z.string(), z.unknown()).optional(),
   exemplars: z.array(MetricSeriesExemplarSchema).optional(),
 })
 
@@ -271,19 +266,11 @@ export const MetricSeriesSchema = z.object({
   type: z.string(),
   unit: z.string(),
   description: z.string(),
-  aggregation_temporality: z.string().optional(),
-  is_monotonic: z.boolean().optional(),
-  operation: z.string().optional(),
+	aggregation_temporality: z.string().optional(),
+	is_monotonic: z.boolean().optional(),
+	operation: z.string().optional(),
   points: z.array(MetricSeriesPointSchema),
-  series: z
-    .array(
-      z.object({
-        key: z.string(),
-        attributes: z.record(z.string(), z.unknown()),
-        points: z.array(MetricSeriesPointSchema),
-      }),
-    )
-    .optional(),
+	series: z.array(z.object({ key: z.string(), attributes: z.record(z.string(), z.unknown()), points: z.array(MetricSeriesPointSchema) })).optional(),
   dimensions: z.record(z.string(), z.array(z.string())).optional(),
   aggregation: z.string().optional(),
   // Populated only when ?with_traces=1 is requested. Always an array (server
@@ -292,10 +279,10 @@ export const MetricSeriesSchema = z.object({
 })
 
 export const MetricCardinalityStreamSchema = z.object({
-  service_name: z.string(),
-  name: z.string(),
-  active_series: z.number(),
-  limit: z.number(),
+	service_name: z.string(),
+	name: z.string(),
+	active_series: z.number(),
+	limit: z.number(),
 })
 
 export const CoverageRouteSchema = z.object({
@@ -466,109 +453,19 @@ export const SessionSizeSchema = z.object({
 export const StorageBreakdownSchema = z.object({
   tables: z.array(TableStatSchema),
   // v0.2.2 emitted null when no session sizes were available.
-  sessions: z
-    .array(SessionSizeSchema)
-    .nullish()
-    .transform((value) => value ?? []),
+  sessions: z.array(SessionSizeSchema).nullish().transform(value => value ?? []),
   wal_bytes: z.number(),
   main_bytes: z.number(),
   last_checkpoint_at: z.number(),
 })
 
-export const DashboardVariableSchema = z.object({
-  dashboard_id: z.string(),
-  name: z.string(),
-  kind: z.enum([
-    'attribute',
-    'string',
-    'number',
-    'boolean',
-    'duration',
-    'time',
-    'enum',
-    'service',
-    'operation',
-    'trace_id',
-    'span_id',
-    'log_id',
-  ]),
-  source: z.string(),
-  options_json: z.string(),
-  default_value: z.string(),
-})
-export const DashboardPanelSchema = z.object({
-  id: z.string(),
-  dashboard_id: z.string(),
-  title: z.string(),
-  display_type: z.enum([
-    'single_value',
-    'time_series',
-    'table',
-    'heatmap',
-    'entity_list',
-    'trace_list',
-    'span_list',
-    'log_list',
-    'deploy_correlation',
-  ]),
-  query_sql: z.string(),
-  query_version: z.number(),
-  settings_json: z.string(),
-  layout_json: z.string(),
-  position: z.number(),
-  updated_at: z.number(),
-})
-export const DashboardSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  created_at: z.number(),
-  updated_at: z.number(),
-  variables: z.array(DashboardVariableSchema).default([]),
-  panels: z.array(DashboardPanelSchema).default([]),
-})
-export const QueryPreviewSchema = z.object({
-  display_type: z.string().optional(),
-  columns: z.array(z.string()),
-  rows: z.array(z.record(z.string(), z.unknown())),
-  warnings: z.array(z.string()).default([]),
-})
-export const QueryCatalogEntrySchema = z.object({
-  signal: z.string(),
-  name: z.string(),
-  query: z.string(),
-  display_type: z.string(),
-  attributes: z.record(z.string(), z.unknown()).optional(),
-})
-export const AlertInstanceSchema = z.object({
-  rule_id: z.string(),
-  group_key: z.string(),
-  labels_json: z.string(),
-  state: z.string(),
-  value: z.number().nullable().optional(),
-  first_pending_at: z.number().nullable().optional(),
-  fired_at: z.number().nullable().optional(),
-  resolved_at: z.number().nullable().optional(),
-  acknowledged_at: z.number().nullable().optional(),
-  last_evaluated_at: z.number(),
-  last_error: z.string(),
-})
-export const AlertRuleSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  query_sql: z.string(),
-  query_version: z.number(),
-  condition_json: z.string(),
-  group_by_json: z.string(),
-  annotations_json: z.string(),
-  pending_for_ns: z.number(),
-  cooldown_ns: z.number(),
-  severity: z.enum(['info', 'warning', 'critical']),
-  enabled: z.boolean(),
-  created_at: z.number(),
-  updated_at: z.number(),
-  instances: z.array(AlertInstanceSchema).default([]),
-})
+export const DashboardVariableSchema = z.object({ dashboard_id: z.string(), name: z.string(), kind: z.enum(['attribute', 'string', 'number', 'boolean', 'duration', 'time', 'enum', 'service', 'operation', 'trace_id', 'span_id', 'log_id']), source: z.string(), options_json: z.string(), default_value: z.string() })
+export const DashboardPanelSchema = z.object({ id: z.string(), dashboard_id: z.string(), title: z.string(), display_type: z.enum(['single_value', 'time_series', 'table', 'heatmap', 'entity_list', 'trace_list', 'span_list', 'log_list', 'deploy_correlation']), query_sql: z.string(), query_version: z.number(), settings_json: z.string(), layout_json: z.string(), position: z.number(), updated_at: z.number() })
+export const DashboardSchema = z.object({ id: z.string(), name: z.string(), description: z.string(), created_at: z.number(), updated_at: z.number(), variables: z.array(DashboardVariableSchema).default([]), panels: z.array(DashboardPanelSchema).default([]) })
+export const QueryPreviewSchema = z.object({ display_type: z.string().optional(), columns: z.array(z.string()), rows: z.array(z.record(z.string(), z.unknown())), warnings: z.array(z.string()).default([]) })
+export const QueryCatalogEntrySchema = z.object({ signal: z.string(), name: z.string(), query: z.string(), display_type: z.string(), attributes: z.record(z.string(), z.unknown()).optional() })
+export const AlertInstanceSchema = z.object({ rule_id: z.string(), group_key: z.string(), labels_json: z.string(), state: z.string(), value: z.number().nullable().optional(), first_pending_at: z.number().nullable().optional(), fired_at: z.number().nullable().optional(), resolved_at: z.number().nullable().optional(), acknowledged_at: z.number().nullable().optional(), last_evaluated_at: z.number(), last_error: z.string() })
+export const AlertRuleSchema = z.object({ id: z.string(), name: z.string(), query_sql: z.string(), query_version: z.number(), condition_json: z.string(), group_by_json: z.string(), annotations_json: z.string(), pending_for_ns: z.number(), cooldown_ns: z.number(), severity: z.enum(['info', 'warning', 'critical']), enabled: z.boolean(), created_at: z.number(), updated_at: z.number(), instances: z.array(AlertInstanceSchema).default([]) })
 
 export const CompactResultSchema = z.object({
   bytes_before: z.number(),
@@ -656,94 +553,54 @@ export interface SettingsUpdate {
 }
 
 export const api = {
-  dashboards: {
-    reorder: (ids: string[]) => post('/api/dashboards/reorder', { ids }, OkSchema),
-    list: () => get('/api/dashboards', z.array(DashboardSchema)),
-    get: (id: string) => get(`/api/dashboards/${id}`, DashboardSchema),
-    create: (body: {
-      name: string
-      description?: string
-      panels?: Array<Pick<DashboardPanel, 'title' | 'display_type' | 'query_sql'>>
-    }) => post('/api/dashboards', body, DashboardSchema),
-    update: (id: string, body: { name: string; description?: string }) =>
-      patch(`/api/dashboards/${id}`, body, DashboardSchema),
-    remove: (id: string) => del(`/api/dashboards/${id}`, OkSchema),
-    config: async (id: string) => {
-      const response = await fetch(`/api/dashboards/${id}/config`)
-      if (!response.ok) throw new Error(await response.text())
-      return response.text()
-    },
-    preview: (
-      id: string,
-      body: {
-        query_sql: string
-        name?: string
-        display_type?: string
-        variables?: Record<string, string>
-      },
-    ) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
-    catalog: (signal?: string, search?: string, abortSignal?: AbortSignal) => {
-      const query = new URLSearchParams()
-      if (signal) query.set('signal', signal)
-      if (search) query.set('q', search)
-      return get(
-        `/api/query-catalog${query.size ? `?${query}` : ''}`,
-        z.array(QueryCatalogEntrySchema),
-        abortSignal,
-      )
-    },
-    panel: (
-      id: string,
-      body: {
-        title: string
-        display_type: string
-        query_sql: string
-        settings_json?: string
-        layout_json?: string
-        position: number
-      },
-    ) => post(`/api/dashboards/${id}/panels`, body, DashboardPanelSchema),
-    updatePanel: (
-      id: string,
-      panelId: string,
-      body: {
-        title: string
-        display_type: string
-        query_sql: string
-        settings_json?: string
-        layout_json?: string
-        position: number
-      },
-    ) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
-    removePanel: (id: string, panelId: string) =>
-      del(`/api/dashboards/${id}/panels/${panelId}`, OkSchema),
-    movePanel: (id: string, panelId: string, direction: -1 | 1) =>
-      post(`/api/dashboards/${id}/panels/${panelId}/move`, { direction }, OkSchema),
-    variable: (
-      id: string,
-      body: {
-        name: string
-        kind: string
-        source: string
-        options_json?: string
-        default_value?: string
-      },
-    ) => post(`/api/dashboards/${id}/variables`, body, DashboardVariableSchema),
-    deleteVariable: (id: string, name: string) =>
-      del(`/api/dashboards/${id}/variables/${encodeURIComponent(name)}`, OkSchema),
-  },
-  alerts: {
-    list: () => get('/api/alerts', z.array(AlertRuleSchema)),
-    create: (body: Record<string, unknown>) => post('/api/alerts', body, AlertRuleSchema),
-    update: (id: string, body: Record<string, unknown>) =>
-      patch(`/api/alerts/${id}`, body, AlertRuleSchema),
-    acknowledge: (id: string) => post(`/api/alerts/${id}/acknowledge`, {}, OkSchema),
-    preview: (id: string) => post(`/api/alerts/${id}/preview`, {}, QueryPreviewSchema),
-  },
+	 dashboards: {
+		reorder: (ids: string[]) => post('/api/dashboards/reorder', { ids }, OkSchema),
+		list: () => get('/api/dashboards', z.array(DashboardSchema)),
+		get: (id: string) => get(`/api/dashboards/${id}`, DashboardSchema),
+		create: (body: { name: string; description?: string; panels?: Array<Pick<DashboardPanel, 'title' | 'display_type' | 'query_sql'>> }) => post('/api/dashboards', body, DashboardSchema),
+		update: (id: string, body: { name: string; description?: string }) => patch(`/api/dashboards/${id}`, body, DashboardSchema),
+		remove: (id: string) => del(`/api/dashboards/${id}`, OkSchema),
+		config: async (id: string) => {
+			const response = await fetch(`/api/dashboards/${id}/config`)
+			if (!response.ok) throw new Error(await response.text())
+			return response.text()
+		},
+		importConfig: async (yaml: string) => {
+			const response = await fetch('/api/dashboards/import', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/yaml' },
+				body: yaml,
+			})
+			if (!response.ok) {
+				const detail = await response.json().catch(() => null)
+				throw new Error(typeof detail?.error === 'string' ? detail.error : `${response.status} ${response.statusText}`)
+			}
+			const json = await response.json()
+			return { data: parse(DashboardSchema, json.data, 'POST /api/dashboards/import'), meta: json.meta } as Envelope<Dashboard>
+		},
+				preview: (id: string, body: { query_sql: string; name?: string; display_type?: string; variables?: Record<string, string> }, signal?: AbortSignal) => limitedPreview(() => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema, signal), signal),
+                catalog: (signal?: string, search?: string, abortSignal?: AbortSignal) => {
+                  const query = new URLSearchParams()
+                  if (signal) query.set('signal', signal)
+                  if (search) query.set('q', search)
+                  return get(`/api/query-catalog${query.size ? `?${query}` : ''}`, z.array(QueryCatalogEntrySchema), abortSignal)
+                },
+                panel: (id: string, body: { title: string; display_type: string; query_sql: string; settings_json?: string; layout_json?: string; position: number }) => post(`/api/dashboards/${id}/panels`, body, DashboardPanelSchema),
+                updatePanel: (id: string, panelId: string, body: { title: string; display_type: string; query_sql: string; settings_json?: string; layout_json?: string; position: number }) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
+		removePanel: (id: string, panelId: string) => del(`/api/dashboards/${id}/panels/${panelId}`, OkSchema),
+		movePanel: (id: string, panelId: string, direction: -1 | 1) => post(`/api/dashboards/${id}/panels/${panelId}/move`, { direction }, OkSchema),
+		variable: (id: string, body: { name: string; kind: string; source: string; options_json?: string; default_value?: string }) => post(`/api/dashboards/${id}/variables`, body, DashboardVariableSchema),
+		deleteVariable: (id: string, name: string) => del(`/api/dashboards/${id}/variables/${encodeURIComponent(name)}`, OkSchema),
+	 },
+	 alerts: {
+		list: () => get('/api/alerts', z.array(AlertRuleSchema)),
+		create: (body: Record<string, unknown>) => post('/api/alerts', body, AlertRuleSchema),
+		update: (id: string, body: Record<string, unknown>) => patch(`/api/alerts/${id}`, body, AlertRuleSchema),
+		acknowledge: (id: string) => post(`/api/alerts/${id}/acknowledge`, {}, OkSchema),
+		preview: (id: string) => post(`/api/alerts/${id}/preview`, {}, QueryPreviewSchema),
+	 },
   traces: {
-    list: (
-      params: { sessionId?: string; service?: string; page?: number; limit?: number } = {},
-    ) => {
+    list: (params: { sessionId?: string; service?: string; page?: number; limit?: number } = {}) => {
       const search = new URLSearchParams()
       if (params.sessionId) search.set('sessionId', params.sessionId)
       if (params.service) search.set('service', params.service)
@@ -756,15 +613,7 @@ export const api = {
     exportUrl: (traceId: string) => `/api/traces/${traceId}/export`,
   },
   spans: {
-    list: (params?: {
-      sort?: string
-      sessionId?: string
-      limit?: number
-      page?: number
-      service?: string
-      name?: string
-      kind?: number
-    }) => {
+    list: (params?: { sort?: string; sessionId?: string; limit?: number; page?: number; service?: string; name?: string; kind?: number }) => {
       const q = new URLSearchParams()
       if (params?.sort) q.set('sort', params.sort)
       if (params?.sessionId) q.set('sessionId', params.sessionId)
@@ -786,15 +635,7 @@ export const api = {
     get: (spanId: string) => get(`/api/spans/${spanId}`, SpanSchema),
   },
   logs: {
-    list: (params?: {
-      sessionId?: string
-      traceId?: string
-      spanId?: string
-      severity?: string
-      service?: string
-      page?: number
-      limit?: number
-    }) => {
+    list: (params?: { sessionId?: string; traceId?: string; spanId?: string; severity?: string; service?: string; page?: number; limit?: number }) => {
       const q = new URLSearchParams()
       if (params?.sessionId) q.set('sessionId', params.sessionId)
       if (params?.traceId) q.set('traceId', params.traceId)
@@ -821,11 +662,7 @@ export const api = {
     patch: (id: string, body: { label?: string; note?: string }) =>
       patch(`/api/sessions/${id}`, body, SessionSchema),
     delete: (id: string) => del(`/api/sessions/${id}`, OkSchema),
-    import: async (
-      label: string,
-      format: string,
-      data: string,
-    ): Promise<Envelope<ImportResult>> => {
+    import: async (label: string, format: string, data: string): Promise<Envelope<ImportResult>> => {
       const q = new URLSearchParams({ label, format })
       const r = await fetch(`/api/sessions/import?${q}`, {
         method: 'POST',
@@ -834,10 +671,7 @@ export const api = {
       })
       if (!r.ok) throw new Error(await r.text())
       const json = await r.json()
-      return {
-        data: parse(ImportResultSchema, json.data, 'POST /api/sessions/import'),
-        meta: json.meta,
-      }
+      return { data: parse(ImportResultSchema, json.data, 'POST /api/sessions/import'), meta: json.meta }
     },
   },
   lint: {
@@ -890,19 +724,13 @@ export const api = {
       const r = await fetch('/api/settings/compact', { method: 'POST' })
       if (!r.ok) throw new Error(await r.text())
       const json = await r.json()
-      return {
-        data: parse(CompactResultSchema, json.data, 'POST /api/settings/compact'),
-        meta: json.meta,
-      }
+      return { data: parse(CompactResultSchema, json.data, 'POST /api/settings/compact'), meta: json.meta }
     },
     prune: async (): Promise<Envelope<PruneResult>> => {
       const r = await fetch('/api/settings/prune', { method: 'POST' })
       if (!r.ok) throw new Error(await r.text())
       const json = await r.json()
-      return {
-        data: parse(PruneResultSchema, json.data, 'POST /api/settings/prune'),
-        meta: json.meta,
-      }
+      return { data: parse(PruneResultSchema, json.data, 'POST /api/settings/prune'), meta: json.meta }
     },
     checkUpdates: () => post('/api/settings/check-updates', {}, UpdateCheckResultSchema),
   },
@@ -915,25 +743,9 @@ export const api = {
   },
   metrics: {
     list: (sessionId?: string) =>
-      get(
-        `/api/metrics${sessionId ? `?sessionId=${sessionId}` : ''}`,
-        z.array(MetricCatalogEntrySchema),
-      ),
-    cardinality: (sessionId?: string) =>
-      get(
-        `/api/metrics/cardinality${sessionId ? `?sessionId=${sessionId}` : ''}`,
-        z.array(MetricCardinalityStreamSchema),
-      ),
-    series: (params: {
-      name: string
-      service?: string
-      sessionId?: string
-      from?: number
-      to?: number
-      operation?: string
-      withTraces?: boolean
-      dimensionFilters?: Record<string, string>
-    }) => {
+      get(`/api/metrics${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(MetricCatalogEntrySchema)),
+		cardinality: (sessionId?: string) => get(`/api/metrics/cardinality${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(MetricCardinalityStreamSchema)),
+    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number; operation?: string; withTraces?: boolean; dimensionFilters?: Record<string, string> }) => {
       const q = new URLSearchParams({ name: params.name })
       if (params.service) q.set('service', params.service)
       if (params.sessionId) q.set('sessionId', params.sessionId)
@@ -941,8 +753,7 @@ export const api = {
       if (params.to) q.set('to', String(params.to))
       if (params.operation) q.set('operation', params.operation)
       if (params.withTraces) q.set('with_traces', '1')
-      for (const [key, value] of Object.entries(params.dimensionFilters ?? {}))
-        q.set(`attr.${key}`, value)
+			for (const [key, value] of Object.entries(params.dimensionFilters ?? {})) q.set(`attr.${key}`, value)
       return get(`/api/metrics/series?${q}`, MetricSeriesSchema)
     },
   },

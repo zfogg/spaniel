@@ -19,6 +19,14 @@ import (
 
 const dashboardQueryVersion = 1
 
+func rejectFileManagedDashboard(w http.ResponseWriter, req *http.Request) bool {
+	if strings.HasPrefix(chi.URLParam(req, "id"), "file-") {
+		respondErr(w, req, http.StatusConflict, "file-managed dashboards are read-only; export and import YAML to create a local copy")
+		return true
+	}
+	return false
+}
+
 func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 	var in struct {
 		IDs []string `json:"ids" validate:"required,max=10000,dive,required"`
@@ -36,6 +44,10 @@ func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 		available[dashboard.ID] = true
 	}
 	for _, id := range in.IDs {
+		if strings.HasPrefix(id, "file-") {
+			respondErr(w, req, http.StatusConflict, "file-managed dashboards cannot be reordered")
+			return
+		}
 		if !available[id] {
 			respondErr(w, req, 400, "unknown or duplicate dashboard ID")
 			return
@@ -50,6 +62,7 @@ func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) movePanel(w http.ResponseWriter, req *http.Request) {
+	if rejectFileManagedDashboard(w, req) { return }
 	var in struct {
 		Direction int `json:"direction" validate:"oneof=-1 1"`
 	}
@@ -183,6 +196,7 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 	respond(w, dashboard, 1, 1)
 }
 func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
+	if rejectFileManagedDashboard(w, req) { return }
 	x, err := r.store.GetDashboard(chi.URLParam(req, "id"))
 	if err != nil {
 		respondErr(w, req, 404, "dashboard not found")
@@ -200,6 +214,7 @@ func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
 	respond(w, x, 1, 1)
 }
 func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
+	if rejectFileManagedDashboard(w, req) { return }
 	if err := r.store.DeleteDashboard(chi.URLParam(req, "id")); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -208,6 +223,7 @@ func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) savePanel(w http.ResponseWriter, req *http.Request, update bool) {
+	if rejectFileManagedDashboard(w, req) { return }
 	var in panelInput
 	if !decodeAndValidate(w, req, &in) {
 		return
@@ -246,6 +262,7 @@ func or(a, b string) string {
 	return a
 }
 func (r *Router) saveVariable(w http.ResponseWriter, req *http.Request) {
+	if rejectFileManagedDashboard(w, req) { return }
 	var in variableInput
 	if !decodeAndValidate(w, req, &in) {
 		return
@@ -298,6 +315,7 @@ func validateDashboardVariable(variable *storage.DashboardVariable, value string
 	return nil
 }
 func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
+	if rejectFileManagedDashboard(w, req) { return }
 	if err := r.store.DeleteDashboardPanel(chi.URLParam(req, "id"), chi.URLParam(req, "panelId")); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -305,6 +323,7 @@ func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
+	if rejectFileManagedDashboard(w, req) { return }
 	if err := r.store.DeleteDashboardVariable(chi.URLParam(req, "id"), chi.URLParam(req, "name")); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -397,8 +416,21 @@ func validatePanelResult(display string, columns []string) error {
 			return &dslError{"time series panels require timestamp and value columns"}
 		}
 	case "heatmap":
-		if !has("value") || !has("x", "group_value", "timestamp_ns") {
-			return &dslError{"heatmap panels require value and timestamp_ns (or x) columns; include bucket_ms (or y) for a two-dimensional heatmap"}
+		// Accept both the semantic dashboard shape and generic Cartesian data.
+		// Older panels commonly alias the time axis as timestamp/time rather
+		// than timestamp_ns; HeatmapPanel renders all of these forms.
+		axisColumns := []string{"timestamp_ns", "timestamp", "time_ns", "time", "x"}
+		axisCount := 0
+		for _, axis := range axisColumns {
+			if has(axis) {
+				axisCount++
+			}
+		}
+		if !has("value") || axisCount == 0 {
+			return &dslError{"heatmap panels require value and a time/x column (timestamp_ns, timestamp, time_ns, time, or x); include bucket_ms (or y) for a two-dimensional heatmap"}
+		}
+		if axisCount > 1 {
+			return &dslError{"heatmap panels require exactly one time/x column; choose one of timestamp_ns, timestamp, time_ns, time, or x"}
 		}
 	case "entity_list":
 		if !has("label", "service_name", "name") || !has("primary_value", "value", "duration_ns") {

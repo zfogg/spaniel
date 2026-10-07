@@ -35,6 +35,10 @@ Start from these files rather than creating parallel conventions:
 
 ## New files and primary responsibilities
 
+## YAML ownership and precedence
+
+Dashboards loaded from the configured dashboard directory are **file-managed**. Their YAML remains authoritative: the loader replaces their stored definition on each startup. The UI must label these dashboards as file-managed and treat them as read-only; users who want an editable local copy should export/import the YAML to create a new dashboard. Database-backed dashboards are owned by the UI/API and are not overwritten by the file loader.
+
 Suggested names are intentionally boring:
 
 ```text
@@ -65,7 +69,7 @@ It is fine to defer a background evaluator until dashboard querying is correct. 
 
 ## Persistence
 
-Store definitions as normalized metadata plus JSON for flexible settings. Do not store arbitrary user SQL.
+Store definitions as normalized metadata plus JSON for flexible settings. Panels and alerts store validated, read-only DuckDB SQL in `query_sql` with a `query_version`; Spaniel must reject mutations, multiple statements, unsafe extensions, and unbounded result shapes before persistence or execution.
 
 ```sql
 CREATE TABLE dashboards (
@@ -91,8 +95,8 @@ CREATE TABLE dashboard_panels (
   dashboard_id TEXT NOT NULL,
   title TEXT NOT NULL,
   display_type TEXT NOT NULL,     -- single_value | time_series | table | heatmap | trace_list | log_list
-  query_text TEXT NOT NULL,
-  query_json VARCHAR NOT NULL,    -- parsed/canonical AST; use this for execution
+  query_sql TEXT NOT NULL,        -- validated read-only DuckDB SQL
+  query_version INTEGER NOT NULL,
   settings_json VARCHAR NOT NULL DEFAULT '{}',
   layout_json VARCHAR NOT NULL DEFAULT '{}',
   position INTEGER NOT NULL,
@@ -134,25 +138,9 @@ Add indexes on `dashboard_panels(dashboard_id, position)`, `dashboard_variables(
 
 ## Query model and execution
 
-Use a small typed DSL, not DuckDB SQL supplied by the browser. Start with a deliberately constrained grammar:
+Spaniel's query model is validated, read-only DuckDB SQL—not a second DSL. The browser may submit SQL only through the same lexical safety gate used by saved panels and alerts; execution is parameterized, time-bounded, row-limited, and result-shape-validated for the selected display type. Preserve the editable `query_sql` and `query_version` as the durable contract.
 
-```text
-p95(http.server.duration) by http.route where service = $service_name
-count(traces where status = "error") by service_name
-logs where severity >= ERROR and body contains "payment"
-heatmap(spans.duration) where db.system = "postgresql"
-```
-
-The parser resolves:
-
-- signal: metrics, spans, root traces, or logs;
-- fields and known aliases (`service`, `service_name`, `duration`, `body`, `severity`);
-- allowlisted attribute/resource keys;
-- functions (`count`, `rate`, `last`, `sum`, `avg`, `p50`, `p95`, `p99`, `heatmap`);
-- grouping keys and time window;
-- variables, first checked against built-ins and then the dashboard definition.
-
-Reject a query before saving if a requested display type is incompatible: a single value must yield one scalar; a heatmap needs a numeric value and time; trace/log lists must yield their respective record shape. Preserve the original `query_text` for editing and store canonical `query_json` for safe execution.
+Reject a query before saving if its display type is incompatible: a single value must yield one scalar; a heatmap needs a numeric value and time; trace/log lists must yield their respective record shape.
 
 Magic-variable resolution is request context, not persisted expansion. For example:
 
@@ -169,7 +157,7 @@ Resolve custom variables only from a bounded attribute catalog. Never offer arbi
 
 ### Queries against current tables
 
-The compiler should produce parameterized SQL. Examples, not literal copy/paste contracts:
+Named dashboard parameters are bound rather than interpolated. Examples, not literal copy/paste contracts:
 
 ```sql
 -- p95 span duration by HTTP route
@@ -246,7 +234,7 @@ Keep notification delivery out of the first dashboard PR. Store notification con
 Use the mockup as the interaction spec:
 
 - **Dashboard list/editor**: saved dashboards, panel grid, edit mode, draft panel selection, and a query composer with title + display type.
-- **Query composer**: telemetry search tabs (metrics/spans/traces/logs), magic-variable insertion, custom variable editing, preview, and inline errors that retain the query.
+- **Query composer**: telemetry search tabs (metrics/spans/traces/logs), reserved parameter insertion, custom variable editing, preview, and inline errors that retain the query.
 - **Panel renderer**: one component per display type, sharing a typed `PanelResult`; reuse the existing SVG metric chart work in `Metrics.tsx` before adding a chart library.
 - **Alerts**: signal-board rows, a state filter, and inspector with query, resolved labels, timeline, trace links, acknowledgement, and eventual silence flow.
 
@@ -254,7 +242,7 @@ Add client schemas/methods to `frontend/src/lib/api.ts`, query keys to `frontend
 
 ## Minimum test matrix
 
-- DSL parsing, invalid field/function rejection, variable resolution, and parameterized SQL compilation.
+- Read-only SQL rejection, named parameter binding, display-shape validation, and query cancellation/row limits.
 - Storage CRUD and dashboard-scoped panel ordering.
 - Preview response shape for each display type.
 - Session scoping and time-window boundaries.

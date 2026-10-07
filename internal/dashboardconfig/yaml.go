@@ -66,11 +66,11 @@ type Panel struct {
 	Position    int    `yaml:"position"`
 }
 
-var MagicVariables = []MagicVar{
-	{Name: "service_name", Kind: "string"}, {Name: "environment", Kind: "string"},
-	{Name: "window", Kind: "time"}, {Name: "operation_name", Kind: "string"},
-	{Name: "status", Kind: "string"}, {Name: "selected_trace_id", Kind: "trace_id"},
-}
+// MagicVariables are reserved values owned by Spaniel. Dashboard authors can
+// define every other filter explicitly, so their source/options/default remain
+// portable and visible in YAML. The active session is the only universally
+// available automatic context today.
+var MagicVariables = []MagicVar{{Name: "session_id", Kind: "string"}}
 
 func FromDashboard(d *model.Dashboard) (Definition, error) {
 	out := Definition{Version: Version, Name: d.Name, Description: d.Description, MagicVariables: MagicVariables}
