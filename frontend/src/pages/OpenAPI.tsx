@@ -22,8 +22,9 @@ export default function OpenAPI() {
       window.Redoc.init('/api/openapi.json', options(resolvedTheme === 'dark'), target)
       const dark = resolvedTheme === 'dark'
       const ink = dark ? '#edf5fb' : '#1f2937'
+      const selected = dark ? '#29445b' : '#dbe8f1'
       const style = document.createElement('style')
-      style.textContent = `.redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}.redoc-wrap [role="tab"]{color:${ink}!important}`
+      style.textContent = `.redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}.redoc-wrap [role="tab"]{color:${ink}!important}.redoc-wrap [role="tab"][aria-selected="true"]{background:${selected}!important;color:${ink}!important}`
       document.head.appendChild(style)
     }
     const id = 'spaniel-redoc-runtime'
