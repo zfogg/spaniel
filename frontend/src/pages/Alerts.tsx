@@ -29,6 +29,12 @@ const severityTone: Record<string, string> = {
   warning: 'bg-warn-bg text-warn-ink',
   info: 'bg-accent-bg text-accent-ink',
 }
+const stateRowTone: Record<string, string> = {
+  firing: 'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb]',
+  pending: 'border-l-[#b9872f] bg-[#fffaf0] hover:bg-[#fff5e2]',
+  resolved: 'border-l-[#518a6a] bg-[#f4faf6] hover:bg-[#edf7f0]',
+  error: 'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb]',
+}
 const ruleState = (rule: AlertRule) =>
   rule.instances?.find((instance) => instance.state === 'firing')?.state ??
   rule.instances?.find((instance) => instance.state === 'pending')?.state ??
@@ -428,9 +434,9 @@ export default function Alerts() {
     )
   }, [historyFilters, q, setSearchParams, state, tab])
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
-      <section className="w-[52%] min-w-[410px] overflow-auto border-r border-border bg-surface">
-        <header className="border-b border-border px-6 py-5">
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-[#e7eef4] text-[#1f3853] dark:bg-background dark:text-foreground">
+      <section className="w-[52%] min-w-[410px] overflow-auto border-r border-[#c9d7e3] bg-[#f7fafc] dark:border-border dark:bg-surface">
+        <header className="border-b border-[#c9d7e3] bg-[#eef4f8] px-6 py-5 dark:border-border dark:bg-surface">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-xl font-semibold">Alerts</h1>
@@ -443,7 +449,7 @@ export default function Alerts() {
                 onClick={() => {
                   setLocation(null, 'create')
                 }}
-                className="rounded border border-border px-2.5 py-1.5 text-xs"
+                className="rounded border border-[#b9cddd] bg-white px-2.5 py-1.5 text-xs text-[#235178] shadow-sm hover:bg-[#f5f9fc] dark:border-border dark:bg-background dark:text-foreground"
               >
                 New rule
               </button>
@@ -451,7 +457,7 @@ export default function Alerts() {
                 onClick={() => {
                   setLocation(selectedId, 'import')
                 }}
-                className="rounded border border-border px-2.5 py-1.5 text-xs"
+                className="rounded border border-[#b9cddd] bg-white px-2.5 py-1.5 text-xs text-[#235178] shadow-sm hover:bg-[#f5f9fc] dark:border-border dark:bg-background dark:text-foreground"
               >
                 Import YAML
               </button>
@@ -459,6 +465,7 @@ export default function Alerts() {
           </div>
         </header>
         <div className="p-4">
+          <AlertSummaryStrip selected={selected} counts={instanceCounts} />
           <div className="mb-3 flex gap-1">
             <button
               onClick={() => {
@@ -493,8 +500,7 @@ export default function Alerts() {
                   onClick={() => setState(x)}
                   className={`rounded px-2 py-1 text-xs ${state === x ? 'bg-accent-bg' : 'bg-muted'}`}
                 >
-                  {x}{' '}
-                  {instanceCounts[x] ?? 0}
+                  {x} {instanceCounts[x] ?? 0}
                 </button>
               ))}
             </div>
@@ -542,7 +548,7 @@ export default function Alerts() {
                 <button
                   key={rule.id}
                   onClick={() => setSelectedId(rule.id)}
-                  className={`mb-2 grid w-full grid-cols-[1fr_auto] gap-3 rounded border p-3 text-left ${selected?.id === rule.id ? 'border-accent bg-accent-bg' : 'border-border'}`}
+                  className={`mb-2 grid w-full grid-cols-[1fr_auto] gap-3 rounded-md border border-[#cbd9e4] border-l-4 p-3 text-left shadow-[0_1px_0_rgba(31,56,83,0.04)] transition-colors dark:border-border ${stateRowTone[currentState] ?? 'border-l-[#8ba0b1] bg-white hover:bg-[#f4f8fb]'} ${selected?.id === rule.id ? 'ring-1 ring-[#6f9fc4] ring-offset-1' : ''}`}
                 >
                   <span>
                     <b className="block text-sm">{rule.name}</b>
@@ -568,7 +574,7 @@ export default function Alerts() {
           )}
         </div>
       </section>
-      <aside className="flex-1 overflow-auto bg-surface p-5">
+      <aside className="flex-1 overflow-auto bg-[#edf3f7] p-5 dark:bg-surface">
         {creating ? (
           <CreateAlert
             close={() => setLocation(selectedId, null)}
@@ -1183,6 +1189,7 @@ function Inspector({
           onPageChange={setEventsPage}
           threshold={condition.value}
           operator={condition.operator}
+          severity={rule.severity}
         />
       </InspectorSection>
       <InspectorSection title="Silences">
@@ -1233,6 +1240,49 @@ function InspectorSection({ title, children }: { title: string; children: ReactN
     </section>
   )
 }
+function AlertSummaryStrip({
+  selected,
+  counts,
+}: {
+  selected?: AlertRule
+  counts: Record<string, number>
+}) {
+  const selectedState = selected ? ruleState(selected) : 'resolved'
+  return (
+    <div className="mb-4 grid overflow-hidden rounded-lg border border-[#c9d7e3] bg-white shadow-[0_1px_0_rgba(31,56,83,0.04)] dark:border-border dark:bg-background sm:grid-cols-[1.4fr_repeat(3,minmax(0,0.7fr))]">
+      <div
+        className={`flex min-w-0 items-center gap-2 border-b border-[#d7e1e9] px-3 py-3 sm:border-b-0 sm:border-r dark:border-border ${stateRowTone[selectedState] ?? 'bg-[#f7fafc]'}`}
+      >
+        <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-80" />
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold">{selected?.name ?? 'No alert selected'}</p>
+          <p className="mt-0.5 font-mono text-[10px] opacity-70">
+            {selected
+              ? `${selectedState} · ${selected.instances?.length ?? 0} instances`
+              : 'Select a rule to inspect it'}
+          </p>
+        </div>
+      </div>
+      {[
+        ['firing', '#a34339'],
+        ['pending', '#9a6a14'],
+        ['resolved', '#387558'],
+      ].map(([state, color]) => (
+        <div
+          key={state}
+          className="border-b border-[#d7e1e9] px-3 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 dark:border-border"
+        >
+          <strong className="block text-xl leading-none" style={{ color }}>
+            {counts[state] ?? 0}
+          </strong>
+          <span className="mt-1 block font-mono text-[10px] text-[#627e94] dark:text-muted-foreground">
+            {state === 'resolved' ? 'resolved' : state}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
 function EventTimeline({
   events,
   total,
@@ -1240,6 +1290,7 @@ function EventTimeline({
   onPageChange,
   threshold,
   operator,
+  severity = 'warning',
 }: {
   events: AlertEvent[]
   total: number
@@ -1247,6 +1298,7 @@ function EventTimeline({
   onPageChange: (page: number) => void
   threshold?: number
   operator?: string
+  severity?: string
 }) {
   const now = useRelativeTimeNow()
   const numericEvents = events
@@ -1266,13 +1318,15 @@ function EventTimeline({
     (numericEvents.length < 2 ? plotWidth / 2 : (index / (numericEvents.length - 1)) * plotWidth)
   const thresholdY = threshold == null ? null : yFor(threshold)
   const points = values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(' ')
+  const chartColor =
+    severity === 'critical' ? '#bd5c52' : severity === 'info' ? '#4e7fa4' : '#b9872f'
   return events.length ? (
     <div className="space-y-3">
       <div className="rounded border border-border bg-background p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-1 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Evaluation value history</span>
+          <span className="font-medium text-foreground">Alert value history</span>
           <span>
-            {numericEvents.length} numeric evaluation{numericEvents.length === 1 ? '' : 's'}
+            {numericEvents.length} numeric event{numericEvents.length === 1 ? '' : 's'}
           </span>
         </div>
         <svg
@@ -1329,7 +1383,7 @@ function EventTimeline({
           {points && (
             <polyline
               fill="none"
-              stroke="var(--accent-ink)"
+              stroke={chartColor}
               strokeWidth="4"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -1342,7 +1396,7 @@ function EventTimeline({
               cx={xFor(index)}
               cy={yFor(event.value as number)}
               r="4"
-              fill="var(--accent-ink)"
+              fill={chartColor}
             >
               <title>
                 {formatTimestampWithAgo(event.created_at, now)}:{' '}
