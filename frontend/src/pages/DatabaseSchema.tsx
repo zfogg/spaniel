@@ -2,6 +2,15 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Copy, Database, Search } from 'lucide-react'
 import { api } from '@/lib/api'
+import { SqlCode } from '@/components/ui/HighlightedCode'
+
+const plannedViews = [
+  ['telemetry_span_events', 'events attached to a span'],
+  ['telemetry_span_links', 'cross-trace and async relationships'],
+  ['telemetry_metric_series', 'bounded metric stream directory'],
+  ['telemetry_findings', 'normalized lint and trace findings'],
+  ['telemetry_sessions', 'advanced comparison sessions'],
+] as const
 
 function Tip({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -10,6 +19,39 @@ function Tip({ title, children }: { title: string; children: ReactNode }) {
       <p className="mt-1 text-[10px] leading-relaxed text-[#627789] dark:text-muted-foreground">
         {children}
       </p>
+    </section>
+  )
+}
+
+function AttributeGuide({ viewName }: { viewName: string }) {
+  if (!['telemetry_spans', 'telemetry_logs', 'telemetry_metrics'].includes(viewName)) return null
+  return (
+    <section className="mt-4 overflow-hidden rounded-md border border-[#d7e5ed] bg-[#fbfdff] dark:border-border dark:bg-muted">
+      <header className="border-b border-[#e0eaf0] bg-[#f4f9fc] px-3 py-2 dark:border-border dark:bg-surface">
+        <b className="text-[11px]">Query attributes</b>
+        <span className="ml-2 font-mono text-[9px] text-[#7890a1]">
+          attributes is serialized JSON
+        </span>
+      </header>
+      <div className="p-3">
+        <p className="text-[11px] leading-relaxed text-[#546d7f] dark:text-muted-foreground">
+          Use a JSONPath with quoted semantic-convention keys. Spaniel suggests observed keys from
+          this session; these are examples.
+        </p>
+        <code className="mt-2 block rounded bg-[#eaf4fa] px-2 py-2 font-mono text-[10px] text-[#315d7e] dark:bg-background dark:text-foreground">
+          {`json_extract_string(attributes, '$."http.route"')`}
+        </code>
+        <div className="mt-2 flex flex-wrap gap-1">
+          {['http.route', 'http.request.method', 'db.system', 'error.type'].map((key) => (
+            <span
+              key={key}
+              className="rounded border border-[#cbdde8] bg-white px-2 py-1 font-mono text-[9px] text-[#426b8c] dark:bg-background"
+            >
+              {key}
+            </span>
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
@@ -92,6 +134,25 @@ export default function DatabaseSchema() {
                 </small>
               </button>
             ))}
+            <div className="border-t border-[#d8e5ed] bg-[#f8fbfd] px-3 py-2 font-mono text-[9px] text-[#7890a1] dark:border-border dark:bg-muted">
+              PLANNED PUBLIC VIEWS
+            </div>
+            {plannedViews
+              .filter(
+                ([name, detail]) =>
+                  !search || `${name} ${detail}`.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map(([name, detail]) => (
+                <div
+                  key={name}
+                  className="border-t border-dashed border-[#e2e9ee] px-3 py-2.5 text-left dark:border-border"
+                >
+                  <span className="font-mono text-[10px] text-[#7890a1]">{name}</span>
+                  <small className="mt-1 block font-mono text-[9px] text-[#9aaab5]">
+                    planned · {detail}
+                  </small>
+                </div>
+              ))}
           </nav>
         </aside>
         <section className="h-fit overflow-hidden rounded-lg border border-[#cbdde8] bg-white dark:border-border dark:bg-surface">
@@ -104,10 +165,7 @@ export default function DatabaseSchema() {
             </p>
           </header>
           <div className="p-4">
-            <div className="border-l-[3px] border-[#7aa3c4] bg-[#eef6fb] px-3 py-2 text-[11px] leading-relaxed text-[#546d7f] dark:bg-muted dark:text-muted-foreground">
-              Use <code>$session_id</code> to scope the active session. Named dashboard and alert
-              parameters are safely bound, never interpolated into SQL.
-            </div>
+            <AttributeGuide viewName={selected.name} />
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="border-b border-[#d8e5ed] font-mono text-[9px] text-[#7890a1]">
@@ -145,22 +203,30 @@ export default function DatabaseSchema() {
                 key={sample.id}
                 className="mt-4 overflow-hidden rounded-md border border-[#cbdce8] bg-[#f5faff] dark:border-border dark:bg-muted"
               >
-                <header className="flex items-center justify-between border-b border-[#d5e5ef] bg-[#edf5fa] px-3 py-2 font-mono text-[10px] text-[#315d7e] dark:border-border dark:bg-surface">
-                  <span>Working sample · {sample.title}</span>
-                  <button
-                    onClick={() => copy(sample.sql)}
-                    className="inline-flex items-center gap-1 rounded border border-[#b7cddd] bg-white px-2 py-1 text-[9px] hover:bg-[#e8f3fa] dark:bg-background"
-                  >
-                    <Copy size={11} />
-                    Copy
-                  </button>
+                <header className="border-b border-[#d5e5ef] bg-[#edf5fa] px-3 py-2 font-mono text-[10px] text-[#315d7e] dark:border-border dark:bg-surface">
+                  Working sample · adjust the filter, then preview it
                 </header>
                 <p className="px-3 pt-2 text-[10px] text-[#627789] dark:text-muted-foreground">
                   {sample.explanation}
                 </p>
-                <pre className="overflow-x-auto px-3 py-3 font-mono text-[10px] leading-relaxed text-[#29475f] dark:text-foreground">
-                  {sample.sql}
-                </pre>
+                <div className="overflow-x-auto px-3 py-3">
+                  <SqlCode value={sample.sql} />
+                </div>
+                <div className="flex gap-2 px-3 pb-3">
+                  <button
+                    onClick={() => copy(sample.sql)}
+                    className="inline-flex items-center gap-1 rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] text-[#315d7e] hover:bg-[#e8f3fa] dark:bg-background"
+                  >
+                    <Copy size={11} />
+                    Copy to clipboard
+                  </button>
+                  <button
+                    title="Use the dashboard or alert SQL editor to preview this sample in authoring context."
+                    className="rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] text-[#315d7e] hover:bg-[#e8f3fa] dark:bg-background"
+                  >
+                    Preview sample · 30 rows
+                  </button>
+                </div>
               </section>
             ))}
           </div>
@@ -175,6 +241,10 @@ export default function DatabaseSchema() {
           <Tip title="Only read-only SQL">
             Spaniel permits one query statement and blocks writes, extensions, and multi-statement
             input.
+          </Tip>
+          <Tip title="Session and named parameters">
+            Use <code>$session_id</code> to scope the active session. Named dashboard and alert
+            parameters are safely bound, never interpolated into SQL.
           </Tip>
           <Tip title="Time is nanoseconds">
             Use <code>make_timestamp_ns(start_ns)</code> for readable time. A time-series result
