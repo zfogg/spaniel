@@ -10,21 +10,21 @@ One row per recorded span; use for operation latency and errors.
 |---|---|---|
 | `trace_id` | `VARCHAR` | Trace-list links and correlating logs with spans. |
 | `span_id` | `VARCHAR` | Span-list links and parent-child investigation. |
-| `parent_span_id` | `VARCHAR` |  |
+| `parent_span_id` | `VARCHAR` | Reconstructing a trace tree or finding root spans. |
 | `service_name` | `VARCHAR` | Grouping or filtering by service. |
 | `name` | `VARCHAR` | Operation breakdowns and metric selection. |
-| `kind` | `INTEGER` |  |
+| `kind` | `INTEGER` | Filtering signal categories and analysis results. |
 | `start_ns` | `BIGINT` | Time-series buckets and ordering. |
-| `end_ns` | `BIGINT` |  |
+| `end_ns` | `BIGINT` | Calculating time ranges and ordering completed spans. |
 | `duration_ns` | `BIGINT` | Latency percentiles, slow-operation tables, and heatmaps. |
 | `status_code` | `INTEGER` | Error-rate filters and status summaries. |
-| `status_message` | `VARCHAR` |  |
+| `status_message` | `VARCHAR` | Investigating failed or cancelled operations. |
 | `attributes` | `VARCHAR` | Filtering known semantic-convention fields with json_extract_string. |
 | `resource` | `VARCHAR` | Filtering deployment and service resource fields. |
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
-| `session_label` | `VARCHAR` |  |
-| `received_at` | `BIGINT` |  |
-| `sampled` | `BOOLEAN` |  |
+| `session_label` | `VARCHAR` | Grouping or labeling results by capture session. |
+| `received_at` | `BIGINT` | Ingestion-rate analysis and arrival-time ordering. |
+| `sampled` | `BOOLEAN` | Separating sampled telemetry from unsampled records. |
 
 ### Span count over time
 
@@ -49,7 +49,7 @@ One row per trace, derived from its spans.
 | `duration_ns` | `BIGINT` | Latency percentiles, slow-operation tables, and heatmaps. |
 | `service_name` | `VARCHAR` | Grouping or filtering by service. |
 | `name` | `VARCHAR` | Operation breakdowns and metric selection. |
-| `span_count` | `BIGINT` |  |
+| `span_count` | `BIGINT` | Sizing traces and comparing capture volume. |
 
 ### Recent traces
 
@@ -70,7 +70,7 @@ One row per structured log record.
 | `attributes` | `VARCHAR` | Filtering known semantic-convention fields with json_extract_string. |
 | `service_name` | `VARCHAR` | Grouping or filtering by service. |
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
-| `received_at` | `BIGINT` |  |
+| `received_at` | `BIGINT` | Ingestion-rate analysis and arrival-time ordering. |
 
 ### Log volume by severity
 
@@ -84,40 +84,40 @@ One row per metric point.
 | Column | DuckDB type | Use it for |
 |---|---|---|
 | `name` | `VARCHAR` | Operation breakdowns and metric selection. |
-| `description` | `VARCHAR` |  |
-| `unit` | `VARCHAR` |  |
-| `type` | `VARCHAR` |  |
-| `aggregation_temporality` | `VARCHAR` |  |
-| `is_monotonic` | `BOOLEAN` |  |
-| `start_timestamp_ns` | `BIGINT` |  |
+| `description` | `VARCHAR` | Explaining unfamiliar metric names in a query result. |
+| `unit` | `VARCHAR` | Formatting values and selecting comparable metric streams. |
+| `type` | `VARCHAR` | Distinguishing gauges, counters, histograms, and summaries. |
+| `aggregation_temporality` | `VARCHAR` | Interpreting counter and histogram changes correctly. |
+| `is_monotonic` | `BOOLEAN` | Choosing rate calculations for sum metrics. |
+| `start_timestamp_ns` | `BIGINT` | Computing delta intervals and aggregation windows. |
 | `timestamp_ns` | `BIGINT` | Time-series buckets and ordering. |
-| `flags` | `UINTEGER` |  |
+| `flags` | `UINTEGER` | Filtering points with exporter-defined flags. |
 | `value` | `DOUBLE` | Metric charts and scalar values. |
-| `histogram_count` | `UBIGINT` |  |
-| `histogram_sum` | `DOUBLE` |  |
-| `histogram_min` | `DOUBLE` |  |
-| `histogram_max` | `DOUBLE` |  |
-| `explicit_bounds` | `VARCHAR` |  |
-| `bucket_counts` | `VARCHAR` |  |
-| `exp_scale` | `INTEGER` |  |
-| `exp_zero_count` | `UBIGINT` |  |
-| `exp_zero_threshold` | `DOUBLE` |  |
-| `exp_positive_offset` | `INTEGER` |  |
-| `exp_positive_counts` | `VARCHAR` |  |
-| `exp_negative_offset` | `INTEGER` |  |
-| `exp_negative_counts` | `VARCHAR` |  |
-| `summary_count` | `UBIGINT` |  |
-| `summary_sum` | `DOUBLE` |  |
-| `summary_quantiles` | `VARCHAR` |  |
+| `histogram_count` | `UBIGINT` | Computing histogram averages and validating distributions. |
+| `histogram_sum` | `DOUBLE` | Computing histogram averages with histogram_count. |
+| `histogram_min` | `DOUBLE` | Inspecting observed latency or value floors. |
+| `histogram_max` | `DOUBLE` | Inspecting observed latency or value ceilings. |
+| `explicit_bounds` | `VARCHAR` | Interpreting bucket_counts for explicit histograms. |
+| `bucket_counts` | `VARCHAR` | Building percentile or distribution analyses. |
+| `exp_scale` | `INTEGER` | Interpreting exponential histogram bucket indexes. |
+| `exp_zero_count` | `UBIGINT` | Accounting for the zero bucket in distributions. |
+| `exp_zero_threshold` | `DOUBLE` | Interpreting near-zero observations. |
+| `exp_positive_offset` | `INTEGER` | Decoding exp_positive_counts. |
+| `exp_positive_counts` | `VARCHAR` | Analyzing positive exponential histogram distributions. |
+| `exp_negative_offset` | `INTEGER` | Decoding exp_negative_counts. |
+| `exp_negative_counts` | `VARCHAR` | Analyzing negative exponential histogram distributions. |
+| `summary_count` | `UBIGINT` | Weighting summary values and validating summary streams. |
+| `summary_sum` | `DOUBLE` | Computing averages with summary_count. |
+| `summary_quantiles` | `VARCHAR` | Reading application-reported quantile estimates. |
 | `attributes` | `VARCHAR` | Filtering known semantic-convention fields with json_extract_string. |
 | `resource` | `VARCHAR` | Filtering deployment and service resource fields. |
-| `series_attributes` | `VARCHAR` |  |
-| `series_key` | `VARCHAR` |  |
-| `scope_name` | `VARCHAR` |  |
-| `scope_version` | `VARCHAR` |  |
-| `scope_schema_url` | `VARCHAR` |  |
-| `scope_attributes` | `VARCHAR` |  |
-| `exemplars` | `VARCHAR` |  |
+| `series_attributes` | `VARCHAR` | Filtering or labeling a bounded metric stream. |
+| `series_key` | `VARCHAR` | Joining metric points to telemetry_metric_series. |
+| `scope_name` | `VARCHAR` | Separating library and application instrumentation. |
+| `scope_version` | `VARCHAR` | Comparing telemetry across library versions. |
+| `scope_schema_url` | `VARCHAR` | Understanding the semantic-convention schema in use. |
+| `scope_attributes` | `VARCHAR` | Filtering library-specific instrumentation metadata. |
+| `exemplars` | `VARCHAR` | Linking metric observations to trace context when available. |
 | `service_name` | `VARCHAR` | Grouping or filtering by service. |
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
 
@@ -135,7 +135,7 @@ Timestamped OpenTelemetry events attached to spans.
 | `span_id` | `VARCHAR` | Span-list links and parent-child investigation. |
 | `trace_id` | `VARCHAR` | Trace-list links and correlating logs with spans. |
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
-| `time_ns` | `BIGINT` |  |
+| `time_ns` | `BIGINT` | Ordering span events and building event timelines. |
 | `name` | `VARCHAR` | Operation breakdowns and metric selection. |
 | `attributes` | `JSON` | Filtering known semantic-convention fields with json_extract_string. |
 ## `telemetry_span_links`
@@ -147,9 +147,9 @@ Cross-trace and asynchronous span relationships.
 | `span_id` | `VARCHAR` | Span-list links and parent-child investigation. |
 | `trace_id` | `VARCHAR` | Trace-list links and correlating logs with spans. |
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
-| `linked_trace_id` | `VARCHAR` |  |
-| `linked_span_id` | `VARCHAR` |  |
-| `trace_state` | `VARCHAR` |  |
+| `linked_trace_id` | `VARCHAR` | Following cross-trace and asynchronous relationships. |
+| `linked_span_id` | `VARCHAR` | Following cross-trace and asynchronous relationships. |
+| `trace_state` | `VARCHAR` | Diagnosing propagated trace routing state. |
 | `attributes` | `JSON` | Filtering known semantic-convention fields with json_extract_string. |
 ## `telemetry_metric_series`
 
@@ -160,11 +160,11 @@ Bounded directory of observed metric streams.
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
 | `service_name` | `VARCHAR` | Grouping or filtering by service. |
 | `name` | `VARCHAR` | Operation breakdowns and metric selection. |
-| `series_key` | `VARCHAR` |  |
-| `series_attributes` | `VARCHAR` |  |
-| `first_timestamp_ns` | `BIGINT` |  |
-| `last_timestamp_ns` | `BIGINT` |  |
-| `point_count` | `BIGINT` |  |
+| `series_key` | `VARCHAR` | Joining metric points to telemetry_metric_series. |
+| `series_attributes` | `VARCHAR` | Filtering or labeling a bounded metric stream. |
+| `first_timestamp_ns` | `BIGINT` | Finding when a metric stream first appeared. |
+| `last_timestamp_ns` | `BIGINT` | Finding stale or recently active metric streams. |
+| `point_count` | `BIGINT` | Comparing stream volume and cardinality. |
 ## `telemetry_findings`
 
 Normalized Spaniel lint and trace findings.
@@ -172,27 +172,27 @@ Normalized Spaniel lint and trace findings.
 | Column | DuckDB type | Use it for |
 |---|---|---|
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
-| `source` | `VARCHAR` |  |
+| `source` | `VARCHAR` | Filtering lint warnings versus trace-analysis findings. |
 | `severity` | `VARCHAR` | Severity breakdowns and alert filters. |
-| `kind` | `VARCHAR` |  |
-| `message` | `VARCHAR` |  |
+| `kind` | `VARCHAR` | Filtering signal categories and analysis results. |
+| `message` | `VARCHAR` | Explaining the issue shown in a finding row. |
 | `trace_id` | `VARCHAR` | Trace-list links and correlating logs with spans. |
 | `span_id` | `VARCHAR` | Span-list links and parent-child investigation. |
-| `count` | `BIGINT` |  |
-| `wasted_ns` | `BIGINT` |  |
-| `created_at` | `BIGINT` |  |
+| `count` | `BIGINT` | Prioritizing recurring trace or lint issues. |
+| `wasted_ns` | `BIGINT` | Ranking findings by potential latency impact. |
+| `created_at` | `BIGINT` | Ordering findings and capture-session metadata. |
 ## `telemetry_sessions`
 
 Capture sessions for advanced comparisons.
 
 | Column | DuckDB type | Use it for |
 |---|---|---|
-| `id` | `VARCHAR` |  |
-| `label` | `VARCHAR` |  |
-| `created_at` | `BIGINT` |  |
-| `is_baseline` | `BOOLEAN` |  |
-| `is_imported` | `BOOLEAN` |  |
-| `span_count` | `INTEGER` |  |
-| `services` | `JSON` |  |
-| `note` | `VARCHAR` |  |
-| `last_activity_ns` | `BIGINT` |  |
+| `id` | `VARCHAR` | Selecting a baseline or comparison session. |
+| `label` | `VARCHAR` | Presenting or selecting sessions in comparisons. |
+| `created_at` | `BIGINT` | Ordering findings and capture-session metadata. |
+| `is_baseline` | `BOOLEAN` | Selecting the default baseline for session diffs. |
+| `is_imported` | `BOOLEAN` | Distinguishing imported captures from live collection. |
+| `span_count` | `INTEGER` | Sizing traces and comparing capture volume. |
+| `services` | `JSON` | Understanding session coverage before comparing it. |
+| `note` | `VARCHAR` | Adding context to a session comparison. |
+| `last_activity_ns` | `BIGINT` | Finding active sessions and ordering recent captures. |

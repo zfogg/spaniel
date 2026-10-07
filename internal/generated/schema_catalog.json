@@ -23,9 +23,9 @@
         {
           "name": "parent_span_id",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Identifier of the parent span, if one exists.",
+          "use_it_for": "Reconstructing a trace tree or finding root spans.",
+          "sensitivity": "identifier"
         },
         {
           "name": "service_name",
@@ -44,9 +44,9 @@
         {
           "name": "kind",
           "type": "INTEGER",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Span kind or normalized finding classification.",
+          "use_it_for": "Filtering signal categories and analysis results.",
+          "sensitivity": "none"
         },
         {
           "name": "start_ns",
@@ -58,9 +58,9 @@
         {
           "name": "end_ns",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "End time in Unix nanoseconds.",
+          "use_it_for": "Calculating time ranges and ordering completed spans.",
+          "sensitivity": "none"
         },
         {
           "name": "duration_ns",
@@ -79,9 +79,9 @@
         {
           "name": "status_message",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "OpenTelemetry status detail supplied with the span.",
+          "use_it_for": "Investigating failed or cancelled operations.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "attributes",
@@ -107,23 +107,23 @@
         {
           "name": "session_label",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Human-readable label of the capture session.",
+          "use_it_for": "Grouping or labeling results by capture session.",
+          "sensitivity": "none"
         },
         {
           "name": "received_at",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Time Spaniel received the signal, in Unix nanoseconds.",
+          "use_it_for": "Ingestion-rate analysis and arrival-time ordering.",
+          "sensitivity": "none"
         },
         {
           "name": "sampled",
           "type": "BOOLEAN",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Whether the span was retained by the sampling policy.",
+          "use_it_for": "Separating sampled telemetry from unsampled records.",
+          "sensitivity": "none"
         }
       ],
       "samples": [
@@ -192,9 +192,9 @@
         {
           "name": "span_count",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Number of spans in the trace or capture session.",
+          "use_it_for": "Sizing traces and comparing capture volume.",
+          "sensitivity": "none"
         }
       ],
       "samples": [
@@ -270,9 +270,9 @@
         {
           "name": "received_at",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Time Spaniel received the signal, in Unix nanoseconds.",
+          "use_it_for": "Ingestion-rate analysis and arrival-time ordering.",
+          "sensitivity": "none"
         }
       ],
       "samples": [
@@ -299,44 +299,44 @@
         {
           "name": "description",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Metric instrument description supplied by the emitter.",
+          "use_it_for": "Explaining unfamiliar metric names in a query result.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "unit",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Unit reported for the metric value.",
+          "use_it_for": "Formatting values and selecting comparable metric streams.",
+          "sensitivity": "none"
         },
         {
           "name": "type",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "OpenTelemetry metric instrument type.",
+          "use_it_for": "Distinguishing gauges, counters, histograms, and summaries.",
+          "sensitivity": "none"
         },
         {
           "name": "aggregation_temporality",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Whether metric points are cumulative or delta values.",
+          "use_it_for": "Interpreting counter and histogram changes correctly.",
+          "sensitivity": "none"
         },
         {
           "name": "is_monotonic",
           "type": "BOOLEAN",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Whether a sum is expected to increase monotonically.",
+          "use_it_for": "Choosing rate calculations for sum metrics.",
+          "sensitivity": "none"
         },
         {
           "name": "start_timestamp_ns",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Start of the metric aggregation interval, in Unix nanoseconds.",
+          "use_it_for": "Computing delta intervals and aggregation windows.",
+          "sensitivity": "none"
         },
         {
           "name": "timestamp_ns",
@@ -348,9 +348,9 @@
         {
           "name": "flags",
           "type": "UINTEGER",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "OTLP metric point flags.",
+          "use_it_for": "Filtering points with exporter-defined flags.",
+          "sensitivity": "none"
         },
         {
           "name": "value",
@@ -362,114 +362,114 @@
         {
           "name": "histogram_count",
           "type": "UBIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Number of observations in a histogram point.",
+          "use_it_for": "Computing histogram averages and validating distributions.",
+          "sensitivity": "none"
         },
         {
           "name": "histogram_sum",
           "type": "DOUBLE",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Sum of observations in a histogram point.",
+          "use_it_for": "Computing histogram averages with histogram_count.",
+          "sensitivity": "none"
         },
         {
           "name": "histogram_min",
           "type": "DOUBLE",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Smallest observation in a histogram point, when reported.",
+          "use_it_for": "Inspecting observed latency or value floors.",
+          "sensitivity": "none"
         },
         {
           "name": "histogram_max",
           "type": "DOUBLE",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Largest observation in a histogram point, when reported.",
+          "use_it_for": "Inspecting observed latency or value ceilings.",
+          "sensitivity": "none"
         },
         {
           "name": "explicit_bounds",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized explicit histogram bucket boundaries.",
+          "use_it_for": "Interpreting bucket_counts for explicit histograms.",
+          "sensitivity": "none"
         },
         {
           "name": "bucket_counts",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized counts for explicit histogram buckets.",
+          "use_it_for": "Building percentile or distribution analyses.",
+          "sensitivity": "none"
         },
         {
           "name": "exp_scale",
           "type": "INTEGER",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Scale used by an exponential histogram.",
+          "use_it_for": "Interpreting exponential histogram bucket indexes.",
+          "sensitivity": "none"
         },
         {
           "name": "exp_zero_count",
           "type": "UBIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Number of zero-valued exponential histogram observations.",
+          "use_it_for": "Accounting for the zero bucket in distributions.",
+          "sensitivity": "none"
         },
         {
           "name": "exp_zero_threshold",
           "type": "DOUBLE",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Width of the exponential histogram zero bucket.",
+          "use_it_for": "Interpreting near-zero observations.",
+          "sensitivity": "none"
         },
         {
           "name": "exp_positive_offset",
           "type": "INTEGER",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Starting index for positive exponential histogram buckets.",
+          "use_it_for": "Decoding exp_positive_counts.",
+          "sensitivity": "none"
         },
         {
           "name": "exp_positive_counts",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized counts for positive exponential histogram buckets.",
+          "use_it_for": "Analyzing positive exponential histogram distributions.",
+          "sensitivity": "none"
         },
         {
           "name": "exp_negative_offset",
           "type": "INTEGER",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Starting index for negative exponential histogram buckets.",
+          "use_it_for": "Decoding exp_negative_counts.",
+          "sensitivity": "none"
         },
         {
           "name": "exp_negative_counts",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized counts for negative exponential histogram buckets.",
+          "use_it_for": "Analyzing negative exponential histogram distributions.",
+          "sensitivity": "none"
         },
         {
           "name": "summary_count",
           "type": "UBIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Number of observations summarized by a summary point.",
+          "use_it_for": "Weighting summary values and validating summary streams.",
+          "sensitivity": "none"
         },
         {
           "name": "summary_sum",
           "type": "DOUBLE",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Sum of observations summarized by a summary point.",
+          "use_it_for": "Computing averages with summary_count.",
+          "sensitivity": "none"
         },
         {
           "name": "summary_quantiles",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized quantile values from a summary point.",
+          "use_it_for": "Reading application-reported quantile estimates.",
+          "sensitivity": "none"
         },
         {
           "name": "attributes",
@@ -488,51 +488,51 @@
         {
           "name": "series_attributes",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Canonical serialized attributes that identify a metric series.",
+          "use_it_for": "Filtering or labeling a bounded metric stream.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "series_key",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Stable hash-like key for the bounded metric series.",
+          "use_it_for": "Joining metric points to telemetry_metric_series.",
+          "sensitivity": "identifier"
         },
         {
           "name": "scope_name",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Instrumentation scope name that emitted the metric.",
+          "use_it_for": "Separating library and application instrumentation.",
+          "sensitivity": "none"
         },
         {
           "name": "scope_version",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Instrumentation scope version that emitted the metric.",
+          "use_it_for": "Comparing telemetry across library versions.",
+          "sensitivity": "none"
         },
         {
           "name": "scope_schema_url",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Schema URL declared by the instrumentation scope.",
+          "use_it_for": "Understanding the semantic-convention schema in use.",
+          "sensitivity": "none"
         },
         {
           "name": "scope_attributes",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized instrumentation scope attributes as JSON.",
+          "use_it_for": "Filtering library-specific instrumentation metadata.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "exemplars",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized OTLP metric exemplars.",
+          "use_it_for": "Linking metric observations to trace context when available.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "service_name",
@@ -587,9 +587,9 @@
         {
           "name": "time_ns",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Event time in Unix nanoseconds.",
+          "use_it_for": "Ordering span events and building event timelines.",
+          "sensitivity": "none"
         },
         {
           "name": "name",
@@ -606,7 +606,7 @@
           "sensitivity": "may contain user data"
         }
       ],
-      "samples": null
+      "samples": []
     },
     {
       "name": "telemetry_span_links",
@@ -636,23 +636,23 @@
         {
           "name": "linked_trace_id",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Trace identifier referenced by a span link.",
+          "use_it_for": "Following cross-trace and asynchronous relationships.",
+          "sensitivity": "identifier"
         },
         {
           "name": "linked_span_id",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Span identifier referenced by a span link.",
+          "use_it_for": "Following cross-trace and asynchronous relationships.",
+          "sensitivity": "identifier"
         },
         {
           "name": "trace_state",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "W3C trace-state carried by the span link.",
+          "use_it_for": "Diagnosing propagated trace routing state.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "attributes",
@@ -662,7 +662,7 @@
           "sensitivity": "may contain user data"
         }
       ],
-      "samples": null
+      "samples": []
     },
     {
       "name": "telemetry_metric_series",
@@ -692,40 +692,40 @@
         {
           "name": "series_key",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Stable hash-like key for the bounded metric series.",
+          "use_it_for": "Joining metric points to telemetry_metric_series.",
+          "sensitivity": "identifier"
         },
         {
           "name": "series_attributes",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Canonical serialized attributes that identify a metric series.",
+          "use_it_for": "Filtering or labeling a bounded metric stream.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "first_timestamp_ns",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Earliest metric point time observed for the series, in Unix nanoseconds.",
+          "use_it_for": "Finding when a metric stream first appeared.",
+          "sensitivity": "none"
         },
         {
           "name": "last_timestamp_ns",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Most recent metric point time observed for the series, in Unix nanoseconds.",
+          "use_it_for": "Finding stale or recently active metric streams.",
+          "sensitivity": "none"
         },
         {
           "name": "point_count",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Number of metric points admitted for the series.",
+          "use_it_for": "Comparing stream volume and cardinality.",
+          "sensitivity": "none"
         }
       ],
-      "samples": null
+      "samples": []
     },
     {
       "name": "telemetry_findings",
@@ -741,9 +741,9 @@
         {
           "name": "source",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Spaniel subsystem that produced the finding.",
+          "use_it_for": "Filtering lint warnings versus trace-analysis findings.",
+          "sensitivity": "none"
         },
         {
           "name": "severity",
@@ -755,16 +755,16 @@
         {
           "name": "kind",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Span kind or normalized finding classification.",
+          "use_it_for": "Filtering signal categories and analysis results.",
+          "sensitivity": "none"
         },
         {
           "name": "message",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Human-readable finding message.",
+          "use_it_for": "Explaining the issue shown in a finding row.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "trace_id",
@@ -783,26 +783,26 @@
         {
           "name": "count",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Number of occurrences represented by the finding.",
+          "use_it_for": "Prioritizing recurring trace or lint issues.",
+          "sensitivity": "none"
         },
         {
           "name": "wasted_ns",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Estimated wasted duration in nanoseconds.",
+          "use_it_for": "Ranking findings by potential latency impact.",
+          "sensitivity": "none"
         },
         {
           "name": "created_at",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Record creation time in Unix nanoseconds.",
+          "use_it_for": "Ordering findings and capture-session metadata.",
+          "sensitivity": "none"
         }
       ],
-      "samples": null
+      "samples": []
     },
     {
       "name": "telemetry_sessions",
@@ -811,68 +811,68 @@
         {
           "name": "id",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Capture session identifier.",
+          "use_it_for": "Selecting a baseline or comparison session.",
+          "sensitivity": "identifier"
         },
         {
           "name": "label",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Human-readable capture session label.",
+          "use_it_for": "Presenting or selecting sessions in comparisons.",
+          "sensitivity": "none"
         },
         {
           "name": "created_at",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Record creation time in Unix nanoseconds.",
+          "use_it_for": "Ordering findings and capture-session metadata.",
+          "sensitivity": "none"
         },
         {
           "name": "is_baseline",
           "type": "BOOLEAN",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Whether this session is marked as a comparison baseline.",
+          "use_it_for": "Selecting the default baseline for session diffs.",
+          "sensitivity": "none"
         },
         {
           "name": "is_imported",
           "type": "BOOLEAN",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Whether the session originated from an import.",
+          "use_it_for": "Distinguishing imported captures from live collection.",
+          "sensitivity": "none"
         },
         {
           "name": "span_count",
           "type": "INTEGER",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Number of spans in the trace or capture session.",
+          "use_it_for": "Sizing traces and comparing capture volume.",
+          "sensitivity": "none"
         },
         {
           "name": "services",
           "type": "JSON",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Serialized list of services observed in the capture session.",
+          "use_it_for": "Understanding session coverage before comparing it.",
+          "sensitivity": "none"
         },
         {
           "name": "note",
           "type": "VARCHAR",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Operator note attached to the capture session.",
+          "use_it_for": "Adding context to a session comparison.",
+          "sensitivity": "may contain user data"
         },
         {
           "name": "last_activity_ns",
           "type": "BIGINT",
-          "description": "",
-          "use_it_for": "",
-          "sensitivity": ""
+          "description": "Most recent session activity time in Unix nanoseconds.",
+          "use_it_for": "Finding active sessions and ordering recent captures.",
+          "sensitivity": "none"
         }
       ],
-      "samples": null
+      "samples": []
     }
   ],
   "parameters": [
