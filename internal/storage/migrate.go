@@ -218,6 +218,7 @@ func migrations() []*gormigrate.Migration {
 		{ID: "0025_alert_instance_state_index", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0025_alert_instance_state_index.sql") }},
 		{ID: "0026_alert_instance_discovery", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0026_alert_instance_discovery.sql") }},
 		{ID: "0027_dashboard_panel_order", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0027_dashboard_panel_order.sql") }},
+		{ID: "0037_public_telemetry_views", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0037_public_telemetry_views.sql") }},
 	}
 }
 
@@ -311,7 +312,10 @@ func (d *DB) migrate() error {
 		if err := execMigrationFile(tx, "0026_alert_instance_discovery.sql"); err != nil {
 			return err
 		}
-		return execMigrationFile(tx, "0027_dashboard_panel_order.sql")
+		if err := execMigrationFile(tx, "0027_dashboard_panel_order.sql"); err != nil {
+			return err
+		}
+		return execMigrationFile(tx, "0037_public_telemetry_views.sql")
 	})
 	if err := m.Migrate(); err != nil {
 		return err

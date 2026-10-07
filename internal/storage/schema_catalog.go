@@ -38,10 +38,15 @@ type SchemaSample struct {
 }
 
 var schemaViewMetadata = map[string]struct{ Purpose string }{
-	"telemetry_spans":   {"One row per recorded span; use for operation latency and errors."},
-	"telemetry_traces":  {"One row per trace, derived from its spans."},
-	"telemetry_logs":    {"One row per structured log record."},
-	"telemetry_metrics": {"One row per metric point."},
+	"telemetry_spans":         {"One row per recorded span; use for operation latency and errors."},
+	"telemetry_traces":        {"One row per trace, derived from its spans."},
+	"telemetry_logs":          {"One row per structured log record."},
+	"telemetry_metrics":       {"One row per metric point."},
+	"telemetry_span_events":   {"Timestamped OpenTelemetry events attached to spans."},
+	"telemetry_span_links":    {"Cross-trace and asynchronous span relationships."},
+	"telemetry_metric_series": {"Bounded directory of observed metric streams."},
+	"telemetry_findings":      {"Normalized Spaniel lint and trace findings."},
+	"telemetry_sessions":      {"Capture sessions for advanced comparisons."},
 }
 
 var columnHints = map[string]struct{ description, use, sensitivity string }{
@@ -84,7 +89,7 @@ func GenerateSchemaCatalog(path string) (*SchemaCatalog, error) {
 	}
 	defer db.Close()
 	catalog := &SchemaCatalog{Version: "1", Parameters: []string{"$session_id (resolved to the active session by Spaniel)"}}
-	for _, name := range []string{"telemetry_spans", "telemetry_traces", "telemetry_logs", "telemetry_metrics"} {
+	for _, name := range []string{"telemetry_spans", "telemetry_traces", "telemetry_logs", "telemetry_metrics", "telemetry_span_events", "telemetry_span_links", "telemetry_metric_series", "telemetry_findings", "telemetry_sessions"} {
 		var exists int64
 		if err := db.gorm.Raw("SELECT COUNT(*) FROM information_schema.views WHERE table_schema = 'main' AND table_name = ?", name).Scan(&exists).Error; err != nil || exists != 1 {
 			return nil, fmt.Errorf("public view %s missing: %w", name, err)

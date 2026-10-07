@@ -4,14 +4,6 @@ import { Copy, Database, Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import { SqlCode } from '@/components/ui/HighlightedCode'
 
-const plannedViews = [
-  ['telemetry_span_events', 'events attached to a span'],
-  ['telemetry_span_links', 'cross-trace and async relationships'],
-  ['telemetry_metric_series', 'bounded metric stream directory'],
-  ['telemetry_findings', 'normalized lint and trace findings'],
-  ['telemetry_sessions', 'advanced comparison sessions'],
-] as const
-
 function Tip({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="border-b border-[#e2e9ee] px-3 py-3 last:border-0 dark:border-border">
@@ -134,25 +126,6 @@ export default function DatabaseSchema() {
                 </small>
               </button>
             ))}
-            <div className="border-t border-[#d8e5ed] bg-[#f8fbfd] px-3 py-2 font-mono text-[9px] text-[#7890a1] dark:border-border dark:bg-muted">
-              PLANNED PUBLIC VIEWS
-            </div>
-            {plannedViews
-              .filter(
-                ([name, detail]) =>
-                  !search || `${name} ${detail}`.toLowerCase().includes(search.toLowerCase()),
-              )
-              .map(([name, detail]) => (
-                <div
-                  key={name}
-                  className="border-t border-dashed border-[#e2e9ee] px-3 py-2.5 text-left dark:border-border"
-                >
-                  <span className="font-mono text-[10px] text-[#7890a1]">{name}</span>
-                  <small className="mt-1 block font-mono text-[9px] text-[#9aaab5]">
-                    planned · {detail}
-                  </small>
-                </div>
-              ))}
           </nav>
         </aside>
         <section className="h-fit overflow-hidden rounded-lg border border-[#cbdde8] bg-white dark:border-border dark:bg-surface">
