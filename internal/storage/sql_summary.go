@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/sqlc-dev/darkwing/ast"
@@ -27,15 +28,129 @@ func queryNameFromContext(ctx context.Context) string {
 	return name
 }
 
-// sqlSummary returns a deliberately small, parameter-free description of one
-// DuckDB statement. Darkwing uses DuckDB's grammar, so CTEs, quoted names, and
-// joins are classified from the AST rather than guessed from query text.
+// sqlSummary returns a parameter-free description of one DuckDB statement.
+// User SELECT names retain a bounded query shape (projection, source,
+// predicates, grouping, and ordering), but never literal values.
 func sqlSummary(query string) string {
 	stmt, err := parser.ParseStatement(context.Background(), query)
 	if err != nil {
 		return "SQL"
 	}
+	if _, ok := stmt.(*ast.SelectStatement); ok {
+		if sanitized, ok := sanitizeSQL(query); ok {
+			if summary, ok := selectSummary(sanitized); ok {
+				return summary
+			}
+		}
+	}
 	return statementSummary(stmt)
+}
+
+// selectSummary keeps the useful structural clauses of a top-level SELECT
+// while bounding each clause so user-authored SQL cannot create unbounded span
+// names. sanitizeSQL has already replaced all literal values with ?.
+func selectSummary(sanitized string) (string, bool) {
+	keywords := topLevelSQLKeywords(sanitized)
+	selectAt, foundSelect := keywords["SELECT"]
+	fromAt, foundFrom := keywords["FROM"]
+	if !foundSelect || foundFrom && fromAt <= selectAt {
+		return "", false
+	}
+	clause := func(start int, endKeys ...string) string {
+		end := len(sanitized)
+		for _, key := range endKeys {
+			if at, ok := keywords[key]; ok && at > start && at < end {
+				end = at
+			}
+		}
+		return strings.TrimSpace(sanitized[start:end])
+	}
+	parts := []string{shortenSQL(clause(selectAt, "FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET"), 64)}
+	if foundFrom {
+		parts = append(parts, shortenSQL(clause(fromAt, "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET"), 48))
+	}
+	for _, key := range []string{"WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET"} {
+		if at, ok := keywords[key]; ok {
+			parts = append(parts, shortenSQL(clause(at, followingSQLClauses(key)...), 64))
+		}
+	}
+	return strings.Join(parts, " ") + " · " + strconv.Itoa(countSQLArgs(sanitized)) + " args", true
+}
+
+func followingSQLClauses(key string) []string {
+	clauses := []string{"WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET"}
+	for i, clause := range clauses {
+		if clause == key {
+			return clauses[i+1:]
+		}
+	}
+	return nil
+}
+
+func topLevelSQLKeywords(s string) map[string]int {
+	keywords := map[string]int{}
+	for i, depth := 0, 0; i < len(s); {
+		switch s[i] {
+		case '\'', '"', '`':
+			i = skipQuoted(s, i, s[i])
+			continue
+		case '(':
+			depth++
+			i++
+			continue
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			i++
+			continue
+		}
+		if depth == 0 {
+			for _, key := range []string{"GROUP BY", "ORDER BY", "SELECT", "FROM", "WHERE", "HAVING", "LIMIT", "OFFSET"} {
+				if _, seen := keywords[key]; !seen && sqlKeywordAt(s, i, key) {
+					keywords[key] = i
+					i += len(key)
+					goto next
+				}
+			}
+		}
+		i++
+	next:
+	}
+	return keywords
+}
+
+func sqlKeywordAt(s string, start int, key string) bool {
+	end := start + len(key)
+	if end > len(s) || !strings.EqualFold(s[start:end], key) {
+		return false
+	}
+	isWord := func(c byte) bool {
+		return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+	}
+	return (start == 0 || !isWord(s[start-1])) && (end == len(s) || !isWord(s[end]))
+}
+
+func shortenSQL(s string, max int) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= max {
+		return string(r)
+	}
+	return string(r[:max-1]) + "…"
+}
+
+func countSQLArgs(s string) int {
+	count := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\'' || s[i] == '"' || s[i] == '`' {
+			i = skipQuoted(s, i, s[i]) - 1
+			continue
+		}
+		if s[i] == '?' {
+			count++
+		}
+	}
+	return count
 }
 
 func statementSummary(stmt ast.Stmt) string {

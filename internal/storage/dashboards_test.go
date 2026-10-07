@@ -2,6 +2,25 @@ package storage
 
 import "testing"
 
+func TestDashboardTemplateRollback(t *testing.T) {
+	db := openTestDB(t)
+	// Simulate a schema/storage failure during panel creation in this isolated DB.
+	if err := db.gorm.Exec("DROP TABLE dashboard_panels").Error; err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.CreateDashboardWithPanels("Must not persist", "", []*DashboardPanel{{Title: "Count", DisplayType: "single_value", QuerySQL: "SELECT 1 AS value"}})
+	if err == nil {
+		t.Fatal("expected panel storage failure")
+	}
+	rows, err := db.query.Dashboard.Find()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatal("template failure left a dashboard behind")
+	}
+}
+
 func TestDashboardPanelPersistenceAndDeletion(t *testing.T) {
 	db := openTestDB(t)
 	dashboard, err := db.CreateDashboard("Verification", "")

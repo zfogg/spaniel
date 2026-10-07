@@ -12,8 +12,9 @@ import (
 
 func TestSQLSummary(t *testing.T) {
 	for _, tt := range []struct{ sql, want string }{
-		{"SELECT * FROM spans WHERE trace_id = 'secret'", "SELECT spans"},
-		{"WITH recent AS (SELECT * FROM spans) SELECT * FROM recent", "SELECT recent"},
+		{"SELECT * FROM spans WHERE trace_id = 'secret' ORDER BY start_ns DESC", "SELECT * FROM spans WHERE trace_id = ? ORDER BY start_ns DESC · 1 args"},
+		{"SELECT id, service_name FROM spans WHERE trace_id = 'secret' AND kind = 2", "SELECT id, service_name FROM spans WHERE trace_id = ? AND kind = ? · 2 args"},
+		{"WITH recent AS (SELECT * FROM spans) SELECT * FROM recent", "SELECT * FROM recent · 0 args"},
 		{"INSERT INTO sessions (id) VALUES (?)", "INSERT sessions"},
 		{"UPDATE sessions SET label = ?", "UPDATE sessions"},
 		{"DELETE FROM spans WHERE trace_id = $1", "DELETE spans"},
@@ -55,14 +56,14 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 	}
 
 	for _, span := range recorder.Ended() {
-		if span.Name() != "SELECT" {
+		if span.Name() != "SELECT ? AS value · 1 args" {
 			continue
 		}
 		attrs := map[string]string{}
 		for _, attr := range span.Attributes() {
 			attrs[string(attr.Key)] = attr.Value.AsString()
 		}
-		if attrs["db.query.summary"] != "SELECT" {
+		if attrs["db.query.summary"] != "SELECT ? AS value · 1 args" {
 			t.Errorf("summary = %q", attrs["db.query.summary"])
 		}
 		if attrs["db.query.text"] != "SELECT ? AS value" {

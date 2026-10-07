@@ -133,6 +133,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Post("/api/dashboards/{id}/panels", func(w http.ResponseWriter, q *http.Request) { r.savePanel(w, q, false) })
 	mux.Patch("/api/dashboards/{id}/panels/{panelId}", func(w http.ResponseWriter, q *http.Request) { r.savePanel(w, q, true) })
 	mux.Delete("/api/dashboards/{id}/panels/{panelId}", r.deletePanel)
+	mux.Post("/api/dashboards/{id}/panels/{panelId}/move", r.movePanel)
 	mux.Post("/api/dashboards/{id}/variables", r.saveVariable)
 	mux.Delete("/api/dashboards/{id}/variables/{name}", r.deleteVariable)
 	mux.Get("/api/query-catalog", r.queryCatalog)
@@ -712,6 +713,12 @@ func (r *Router) activateSession(w http.ResponseWriter, req *http.Request) {
 	if sess == nil {
 		respondErr(w, req, 404, "session not found")
 		return
+	}
+	if r.settings != nil && r.settings.PersistActiveSession != nil {
+		if err := r.settings.PersistActiveSession(sess.ID); err != nil {
+			respondErr(w, req, 500, "persist active session: "+err.Error())
+			return
+		}
 	}
 	r.store.SetActiveSession(sess.ID, sess.Label)
 	respond(w, sess, 1, 1)

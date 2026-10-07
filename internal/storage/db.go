@@ -252,7 +252,13 @@ func (d *DB) MetricSeriesCatalog() ([]MetricSeriesCatalog, error) {
 
 // FlushBatch flushes all buffered hot-path rows so they are visible to readers.
 // Ingest paths call this at the end of a request and before running detectors.
-func (d *DB) FlushBatch() error { return d.batcher.Flush() }
+func (d *DB) FlushBatch() error {
+	err := d.batcher.Flush()
+	if err == nil {
+		registerDBSizeGauge(d.path)
+	}
+	return err
+}
 
 func (d *DB) CreateSession(label string, isBaseline bool) (*Session, error) {
 	return d.createSession(label, isBaseline, false)
@@ -340,14 +346,16 @@ func (d *DB) InsertSpanLinks(links []*SpanLink) error {
 
 // ListLinksBySpan returns the outbound links emitted by a single span.
 func (d *DB) ListLinksBySpan(spanID string) ([]*SpanLink, error) {
-	rows, err := d.query.SpanLink.ListBySpan(spanID)
+	q := d.namedQuery("storage.ListLinksBySpan")
+	rows, err := q.SpanLink.ListBySpan(spanID)
 	return spanLinkPointers(rows, err)
 }
 
 // ListIncomingLinks returns every link in the store whose target is the
 // given trace ID — the "who links into this trace?" reverse lookup.
 func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
-	rows, err := d.query.SpanLink.ListIncomingByTrace(linkedTraceID)
+	q := d.namedQuery("storage.ListIncomingLinks")
+	rows, err := q.SpanLink.ListIncomingByTrace(linkedTraceID)
 	return spanLinkPointers(rows, err)
 }
 
@@ -355,7 +363,8 @@ func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
 // bulk-attach links to spans when serving GET /api/traces/:id so the
 // waterfall can show the link badge without a per-span round-trip.
 func (d *DB) ListLinksByTrace(traceID string) ([]*SpanLink, error) {
-	rows, err := d.query.SpanLink.ListByTrace(traceID)
+	q := d.namedQuery("storage.ListLinksByTrace")
+	rows, err := q.SpanLink.ListByTrace(traceID)
 	return spanLinkPointers(rows, err)
 }
 
@@ -785,6 +794,41 @@ func (d *DB) DeleteSession(id string) error {
 	})
 }
 
+// DeleteSpansNamed removes every span with name and the rows that directly
+// reference those spans. It is intended for narrow telemetry repair actions;
+// it deliberately leaves all other spans in the affected traces intact.
+func (d *DB) DeleteSpansNamed(name string) (int, error) {
+	q := d.namedQuery("storage.DeleteSpansNamed")
+	spans, err := q.Span.Where(q.Span.Name.Eq(name)).Find()
+	if err != nil {
+		return 0, err
+	}
+	if len(spans) == 0 {
+		return 0, nil
+	}
+	ids := make([]string, 0, len(spans))
+	for _, span := range spans {
+		ids = append(ids, span.SpanID)
+	}
+	err = q.Transaction(func(tx *querygen.Query) error {
+		if _, err := tx.SpanEvent.Where(tx.SpanEvent.SpanID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.SpanLink.Where(tx.SpanLink.SpanID.In(ids...)).Or(tx.SpanLink.LinkedSpanID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.LintWarning.Where(tx.LintWarning.SpanID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		_, err := tx.Span.Where(tx.Span.SpanID.In(ids...)).Delete()
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	return len(ids), nil
+}
+
 func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 	rows, err := d.query.LintWarning.ListWithTraceIssues(sessionID)
 	if err != nil {
@@ -1004,7 +1048,7 @@ func (d *DB) InsertMetric(m *Metric) error {
 // ActiveMetricSeries returns the durable source for the observable
 // active-series gauge without reconstructing identities from raw points.
 func (d *DB) ActiveMetricSeries() (int64, error) {
-	return d.query.MetricSeriesCatalog.Count()
+	return d.namedQuery("storage.ActiveMetricSeries").MetricSeriesCatalog.Count()
 }
 
 // ListMetricCatalog returns one entry per (service, name) seen in the session.
@@ -1211,6 +1255,8 @@ func (d *DB) flushBeforeCheckpoint() error {
 }
 
 func (d *DB) withMaintenance(fn func() error) error {
+	telemetry.Catalog().SetStorageMaintenanceInFlight(1)
+	defer telemetry.Catalog().SetStorageMaintenanceInFlight(0)
 	if d.batcher == nil {
 		return fn()
 	}
@@ -1222,6 +1268,10 @@ func (d *DB) withMaintenance(fn func() error) error {
 // the set of outstanding writers only drains; a transient writer collision
 // must not make the storage guard declare the database full.
 func (d *DB) checkpointWithRetry() error {
+	started := time.Now()
+	defer func() {
+		telemetry.Catalog().RecordStorageCheckpoint(context.Background(), float64(time.Since(started).Microseconds())/1000)
+	}()
 	var err error
 	for range 80 {
 		err = d.gorm.Exec("CHECKPOINT").Error

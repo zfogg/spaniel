@@ -137,30 +137,31 @@ func main() {
 
 	var (
 		// flag variables — overrides over config file values when explicitly set
-		port              int
-		dev               bool
-		dbPath            string
-		dashboardsDir     string
-		noBrowser         bool
-		apiBase           string
-		retentionDays     int
-		maxSessions       int
-		maxDBSizeMB       int
-		forwardURLs       []string
-		routesFile        string
-		tlsCert           string
-		tlsKey            string
-		bearerToken       string
-		sampleRate        int
-		sampleAlwaysKeep  string
-		sourceRPS         float64
-		sourceBurst       int
-		forwardSpoolDir   string
-		forwardMaxSpoolMB int
-		forwardRetryMax   time.Duration
-		debugMode         bool
-		mcpEnabled        bool
-		mcpAllowWrites    bool
+		port                  int
+		dev                   bool
+		dbPath                string
+		dashboardsDir         string
+		noBrowser             bool
+		apiBase               string
+		retentionDays         int
+		maxSessions           int
+		maxDBSizeMB           int
+		advanceSessionOnStart bool
+		forwardURLs           []string
+		routesFile            string
+		tlsCert               string
+		tlsKey                string
+		bearerToken           string
+		sampleRate            int
+		sampleAlwaysKeep      string
+		sourceRPS             float64
+		sourceBurst           int
+		forwardSpoolDir       string
+		forwardMaxSpoolMB     int
+		forwardRetryMax       time.Duration
+		debugMode             bool
+		mcpEnabled            bool
+		mcpAllowWrites        bool
 	)
 
 	root := &cobra.Command{
@@ -174,6 +175,9 @@ func main() {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, tlsCert, tlsKey, bearerToken)
+			if f := cmd.Flags().Lookup("advance-session-on-start"); f != nil && f.Changed {
+				cfg.AdvanceSessionOnStart = advanceSessionOnStart
+			}
 			if f := cmd.Flags().Lookup("dashboards-dir"); f != nil && f.Changed {
 				cfg.DashboardsDir = expandHome(dashboardsDir)
 			}
@@ -208,6 +212,7 @@ func main() {
 	root.PersistentFlags().IntVar(&retentionDays, "retention", 0, "Delete sessions older than N days (0 = use config)")
 	root.PersistentFlags().IntVar(&maxSessions, "max-sessions", 0, "Keep at most N sessions (0 = use config)")
 	root.PersistentFlags().IntVar(&maxDBSizeMB, "max-db-size", 0, "Shrink DB to at most N MB (0 = use config)")
+	root.Flags().BoolVar(&advanceSessionOnStart, "advance-session-on-start", true, "Start a new session on server startup")
 	root.Flags().IntVar(&port, "port", 0, "HTTP server port (default 8080)")
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
@@ -357,6 +362,33 @@ Examples:
 	resetCmd.Flags().BoolVar(&resetYes, "yes", false, "Confirm: yes, delete everything")
 	root.AddCommand(resetCmd)
 
+	// cleanup-db-query is intentionally exact: it repairs old generic storage
+	// spans without deleting their surrounding traces or unrelated telemetry.
+	var cleanupDBQueryYes bool
+	cleanupDBQueryCmd := &cobra.Command{
+		Use:   "cleanup-db-query",
+		Short: "Delete persisted spans named db.query",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cleanupDBQueryYes {
+				return fmt.Errorf("refusing to delete db.query spans without --yes")
+			}
+			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, "", "", "")
+			store, err := storage.Open(cfg.DBPath)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+			deleted, err := store.DeleteSpansNamed("db.query")
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "deleted %d db.query spans\n", deleted)
+			return nil
+		},
+	}
+	cleanupDBQueryCmd.Flags().BoolVar(&cleanupDBQueryYes, "yes", false, "Confirm: yes, delete only db.query spans")
+	root.AddCommand(cleanupDBQueryCmd)
+
 	// config subcommand
 	root.AddCommand(configSubcommand(v))
 	root.AddCommand(ciSubcommand())
@@ -387,6 +419,8 @@ type runConfig struct {
 	MaxSessions           int
 	MaxDBSizeMB           int
 	AutoPrune             bool
+	AdvanceSessionOnStart bool
+	ActiveSessionID       string
 	ForwardURLs           []string
 	ForwardSample         float64
 	RoutesFile            string
@@ -427,6 +461,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		MaxSessions:           v.GetInt("max_sessions"),
 		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
 		AutoPrune:             v.GetBool("auto_prune"),
+		AdvanceSessionOnStart: v.GetBool("advance_session_on_start"),
+		ActiveSessionID:       v.GetString("active_session_id"),
 		ForwardURLs:           v.GetStringSlice("forward"),
 		ForwardSample:         v.GetFloat64("forward_sample"),
 		ForwardSpoolDir:       v.GetString("forward_spool_dir"),
@@ -609,11 +645,26 @@ func run(cfg runConfig) error {
 	}
 	_ = store.SetSpanielVersion(version)
 
-	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
-	if err != nil {
-		return fmt.Errorf("create session: %w", err)
+	var sess *storage.Session
+	if !cfg.AdvanceSessionOnStart && cfg.ActiveSessionID != "" {
+		sess, err = store.GetSession(cfg.ActiveSessionID)
+		if err != nil {
+			return fmt.Errorf("load active session: %w", err)
+		}
+	}
+	if sess == nil {
+		sess, err = store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
+		if err != nil {
+			return fmt.Errorf("create session: %w", err)
+		}
 	}
 	store.SetActiveSession(sess.ID, sess.Label)
+	if cfg.Viper != nil && cfg.ActiveSessionID != sess.ID {
+		cfg.Viper.Set("active_session_id", sess.ID)
+		if err := configSetKey("active_session_id", sess.ID); err != nil {
+			return fmt.Errorf("persist active session: %w", err)
+		}
+	}
 
 	storagePolicy := newStorageGuardPolicy(int64(cfg.MaxDBSizeMB)*1024*1024, cfg.AutoPrune)
 	telemetry.Catalog().SetStorageDBSizeLimit(int64(cfg.MaxDBSizeMB) * 1024 * 1024)
@@ -836,6 +887,10 @@ func run(cfg runConfig) error {
 		BearerTokenSet: cfg.BearerToken != "",
 		MCPEnabled:     cfg.MCPEnabled,
 		MCPAllowWrites: cfg.MCPAllowWrites,
+		PersistActiveSession: func(id string) error {
+			cfg.Viper.Set("active_session_id", id)
+			return configSetKey("active_session_id", id)
+		},
 		LiveGRPCPort: func() int {
 			grpcLS.mu.Lock()
 			defer grpcLS.mu.Unlock()

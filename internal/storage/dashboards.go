@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/model"
 	"github.com/zfogg/spaniel/internal/storage/querygen"
@@ -12,6 +13,41 @@ import (
 type Dashboard = model.Dashboard
 type DashboardVariable = model.DashboardVariable
 type DashboardPanel = model.DashboardPanel
+
+// MoveDashboardPanel changes only ordering, atomically, including older tied positions.
+func (d *DB) MoveDashboardPanel(dashboardID, panelID string, direction int) error {
+	if direction != -1 && direction != 1 {
+		return fmt.Errorf("direction must be -1 or 1")
+	}
+	return d.namedQuery("storage.MoveDashboardPanel").Transaction(func(tx *querygen.Query) error {
+		p := tx.DashboardPanel
+		panels, err := p.Where(p.DashboardID.Eq(dashboardID)).Order(p.Position, p.Title, p.ID).Find()
+		if err != nil {
+			return err
+		}
+		index := -1
+		for i, panel := range panels {
+			if panel.ID == panelID {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			return fmt.Errorf("panel not found")
+		}
+		next := index + direction
+		if next < 0 || next >= len(panels) {
+			return nil
+		}
+		panels[index], panels[next] = panels[next], panels[index]
+		for i, panel := range panels {
+			if _, err := p.Where(p.DashboardID.Eq(dashboardID), p.ID.Eq(panel.ID)).UpdateColumn(p.Position, i); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
 
 func (d *DB) ListDashboards() ([]*Dashboard, error) {
 	out, err := d.query.Dashboard.Order(d.query.Dashboard.UpdatedAt.Desc()).Find()
@@ -38,14 +74,48 @@ func (d *DB) hydrateDashboard(x *Dashboard) error {
 		return err
 	}
 	x.Variables = variables
-	panels, err := d.query.DashboardPanel.Where(d.query.DashboardPanel.DashboardID.Eq(x.ID)).Order(d.query.DashboardPanel.Position, d.query.DashboardPanel.Title).Find()
+	panels, err := d.query.DashboardPanel.Where(d.query.DashboardPanel.DashboardID.Eq(x.ID)).Order(d.query.DashboardPanel.Position, d.query.DashboardPanel.Title, d.query.DashboardPanel.ID).Find()
 	x.Panels = panels
 	return err
 }
 func (d *DB) CreateDashboard(name, description string) (*Dashboard, error) {
+	return d.CreateDashboardWithPanels(name, description, nil)
+}
+
+// CreateDashboardWithPanels keeps template creation atomic: either the complete
+// dashboard is persisted, or no dashboard or child panels are left behind.
+func (d *DB) CreateDashboardWithPanels(name, description string, panels []*DashboardPanel) (*Dashboard, error) {
 	now := time.Now().UnixNano()
 	x := &Dashboard{ID: uuid.NewString(), Name: name, Description: description, CreatedAt: now, UpdatedAt: now, Variables: []*DashboardVariable{}, Panels: []*DashboardPanel{}}
-	return x, d.namedQuery("storage.CreateDashboard").Dashboard.Create(x)
+	err := d.namedQuery("storage.CreateDashboard").Transaction(func(tx *querygen.Query) error {
+		if err := tx.Dashboard.Create(x); err != nil {
+			return err
+		}
+		for _, variable := range []*DashboardVariable{
+			{DashboardID: x.ID, Name: "service", Kind: "string", Source: "spans.service_name", OptionsJSON: "[]"},
+			{DashboardID: x.ID, Name: "operation", Kind: "string", Source: "spans.name", OptionsJSON: "[]"},
+			{DashboardID: x.ID, Name: "status_code", Kind: "number", Source: "spans.status_code", DefaultValue: "0", OptionsJSON: "[]"},
+			{DashboardID: x.ID, Name: "severity", Kind: "number", Source: "logs.severity", DefaultValue: "9", OptionsJSON: "[]"},
+		} {
+			if err := tx.DashboardVariable.Create(variable); err != nil {
+				return err
+			}
+			x.Variables = append(x.Variables, variable)
+		}
+		for position, panel := range panels {
+			p := *panel
+			p.ID, p.DashboardID, p.UpdatedAt, p.Position = uuid.NewString(), x.ID, now, position
+			if err := tx.DashboardPanel.Create(&p); err != nil {
+				return err
+			}
+			x.Panels = append(x.Panels, &p)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return x, nil
 }
 func (d *DB) UpdateDashboard(x *Dashboard) error {
 	x.UpdatedAt = time.Now().UnixNano()

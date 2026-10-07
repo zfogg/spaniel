@@ -76,7 +76,7 @@ export function buildPanelSQL(type: string, options: BuilderOptions): string {
     case 'heatmap': {
       const width = bounded(options.bucket, ['1', '5', '10', '50', '100', '500', '1000'], '10')
       const bucketField = source === 'logs' ? 'severity' : field
-      return `SELECT floor((${bucketField}) / ${width}) * ${width} AS x, count(*) AS value\n${from}\nGROUP BY 1\nORDER BY 1\nLIMIT 1000`
+      return `SELECT ${timestamp}, floor((${bucketField}) / ${width}) * ${width} AS ${isSpanOrTrace ? 'bucket_ms' : 'y'}, count(*) AS value\n${from}\nGROUP BY 1, 2\nORDER BY 1, 2\nLIMIT 1000`
     }
     default: return `SELECT ${columns}\n${from}\nORDER BY ${order}\nLIMIT ${limit}`
   }

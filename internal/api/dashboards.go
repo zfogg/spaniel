@@ -19,6 +19,37 @@ import (
 
 const dashboardQueryVersion = 1
 
+func (r *Router) movePanel(w http.ResponseWriter, req *http.Request) {
+	var in struct {
+		Direction int `json:"direction" validate:"oneof=-1 1"`
+	}
+	if !decodeAndValidate(w, req, &in) {
+		return
+	}
+	id, panelID := chi.URLParam(req, "id"), chi.URLParam(req, "panelId")
+	dashboard, err := r.store.WithContext(req.Context()).GetDashboard(id)
+	if err != nil {
+		respondErr(w, req, 404, "dashboard not found")
+		return
+	}
+	found := false
+	for _, panel := range dashboard.Panels {
+		if panel.ID == panelID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		respondErr(w, req, 404, "panel not found")
+		return
+	}
+	if err := r.store.WithContext(req.Context()).MoveDashboardPanel(id, panelID, in.Direction); err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, 1, 1)
+}
+
 type dashboardInput struct {
 	Name        string `json:"name" validate:"required,max=120"`
 	Description string `json:"description" validate:"max=1000"`
@@ -48,11 +79,22 @@ func (r *Router) listDashboards(w http.ResponseWriter, req *http.Request) {
 	respond(w, xs, len(xs), 1)
 }
 func (r *Router) createDashboard(w http.ResponseWriter, req *http.Request) {
-	var in dashboardInput
+	var in struct {
+		dashboardInput
+		Panels []panelInput `json:"panels" validate:"max=10,dive"`
+	}
 	if !decodeAndValidate(w, req, &in) {
 		return
 	}
-	x, err := r.store.CreateDashboard(in.Name, in.Description)
+	panels := make([]*storage.DashboardPanel, 0, len(in.Panels))
+	for _, p := range in.Panels {
+		if err := storage.ValidateReadOnlySQL(p.QuerySQL); err != nil {
+			respondErr(w, req, 400, err.Error())
+			return
+		}
+		panels = append(panels, &storage.DashboardPanel{Title: p.Title, DisplayType: p.DisplayType, QuerySQL: p.QuerySQL, QueryVersion: dashboardQueryVersion, SettingsJSON: or(p.SettingsJSON, "{}"), LayoutJSON: or(p.LayoutJSON, "{}")})
+	}
+	x, err := r.store.WithContext(req.Context()).CreateDashboardWithPanels(in.Name, in.Description, panels)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -179,6 +221,10 @@ func (r *Router) saveVariable(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	in.Name = strings.TrimPrefix(in.Name, "$")
+	if strings.EqualFold(in.Name, "session_id") {
+		respondErr(w, req, 400, "session_id is a built-in parameter for the active session")
+		return
+	}
 	v := &storage.DashboardVariable{DashboardID: chi.URLParam(req, "id"), Name: in.Name, Kind: in.Kind, Source: in.Source, OptionsJSON: or(in.OptionsJSON, "[]"), DefaultValue: in.DefaultValue}
 	if err := validateDashboardVariable(v, v.DefaultValue); err != nil {
 		respondErr(w, req, 400, err.Error())
@@ -270,9 +316,17 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 		}
 		values[name] = value
 	}
+	// This built-in is owned by the server, never by a stored default or a
+	// client override. Literal session IDs in existing SQL remain unchanged.
+	delete(values, "session_id")
+	if usesSessionParameter(in.QuerySQL) {
+		values["session_id"] = r.store.ActiveSessionID()
+	}
 	args := make([]any, 0, len(values))
 	for name, value := range values {
-		args = append(args, sql.Named(name, value))
+		if usesNamedParameter(in.QuerySQL, name) {
+			args = append(args, sql.Named(name, value))
+		}
 	}
 	ctx, cancel := context.WithTimeout(req.Context(), 30*time.Second)
 	defer cancel()
@@ -313,8 +367,8 @@ func validatePanelResult(display string, columns []string) error {
 			return &dslError{"time series panels require timestamp and value columns"}
 		}
 	case "heatmap":
-		if !has("value") || !has("x", "group_value") {
-			return &dslError{"heatmap panels require value and x (or group_value) columns"}
+		if !has("value") || !has("x", "group_value", "timestamp_ns") {
+			return &dslError{"heatmap panels require value and timestamp_ns (or x) columns; include bucket_ms (or y) for a two-dimensional heatmap"}
 		}
 	case "entity_list":
 		if !has("label", "service_name", "name") || !has("primary_value", "value", "duration_ns") {

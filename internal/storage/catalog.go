@@ -18,6 +18,12 @@ type CatalogEntry struct {
 
 func catalogLiteral(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 
+// Discovery uses a concrete session, but reusable recipes follow the active
+// session at execution time instead of freezing the discovery session.
+func catalogPanelPredicate(signal, search string) string {
+	return "session_id = $session_id AND " + catalogPredicate(signal, search, "")
+}
+
 // Search predicates are shared by discovery and the generated SQL. contains
 // treats %, _ and quotes literally, unlike LIKE. Columns are static, never input.
 func catalogPredicate(signal, search, session string) string {
@@ -54,18 +60,18 @@ func catalogRecipes(signal, predicate string) []CatalogEntry {
 		{signal, "Request volume", "SELECT " + minute + ", count(*) AS value" + from + " AND kind = 2 GROUP BY 1 ORDER BY 1", "time_series", nil},
 		{signal, "Recent spans", "SELECT trace_id, span_id, service_name, name, duration_ns, status_code" + from + " ORDER BY start_ns DESC LIMIT 100", "span_list", nil},
 		{signal, "Slowest spans", "SELECT service_name, name, duration_ns / 1000000.0 AS duration_ms, status_code, trace_id, span_id" + from + " ORDER BY duration_ms DESC LIMIT 100", "table", nil},
-		{signal, "Span duration distribution (10 ms buckets)", "SELECT floor(duration_ns / 10000000.0) * 10 AS x, count(*) AS value" + from + " GROUP BY 1 ORDER BY 1 LIMIT 1000", "heatmap", nil},
+		{signal, "Span duration distribution (10 ms buckets)", "SELECT (start_ns // 60000000000) * 60000000000 AS timestamp_ns, floor(duration_ns / 10000000.0) * 10 AS bucket_ms, count(*) AS value" + from + " GROUP BY 1, 2 ORDER BY 1, 2 LIMIT 1000", "heatmap", nil},
 		{signal, "Operations by volume", "SELECT service_name || ' · ' || name AS label, count(*) AS primary_value, CASE WHEN bool_or(status_code = 2) THEN 'error' ELSE 'ok' END AS status" + from + " GROUP BY 1 ORDER BY primary_value DESC LIMIT 50", "entity_list", nil},
 	}
 }
 
 // Additional operational examples complement the first eight recipes (one per
 // renderer). These use collected data, not fabricated mockup measurements.
-func catalogOperationalExamples(session string) []CatalogEntry {
-	spans := " FROM spans WHERE " + catalogPredicate("spans", "", session)
-	logs := " FROM logs WHERE " + catalogPredicate("logs", "", session)
+func catalogOperationalExamples() []CatalogEntry {
+	spans := " FROM spans WHERE " + catalogPanelPredicate("spans", "")
+	logs := " FROM logs WHERE " + catalogPanelPredicate("logs", "")
 	minute := "(start_ns // 60000000000) * 60000000000 AS timestamp_ns"
-	traces := " FROM (SELECT session_id, trace_id, min(start_ns) AS start_ns, max(end_ns) - min(start_ns) AS duration_ns FROM spans WHERE " + catalogPredicate("spans", "", session) + " AND trace_id IS NOT NULL AND trace_id <> '' GROUP BY session_id, trace_id) AS traces"
+	traces := " FROM (SELECT session_id, trace_id, min(start_ns) AS start_ns, max(end_ns) - min(start_ns) AS duration_ns FROM spans WHERE " + catalogPanelPredicate("spans", "") + " AND trace_id IS NOT NULL AND trace_id <> '' GROUP BY session_id, trace_id) AS traces"
 	return []CatalogEntry{
 		{Signal: "traces", Name: "Trace volume over time", DisplayType: "time_series", Query: "SELECT " + minute + ", count(*) AS value" + traces + " GROUP BY 1 ORDER BY 1"},
 		{Signal: "traces", Name: "p95 end-to-end trace duration (ms)", DisplayType: "single_value", Query: "SELECT quantile_cont(duration_ns / 1000000.0, 0.95) AS value" + traces},
@@ -100,7 +106,7 @@ func (d *DB) QueryCatalog(ctx context.Context, signal, search, session string) (
 		if signal != "" && signal != source {
 			continue
 		}
-		for _, entry := range catalogRecipes(source, catalogPredicate(source, "", session)) {
+		for _, entry := range catalogRecipes(source, catalogPanelPredicate(source, "")) {
 			if search == "" || strings.Contains(strings.ToLower(entry.Name+" "+entry.DisplayType+" "+entry.Query), strings.ToLower(search)) {
 				items = append(items, entry)
 			}
@@ -120,13 +126,13 @@ func (d *DB) QueryCatalog(ctx context.Context, signal, search, session string) (
 			return nil, fmt.Errorf("search %s: %w", source, err)
 		}
 		if exists {
-			for _, entry := range catalogRecipes(source, predicate) {
+			for _, entry := range catalogRecipes(source, catalogPanelPredicate(source, search)) {
 				entry.Name += " matching “" + search + "”"
 				items = append(items, entry)
 			}
 		}
 	}
-	for _, entry := range catalogOperationalExamples(session) {
+	for _, entry := range catalogOperationalExamples() {
 		if (signal == "" || signal == entry.Signal) && (search == "" || strings.Contains(strings.ToLower(entry.Name+" "+entry.DisplayType+" "+entry.Query), strings.ToLower(search))) {
 			items = append(items, entry)
 		}
@@ -157,7 +163,7 @@ func (d *DB) QueryCatalog(ctx context.Context, signal, search, session string) (
 		return nil, fmt.Errorf("search metrics: %w", err)
 	}
 	for _, stream := range streams {
-		where := catalogPredicate("metrics", "", session) + " AND name = " + catalogLiteral(stream.Name) + " AND service_name = " + catalogLiteral(stream.ServiceName) + " AND type = " + catalogLiteral(stream.Type) + " AND unit = " + catalogLiteral(stream.Unit) + " AND coalesce(attributes, '{}') = " + catalogLiteral(stream.Attributes)
+		where := catalogPanelPredicate("metrics", "") + " AND name = " + catalogLiteral(stream.Name) + " AND service_name = " + catalogLiteral(stream.ServiceName) + " AND type = " + catalogLiteral(stream.Type) + " AND unit = " + catalogLiteral(stream.Unit) + " AND coalesce(attributes, '{}') = " + catalogLiteral(stream.Attributes)
 		label := stream.ServiceName + " · " + stream.Name + " (" + stream.Type + ", " + stream.Unit + ")"
 		var dimensions map[string]any
 		if json.Unmarshal([]byte(stream.Attributes), &dimensions) == nil {

@@ -35,6 +35,7 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 	v.Set("max_sessions", 50)
 	v.Set("max_db_size_mb", 500)
 	v.Set("auto_prune", true)
+	v.Set("advance_session_on_start", true)
 	v.Set("otlp_grpc_port", 4317)
 	v.Set("otlp_http_port", 4318)
 	v.Set("no_browser", false)
@@ -113,10 +114,12 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 	newPort := 9090
 	newRet := 14
 	newAutoPrune := false
+	newAdvanceSessionOnStart := false
 	w := putSettings(t, router, map[string]any{
 		"port":           newPort,
 		"retention_days": newRet,
 		"auto_prune":     newAutoPrune,
+		"advance_session_on_start": newAdvanceSessionOnStart,
 		"otlp_grpc_port": 4321,
 		"otlp_http_port": 0,
 	})
@@ -127,7 +130,7 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 		Data SettingsResponse `json:"data"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp.Data.Port != newPort || resp.Data.RetentionDays != newRet || resp.Data.AutoPrune != newAutoPrune || resp.Data.OTLPGRPCPort != 4321 || resp.Data.OTLPHTTPPort != 0 {
+	if resp.Data.Port != newPort || resp.Data.RetentionDays != newRet || resp.Data.AutoPrune != newAutoPrune || resp.Data.AdvanceSessionOnStart != newAdvanceSessionOnStart || resp.Data.OTLPGRPCPort != 4321 || resp.Data.OTLPHTTPPort != 0 {
 		t.Errorf("response did not echo update: %+v", resp.Data)
 	}
 	if svc.Viper.GetInt("port") != newPort {
@@ -135,6 +138,9 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 	}
 	if svc.Viper.GetBool("auto_prune") != newAutoPrune {
 		t.Errorf("viper not mutated: auto_prune = %v", svc.Viper.GetBool("auto_prune"))
+	}
+	if svc.Viper.GetBool("advance_session_on_start") != newAdvanceSessionOnStart {
+		t.Errorf("viper not mutated: advance_session_on_start = %v", svc.Viper.GetBool("advance_session_on_start"))
 	}
 	// File written.
 	raw, err := os.ReadFile(svc.ConfigPath)

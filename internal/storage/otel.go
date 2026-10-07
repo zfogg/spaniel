@@ -113,7 +113,11 @@ func (p *gormOTelPlugin) before(op string) func(*gorm.DB) {
 // does not run through this GORM path; ReadOnlyQuery names it from its SQL.
 func storageCallerName() string {
 	const prefix = "github.com/zfogg/spaniel/internal/storage.(*DB)."
-	pcs := make([]uintptr, 16)
+	// GORM's callback dispatcher adds a substantial stack between this plugin
+	// and the storage method that initiated the operation. Sixteen frames was
+	// too shallow in live traffic, leaving ordinary storage methods labelled
+	// storage.query instead of their source-owned method name.
+	pcs := make([]uintptr, 64)
 	n := runtime.Callers(3, pcs)
 	for _, pc := range pcs[:n] {
 		fn := runtime.FuncForPC(pc)

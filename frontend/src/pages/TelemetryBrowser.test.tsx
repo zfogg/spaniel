@@ -9,6 +9,16 @@ const catalog = [
   { signal: 'spans', name: 'Matching spans', display_type: 'span_list', query: 'SELECT span_id FROM spans' },
 ]
 describe('TelemetryBrowser', () => {
+  it('limits results to the first 256 entries, including after a search changes', () => {
+    const props = { search: '', setSearch: vi.fn(), select: vi.fn(), createPanel: vi.fn() }
+    const entries = Array.from({ length: 300 }, (_, index) => ({ ...catalog[0], name: `Result ${index}` }))
+    const { rerender } = render(<TelemetryBrowser {...props} catalog={entries}/>)
+    expect(screen.getAllByRole('button')).toHaveLength(256)
+    expect(screen.queryByRole('button', { name: /^Result 256log_list/ })).toBeNull()
+    rerender(<TelemetryBrowser {...props} search="filtered" catalog={entries.slice(290)}/>)
+    expect(screen.getAllByRole('button')).toHaveLength(10)
+    expect(screen.getByRole('button', { name: /^Result 299log_list/ })).toBeTruthy()
+  })
   it('keeps SQL as wrapping highlighted text and creates only the selected recipe', () => {
     const select = vi.fn(), createPanel = vi.fn()
     const { container } = render(<TelemetryBrowser search="" setSearch={vi.fn()} catalog={catalog} select={select} createPanel={createPanel}/> )

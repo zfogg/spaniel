@@ -30,6 +30,10 @@ type SettingsService struct {
 	MCPEnabled     bool
 	MCPAllowWrites bool
 
+	// PersistActiveSession records the session that should be resumed when
+	// advance_session_on_start is disabled. nil keeps activation in-memory.
+	PersistActiveSession func(string) error
+
 	// LiveGRPCPort / LiveHTTPPort return the port currently bound (0 = stopped).
 	// When nil the startup values above are used (tests / minimal configs).
 	LiveGRPCPort func() int
@@ -73,26 +77,27 @@ type UpdateCheckResult struct {
 // SettingsResponse is the JSON shape returned by GET /api/settings.
 // Persistable fields live at the top level; read-only info is under Runtime.
 type SettingsResponse struct {
-	Port           int      `json:"port"`
-	DBPath         string   `json:"db_path"`
-	RetentionDays  int      `json:"retention_days"`
-	MaxSessions    int      `json:"max_sessions"`
-	MaxDBSizeMB    int      `json:"max_db_size_mb"`
-	AutoPrune      bool     `json:"auto_prune"`
-	OTLPGRPCPort   int      `json:"otlp_grpc_port"`
-	OTLPHTTPPort   int      `json:"otlp_http_port"`
-	NoBrowser      bool     `json:"no_browser"`
-	Forward        []string `json:"forward"`
-	BindAddressV4  string   `json:"bind_address_v4"`
-	BindAddressV6  string   `json:"bind_address_v6"`
-	ForwardSample  float64  `json:"forward_sample"`
-	SourceRPS      float64  `json:"source_rps"`
-	SourceBurst    int      `json:"source_burst"`
-	TLSEnabled     bool     `json:"tls_enabled"`
-	BearerTokenSet bool     `json:"bearer_token_set"`
-	SelfMonitor    bool     `json:"self_monitor"`
-	MCPEnabled     bool     `json:"mcp_enabled"`
-	MCPAllowWrites bool     `json:"mcp_allow_writes"`
+	Port                  int      `json:"port"`
+	DBPath                string   `json:"db_path"`
+	RetentionDays         int      `json:"retention_days"`
+	MaxSessions           int      `json:"max_sessions"`
+	MaxDBSizeMB           int      `json:"max_db_size_mb"`
+	AutoPrune             bool     `json:"auto_prune"`
+	AdvanceSessionOnStart bool     `json:"advance_session_on_start"`
+	OTLPGRPCPort          int      `json:"otlp_grpc_port"`
+	OTLPHTTPPort          int      `json:"otlp_http_port"`
+	NoBrowser             bool     `json:"no_browser"`
+	Forward               []string `json:"forward"`
+	BindAddressV4         string   `json:"bind_address_v4"`
+	BindAddressV6         string   `json:"bind_address_v6"`
+	ForwardSample         float64  `json:"forward_sample"`
+	SourceRPS             float64  `json:"source_rps"`
+	SourceBurst           int      `json:"source_burst"`
+	TLSEnabled            bool     `json:"tls_enabled"`
+	BearerTokenSet        bool     `json:"bearer_token_set"`
+	SelfMonitor           bool     `json:"self_monitor"`
+	MCPEnabled            bool     `json:"mcp_enabled"`
+	MCPAllowWrites        bool     `json:"mcp_allow_writes"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -112,22 +117,23 @@ type SettingsRuntime struct {
 // SettingsUpdate is the writable subset accepted by PUT /api/settings.
 // Pointer fields let clients send partial updates — nil = "leave as-is".
 type SettingsUpdate struct {
-	Port          *int      `json:"port,omitempty"`
-	DBPath        *string   `json:"db_path,omitempty"`
-	RetentionDays *int      `json:"retention_days,omitempty"`
-	MaxSessions   *int      `json:"max_sessions,omitempty"`
-	MaxDBSizeMB   *int      `json:"max_db_size_mb,omitempty"`
-	AutoPrune     *bool     `json:"auto_prune,omitempty"`
-	OTLPGRPCPort  *int      `json:"otlp_grpc_port,omitempty"`
-	OTLPHTTPPort  *int      `json:"otlp_http_port,omitempty"`
-	NoBrowser     *bool     `json:"no_browser,omitempty"`
-	Forward       *[]string `json:"forward,omitempty"`
-	BindAddressV4 *string   `json:"bind_address_v4,omitempty"`
-	BindAddressV6 *string   `json:"bind_address_v6,omitempty"`
-	ForwardSample *float64  `json:"forward_sample,omitempty"`
-	SourceRPS     *float64  `json:"source_rps,omitempty"`
-	SourceBurst   *int      `json:"source_burst,omitempty"`
-	SelfMonitor   *bool     `json:"self_monitor,omitempty"`
+	Port                  *int      `json:"port,omitempty"`
+	DBPath                *string   `json:"db_path,omitempty"`
+	RetentionDays         *int      `json:"retention_days,omitempty"`
+	MaxSessions           *int      `json:"max_sessions,omitempty"`
+	MaxDBSizeMB           *int      `json:"max_db_size_mb,omitempty"`
+	AutoPrune             *bool     `json:"auto_prune,omitempty"`
+	AdvanceSessionOnStart *bool     `json:"advance_session_on_start,omitempty"`
+	OTLPGRPCPort          *int      `json:"otlp_grpc_port,omitempty"`
+	OTLPHTTPPort          *int      `json:"otlp_http_port,omitempty"`
+	NoBrowser             *bool     `json:"no_browser,omitempty"`
+	Forward               *[]string `json:"forward,omitempty"`
+	BindAddressV4         *string   `json:"bind_address_v4,omitempty"`
+	BindAddressV6         *string   `json:"bind_address_v6,omitempty"`
+	ForwardSample         *float64  `json:"forward_sample,omitempty"`
+	SourceRPS             *float64  `json:"source_rps,omitempty"`
+	SourceBurst           *int      `json:"source_burst,omitempty"`
+	SelfMonitor           *bool     `json:"self_monitor,omitempty"`
 }
 
 func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
@@ -157,6 +163,12 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
+	if body.AdvanceSessionOnStart != nil && !*body.AdvanceSessionOnStart && r.settings.PersistActiveSession != nil {
+		if err := r.settings.PersistActiveSession(r.store.ActiveSessionID()); err != nil {
+			respondErr(w, req, 500, "persist active session: "+err.Error())
+			return
+		}
+	}
 	respond(w, r.buildSettings(), 1, 1)
 }
 
@@ -177,26 +189,27 @@ func (r *Router) buildSettings() SettingsResponse {
 	v := s.Viper
 
 	resp := SettingsResponse{
-		Port:           v.GetInt("port"),
-		DBPath:         v.GetString("db_path"),
-		RetentionDays:  v.GetInt("retention_days"),
-		MaxSessions:    v.GetInt("max_sessions"),
-		MaxDBSizeMB:    v.GetInt("max_db_size_mb"),
-		AutoPrune:      v.GetBool("auto_prune"),
-		OTLPGRPCPort:   v.GetInt("otlp_grpc_port"),
-		OTLPHTTPPort:   v.GetInt("otlp_http_port"),
-		NoBrowser:      v.GetBool("no_browser"),
-		Forward:        nonNilStrings(v.GetStringSlice("forward")),
-		BindAddressV4:  v.GetString("bind_address_v4"),
-		BindAddressV6:  v.GetString("bind_address_v6"),
-		ForwardSample:  v.GetFloat64("forward_sample"),
-		SourceRPS:      v.GetFloat64("source_rps"),
-		SourceBurst:    v.GetInt("source_burst"),
-		TLSEnabled:     s.TLSEnabled,
-		BearerTokenSet: s.BearerTokenSet,
-		SelfMonitor:    v.GetBool("self_monitor"),
-		MCPEnabled:     s.MCPEnabled,
-		MCPAllowWrites: s.MCPAllowWrites,
+		Port:                  v.GetInt("port"),
+		DBPath:                v.GetString("db_path"),
+		RetentionDays:         v.GetInt("retention_days"),
+		MaxSessions:           v.GetInt("max_sessions"),
+		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
+		AutoPrune:             v.GetBool("auto_prune"),
+		AdvanceSessionOnStart: v.GetBool("advance_session_on_start"),
+		OTLPGRPCPort:          v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:          v.GetInt("otlp_http_port"),
+		NoBrowser:             v.GetBool("no_browser"),
+		Forward:               nonNilStrings(v.GetStringSlice("forward")),
+		BindAddressV4:         v.GetString("bind_address_v4"),
+		BindAddressV6:         v.GetString("bind_address_v6"),
+		ForwardSample:         v.GetFloat64("forward_sample"),
+		SourceRPS:             v.GetFloat64("source_rps"),
+		SourceBurst:           v.GetInt("source_burst"),
+		TLSEnabled:            s.TLSEnabled,
+		BearerTokenSet:        s.BearerTokenSet,
+		SelfMonitor:           v.GetBool("self_monitor"),
+		MCPEnabled:            s.MCPEnabled,
+		MCPAllowWrites:        s.MCPAllowWrites,
 		Runtime: SettingsRuntime{
 			PID:          os.Getpid(),
 			UptimeNs:     time.Since(s.StartedAt).Nanoseconds(),
@@ -301,6 +314,9 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	if u.AutoPrune != nil {
 		s.Viper.Set("auto_prune", *u.AutoPrune)
 	}
+	if u.AdvanceSessionOnStart != nil {
+		s.Viper.Set("advance_session_on_start", *u.AdvanceSessionOnStart)
+	}
 	if (u.MaxDBSizeMB != nil || u.AutoPrune != nil) && s.SetStoragePolicy != nil {
 		s.SetStoragePolicy(s.Viper.GetInt("max_db_size_mb"), s.Viper.GetBool("auto_prune"))
 	}
@@ -357,7 +373,7 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor"} {
+	for _, k := range []string{"port", "db_path", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {

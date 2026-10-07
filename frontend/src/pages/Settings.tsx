@@ -505,6 +505,13 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
           min={0} max={10000} ariaLabel="max sessions" w={120} />
         <FieldError name="max_sessions" />
       </Row>
+      <Row label="Advance session on start"
+        hint="Enabled: start a fresh session when Spaniel starts. Disabled: resume the active session until you choose another one."
+        testid="row-advance-session-on-start">
+        <Toggle on={s.advance_session_on_start} onChange={v => mutate({ advance_session_on_start: v })} label="advance session on start" />
+        <Pill tone={s.advance_session_on_start ? 'ok' : 'accent'}>{s.advance_session_on_start ? 'enabled · new session on restart' : 'disabled · resume active session'}</Pill>
+        <FieldError name="advance_session_on_start" />
+      </Row>
       <Row label="Per-source rate limit"
         hint="Max spans/sec accepted per service.name. Excess spans are dropped and counted in the Sources panel. 0 = unlimited."
         testid="row-source-rps">

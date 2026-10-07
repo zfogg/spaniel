@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 )
@@ -31,11 +32,14 @@ func TestQueryCatalogSearchAndRecipes(t *testing.T) {
 	}
 	types := map[string]bool{}
 	for _, entry := range entries {
+		if !strings.Contains(entry.Query, "$session_id") || strings.Contains(entry.Query, "session_id = 'a'") {
+			t.Fatalf("catalog froze session: %s", entry.Query)
+		}
 		types[entry.DisplayType] = true
 		if err := ValidateReadOnlySQL(entry.Query); err != nil {
 			t.Fatalf("%s: %v", entry.Name, err)
 		}
-		rows, err := d.SQL().Query(entry.Query)
+		rows, err := d.SQL().Query(entry.Query, sql.Named("session_id", "a"))
 		if err != nil {
 			t.Fatalf("%s: %v\n%s", entry.Name, err, entry.Query)
 		}
@@ -48,7 +52,7 @@ func TestQueryCatalogSearchAndRecipes(t *testing.T) {
 				SpanCount  int
 				DurationNs int64
 			}
-			if err := d.gorm.Raw(entry.Query).Scan(&result).Error; err != nil {
+			if err := d.gorm.Raw(entry.Query, sql.Named("session_id", "a")).Scan(&result).Error; err != nil {
 				t.Fatal(err)
 			}
 			if result.SpanCount != 2 || result.DurationNs != 2000000000 {
@@ -57,7 +61,7 @@ func TestQueryCatalogSearchAndRecipes(t *testing.T) {
 		}
 		if entry.DisplayType == "log_list" {
 			var result []Log
-			if err := d.gorm.Raw(entry.Query).Scan(&result).Error; err != nil {
+			if err := d.gorm.Raw(entry.Query, sql.Named("session_id", "a")).Scan(&result).Error; err != nil {
 				t.Fatal(err)
 			}
 			if len(result) != 1 || strings.Contains(result[0].Body, "outside") {
@@ -79,7 +83,7 @@ func TestQueryCatalogSearchAndRecipes(t *testing.T) {
 		t.Fatalf("empty workspace examples: %d %v", len(examples), err)
 	}
 	for _, entry := range examples {
-		rows, err := d.SQL().Query(entry.Query)
+		rows, err := d.SQL().Query(entry.Query, sql.Named("session_id", "empty-session"))
 		if err != nil {
 			t.Fatalf("example %s: %v", entry.Name, err)
 		}
@@ -127,7 +131,7 @@ func TestQueryCatalogSearchAndRecipes(t *testing.T) {
 				t.Error("histogram must identify its percentile")
 			}
 		}
-		rows, err := d.SQL().Query(entry.Query)
+		rows, err := d.SQL().Query(entry.Query, sql.Named("session_id", "a"))
 		if err != nil {
 			t.Fatalf("metric %s: %v", entry.Name, err)
 		}

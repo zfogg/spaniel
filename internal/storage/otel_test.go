@@ -128,3 +128,62 @@ func TestWithContext_NamesGeneratedWriteSpan(t *testing.T) {
 	}
 	t.Fatal("no source-named generated write span nested under parent")
 }
+
+func TestGORMPluginFallbackIsStorageNamed(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = tp.Shutdown(context.Background()) })
+
+	d, err := Open(filepath.Join(t.TempDir(), "fallback.duckdb"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	// Deliberately bypass a DB method so storageCallerName has no source-owned
+	// method to recover. This is the last-resort path that used to emit db.query.
+	var one int
+	if err := d.gorm.Raw("SELECT 1").Scan(&one).Error; err != nil {
+		t.Fatalf("raw query: %v", err)
+	}
+
+	var names []string
+	for _, span := range sr.Ended() {
+		names = append(names, span.Name())
+		if strings.HasPrefix(span.Name(), "db.") {
+			t.Errorf("generic database span name %q recorded", span.Name())
+		}
+		if strings.HasPrefix(span.Name(), "storage.") {
+			return
+		}
+	}
+	t.Fatalf("no storage-named span recorded; spans: %v", names)
+}
+
+func TestWithContext_NamesActiveMetricSeriesSpan(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = tp.Shutdown(context.Background()) })
+
+	d, err := Open(filepath.Join(t.TempDir(), "series.duckdb"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	ctx, parent := otel.Tracer("test").Start(context.Background(), "parent")
+	if _, err := d.WithContext(ctx).ActiveMetricSeries(); err != nil {
+		t.Fatalf("ActiveMetricSeries: %v", err)
+	}
+	parent.End()
+	for _, span := range sr.Ended() {
+		if span.Name() == "storage.ActiveMetricSeries" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
+			return
+		}
+	}
+	t.Fatal("no storage.ActiveMetricSeries span nested under parent")
+}

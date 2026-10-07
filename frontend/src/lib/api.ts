@@ -319,6 +319,7 @@ export const SettingsSchema = z.object({
   max_sessions: z.number(),
   max_db_size_mb: z.number(),
   auto_prune: z.boolean(),
+  advance_session_on_start: z.boolean(),
   otlp_grpc_port: z.number(),
   otlp_http_port: z.number(),
   no_browser: z.boolean(),
@@ -340,6 +341,7 @@ export const SettingsSchema = z.object({
 // accepting their read responses with the safe default retention policy.
 export const SettingsResponseSchema = SettingsSchema.extend({
   auto_prune: z.boolean().default(true),
+  advance_session_on_start: z.boolean().default(true),
 })
 
 export const SourceStatsSchema = z.object({
@@ -515,6 +517,7 @@ export interface SettingsUpdate {
   max_sessions?: number
   max_db_size_mb?: number
   auto_prune?: boolean
+  advance_session_on_start?: boolean
   otlp_grpc_port?: number
   otlp_http_port?: number
   no_browser?: boolean
@@ -549,7 +552,9 @@ export const api = {
                 panel: (id: string, body: { title: string; display_type: string; query_sql: string; settings_json?: string; layout_json?: string; position: number }) => post(`/api/dashboards/${id}/panels`, body, DashboardPanelSchema),
                 updatePanel: (id: string, panelId: string, body: { title: string; display_type: string; query_sql: string; settings_json?: string; layout_json?: string; position: number }) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
 		removePanel: (id: string, panelId: string) => del(`/api/dashboards/${id}/panels/${panelId}`, OkSchema),
+		movePanel: (id: string, panelId: string, direction: -1 | 1) => post(`/api/dashboards/${id}/panels/${panelId}/move`, { direction }, OkSchema),
 		variable: (id: string, body: { name: string; kind: string; source: string; options_json?: string; default_value?: string }) => post(`/api/dashboards/${id}/variables`, body, DashboardVariableSchema),
+		deleteVariable: (id: string, name: string) => del(`/api/dashboards/${id}/variables/${encodeURIComponent(name)}`, OkSchema),
 	 },
 	 alerts: {
 		list: () => get('/api/alerts', z.array(AlertRuleSchema)),

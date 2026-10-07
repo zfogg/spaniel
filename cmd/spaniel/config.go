@@ -36,6 +36,10 @@ max_db_size_mb: 500
 # When false, Spaniel preserves all data and pauses ingestion at the cap.
 auto_prune: true
 
+# Start a fresh session each time Spaniel starts. When false, keep the active
+# session from the previous run until you choose a different one.
+advance_session_on_start: true
+
 # OTLP receiver ports. 0 disables that receiver; at least one of the two must
 # stay enabled or spaniel will refuse to start (there'd be no way to ingest).
 # OTLP gRPC receiver port (default 4317; 0 = disabled)
@@ -112,6 +116,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("max_sessions", 50)
 	v.SetDefault("max_db_size_mb", 500)
 	v.SetDefault("auto_prune", true)
+	v.SetDefault("advance_session_on_start", true)
+	v.SetDefault("active_session_id", "")
 	v.SetDefault("otlp_grpc_port", 4317)
 	v.SetDefault("otlp_http_port", 4318)
 	v.SetDefault("no_browser", false)
@@ -171,7 +177,7 @@ func bootstrapConfig() error {
 // bindRootFlags makes viper aware of the cobra flag values so CLI flags win.
 // Call after ParseFlags (i.e. in PersistentPreRunE or the command's RunE).
 func bindRootFlags(v *viper.Viper, cmd *cobra.Command) {
-	for _, name := range []string{"port", "db-path", "retention", "max-sessions", "max-db-size", "no-browser", "dev"} {
+	for _, name := range []string{"port", "db-path", "retention", "max-sessions", "max-db-size", "advance-session-on-start", "no-browser", "dev"} {
 		f := cmd.Flags().Lookup(name)
 		if f == nil {
 			f = cmd.PersistentFlags().Lookup(name)
