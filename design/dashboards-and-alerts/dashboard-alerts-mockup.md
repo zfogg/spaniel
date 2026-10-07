@@ -101,7 +101,7 @@ The generator can use introspection to validate that every referenced view and c
 
 - **Use sample SQL** in the panel or alert composer;
 - a telemetry catalog that filters samples by signal and display type;
-- schema-doc examples with “Preview sample · 30 rows” and “Use in current query” actions.
+- schema-doc examples with “Copy to clipboard” and “Preview sample · 30 rows” actions.
 
 The author may then edit the sample freely. A future helper can assemble a draft from a selected view + column + panel role, but it must label that draft as a starting point and never claim it knows the user’s actual metric/filter intent.
 
@@ -120,7 +120,17 @@ The server, not the browser, enforces the 30-row cap. Prefer the storage query A
 
 The composer’s `Preview` button stays near the SQL editor. Its result area renders a compact, horizontally scrollable table with at most 30 rows, column/type hints, resolved named parameters, and execution/error feedback. It must keep the editor contents intact on failure. For panel types, the normal visual renderer can appear above the raw grid, but the raw 30-row table is the debugging truth. For alert rules, show the scalar/grouped result table alongside the threshold evaluation.
 
-Start with curated, stable query views—not physical DuckDB tables: `telemetry_spans`, `telemetry_traces`, `telemetry_logs`, `telemetry_metrics`, and any explicitly supported deployment/release view. Each catalog entry needs a view name, purpose, columns (`name`, DuckDB type, description, sensitivity), useful join/link metadata, and example queries. The storage migration that changes a view must update this catalog in the same change. Add a catalog-version test that asserts every documented view/column exists in the read-only DuckDB connection.
+Start with curated, stable query views—not physical DuckDB tables:
+
+- Core telemetry: `telemetry_spans`, `telemetry_traces`, `telemetry_logs`, `telemetry_metrics`.
+- Relationships and context: `telemetry_span_events`, `telemetry_span_links`, `telemetry_sessions`.
+- Discovery: `telemetry_metric_series`, a bounded metric-stream directory rather than raw points.
+- Spaniel findings: `telemetry_findings`, a normalized view over lint warnings and trace issues so dashboards and alerts can query product findings safely.
+- Optional integrations: `telemetry_deployments`, only after Spaniel has a real release source.
+
+Each catalog entry needs a view name, purpose, columns (`name`, DuckDB type, description, sensitivity), useful join/link metadata, and example queries. The storage migration that changes a view must update this catalog in the same change. Add a catalog-version test that asserts every documented view/column exists in the read-only DuckDB connection.
+
+The first four core views exist today. The five additional `telemetry_*` names above are planned public views over existing storage tables; the docs must mark them as planned until their migration creates them and introspection validates them. Never present a proposed view contract as a live query surface.
 
 The only currently automatic magic parameter is `$session_id`. Dashboard and alert filters such as `$service` are explicit, user-defined named DuckDB parameters; do not advertise invented automatic service/environment/window values until the backend resolves them.
 
@@ -265,7 +275,7 @@ Named dashboard parameters are bound rather than interpolated. Examples, not lit
 
 ```sql
 -- p95 span duration by HTTP route
-SELECT json_extract_string(attributes, '$.http.route') AS route,
+SELECT json_extract_string(attributes, '$."http.route"') AS route,
        quantile_cont(duration_ns, 0.95) AS p95_ns
 FROM spans
 WHERE service_name = ? AND start_ns BETWEEN ? AND ?
@@ -290,7 +300,31 @@ ORDER BY start_ns DESC
 LIMIT ?;
 ```
 
-`spans.attributes`, `spans.resource`, `logs.attributes`, and `metrics.attributes` are stored as serialized JSON/VARCHAR today. Centralize JSON extraction in the compiler and add expression/index support only after real dashboard queries show a need. Follow the session scoping model already used by `ListTraces`, `ListLogs`, and `GetMetricSeries`.
+### Attributes and JSON fields
+
+`telemetry_spans.attributes`, `telemetry_spans.resource`, `telemetry_logs.attributes`, and `telemetry_metrics.attributes` are serialized JSON `VARCHAR` fields today. Query a known semantic-convention key with DuckDB JSON functions; quote dotted keys inside the JSONPath:
+
+```sql
+-- string attribute / filter
+SELECT json_extract_string(attributes, '$."http.route"') AS route,
+       count(*) AS value
+FROM telemetry_spans
+WHERE json_extract_string(attributes, '$."http.request.method"') = $method
+GROUP BY 1;
+
+-- numeric attribute without an unsafe cast failure
+SELECT try_cast(json_extract_string(attributes, '$."http.response.status_code"') AS INTEGER) AS status_code,
+       count(*) AS value
+FROM telemetry_spans
+GROUP BY 1;
+
+-- presence check
+WHERE json_extract_string(attributes, '$."error.type"') IS NOT NULL
+```
+
+The schema catalog needs an `AttributeSource` (`attributes`, `resource`, or metric `scope_attributes`) and observed, bounded attribute-key suggestions per view/session. The composer should build the JSONPath from a selected key; it must bind typed filter values as named parameters and never concatenate a user-entered key into SQL. Show the expression in a small attribute helper/tooltip, with a link to the schema reference. Add JSON indexes or materialized columns only after measured query need; do not invent a separate attribute table just for dashboard authoring.
+
+Follow the session scoping model already used by `ListTraces`, `ListLogs`, and `GetMetricSeries`.
 
 ## API shape
 
@@ -340,7 +374,7 @@ Use the mockup as the interaction spec:
 
 - **Dashboard list/editor**: saved dashboards, panel grid, edit mode, draft panel selection, and a query composer with title + display type.
 - **Query composer**: telemetry search tabs (metrics/spans/traces/logs), reserved parameter insertion, custom variable editing, preview, and inline errors that retain the query. Put a compact `Schema & SQL` action in the SQL toolbar; it opens `/docs/database-schema` without discarding the draft.
-- **Database schema docs**: `DatabaseSchema.tsx` consumes the same typed schema-catalog endpoint as composer tooltips. It provides a searchable view list, column/type/meaning table, parameter guardrails, a capped “Preview sample · 30 rows” result grid, and “Use this sample” actions that return to the originating dashboard or alert draft.
+- **Database schema docs**: `DatabaseSchema.tsx` consumes the same typed schema-catalog endpoint as composer tooltips. It provides a searchable view list, column/type/meaning table, parameter guardrails, a capped “Preview sample · 30 rows” result grid, and a “Copy to clipboard” action beside each working sample.
 - **Panel renderer**: one component per display type, sharing a typed `PanelResult`; reuse the existing SVG metric chart work in `Metrics.tsx` before adding a chart library.
 - **Alerts**: signal-board rows, a state filter, and inspector with query, resolved labels, timeline, trace links, acknowledgement, and eventual silence flow.
 
