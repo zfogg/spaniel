@@ -64,11 +64,15 @@ export function TimeSeriesPanel({
   const minWidth =
     settings.min_width_px ??
     (series.length > 80 ? Math.min(2400, Math.max(720, series.length * 12)) : 0)
+  // A dense series deliberately grows beyond its panel. Give it a horizontal
+  // scroll container by default instead of allowing the dashboard card to clip
+  // the widened SVG. Explicit settings still let a panel opt in or out.
+  const scroll = settings.scroll ?? minWidth > 0
   return (
     <div className="min-w-0">
       <div
-        className={settings.scroll ? 'overflow-auto' : ''}
-        style={settings.scroll ? { maxHeight: settings.max_height_px ?? 360 } : undefined}
+        className={scroll ? 'overflow-auto' : ''}
+        style={scroll ? { maxHeight: settings.max_height_px ?? 360 } : undefined}
       >
         <svg
           viewBox={`0 0 ${width} ${height}`}
