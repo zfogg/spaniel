@@ -18,6 +18,7 @@ interface MetricFixture {
     unit: string
     description: string
     sample_count: number
+    last_timestamp_ns?: number
   }>
   // keyed by "<service>/<name>"
   series: Record<string, {
@@ -60,7 +61,7 @@ async function stubMetrics(page: Page, fx: MetricFixture) {
           : { name, service_name: service, type: 'gauge', unit: '', description: '', points: [], traces: [] }
         return jsonResponse(r, filled)
       }
-      return jsonResponse(r, fx.catalog)
+      return jsonResponse(r, fx.catalog.map((metric, index) => ({ ...metric, last_timestamp_ns: metric.last_timestamp_ns ?? index })))
     },
   )
 }

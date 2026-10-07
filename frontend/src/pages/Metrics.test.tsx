@@ -6,11 +6,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Metrics from './Metrics'
 import { bucketPoints } from '@/lib/metrics-bucket'
 
-let liveEvent: ((event: { type: string; payload: { name?: string; serviceName?: string } }) => void) | null = null
+type MetricEvent = { type: string; payload: { name?: string; serviceName?: string; catalogOnly?: boolean } }
+let liveEvents = new Set<(event: MetricEvent) => void>()
 vi.mock('@/lib/ws', () => ({
-  onWSEvent: (listener: typeof liveEvent) => {
-    liveEvent = listener
-    return () => { liveEvent = null }
+  onWSEvent: (listener: (event: MetricEvent) => void) => {
+    liveEvents.add(listener)
+    return () => { liveEvents.delete(listener) }
   },
 }))
 
@@ -35,10 +36,11 @@ import type { MetricCatalogEntry, MetricSeries } from '@/lib/api'
 // Routes per-path responses; uses the latest setup() values when called.
 
 let routes: Record<string, unknown> = {}
+type MetricCatalogFixture = Omit<MetricCatalogEntry, 'last_timestamp_ns'> & Partial<Pick<MetricCatalogEntry, 'last_timestamp_ns'>>
 
-function setup(opts: { catalog?: MetricCatalogEntry[]; series?: Record<string, MetricSeries> }) {
+function setup(opts: { catalog?: MetricCatalogFixture[]; series?: Record<string, MetricSeries> }) {
   routes = {
-    '/api/metrics': { data: opts.catalog ?? [], meta: { total: 0, page: 1 } },
+    '/api/metrics': { data: (opts.catalog ?? []).map((metric, index) => ({ ...metric, last_timestamp_ns: metric.last_timestamp_ns ?? index })), meta: { total: 0, page: 1 } },
   }
   for (const [key, series] of Object.entries(opts.series ?? {})) {
     routes['/api/metrics/series?' + key] = { data: series, meta: { total: 0, page: 1 } }
@@ -47,7 +49,7 @@ function setup(opts: { catalog?: MetricCatalogEntry[]; series?: Record<string, M
 
 beforeEach(() => {
   routes = {}
-  liveEvent = null
+  liveEvents = new Set()
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     // match by path; ignore query param order and additional params like 'from'
     for (const [routePath, body] of Object.entries(routes)) {
@@ -75,6 +77,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
@@ -150,6 +153,41 @@ describe('<Metrics />', () => {
 
     expect(screen.queryByText('http.requests')).toBeNull()
     expect(screen.getByText('pool.in_use')).toBeTruthy()
+  })
+
+  it('filters metrics by service= search token alongside text terms', async () => {
+    setup({
+      catalog: [
+        { name: 'http.requests', service_name: 'spaniel', type: 'counter', unit: 'req', description: 'inbound requests', sample_count: 1 },
+        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'outbound requests', sample_count: 1 },
+        { name: 'db.latency', service_name: 'spaniel', type: 'histogram', unit: 'ms', description: '', sample_count: 1 },
+      ],
+    })
+    renderMetrics()
+    await screen.findAllByText('http.requests')
+
+    const input = screen.getByPlaceholderText(/search metrics/i)
+    fireEvent.change(input, { target: { value: 'service=spaniel http' } })
+
+    const metricButtons = screen.getAllByRole('button').filter(button => /http\.requests|db\.latency/.test(button.textContent ?? ''))
+    expect(metricButtons).toHaveLength(1)
+    expect(metricButtons[0].textContent).toContain('http.requests')
+  })
+
+  it('does not treat a service name as ordinary metric text', async () => {
+    setup({
+      catalog: [
+        { name: 'runtime.memory', service_name: 'spaniel', type: 'gauge', unit: 'By', description: '', sample_count: 1 },
+        { name: 'spaniel.version', service_name: 'other', type: 'gauge', unit: '1', description: '', sample_count: 1 },
+      ],
+    })
+    renderMetrics()
+    await screen.findByText('runtime.memory')
+
+    fireEvent.change(screen.getByPlaceholderText(/search metrics/i), { target: { value: 'spaniel' } })
+
+    expect(screen.queryByText('runtime.memory')).toBeNull()
+    expect(screen.getByText('spaniel.version')).toBeTruthy()
   })
 
   it('filters by type chip', async () => {
@@ -235,6 +273,87 @@ describe('<Metrics />', () => {
     expect(document.querySelector('svg')).toBeTruthy()
   })
 
+  it('debounces catalog refreshes from metric WebSocket events for 2.5 seconds', async () => {
+    setup({
+      catalog: [
+        { name: 'older.metric', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2, last_timestamp_ns: 1 },
+			{ name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2, last_timestamp_ns: 2 },
+      ],
+      series: {
+        'name=http.requests&service=api&with_traces=1': {
+          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', points: [], traces: [],
+        },
+      },
+    })
+    renderMetrics()
+    await screen.findByText('http.requests')
+
+    // The server response is still timestamp-ordered. The WebSocket sequence
+		// moves the metric that actually updated most recently to the top.
+    routes['/api/metrics'] = {
+		data: [
+			{ name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2, last_timestamp_ns: 2 },
+			{ name: 'older.metric', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 3, last_timestamp_ns: 1 },
+		],
+		meta: { total: 2, page: 1 },
+    }
+		for (const notify of liveEvents) notify({ type: 'metric', payload: { name: 'older.metric', serviceName: 'api' } })
+		expect(screen.getAllByText('2 pts')).toHaveLength(2)
+    await waitFor(() => expect(screen.getByText('3 pts')).toBeTruthy(), { timeout: 4_000 })
+		const metricButtons = screen.getAllByRole('button').filter(button => /http\.requests|older\.metric/.test(button.textContent ?? ''))
+		expect(metricButtons.map(button => button.textContent)).toEqual([
+			expect.stringContaining('older.metric'),
+			expect.stringContaining('http.requests'),
+		])
+  })
+
+  it('keeps the API order for metrics with the same timestamp', async () => {
+    setup({
+      catalog: [
+        { name: 'newer.inserted', service_name: 'api', type: 'gauge', unit: '1', description: '', sample_count: 1, last_timestamp_ns: 100 },
+        { name: 'older.inserted', service_name: 'api', type: 'gauge', unit: '1', description: '', sample_count: 1, last_timestamp_ns: 100 },
+      ],
+      series: {
+        'name=newer.inserted&service=api&with_traces=1': {
+          name: 'newer.inserted', service_name: 'api', type: 'gauge', unit: '1', description: '', points: [], traces: [],
+        },
+      },
+    })
+
+    renderMetrics()
+    await screen.findByText('newer.inserted')
+    const metricButtons = screen.getAllByRole('button').filter(button => /newer\.inserted|older\.inserted/.test(button.textContent ?? ''))
+    expect(metricButtons.map(button => button.textContent)).toEqual([
+      expect.stringContaining('newer.inserted'),
+      expect.stringContaining('older.inserted'),
+    ])
+  })
+
+  it('opens the label summary with the same disclosure affordance as variants', async () => {
+    setup({
+      catalog: [
+        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2 },
+      ],
+      series: {
+        'name=http.requests&service=api&with_traces=1': {
+          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '',
+          dimensions: { 'http.method': ['GET', 'POST'] },
+          points: [{ timestamp_ns: 1, value: 1 }], traces: [],
+        },
+      },
+    })
+
+    renderMetrics()
+
+    const labels = await screen.findByRole('button', { name: '1 label' })
+    expect(labels.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(labels)
+    expect(labels.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('Each line represents one label combination.')).toBeTruthy()
+    expect(screen.getByText('http.method')).toBeTruthy()
+    expect(screen.getByText(/GET, POST/)).toBeTruthy()
+  })
+
   it('explains when a selected metric has no points in the active range', async () => {
     setup({
       catalog: [
@@ -311,10 +430,10 @@ describe('<Metrics />', () => {
       },
     })
     renderMetrics(['/metrics?metric=http.requests&service=api'])
-    await waitFor(() => expect(liveEvent).toBeTypeOf('function'))
+    await waitFor(() => expect(liveEvents.size).toBeGreaterThan(0))
     const fetchMock = fetch as ReturnType<typeof vi.fn>
     const before = fetchMock.mock.calls.length
-    liveEvent!({ type: 'metric', payload: { name: 'http.requests', serviceName: 'api' } })
+    for (const notify of liveEvents) notify({ type: 'metric', payload: { name: 'http.requests', serviceName: 'api' } })
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before))
   })
 

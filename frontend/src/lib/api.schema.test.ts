@@ -89,7 +89,7 @@ describe('api response schemas', () => {
     }).success).toBe(true)
 
     expect(MetricCatalogEntrySchema.safeParse({
-      name: 'm', description: '', unit: 'ms', type: 'histogram', service_name: 'api', sample_count: 1,
+      name: 'm', description: '', unit: 'ms', type: 'histogram', service_name: 'api', sample_count: 1, last_timestamp_ns: 1,
     }).success).toBe(true)
 
     expect(MetricSeriesSchema.safeParse({
@@ -135,7 +135,7 @@ describe('api response schemas', () => {
       attributes: '{}', resource: '{}', session_id: 's1', session_label: 'main', received_at: 5,
       events: [], links: [],
     }).success).toBe(false)
-    // invalid enum for metric type
+    // catalog entries include the point that determines the sidebar order
     expect(MetricCatalogEntrySchema.safeParse({
       name: 'm', description: '', unit: 'ms', type: 'summary', service_name: 'api', sample_count: 1,
     }).success).toBe(false)

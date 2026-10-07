@@ -21,20 +21,29 @@ func TestInsertAndListMetricCatalog(t *testing.T) {
 		TimestampNs: 100, Value: 8, Attributes: "{}",
 		ServiceName: "postgres", SessionID: "s1",
 	})
+	_ = d.InsertMetric(&Metric{
+		Name: "cache.hit_ratio", Description: "hit ratio", Unit: "1", Type: "gauge",
+		TimestampNs: 200, Value: 0.9, Attributes: "{}",
+		ServiceName: "cache", SessionID: "s1",
+	})
 
 	entries, err := d.ListMetricCatalog("s1")
 	if err != nil {
 		t.Fatalf("ListMetricCatalog: %v", err)
 	}
-	if len(entries) != 2 {
-		t.Fatalf("expected 2 catalog entries, got %d (%+v)", len(entries), entries)
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 catalog entries, got %d (%+v)", len(entries), entries)
 	}
-	// Sorted by (service, name): api < postgres.
-	if entries[0].ServiceName != "api" || entries[0].SampleCount != 2 {
-		t.Errorf("api entry wrong: %+v", entries[0])
+	// Sorted by newest point, then insertion order when a scrape assigns the
+	// same timestamp to several metric streams.
+	if entries[0].ServiceName != "cache" || entries[0].LastTimestampNs != 200 {
+		t.Errorf("newest tied entry wrong: %+v", entries[0])
 	}
-	if entries[1].ServiceName != "postgres" || entries[1].Type != "gauge" {
-		t.Errorf("postgres entry wrong: %+v", entries[1])
+	if entries[1].ServiceName != "api" || entries[1].SampleCount != 2 || entries[1].LastTimestampNs != 200 {
+		t.Errorf("second newest entry wrong: %+v", entries[1])
+	}
+	if entries[2].ServiceName != "postgres" || entries[2].Type != "gauge" {
+		t.Errorf("older entry wrong: %+v", entries[2])
 	}
 }
 

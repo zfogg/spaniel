@@ -569,7 +569,7 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	}
 	defer ingestSpan.End()
 	t0 := time.Now()
-	err := p.ingestMetricsTree(ctx, md, p.store.ActiveSessionID(), !self)
+	err := p.ingestMetricsTree(ctx, md, p.store.ActiveSessionID(), self)
 	if err == nil {
 		err = p.flush(ctx, !self)
 	}

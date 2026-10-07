@@ -76,6 +76,9 @@ export function useLiveInvalidation() {
     }
 
     const unsub = onWSEvent((ev) => {
+			// Self-telemetry catalog frames update the Metrics sidebar locally. They
+			// must not refetch telemetry queries, which would form a feedback loop.
+			if (ev.type === 'metric' && ev.payload.catalogOnly) return
       const prefixes = INVALIDATIONS[ev.type]
       if (!prefixes) return
       for (const p of prefixes) dirty.add(p)

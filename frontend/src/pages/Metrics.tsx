@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import debounce from 'debounce-fn'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -349,7 +350,7 @@ function useSelectedMetricLiveRefresh(metric: MetricCatalogEntry | null, range: 
     let timer: ReturnType<typeof setTimeout> | null = null
     const key = qk.metricSeries({ name: metric.name, service: metric.service_name, range, operation })
     const unsubscribe = onWSEvent((event) => {
-      if (event.type !== 'metric' || event.payload.name !== metric.name || event.payload.serviceName !== metric.service_name) return
+			if (event.type !== 'metric' || event.payload.catalogOnly || event.payload.name !== metric.name || event.payload.serviceName !== metric.service_name) return
       if (timer) return
       timer = setTimeout(() => {
         timer = null
@@ -361,6 +362,46 @@ function useSelectedMetricLiveRefresh(metric: MetricCatalogEntry | null, range: 
       if (timer) clearTimeout(timer)
     }
   }, [metric?.name, metric?.service_name, operation, queryClient, range])
+}
+
+// Sidebar counts and ordering come from the catalog aggregate. Metric frames
+// arrive much more frequently than the list needs repainting, so coalesce them
+// before reloading it. The server orders the catalog by latest point timestamp.
+function useMetricCatalogLiveRefresh() {
+  const queryClient = useQueryClient()
+	const [recentUpdates, setRecentUpdates] = useState<Record<string, number>>({})
+  useEffect(() => {
+		let sequence = 0
+		const pendingUpdates = new Map<string, { sequence: number; count: number; catalogOnly: boolean }>()
+    const refresh = debounce(() => {
+			const updates = Object.fromEntries([...pendingUpdates].map(([key, update]) => [key, update.sequence]))
+			const catalogOnlyUpdates = new Map([...pendingUpdates].filter(([, update]) => update.catalogOnly).map(([key, update]) => [key, update.count]))
+		const hasExternalUpdates = [...pendingUpdates.values()].some(update => !update.catalogOnly)
+			pendingUpdates.clear()
+			setRecentUpdates(previous => ({ ...previous, ...updates }))
+			if (catalogOnlyUpdates.size > 0) {
+				queryClient.setQueryData<MetricCatalogEntry[]>(qk.metrics(), previous => previous?.map(metric => {
+					const count = catalogOnlyUpdates.get(`${metric.service_name}/${metric.name}`)
+					return count === undefined ? metric : { ...metric, sample_count: metric.sample_count + count }
+				}))
+			}
+			if (hasExternalUpdates) {
+				queryClient.invalidateQueries({ queryKey: qk.metrics() })
+			}
+    }, { wait: 2_500 })
+    const unsubscribe = onWSEvent((event) => {
+			if (event.type !== 'metric') return
+			const key = `${event.payload.serviceName}/${event.payload.name}`
+			const previous = pendingUpdates.get(key)
+			pendingUpdates.set(key, { sequence: ++sequence, count: (previous?.count ?? 0) + 1, catalogOnly: (previous?.catalogOnly ?? true) && Boolean(event.payload.catalogOnly) })
+			refresh()
+    })
+    return () => {
+      unsubscribe()
+      refresh.cancel()
+    }
+  }, [queryClient])
+	return recentUpdates
 }
 
 // ── page ─────────────────────────────────────────────────────────────────────
@@ -392,6 +433,7 @@ export default function Metrics() {
   }, [selectedName, selectedService, selected?.type])
 
   useSelectedMetricLiveRefresh(selected, range, operation)
+  const recentMetricUpdates = useMetricCatalogLiveRefresh()
 
   const selectMetric = (metric: MetricCatalogEntry, replace = false) => {
 		setOperation(defaultMetricOperation(metric))
@@ -419,13 +461,26 @@ export default function Metrics() {
   })
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+		const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+		const serviceFilters = terms.filter(term => term.startsWith('service=')).map(term => term.slice('service='.length)).filter(Boolean)
+		const textTerms = terms.filter(term => !term.startsWith('service='))
     return catalog.filter(m => {
       if (typeSel && m.type !== typeSel) return false
-      if (!q) return true
-      return (m.name + ' ' + m.service_name + ' ' + (m.description || '')).toLowerCase().includes(q)
-    })
-  }, [catalog, query, typeSel])
+		if (serviceFilters.length > 0 && !serviceFilters.includes(m.service_name.toLowerCase())) return false
+		if (textTerms.length === 0) return true
+		// Service matching is explicit (`service=name`), so a common service name
+		// does not make ordinary metric-name search look like it has done nothing.
+		const searchable = (m.name + ' ' + (m.description || '')).toLowerCase()
+		return textTerms.every(term => searchable.includes(term))
+		}).sort((a, b) => {
+			const aUpdate = recentMetricUpdates[`${a.service_name}/${a.name}`]
+			const bUpdate = recentMetricUpdates[`${b.service_name}/${b.name}`]
+			if (aUpdate !== undefined || bUpdate !== undefined) return (bUpdate ?? -1) - (aUpdate ?? -1)
+			// The API uses insertion order to break equal scrape timestamps. Returning
+			// zero preserves that already-recency-ordered tie in the stable JS sort.
+			return b.last_timestamp_ns - a.last_timestamp_ns
+		})
+  }, [catalog, query, recentMetricUpdates, typeSel])
 
   const groups = useMemo(() => {
     const out: Record<string, MetricCatalogEntry[]> = {}
@@ -466,14 +521,14 @@ export default function Metrics() {
       {/* left rail */}
       <div className="w-[320px] border-r border-border bg-[var(--surface)] flex flex-col overflow-hidden">
         <div className="px-3 py-2.5 border-b border-border flex flex-col gap-2">
-          <span className="inline-flex items-center gap-[7px] bg-muted border border-border rounded-md px-2.5 h-7">
+          <span className="flex w-full min-w-0 items-center gap-[7px] bg-muted border border-border rounded-md px-2.5 h-7">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
               <circle cx="6" cy="6" r="4" stroke="var(--muted-foreground)" strokeWidth="1.4" />
               <line x1="9.2" y1="9.2" x2="12" y2="12" stroke="var(--muted-foreground)" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
             <input value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="search metrics…"
-              className="flex-1 border-none outline-none bg-transparent font-mono text-[11.5px] text-foreground" />
+							placeholder="search metrics…  service=name"
+							className="min-w-0 flex-1 border-none outline-none bg-transparent font-mono text-[11.5px] text-foreground" />
           </span>
           <div className="flex gap-1.5 flex-wrap">
             {(['gauge', 'counter', 'sum', 'histogram'] as const).map(t => {
@@ -561,6 +616,7 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
 	// chart shows a complete identity, never an accidental cross-series sum.
 	const [seriesIndex, setSeriesIndex] = useState(0)
 	const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({})
+	const [labelsOpen, setLabelsOpen] = useState(false)
 	const [variantsOpen, setVariantsOpen] = useState(false)
 	// Prefer a series that has observations for the selected operation. HTTP
 	// response-body metrics include the WebSocket upgrade as their first complete
@@ -612,14 +668,19 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
             {series.unit && (
               <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">{displayUnit(series.unit)}</span>
             )}
-            {Object.keys(series.dimensions ?? {}).length > 0 && (
-              <span
-                className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold"
-                title={`Each line represents one label combination.\n\n${Object.entries(series.dimensions ?? {}).map(([k, v]) => `${k}: ${v.join(', ')}`).join('\n')}`}
-              >
-                {Object.keys(series.dimensions ?? {}).length} labels
-              </span>
-            )}
+			{Object.keys(series.dimensions ?? {}).length > 0 && (
+				<div className="relative flex self-center">
+					<button type="button" onClick={() => setLabelsOpen(open => !open)} aria-expanded={labelsOpen} className="h-[21px] flex items-center px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold leading-none cursor-pointer hover:text-foreground">
+						{Object.keys(series.dimensions ?? {}).length} {Object.keys(series.dimensions ?? {}).length === 1 ? 'label' : 'labels'}<svg aria-hidden="true" viewBox="0 0 10 10" className={`ml-1 inline-block h-2.5 w-2.5 transition-transform ${labelsOpen ? '-rotate-90' : ''}`}><path d="m3 2.5 3 2.5-3 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+					</button>
+					{labelsOpen && <div className="absolute z-20 top-[calc(100%+6px)] left-0 min-w-[240px] max-w-[min(680px,calc(100vw-3rem))] rounded-lg border border-border bg-[var(--surface)] shadow-lg p-2.5">
+						<div className="font-mono text-[10px] text-muted-foreground mb-2">Each line represents one label combination.</div>
+						<div className="flex flex-col gap-1">
+							{Object.entries(series.dimensions ?? {}).map(([key, values]) => <div key={key} className="font-mono text-[10px] px-2 py-1.5 rounded border border-border bg-[var(--surface2)]"><span className="text-foreground font-semibold">{key}</span><span className="text-muted-foreground"> · {values.join(', ')}</span></div>)}
+						</div>
+					</div>}
+				</div>
+			)}
 			{(series.series?.length ?? 0) > 1 && (
 				<div className="relative flex self-center">
 					<button type="button" onClick={() => setVariantsOpen(open => !open)} aria-expanded={variantsOpen} className="h-[21px] flex items-center px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold leading-none cursor-pointer hover:text-foreground">

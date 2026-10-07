@@ -302,14 +302,14 @@ type IMetricDo interface {
 
 // ListCatalog
 //
-// SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) GROUP BY name, service_name, type, unit, description ORDER BY service_name, name
+// SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count, MAX(timestamp_ns) AS last_timestamp_ns FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) GROUP BY name, service_name, type, unit, description ORDER BY last_timestamp_ns DESC, MAX(rowid) DESC
 func (m metricDo) ListCatalog(sessionID string) (result []model.MetricCatalogEntry, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, sessionID)
 	params = append(params, sessionID)
-	generateSQL.WriteString("SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count FROM metrics WHERE (? = '' OR session_id = ?) GROUP BY name, service_name, type, unit, description ORDER BY service_name, name ")
+	generateSQL.WriteString("SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count, MAX(timestamp_ns) AS last_timestamp_ns FROM metrics WHERE (? = '' OR session_id = ?) GROUP BY name, service_name, type, unit, description ORDER BY last_timestamp_ns DESC, MAX(rowid) DESC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = m.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

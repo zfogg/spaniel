@@ -193,6 +193,7 @@ export const MetricCatalogEntrySchema = z.object({
 	is_monotonic: z.boolean().optional(),
   service_name: z.string(),
   sample_count: z.number(),
+  last_timestamp_ns: z.number(),
 })
 
 export const MetricSeriesExemplarSchema = z.object({
@@ -522,7 +523,7 @@ export const api = {
 	 dashboards: {
 		list: () => get('/api/dashboards', z.array(DashboardSchema)),
 		get: (id: string) => get(`/api/dashboards/${id}`, DashboardSchema),
-		create: (body: { name: string; description?: string }) => post('/api/dashboards', body, DashboardSchema),
+		create: (body: { name: string; description?: string; panels?: Array<Pick<DashboardPanel, 'title' | 'display_type' | 'query_sql'>> }) => post('/api/dashboards', body, DashboardSchema),
 		update: (id: string, body: { name: string; description?: string }) => patch(`/api/dashboards/${id}`, body, DashboardSchema),
 		remove: (id: string) => del(`/api/dashboards/${id}`, OkSchema),
 				preview: (id: string, body: { query_sql: string; name?: string; display_type?: string; variables?: Record<string, string> }) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),

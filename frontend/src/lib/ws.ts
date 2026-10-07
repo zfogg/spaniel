@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export interface SpanPayload { traceId: string; spanId: string; serviceName: string; name: string; durationNs: number; statusCode: number; sessionId: string }
 export interface LogPayload { traceId: string; spanId: string; severity: number; body: string; serviceName: string; sessionId: string }
-export interface MetricPayload { name: string; serviceName: string; value: number; type: string }
+export interface MetricPayload { name: string; serviceName: string; value: number; type: string; catalogOnly?: boolean }
 export interface IssuePayload { traceId: string; kind: string; fingerprint: string; count: number; wastedNs: number }
 export interface ForwarderPayload { url: string; sent: number; errors: number; lastError?: string; pendingBytes?: number; droppedSpool?: number }
 export interface ThroughputPayload { spansPerSec: number; logsPerSec: number }

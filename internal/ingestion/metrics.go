@@ -24,7 +24,7 @@ var indexedMetricAttributes = map[string]struct{}{
 
 // ingestMetrics walks the OTLP tree without changing the metric model. Every
 // OTLP data point becomes exactly one storage row.
-func (p *Pipeline) ingestMetricsTree(ctx context.Context, md pmetric.Metrics, sessionID string, broadcast bool) error {
+func (p *Pipeline) ingestMetricsTree(ctx context.Context, md pmetric.Metrics, sessionID string, catalogOnly bool) error {
 	pointsSeen := 0
 	defer func() { p.tp.addMetrics(pointsSeen) }()
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
@@ -41,7 +41,7 @@ func (p *Pipeline) ingestMetricsTree(ctx context.Context, md pmetric.Metrics, se
 					continue
 				}
 				pointsSeen += pts
-				if err := p.storeMetric(ctx, m, svc, resource, scope.Name(), scope.Version(), sm.SchemaUrl(), mapToJSON(scope.Attributes()), sessionID, broadcast); err != nil {
+				if err := p.storeMetric(ctx, m, svc, resource, scope.Name(), scope.Version(), sm.SchemaUrl(), mapToJSON(scope.Attributes()), sessionID, catalogOnly); err != nil {
 					return err
 				}
 			}
@@ -66,7 +66,7 @@ func metricDataPointCount(m pmetric.Metric) int {
 	return 0
 }
 
-func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resource, scopeName, scopeVersion, scopeSchemaURL, scopeAttributes, sessionID string, broadcast bool) error {
+func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resource, scopeName, scopeVersion, scopeSchemaURL, scopeAttributes, sessionID string, catalogOnly bool) error {
 	base := func(metricType string, attrs pcommon.Map, start, timestamp pcommon.Timestamp, flags pmetric.DataPointFlags, exemplars pmetric.ExemplarSlice) *storage.Metric {
 		attrsJSON, seriesAttrs, limitedAttrs := metricAttributes(attrs)
 		stream := sessionID + "\x00" + svc + "\x00" + m.Name()
@@ -108,12 +108,10 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 		} else if row.SummarySum != nil {
 			value = *row.SummarySum
 		}
-		// Self-monitoring data is persisted, but never made into a live browser
-		// event. Otherwise its periodic export invalidates Metrics, the resulting
-		// API requests generate more self-telemetry, and the feedback can starve
-		// external exporters until their gRPC deadline expires.
-		if broadcast {
-			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Value: value, Type: row.Type}))
+		// Self-monitoring points need to advance the sidebar counts, but must not
+		// cause metric-query invalidation: that would generate more self telemetry.
+		if p.hub != nil {
+			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Value: value, Type: row.Type, CatalogOnly: catalogOnly}))
 		}
 		return nil
 	}

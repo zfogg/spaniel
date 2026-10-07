@@ -115,6 +115,7 @@ type MetricCatalogEntry struct {
 	IsMonotonic            *bool  `json:"is_monotonic,omitempty"`
 	ServiceName            string `json:"service_name"`
 	SampleCount            int    `json:"sample_count"`
+	LastTimestampNs        int64  `json:"last_timestamp_ns"`
 }
 
 // MetricSeriesCatalog is the durable identity set admitted by the cardinality

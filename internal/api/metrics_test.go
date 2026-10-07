@@ -51,7 +51,7 @@ func TestListMetrics_GroupsByServiceAndName(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(resp.Data) != 1 || resp.Data[0].SampleCount != 2 {
+	if len(resp.Data) != 1 || resp.Data[0].SampleCount != 2 || resp.Data[0].LastTimestampNs != 2 {
 		t.Errorf("expected 1 grouped entry with 2 samples, got %+v", resp.Data)
 	}
 }

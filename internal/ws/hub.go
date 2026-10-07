@@ -54,6 +54,9 @@ type MetricPayload struct {
 	ServiceName string  `json:"serviceName"`
 	Value       float64 `json:"value"`
 	Type        string  `json:"type"`
+	// CatalogOnly announces a stored self-telemetry point without inviting the
+	// client to refetch metric queries (which would create more self telemetry).
+	CatalogOnly bool `json:"catalogOnly,omitempty"`
 }
 
 type IssuePayload struct {
