@@ -45,6 +45,27 @@ const stateSignalColor: Record<string, string> = {
   resolved: '#518a6a',
   error: '#bd5c52',
 }
+const severityRowTone: Record<string, string> = {
+  info: 'border-l-[#4e7fa4] bg-[#f2f8fc] hover:bg-[#e9f3f9] dark:border-l-[#79aad0] dark:bg-[#1d2c39] dark:hover:bg-[#243a4a]',
+  warning:
+    'border-l-[#b9872f] bg-[#fffaf0] hover:bg-[#fff5e2] dark:border-l-[#d6a34a] dark:bg-[#382f20] dark:hover:bg-[#473a25]',
+  critical:
+    'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb] dark:border-l-[#df7568] dark:bg-[#38262a] dark:hover:bg-[#472d31]',
+  error:
+    'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb] dark:border-l-[#df7568] dark:bg-[#38262a] dark:hover:bg-[#472d31]',
+}
+const severitySignalColor: Record<string, string> = {
+  info: '#4e7fa4',
+  warning: '#b9872f',
+  critical: '#bd5c52',
+  error: '#bd5c52',
+}
+const severityNameTone: Record<string, string> = {
+  info: 'text-[#2b638e] dark:text-[#9bcbed]',
+  warning: 'text-[#805d1a] dark:text-[#efc774]',
+  critical: 'text-[#963e36] dark:text-[#f0a39a]',
+  error: 'text-[#963e36] dark:text-[#f0a39a]',
+}
 const ruleState = (rule: AlertRule) =>
   rule.instances?.find((instance) => instance.state === 'firing')?.state ??
   rule.instances?.find((instance) => instance.state === 'pending')?.state ??
@@ -572,13 +593,20 @@ export default function Alerts() {
                 <button
                   key={rule.id}
                   onClick={() => setSelectedId(rule.id)}
-                  className={`mb-2 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border border-[#cbd9e4] border-l-4 p-3 text-left shadow-[0_1px_0_rgba(31,56,83,0.04)] transition-colors dark:border-border sm:grid-cols-[minmax(0,1fr)_160px_auto] ${stateRowTone[currentState] ?? 'border-l-[#8ba0b1] bg-white hover:bg-[#f4f8fb] dark:bg-surface dark:hover:bg-muted'} ${selected?.id === rule.id ? 'ring-1 ring-[#6f9fc4] ring-offset-1 dark:ring-[#84b6df] dark:ring-offset-background' : ''}`}
+                  className={`mb-2 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border border-[#cbd9e4] border-l-4 p-3 text-left shadow-[0_1px_0_rgba(31,56,83,0.04)] transition-colors dark:border-border sm:grid-cols-[minmax(0,1fr)_160px_auto] ${severityRowTone[rule.severity] ?? stateRowTone[currentState] ?? 'border-l-[#8ba0b1] bg-white hover:bg-[#f4f8fb] dark:bg-surface dark:hover:bg-muted'} ${selected?.id === rule.id ? 'ring-1 ring-[#6f9fc4] ring-offset-1 dark:ring-[#84b6df] dark:ring-offset-background' : ''}`}
                 >
                   <span>
-                    <b className="flex items-center gap-2 text-sm">
+                    <b
+                      className={`flex items-center gap-2 text-sm ${severityNameTone[rule.severity] ?? ''}`}
+                    >
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: stateSignalColor[currentState] ?? '#8ba0b1' }}
+                        style={{
+                          backgroundColor:
+                            severitySignalColor[rule.severity] ??
+                            stateSignalColor[currentState] ??
+                            '#8ba0b1',
+                        }}
                       />
                       <span className="truncate">{rule.name}</span>
                     </b>
@@ -593,7 +621,7 @@ export default function Alerts() {
                   </span>
                   <RuleSparkline
                     instances={rule.instances ?? []}
-                    state={currentState}
+                    color={severitySignalColor[rule.severity] ?? stateSignalColor[currentState]}
                     className="hidden self-center sm:block"
                   />
                   <span
@@ -1278,11 +1306,11 @@ function InspectorSection({ title, children }: { title: string; children: ReactN
 
 function RuleSparkline({
   instances,
-  state,
+  color,
   className,
 }: {
   instances: Array<{ value?: number | null }>
-  state: string
+  color?: string
   className?: string
 }) {
   const values = instances.flatMap((instance) =>
@@ -1307,7 +1335,7 @@ function RuleSparkline({
       return `${x},${y}`
     })
     .join(' ')
-  const color = stateSignalColor[state] ?? '#6f9fc4'
+  const signalColor = color ?? '#6f9fc4'
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -1327,13 +1355,13 @@ function RuleSparkline({
         <polyline
           fill="none"
           points={points}
-          stroke={color}
+          stroke={signalColor}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="2.5"
         />
       ) : (
-        <circle cx={width / 2} cy={height / 2} fill={color} r="3.5" />
+        <circle cx={width / 2} cy={height / 2} fill={signalColor} r="3.5" />
       )}
     </svg>
   )
