@@ -138,6 +138,10 @@ func (b *Batcher) loop() {
 // lost (callers account for it via drop counters), but the appender stays
 // usable for subsequent rows.
 func (b *Batcher) append(table string, args ...driver.Value) error {
+	started := time.Now()
+	defer func() {
+		telemetry.Catalog().RecordStorageAppend(context.Background(), table, float64(time.Since(started).Microseconds())/1000)
+	}()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -199,11 +203,13 @@ func (b *Batcher) flushTableLocked(ta *tableAppender) error {
 	if err := ta.app.Flush(); err != nil {
 		b.recreateLocked(ta.table)
 		telemetry.Catalog().RecordStorage(context.Background(), "write", "error", int64(pending), float64(time.Since(started).Microseconds())/1000)
+		telemetry.Catalog().RecordStorageFlush(context.Background(), ta.table, "error", int64(pending))
 		return fmt.Errorf("flush %s: %w", ta.table, err)
 	}
 	ta.pending = 0
 	b.recordQueueDepthLocked()
 	telemetry.Catalog().RecordStorage(context.Background(), "write", "ok", int64(pending), float64(time.Since(started).Microseconds())/1000)
+	telemetry.Catalog().RecordStorageFlush(context.Background(), ta.table, "ok", int64(pending))
 	return nil
 }
 

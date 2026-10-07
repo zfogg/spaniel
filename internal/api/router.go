@@ -120,6 +120,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Get("/api/search", r.search)
 	mux.Get("/api/sessions/{sessionId}/baseline-export", r.exportBaseline)
 	mux.Get("/api/metrics", r.listMetrics)
+	mux.Get("/api/metrics/cardinality", r.getMetricCardinality)
 	mux.Get("/api/metrics/series", r.getMetricSeries)
 	mux.Get("/api/dashboards", r.listDashboards)
 	mux.Post("/api/dashboards", r.createDashboard)

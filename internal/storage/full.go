@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"syscall"
+
+	"github.com/zfogg/spaniel/internal/telemetry"
 )
 
 // ErrStorageFull signals that telemetry can't be stored because the database is
@@ -34,7 +36,7 @@ func (d *DB) Full() bool { return d.full.Load() }
 
 // SetFull updates the full state. Set true when the size cap is hit and can't be
 // pruned, or a write fails for lack of space; false once space is available.
-func (d *DB) SetFull(v bool) { d.full.Store(v) }
+func (d *DB) SetFull(v bool) { d.full.Store(v); telemetry.Catalog().SetStorageFull(v) }
 
 // FileSize returns the on-disk footprint of the database (main file + WAL), or
 // 0 for an in-memory database.
@@ -48,6 +50,7 @@ func (d *DB) FileSize() int64 {
 			total += fi.Size()
 		}
 	}
+	telemetry.Catalog().SetStorageDBSizeCurrent(total)
 	return total
 }
 

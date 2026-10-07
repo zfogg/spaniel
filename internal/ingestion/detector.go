@@ -2,34 +2,16 @@ package ingestion
 
 import (
 	"context"
-	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
 )
-
-var (
-	detectorIssuesCounter     metric.Int64Counter
-	detectorIssuesCounterOnce sync.Once
-)
-
-func getDetectorIssuesCounter() metric.Int64Counter {
-	detectorIssuesCounterOnce.Do(func() {
-		detectorIssuesCounter, _ = otel.Meter("spaniel/ingestion").Int64Counter(
-			"spaniel.detector.issues_found",
-			metric.WithDescription("Trace issues detected by post-ingestion detectors"),
-			metric.WithUnit("{issue}"),
-		)
-	})
-	return detectorIssuesCounter
-}
 
 // Detector analyzes a trace's spans and returns any detected issues.
 // Each implementation lives in its own detector_*.go file.
@@ -68,8 +50,7 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 	for _, d := range registry {
 		for _, issue := range d.Analyze(traceID, sessID, spans, now) {
 			if err := store.UpsertTraceIssue(issue); err == nil {
-				getDetectorIssuesCounter().Add(context.Background(), 1,
-					metric.WithAttributes(attribute.String("kind", issue.Kind)))
+				telemetry.Catalog().RecordDetectorIssue(context.Background(), issue.Kind)
 				goroutine.Go(func() {
 					hub.Broadcast(ws.NewIssueEvent(&ws.IssuePayload{
 						TraceID:     issue.TraceID,

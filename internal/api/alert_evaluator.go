@@ -235,9 +235,11 @@ func alertEvent(rule *storage.AlertRule, instance *storage.AlertInstance, transi
 // incident has a visible conclusion.
 func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInstance, transition string, now time.Time, force bool) {
 	if hub == nil {
+		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "suppressed")
 		return
 	}
 	if !force && rule.CooldownNs > 0 && instance.LastNotifiedAt != nil && now.UnixNano()-*instance.LastNotifiedAt < rule.CooldownNs {
+		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "suppressed")
 		return
 	}
 	n := now.UnixNano()
@@ -245,6 +247,7 @@ func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInst
 	// Event delivery is best effort; state is already durable and is never made
 	// conditional on a websocket client being present.
 	hub.Broadcast(alertEvent(rule, instance, transition, now))
+	telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "sent")
 }
 
 func validAlertOperator(operator string) bool {

@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
+
+	"github.com/zfogg/spaniel/internal/telemetry"
 )
 
 // skipTracingKey marks a context whose GORM operations must NOT be traced. Used
@@ -39,20 +39,11 @@ func skipTracing(ctx context.Context) bool {
 // It stores the span in the Statement.Context so after callbacks can
 // retrieve it via trace.SpanFromContext — no extra map key needed.
 type gormOTelPlugin struct {
-	tracer  trace.Tracer
-	latency metric.Float64Histogram
+	tracer trace.Tracer
 }
 
 func newGORMPlugin() *gormOTelPlugin {
-	meter := otel.Meter("spaniel/storage")
-	hist, _ := meter.Float64Histogram("spaniel.db.query.latency",
-		metric.WithDescription("DuckDB query latency"),
-		metric.WithUnit("ms"),
-	)
-	return &gormOTelPlugin{
-		tracer:  otel.Tracer("spaniel/storage"),
-		latency: hist,
-	}
+	return &gormOTelPlugin{tracer: otel.Tracer("spaniel/storage")}
 }
 
 func (p *gormOTelPlugin) Name() string { return "spaniel:otel" }
@@ -100,7 +91,10 @@ func (p *gormOTelPlugin) before(op string) func(*gorm.DB) {
 			name = storageCallerName()
 		}
 		if name == "" {
-			name = "db." + op
+			// Do not leak generic db.query/db.row operation names into Spaniel's
+			// own telemetry. A call outside a DB method is still Spaniel storage
+			// work, even though it has no more-specific source-owned name.
+			name = "storage." + op
 		}
 		ctx, _ = p.tracer.Start(ctx, name,
 			trace.WithSpanKind(trace.SpanKindClient),
@@ -147,14 +141,11 @@ func (p *gormOTelPlugin) after(db *gorm.DB) {
 
 	if startVal, ok := db.Get("otel:start"); ok {
 		if t, ok := startVal.(time.Time); ok {
-			attrs := []attribute.KeyValue{semconv.DBSystemKey.String("duckdb")}
-			if db.Statement != nil {
-				attrs = append(attrs, semconv.DBCollectionNameKey.String(db.Statement.Table))
+			result := "ok"
+			if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+				result = "error"
 			}
-			p.latency.Record(db.Statement.Context,
-				float64(time.Since(t).Milliseconds()),
-				metric.WithAttributes(attrs...),
-			)
+			telemetry.Catalog().RecordStorage(db.Statement.Context, "query", result, 0, float64(time.Since(t).Microseconds())/1000)
 		}
 	}
 
@@ -171,21 +162,13 @@ func (p *gormOTelPlugin) after(db *gorm.DB) {
 	}
 }
 
-// registerDBSizeGauge registers an observable gauge reporting the DuckDB
-// file size in bytes. Called from Open after the DB is initialised.
+// registerDBSizeGauge refreshes the central owned storage-size snapshot.
+// Its historic name is retained only because Open calls it.
 func registerDBSizeGauge(path string) {
 	if path == "" || path == ":memory:" {
 		return
 	}
-	meter := otel.Meter("spaniel/storage")
-	_, _ = meter.Int64ObservableGauge("spaniel.db.file_size",
-		metric.WithDescription("DuckDB file size on disk"),
-		metric.WithUnit("By"),
-		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
-			if fi, err := os.Stat(path); err == nil {
-				o.Observe(fi.Size())
-			}
-			return nil
-		}),
-	)
+	if fi, err := os.Stat(path); err == nil {
+		telemetry.Catalog().SetStorageDBSizeCurrent(fi.Size())
+	}
 }

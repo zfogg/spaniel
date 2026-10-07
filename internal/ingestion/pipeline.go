@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
@@ -39,9 +38,7 @@ type Pipeline struct {
 	lintSlots     chan struct{}
 	detectorSlots chan struct{}
 
-	tracer        trace.Tracer
-	ingestCounter metric.Int64Counter
-	dbLatency     metric.Float64Histogram
+	tracer trace.Tracer
 
 	// selfService is the service.name Spaniel uses for its own self-telemetry.
 	// Batches from it are stored "quietly" (no instrumentation spans, linter, or
@@ -124,15 +121,6 @@ func NewPipelineWithSampler(store *storage.DB, hub *ws.Hub, s *Sampler) *Pipelin
 }
 
 func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimiter) *Pipeline {
-	meter := otel.Meter("spaniel/ingestion")
-	counter, _ := meter.Int64Counter("spaniel.ingest.signals",
-		metric.WithDescription("Total signals (spans, logs, metric points) ingested"),
-		metric.WithUnit("{signal}"),
-	)
-	dbHist, _ := meter.Float64Histogram("spaniel.db.latency",
-		metric.WithDescription("Database write operation latency"),
-		metric.WithUnit("ms"),
-	)
 	p := &Pipeline{
 		store:         store,
 		hub:           hub,
@@ -143,8 +131,6 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		lintSlots:     make(chan struct{}, maxConcurrentLinters),
 		detectorSlots: make(chan struct{}, maxConcurrentDetectors),
 		tracer:        otel.Tracer("spaniel/ingestion"),
-		ingestCounter: counter,
-		dbLatency:     dbHist,
 		metricSeries:  newMetricSeriesLimiter(2000),
 		ingestSlots:   make(chan struct{}, maxConcurrentIngests),
 	}
@@ -153,28 +139,15 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 			p.metricSeries.Seed(row.SessionID+"\x00"+row.Service+"\x00"+row.Name, row.Attributes)
 		}
 	}
-	// Observable gauge wrapping the sampler's atomic drop counters so they
-	// appear as spaniel.sampler.dropped{signal=spans/logs/metrics} in metrics.
-	_, _ = meter.Int64ObservableCounter("spaniel.sampler.dropped",
-		metric.WithDescription("Total signals dropped by the sampler or rate limiter"),
-		metric.WithUnit("{signal}"),
-		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
-			o.Observe(p.sampler.Counters.DroppedSpansTotal(),
-				metric.WithAttributes(attribute.String("signal", "spans")))
-			o.Observe(p.sampler.Counters.DroppedLogsTotal(),
-				metric.WithAttributes(attribute.String("signal", "logs")))
-			o.Observe(p.sampler.Counters.DroppedMetricPointsTotal(),
-				metric.WithAttributes(attribute.String("signal", "metrics")))
-			return nil
-		}),
-	)
 	return p
 }
 
-func (p *Pipeline) beginIngest() func() {
+func (p *Pipeline) beginIngest(ctx context.Context) func() {
+	started := time.Now()
 	depth := p.ingestPending.Add(1)
 	telemetry.Catalog().SetIngestQueue(depth, maxConcurrentIngests)
 	p.ingestSlots <- struct{}{}
+	telemetry.Catalog().RecordIngestQueueWait(ctx, float64(time.Since(started).Microseconds())/1000)
 	return func() {
 		<-p.ingestSlots
 		depth := p.ingestPending.Add(-1)
@@ -236,7 +209,7 @@ func (p *Pipeline) classifyFlush(err error) error {
 }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
-	defer p.beginIngest()()
+	defer p.beginIngest(ctx)()
 	// Spaniel's own self-telemetry is stored "quietly" — no instrumentation
 	// span, linter, or detectors — so self-monitoring doesn't generate new spans
 	// from ingesting its own spans (which would feed back on itself).
@@ -245,6 +218,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 	// Reject when storage is full so the exporter retries (503/RESOURCE_EXHAUSTED)
 	// rather than us dropping data. Self-telemetry is tiny and best-effort.
 	if !self && p.store.Full() {
+		telemetry.Catalog().RecordIngestStorageFull(ctx, "traces")
 		return storage.ErrStorageFull
 	}
 
@@ -380,6 +354,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				if !self && !p.limiter.Allow(svcName, s.StatusCode == 2, spanBytes) {
 					p.sampler.Counters.bumpSpans(1)
 					droppedRateLimit++
+					telemetry.Catalog().RecordIngestRateLimited(ctx, "traces", 1)
 					continue
 				}
 
@@ -393,6 +368,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				if !self && !p.sampler.DecideSpan(s) {
 					p.sampler.Counters.bumpSpans(1)
 					droppedSampled++
+					telemetry.Catalog().RecordIngestSampledOut(ctx, "traces", 1)
 					continue
 				}
 
@@ -402,8 +378,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
 				}
-				p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
-					metric.WithAttributes(attribute.String("op", "insert_span")))
+				telemetry.Catalog().RecordStorageAppend(ctx, "spans", float64(time.Since(t0).Microseconds())/1000)
 				spansSeen++
 				if len(events) > 0 {
 					t1 := time.Now()
@@ -412,8 +387,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
 					}
-					p.dbLatency.Record(ctx, float64(time.Since(t1).Milliseconds()),
-						metric.WithAttributes(attribute.String("op", "insert_span_events")))
+					telemetry.Catalog().RecordStorageAppend(ctx, "span_events", float64(time.Since(t1).Microseconds())/1000)
 				}
 				if len(links) > 0 {
 					t1 := time.Now()
@@ -422,8 +396,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
 					}
-					p.dbLatency.Record(ctx, float64(time.Since(t1).Milliseconds()),
-						metric.WithAttributes(attribute.String("op", "insert_span_links")))
+					telemetry.Catalog().RecordStorageAppend(ctx, "span_links", float64(time.Since(t1).Microseconds())/1000)
 				}
 				if !self {
 					p.scheduleLint(s)
@@ -452,7 +425,6 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	p.ingestCounter.Add(ctx, int64(spansSeen), metric.WithAttributes(attribute.String("signal", "traces")))
 	telemetry.Catalog().RecordIngest(ctx, "traces", "accepted", int64(spansSeen))
 	if droppedRateLimit+droppedSampled > 0 {
 		telemetry.Catalog().RecordIngest(ctx, "traces", "dropped", int64(droppedRateLimit+droppedSampled))
@@ -474,9 +446,10 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 }
 
 func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
-	defer p.beginIngest()()
+	defer p.beginIngest(ctx)()
 	self := p.isSelfLogs(logs)
 	if !self && p.store.Full() {
+		telemetry.Catalog().RecordIngestStorageFull(ctx, "logs")
 		return storage.ErrStorageFull
 	}
 	var ingestSpan trace.Span
@@ -505,6 +478,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 
 				if !self && !p.sampler.DecideLog() {
 					p.sampler.Counters.bumpLogs(1)
+					telemetry.Catalog().RecordIngestSampledOut(ctx, "logs", 1)
 					continue
 				}
 
@@ -526,8 +500,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
 				}
-				p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
-					metric.WithAttributes(attribute.String("op", "insert_log")))
+				telemetry.Catalog().RecordStorageAppend(ctx, "logs", float64(time.Since(t0).Microseconds())/1000)
 				logsSeen++
 				if !self {
 					p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
@@ -547,16 +520,16 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	p.ingestCounter.Add(ctx, int64(logsSeen), metric.WithAttributes(attribute.String("signal", "logs")))
 	telemetry.Catalog().RecordIngest(ctx, "logs", "accepted", int64(logsSeen))
 	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", logsSeen))
 	return nil
 }
 
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
-	defer p.beginIngest()()
+	defer p.beginIngest(ctx)()
 	self := p.isSelfMetrics(md)
 	if !self && p.store.Full() {
+		telemetry.Catalog().RecordIngestStorageFull(ctx, "metrics")
 		return storage.ErrStorageFull
 	}
 	var ingestSpan trace.Span
@@ -573,13 +546,11 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	if err == nil {
 		err = p.flush(ctx, !self)
 	}
-	p.dbLatency.Record(ctx, float64(time.Since(t0).Milliseconds()),
-		metric.WithAttributes(attribute.String("op", "insert_metrics")))
+	telemetry.Catalog().RecordStorageAppend(ctx, "metrics", float64(time.Since(t0).Microseconds())/1000)
 	if err != nil {
 		ingestSpan.RecordError(err)
 		ingestSpan.SetStatus(codes.Error, err.Error())
 	}
-	p.ingestCounter.Add(ctx, int64(md.DataPointCount()), metric.WithAttributes(attribute.String("signal", "metrics")))
 	result := "accepted"
 	if err != nil {
 		result = "dropped"

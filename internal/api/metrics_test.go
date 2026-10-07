@@ -56,6 +56,34 @@ func TestListMetrics_GroupsByServiceAndName(t *testing.T) {
 	}
 }
 
+func TestGetMetricCardinality_UsesDurableAdmittedSeries(t *testing.T) {
+	handler, db := setupRouter(t)
+	if _, err := db.RecordMetricSeries("s1", "api", "http.requests", `{"http.route":"/cart"}`, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RecordMetricSeries("s1", "api", "http.requests", `{"http.route":"/checkout"}`, 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RecordMetricSeries("other", "api", "http.requests", `{}`, 3); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/cardinality?sessionId=s1", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data []MetricCardinalityStream `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Data) != 1 || resp.Data[0].Active != 2 || resp.Data[0].Limit != 2000 {
+		t.Fatalf("cardinality = %+v, want one stream with two identities", resp.Data)
+	}
+}
+
 func TestGetMetricSeries_MissingName(t *testing.T) {
 	handler, _ := setupRouter(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series", nil)
@@ -126,6 +154,37 @@ func TestGetMetricSeries_SumsStaySeparatedByCompleteIndexedDimensions(t *testing
 	}
 	if resp.Data.Aggregation != "per_complete_attribute_set" {
 		t.Errorf("aggregation = %q", resp.Data.Aggregation)
+	}
+}
+
+func TestGetMetricSeries_FiltersCompleteAttributeSetsOnServer(t *testing.T) {
+	handler, db := setupRouter(t)
+	for _, row := range []storage.Metric{
+		{Name: "requests", Type: "sum", TimestampNs: 100, Value: 3, Attributes: `{"result":"ok","http.route":"/cart"}`, SeriesAttributes: `{"result":"ok","http.route":"/cart"}`, SeriesKey: "ok-cart", ServiceName: "api", SessionID: "s1"},
+		{Name: "requests", Type: "sum", TimestampNs: 100, Value: 1, Attributes: `{"result":"error","http.route":"/cart"}`, SeriesAttributes: `{"result":"error","http.route":"/cart"}`, SeriesKey: "error-cart", ServiceName: "api", SessionID: "s1"},
+	} {
+		if err := db.InsertMetric(&row); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=requests&service=api&sessionId=s1&attr.result=ok", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Data.Series) != 1 || resp.Data.Series[0].Key != "ok-cart" {
+		t.Fatalf("series = %+v, want only the complete ok-cart identity", resp.Data.Series)
+	}
+	if got := resp.Data.Dimensions["result"]; len(got) != 2 || got[0] != "error" || got[1] != "ok" {
+		t.Fatalf("dimension menu = %v, want all stream values", got)
 	}
 }
 

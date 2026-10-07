@@ -23,6 +23,51 @@ func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 	respond(w, entries, len(entries), 1)
 }
 
+// MetricCardinalityStream is the durable admission-budget state for one
+// metric stream. Arbitrary point attributes never appear here.
+type MetricCardinalityStream struct {
+	ServiceName string `json:"service_name"`
+	Name        string `json:"name"`
+	Active      int    `json:"active_series"`
+	Limit       int    `json:"limit"`
+}
+
+// GET /api/metrics/cardinality?sessionId=
+// This makes the trusted, persisted series budget inspectable without turning
+// untrusted OTLP attributes into an index or public query dimension.
+func (r *Router) getMetricCardinality(w http.ResponseWriter, req *http.Request) {
+	sessionID := r.scopeSession(req.URL.Query().Get("sessionId"))
+	rows, err := r.store.WithContext(req.Context()).MetricSeriesCatalog()
+	if err != nil {
+		respondErr(w, req, http.StatusInternalServerError, err.Error())
+		return
+	}
+	byStream := map[string]*MetricCardinalityStream{}
+	for _, row := range rows {
+		if sessionID != "" && row.SessionID != sessionID {
+			continue
+		}
+		key := row.Service + "\x00" + row.Name
+		stream := byStream[key]
+		if stream == nil {
+			stream = &MetricCardinalityStream{ServiceName: row.Service, Name: row.Name, Limit: 2000}
+			byStream[key] = stream
+		}
+		stream.Active++
+	}
+	out := make([]MetricCardinalityStream, 0, len(byStream))
+	for _, stream := range byStream {
+		out = append(out, *stream)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ServiceName == out[j].ServiceName {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].ServiceName < out[j].ServiceName
+	})
+	respond(w, out, len(out), 1)
+}
+
 // MetricSeriesPoint is an OTLP point plus an optional query-time derived value.
 // Histogram buckets are returned verbatim so quantiles and heatmaps are based on
 // observations rather than ingest-time estimates.
@@ -103,17 +148,20 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	for _, row := range rows {
 		attrs := map[string]any{}
 		_ = json.Unmarshal([]byte(row.SeriesAttributes), &attrs)
-		if !matchesMetricFilters(attrs, filters) {
-			continue
-		}
-		if out.ServiceName == "" {
-			out.ServiceName, out.Type, out.Unit, out.Description, out.AggregationTemporality, out.IsMonotonic = row.ServiceName, row.Type, row.Unit, row.Description, row.AggregationTemporality, row.IsMonotonic
-		}
+		// Dimension menus describe the stream, not merely the currently filtered
+		// result. That lets an operator replace one filter without first clearing
+		// every other selected label.
 		for k, v := range attrs {
 			if values[k] == nil {
 				values[k] = map[string]struct{}{}
 			}
 			values[k][stringifyMetricDimension(v)] = struct{}{}
+		}
+		if !matchesMetricFilters(attrs, filters) {
+			continue
+		}
+		if out.ServiceName == "" {
+			out.ServiceName, out.Type, out.Unit, out.Description, out.AggregationTemporality, out.IsMonotonic = row.ServiceName, row.Type, row.Unit, row.Description, row.AggregationTemporality, row.IsMonotonic
 		}
 		key := row.SeriesKey
 		if key == "" {

@@ -9,8 +9,6 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/zfogg/spaniel/internal/telemetry"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -141,37 +139,13 @@ type Hub struct {
 	// heartbeatInterval is how often each client's writePump emits a heartbeat.
 	// Set by NewHub; overridable in tests.
 	heartbeatInterval time.Duration
-
-	bytesSent     metric.Int64Counter
-	bytesReceived metric.Int64Counter
 }
 
 func NewHub() *Hub {
-	meter := otel.Meter("spaniel/ws")
-	sent, _ := meter.Int64Counter("spaniel.ws.bytes_sent",
-		metric.WithDescription("Total bytes sent to WebSocket clients"),
-		metric.WithUnit("By"),
-	)
-	received, _ := meter.Int64Counter("spaniel.ws.bytes_received",
-		metric.WithDescription("Total bytes received from WebSocket clients"),
-		metric.WithUnit("By"),
-	)
 	h := &Hub{
 		clients:           make(map[*client]struct{}),
 		heartbeatInterval: defaultHeartbeatInterval,
-		bytesSent:         sent,
-		bytesReceived:     received,
 	}
-	_, _ = meter.Int64ObservableGauge("spaniel.ws.connections",
-		metric.WithDescription("Active WebSocket connections"),
-		metric.WithUnit("{connection}"),
-		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
-			h.mu.RLock()
-			o.Observe(int64(len(h.clients)))
-			h.mu.RUnlock()
-			return nil
-		}),
-	)
 	return h
 }
 
@@ -225,7 +199,7 @@ func (h *Hub) readPump(ctx context.Context, c *client) {
 		if err != nil {
 			return
 		}
-		h.bytesReceived.Add(ctx, int64(len(data)))
+		telemetry.Catalog().RecordWebSocketMessageReceived(ctx, int64(len(data)))
 	}
 }
 
@@ -266,7 +240,7 @@ func (h *Hub) writeFrame(ctx context.Context, c *client, data []byte) bool {
 		c.cancel()
 		return false
 	}
-	h.bytesSent.Add(ctx, int64(len(data)))
+	telemetry.Catalog().RecordWebSocketMessageSent(ctx, "frame", int64(len(data)))
 	return true
 }
 

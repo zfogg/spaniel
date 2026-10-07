@@ -256,6 +256,13 @@ export const MetricSeriesSchema = z.object({
   traces: z.array(TraceOverlaySchema),
 })
 
+export const MetricCardinalityStreamSchema = z.object({
+	service_name: z.string(),
+	name: z.string(),
+	active_series: z.number(),
+	limit: z.number(),
+})
+
 export const CoverageRouteSchema = z.object({
   method: z.string(),
   path: z.string(),
@@ -473,6 +480,7 @@ export type MetricSeriesExemplar = z.infer<typeof MetricSeriesExemplarSchema>
 export type MetricSeriesPoint = z.infer<typeof MetricSeriesPointSchema>
 export type TraceOverlay = z.infer<typeof TraceOverlaySchema>
 export type MetricSeries = z.infer<typeof MetricSeriesSchema>
+export type MetricCardinalityStream = z.infer<typeof MetricCardinalityStreamSchema>
 export type CoverageRoute = z.infer<typeof CoverageRouteSchema>
 export type ServiceCoverage = z.infer<typeof ServiceCoverageSchema>
 export type CoverageReport = z.infer<typeof CoverageReportSchema>
@@ -695,7 +703,8 @@ export const api = {
   metrics: {
     list: (sessionId?: string) =>
       get(`/api/metrics${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(MetricCatalogEntrySchema)),
-    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number; operation?: string; withTraces?: boolean }) => {
+		cardinality: (sessionId?: string) => get(`/api/metrics/cardinality${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(MetricCardinalityStreamSchema)),
+    series: (params: { name: string; service?: string; sessionId?: string; from?: number; to?: number; operation?: string; withTraces?: boolean; dimensionFilters?: Record<string, string> }) => {
       const q = new URLSearchParams({ name: params.name })
       if (params.service) q.set('service', params.service)
       if (params.sessionId) q.set('sessionId', params.sessionId)
@@ -703,6 +712,7 @@ export const api = {
       if (params.to) q.set('to', String(params.to))
       if (params.operation) q.set('operation', params.operation)
       if (params.withTraces) q.set('with_traces', '1')
+			for (const [key, value] of Object.entries(params.dimensionFilters ?? {})) q.set(`attr.${key}`, value)
       return get(`/api/metrics/series?${q}`, MetricSeriesSchema)
     },
   },

@@ -41,6 +41,7 @@ type MetricCatalogFixture = Omit<MetricCatalogEntry, 'last_timestamp_ns'> & Part
 function setup(opts: { catalog?: MetricCatalogFixture[]; series?: Record<string, MetricSeries> }) {
   routes = {
     '/api/metrics': { data: (opts.catalog ?? []).map((metric, index) => ({ ...metric, last_timestamp_ns: metric.last_timestamp_ns ?? index })), meta: { total: 0, page: 1 } },
+    '/api/metrics/cardinality': { data: [], meta: { total: 0, page: 1 } },
   }
   for (const [key, series] of Object.entries(opts.series ?? {})) {
     routes['/api/metrics/series?' + key] = { data: series, meta: { total: 0, page: 1 } }

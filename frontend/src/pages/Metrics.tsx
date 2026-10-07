@@ -412,11 +412,16 @@ export default function Metrics() {
   const [typeSel, setTypeSel] = useState<string | null>(null)
   const [range, setRange] = useState<TimeRange>('1h')
 	const [operation, setOperation] = useState('raw')
+	const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({})
 
   const { data: catalog = [], isLoading: loading, isError, error, refetch } = useQuery({
     queryKey: qk.metrics(),
     queryFn: () => api.metrics.list().then(r => r.data ?? []),
   })
+	const { data: cardinality = [] } = useQuery({
+		queryKey: ['metric-cardinality'],
+		queryFn: () => api.metrics.cardinality().then(r => r.data ?? []),
+	})
 
   const selectedName = searchParams.get('metric')
   const selectedService = searchParams.get('service')
@@ -424,12 +429,16 @@ export default function Metrics() {
     if (!selectedName || !selectedService) return null
     return catalog.find(metric => metric.name === selectedName && metric.service_name === selectedService) ?? null
   }, [catalog, selectedName, selectedService])
+	const selectedCardinality = useMemo(() => cardinality.find(stream => stream.name === selected?.name && stream.service_name === selected?.service_name), [cardinality, selected?.name, selected?.service_name])
 
   // A direct metric URL bypasses selectMetric(), so it must establish the
   // same useful default as a sidebar click. Histogram rows keep value=0 as a
   // transport placeholder; their real visual value is a bucket percentile.
   useEffect(() => {
-    if (selected) setOperation(defaultMetricOperation(selected))
+    if (selected) {
+			setOperation(defaultMetricOperation(selected))
+			setDimensionFilters({})
+		}
   }, [selectedName, selectedService, selected?.type])
 
   useSelectedMetricLiveRefresh(selected, range, operation)
@@ -453,9 +462,9 @@ export default function Metrics() {
   // `range` (not the computed `from`) is the key input so we don't refetch on
   // every render; matching WebSocket metric events refresh this active series.
   const { data: series = null, isLoading: seriesLoading, isError: seriesIsError, error: seriesError, refetch: refetchSeries } = useQuery({
-    queryKey: qk.metricSeries({ name: selected?.name, service: selected?.service_name, range, operation }),
+		queryKey: qk.metricSeries({ name: selected?.name, service: selected?.service_name, range, operation, dimensionFilters }),
     queryFn: () => api.metrics
-		.series({ name: selected!.name, service: selected!.service_name, operation, withTraces: true, from: rangeFromNs(range) })
+		.series({ name: selected!.name, service: selected!.service_name, operation, withTraces: true, from: rangeFromNs(range), dimensionFilters })
       .then(r => r.data),
     enabled: !!selected,
   })
@@ -594,12 +603,13 @@ export default function Metrics() {
         <div className="px-3 py-2 border-t border-border bg-[var(--surface2)] font-mono text-[10px] text-muted-foreground flex gap-2.5 items-center shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_0_3px_color-mix(in_oklch,_#22c55e_30%,_transparent)]" />
           <span>otlp/metrics · last {range}</span>
+			{selectedCardinality && <span className="ml-auto" title="Only allowlisted labels can create indexed metric series">series {selectedCardinality.active_series} / {selectedCardinality.limit}</span>}
         </div>
       </div>
 
       {/* main panel */}
       <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col bg-[var(--surface)]">
-		{series && selected ? <MainPanel series={series} range={range} onRangeChange={setRange} operation={operation} onOperationChange={setOperation} /> : selected && seriesLoading ? (
+		{series && selected ? <MainPanel series={series} range={range} onRangeChange={setRange} operation={operation} onOperationChange={setOperation} dimensionFilters={dimensionFilters} onDimensionFiltersChange={setDimensionFilters} /> : selected && seriesLoading ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Loading selected metric…</div>
         ) : selected && seriesIsError ? (
           <ErrorState what="selected metric" error={seriesError} onRetry={() => refetchSeries()} />
@@ -611,11 +621,10 @@ export default function Metrics() {
   )
 }
 
-function MainPanel({ series, range, onRangeChange, operation, onOperationChange }: { series: MetricSeries; range: TimeRange; onRangeChange: (r: TimeRange) => void; operation: string; onOperationChange: (op: string) => void }) {
+function MainPanel({ series, range, onRangeChange, operation, onOperationChange, dimensionFilters, onDimensionFiltersChange }: { series: MetricSeries; range: TimeRange; onRangeChange: (r: TimeRange) => void; operation: string; onOperationChange: (op: string) => void; dimensionFilters: Record<string, string>; onDimensionFiltersChange: (filters: Record<string, string>) => void }) {
 	// The server never merges attribute variants. Until a group is selected the
 	// chart shows a complete identity, never an accidental cross-series sum.
 	const [seriesIndex, setSeriesIndex] = useState(0)
-	const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({})
 	const [labelsOpen, setLabelsOpen] = useState(false)
 	const [variantsOpen, setVariantsOpen] = useState(false)
 	// Prefer a series that has observations for the selected operation. HTTP
@@ -688,7 +697,7 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange 
 					</button>
 					{variantsOpen && <div className="absolute z-20 top-[calc(100%+6px)] left-0 min-w-[360px] max-w-[min(680px,calc(100vw-3rem))] rounded-lg border border-border bg-[var(--surface)] shadow-lg p-2.5">
 						<div className="flex flex-wrap gap-2 pb-2.5 border-b border-border">
-							{Object.entries(series.dimensions ?? {}).map(([key, values]) => <label key={key} className="font-mono text-[10px] text-muted-foreground">{key}<select value={dimensionFilters[key] ?? ''} onChange={event => { const next = { ...dimensionFilters }; if (event.target.value) next[key] = event.target.value; else delete next[key]; setDimensionFilters(next); setSeriesIndex(0) }} className="ml-1 bg-[var(--surface2)] border border-border rounded px-1 py-0.5 text-foreground"><option value="">all</option>{values.map(value => <option key={value} value={value}>{value}</option>)}</select></label>)}
+							{Object.entries(series.dimensions ?? {}).map(([key, values]) => <label key={key} className="font-mono text-[10px] text-muted-foreground">{key}<select value={dimensionFilters[key] ?? ''} onChange={event => { const next = { ...dimensionFilters }; if (event.target.value) next[key] = event.target.value; else delete next[key]; onDimensionFiltersChange(next); setSeriesIndex(0) }} className="ml-1 bg-[var(--surface2)] border border-border rounded px-1 py-0.5 text-foreground"><option value="">all</option>{values.map(value => <option key={value} value={value}>{value}</option>)}</select></label>)}
 						</div>
 						<div className="mt-2 flex flex-col gap-1 max-h-64 overflow-y-auto">
 							{candidates.map((candidate, index) => {

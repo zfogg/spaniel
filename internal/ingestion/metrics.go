@@ -74,6 +74,7 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 		if !admitted {
 			seriesAttrs = "{}"
 			telemetry.Catalog().RecordCardinalityLimited(ctx, "new_series_budget", 1)
+			telemetry.Catalog().RecordIngestSeriesLimited(ctx, "metrics")
 		}
 		if limitedAttrs > 0 {
 			telemetry.Catalog().RecordCardinalityLimited(ctx, "attribute_not_indexed", int64(limitedAttrs))
