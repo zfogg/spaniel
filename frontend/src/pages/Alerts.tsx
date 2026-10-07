@@ -1897,9 +1897,9 @@ function AlertEditor({
           </h3>
           <Link
             to="/docs/database-schema"
-            className="rounded border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted"
+            className="rounded border border-[#b7cddd] bg-[#e8f3fa] px-2.5 py-1 text-[10px] font-medium text-[#315d7e] hover:bg-[#d8eaf5] dark:border-border dark:bg-accent-bg dark:text-accent-ink"
           >
-            Schema &amp; SQL
+            Schema &amp; SQL docs
           </Link>
         </div>
         <SqlEditor
@@ -2031,13 +2031,21 @@ function AlertEditor({
           />
         </label>
         <div className="col-span-2 rounded border border-border bg-muted/30 p-3">
-          <label className="block text-sm font-medium">
-            Instance discovery query
-            <span className="mt-1 block text-xs font-normal text-muted-foreground">
-              Optional. Periodically discovers expected group labels, so a group remains an instance
-              even while its telemetry is absent. It must return every Group by column.
-            </span>
-          </label>
+          <div className="flex items-start justify-between gap-3">
+            <label className="block text-sm font-medium">
+              Instance discovery query
+              <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                Optional. Periodically discovers expected group labels, so a group remains an
+                instance even while its telemetry is absent. It must return every Group by column.
+              </span>
+            </label>
+            <Link
+              to="/docs/database-schema"
+              className="shrink-0 rounded border border-[#b7cddd] bg-[#e8f3fa] px-2.5 py-1 text-[10px] font-medium text-[#315d7e] hover:bg-[#d8eaf5] dark:border-border dark:bg-accent-bg dark:text-accent-ink"
+            >
+              Schema &amp; SQL docs
+            </Link>
+          </div>
           <div className="mt-2">
             <SqlEditor
               value={draft.discoveryQuery}

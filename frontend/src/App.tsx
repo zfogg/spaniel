@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { ChevronDown, ChevronRight, Moon, Sun, Search } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPalette } from '@/components/CommandPalette'
 import { SEARCH_PALETTE_EVENT } from '@/lib/shortcuts'
@@ -97,18 +97,52 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
 }
 
 function DocsMenu() {
-  const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [fading, setFading] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearTimers = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    if (fadeTimer.current) clearTimeout(fadeTimer.current)
+    closeTimer.current = null
+    fadeTimer.current = null
+  }
+
+  const show = () => {
+    clearTimers()
+    setVisible(true)
+    setFading(false)
+  }
+
+  const scheduleClose = () => {
+    clearTimers()
+    closeTimer.current = setTimeout(() => {
+      setFading(true)
+      fadeTimer.current = setTimeout(() => {
+        setVisible(false)
+        setFading(false)
+      }, 220)
+    }, 2000)
+  }
+
+  useEffect(() => clearTimers, [])
+
   return (
-    <div className="relative" onMouseEnter={() => setOpen(true)}>
+    <div className="relative" onMouseEnter={show} onMouseLeave={scheduleClose}>
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={show}
         className="inline-flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-muted-foreground hover:text-foreground"
       >
-        Docs {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        Docs {visible && !fading ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
       </button>
-      {open && (
-        <div className="absolute left-0 top-full z-50 w-48 rounded-md border border-border bg-background p-1 shadow-lg">
+      {visible && (
+        <div
+          className={`absolute left-0 top-full z-[60] w-48 rounded-md border border-border bg-background p-1 shadow-lg transition-opacity duration-200 ease-out ${
+            fading ? 'pointer-events-none opacity-0' : 'opacity-100'
+          }`}
+        >
           <NavLink
             to="/docs/openapi"
             className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
