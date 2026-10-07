@@ -53,15 +53,6 @@ import (
 // init() falls back to the VCS metadata Go embeds in the binary.
 var version = "dev"
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 // spaHandler serves a React SPA with client-side routing.
 // Falls back to index.html for any request that doesn't match a static asset.
 type spaHandler struct {
@@ -146,31 +137,31 @@ func main() {
 
 	var (
 		// flag variables — overrides over config file values when explicitly set
-		port                  int
-		dev                   bool
-		dbPath                string
-		dashboardsDir         string
-		noBrowser             bool
-		apiBase               string
-		retentionDays         int
-		maxSessions           int
-		maxDBSizeMB           int
-		advanceSessionOnStart bool
-		forwardURLs           []string
-		routesFile            string
-		tlsCert               string
-		tlsKey                string
-		bearerToken           string
-		sampleRate            int
-		sampleAlwaysKeep      string
-		sourceRPS             float64
-		sourceBurst           int
-		forwardSpoolDir       string
-		forwardMaxSpoolMB     int
-		forwardRetryMax       time.Duration
-		debugMode             bool
-		mcpEnabled            bool
-		mcpAllowWrites        bool
+		port              int
+		dev               bool
+		dbPath            string
+		dashboardsDir     string
+		alertsDir         string
+		noBrowser         bool
+		apiBase           string
+		retentionDays     int
+		maxSessions       int
+		maxDBSizeMB       int
+		forwardURLs       []string
+		routesFile        string
+		tlsCert           string
+		tlsKey            string
+		bearerToken       string
+		sampleRate        int
+		sampleAlwaysKeep  string
+		sourceRPS         float64
+		sourceBurst       int
+		forwardSpoolDir   string
+		forwardMaxSpoolMB int
+		forwardRetryMax   time.Duration
+		debugMode         bool
+		mcpEnabled        bool
+		mcpAllowWrites    bool
 	)
 
 	root := &cobra.Command{
@@ -184,11 +175,11 @@ func main() {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, tlsCert, tlsKey, bearerToken)
-			if f := cmd.Flags().Lookup("advance-session-on-start"); f != nil && f.Changed {
-				cfg.AdvanceSessionOnStart = advanceSessionOnStart
-			}
 			if f := cmd.Flags().Lookup("dashboards-dir"); f != nil && f.Changed {
 				cfg.DashboardsDir = expandHome(dashboardsDir)
+			}
+			if f := cmd.Flags().Lookup("alerts-dir"); f != nil && f.Changed {
+				cfg.AlertsDir = expandHome(alertsDir)
 			}
 			cfg.RoutesFile = routesFile
 			if f := cmd.Flags().Lookup("sample-rate"); f != nil && f.Changed {
@@ -218,10 +209,10 @@ func main() {
 
 	root.PersistentFlags().StringVar(&dbPath, "db-path", "", "Path to DuckDB file")
 	root.Flags().StringVar(&dashboardsDir, "dashboards-dir", "", "Directory of dashboard YAML files (default ~/.spaniel/dashboards)")
+	root.Flags().StringVar(&alertsDir, "alerts-dir", "", "Directory of alert YAML files (default ~/.spaniel/alerts)")
 	root.PersistentFlags().IntVar(&retentionDays, "retention", 0, "Delete sessions older than N days (0 = use config)")
 	root.PersistentFlags().IntVar(&maxSessions, "max-sessions", 0, "Keep at most N sessions (0 = use config)")
 	root.PersistentFlags().IntVar(&maxDBSizeMB, "max-db-size", 0, "Shrink DB to at most N MB (0 = use config)")
-	root.Flags().BoolVar(&advanceSessionOnStart, "advance-session-on-start", true, "Start a new session on server startup")
 	root.Flags().IntVar(&port, "port", 0, "HTTP server port (default 8080)")
 	root.Flags().BoolVar(&dev, "dev", false, "Proxy UI to Vite dev server on :5173")
 	root.Flags().BoolVar(&noBrowser, "no-browser", false, "Do not open browser on startup")
@@ -371,33 +362,6 @@ Examples:
 	resetCmd.Flags().BoolVar(&resetYes, "yes", false, "Confirm: yes, delete everything")
 	root.AddCommand(resetCmd)
 
-	// cleanup-db-query is intentionally exact: it repairs old generic storage
-	// spans without deleting their surrounding traces or unrelated telemetry.
-	var cleanupDBQueryYes bool
-	cleanupDBQueryCmd := &cobra.Command{
-		Use:   "cleanup-db-query",
-		Short: "Delete persisted spans named db.query",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cleanupDBQueryYes {
-				return fmt.Errorf("refusing to delete db.query spans without --yes")
-			}
-			cfg := resolveConfig(v, cmd, port, dev, dbPath, noBrowser, retentionDays, maxSessions, maxDBSizeMB, forwardURLs, "", "", "")
-			store, err := storage.Open(cfg.DBPath)
-			if err != nil {
-				return err
-			}
-			defer store.Close()
-			deleted, err := store.DeleteSpansNamed("db.query")
-			if err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "deleted %d db.query spans\n", deleted)
-			return nil
-		},
-	}
-	cleanupDBQueryCmd.Flags().BoolVar(&cleanupDBQueryYes, "yes", false, "Confirm: yes, delete only db.query spans")
-	root.AddCommand(cleanupDBQueryCmd)
-
 	// config subcommand
 	root.AddCommand(configSubcommand(v))
 	root.AddCommand(ciSubcommand())
@@ -423,13 +387,12 @@ type runConfig struct {
 	Dev                   bool
 	DBPath                string
 	DashboardsDir         string
+	AlertsDir             string
 	NoBrowser             bool
 	RetentionDays         int
 	MaxSessions           int
 	MaxDBSizeMB           int
 	AutoPrune             bool
-	AdvanceSessionOnStart bool
-	ActiveSessionID       string
 	ForwardURLs           []string
 	ForwardSample         float64
 	RoutesFile            string
@@ -454,6 +417,8 @@ type runConfig struct {
 	Debug                 bool
 	MCPEnabled            bool
 	MCPAllowWrites        bool
+	AlertsBrowserEnabled  bool
+	AlertsPushoverEnabled bool
 	Viper                 *viper.Viper
 }
 
@@ -465,13 +430,12 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		Dev:                   dev,
 		DBPath:                expandHome(v.GetString("db_path")),
 		DashboardsDir:         expandHome(v.GetString("dashboards_dir")),
+		AlertsDir:             expandHome(v.GetString("alerts_dir")),
 		NoBrowser:             v.GetBool("no_browser"),
 		RetentionDays:         v.GetInt("retention_days"),
 		MaxSessions:           v.GetInt("max_sessions"),
 		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
 		AutoPrune:             v.GetBool("auto_prune"),
-		AdvanceSessionOnStart: v.GetBool("advance_session_on_start"),
-		ActiveSessionID:       v.GetString("active_session_id"),
 		ForwardURLs:           v.GetStringSlice("forward"),
 		ForwardSample:         v.GetFloat64("forward_sample"),
 		ForwardSpoolDir:       v.GetString("forward_spool_dir"),
@@ -494,6 +458,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		SelfMonitor:           v.GetBool("self_monitor"),
 		MCPEnabled:            v.GetBool("mcp_enabled"),
 		MCPAllowWrites:        v.GetBool("mcp_allow_writes"),
+		AlertsBrowserEnabled:  v.GetBool("alerts.browser_enabled"),
+		AlertsPushoverEnabled: v.GetBool("alerts.pushover_enabled"),
 	}
 	// CLI flags override if explicitly set (non-zero sentinel)
 	if f := cmd.Flags().Lookup("port"); f != nil && f.Changed {
@@ -652,28 +618,16 @@ func run(cfg runConfig) error {
 	if err := loadDashboardDefinitions(store, cfg.DashboardsDir); err != nil {
 		return err
 	}
+	if err := loadAlertDefinitions(store, cfg.AlertsDir); err != nil {
+		return err
+	}
 	_ = store.SetSpanielVersion(version)
 
-	var sess *storage.Session
-	if !cfg.AdvanceSessionOnStart && cfg.ActiveSessionID != "" {
-		sess, err = store.GetSession(cfg.ActiveSessionID)
-		if err != nil {
-			return fmt.Errorf("load active session: %w", err)
-		}
-	}
-	if sess == nil {
-		sess, err = store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
-		if err != nil {
-			return fmt.Errorf("create session: %w", err)
-		}
+	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
+	if err != nil {
+		return fmt.Errorf("create session: %w", err)
 	}
 	store.SetActiveSession(sess.ID, sess.Label)
-	if cfg.Viper != nil && cfg.ActiveSessionID != sess.ID {
-		cfg.Viper.Set("active_session_id", sess.ID)
-		if err := configSetKey("active_session_id", sess.ID); err != nil {
-			return fmt.Errorf("persist active session: %w", err)
-		}
-	}
 
 	storagePolicy := newStorageGuardPolicy(int64(cfg.MaxDBSizeMB)*1024*1024, cfg.AutoPrune)
 	telemetry.Catalog().SetStorageDBSizeLimit(int64(cfg.MaxDBSizeMB) * 1024 * 1024)
@@ -896,10 +850,6 @@ func run(cfg runConfig) error {
 		BearerTokenSet: cfg.BearerToken != "",
 		MCPEnabled:     cfg.MCPEnabled,
 		MCPAllowWrites: cfg.MCPAllowWrites,
-		PersistActiveSession: func(id string) error {
-			cfg.Viper.Set("active_session_id", id)
-			return configSetKey("active_session_id", id)
-		},
 		LiveGRPCPort: func() int {
 			grpcLS.mu.Lock()
 			defer grpcLS.mu.Unlock()
@@ -916,6 +866,9 @@ func run(cfg runConfig) error {
 			storagePolicy.Update(int64(maxDBSizeMB)*1024*1024, autoPrune)
 			telemetry.Catalog().SetStorageDBSizeLimit(int64(maxDBSizeMB) * 1024 * 1024)
 		},
+		ReloadAlerts: func() error {
+			return loadAlertDefinitions(store, expandHome(cfg.Viper.GetString("alerts_dir")))
+		},
 		SetSelfMonitor: func(enabled bool) error {
 			var endpoint string
 			if enabled {
@@ -930,19 +883,6 @@ func run(cfg runConfig) error {
 			return setupOTel(endpoint)
 		},
 	}
-	api.ConfigureAlertDelivery(api.AlertDelivery{
-		BrowserEnabled:   func() bool { return cfg.Viper.GetBool("alerts.browser_enabled") },
-		PushoverEnabled:  func() bool { return cfg.Viper.GetBool("alerts.pushover_enabled") },
-		BrowserTemplate:  func() string { return cfg.Viper.GetString("alerts.browser_template") },
-		PushoverTemplate: func() string { return cfg.Viper.GetString("alerts.pushover_template") },
-		PushoverUserKey:  firstNonEmpty(os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"), cfg.Viper.GetString("alerts.pushover_user_key")),
-		PushoverAPIToken: firstNonEmpty(os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"), cfg.Viper.GetString("alerts.pushover_api_token")),
-		RecordEvent: func(event *storage.AlertEvent) {
-			if err := store.RecordAlertEvent(event); err != nil {
-				slog.Warn("record alert delivery event", "err", err)
-			}
-		},
-	})
 	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters(), pipeline)
 
 	var uiHandler http.Handler
@@ -1052,6 +992,7 @@ func run(cfg runConfig) error {
 	}()
 
 	ctx, stop := notifyShutdown(context.Background(), os.Interrupt, syscall.SIGTERM)
+	api.ConfigureAlertDelivery(api.AlertDelivery{BrowserEnabled: func() bool { return cfg.Viper.GetBool("alerts.browser_enabled") }, PushoverEnabled: func() bool { return cfg.Viper.GetBool("alerts.pushover_enabled") }, BrowserTemplate: func() string { return cfg.Viper.GetString("alerts.browser_template") }, PushoverTemplate: func() string { return cfg.Viper.GetString("alerts.pushover_template") }, PushoverUserKey: os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"), PushoverAPIToken: os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"), RecordEvent: func(e *storage.AlertEvent) { _ = store.RecordAlertEvent(e) }, RecordNotification: func(n *storage.NotificationRecord) { _ = store.RecordNotification(n) }})
 	api.StartAlertEvaluator(ctx, store, hub, 15*time.Second)
 	defer stop()
 

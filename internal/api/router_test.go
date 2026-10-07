@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -393,5 +394,61 @@ func TestErrorIncludesRequestID(t *testing.T) {
 	}
 	if _, ok := body["error"]; !ok {
 		t.Errorf("error field missing from body: %v", body)
+	}
+}
+
+func TestListAlertsPaginatesAndPromotesFiringRules(t *testing.T) {
+	handler, store := setupRouter(t)
+	for i := range 16 {
+		id := fmt.Sprintf("rule-%02d", i)
+		if err := store.CreateAlertRule(&storage.AlertRule{
+			ID:            id,
+			Name:          id,
+			QuerySQL:      "SELECT 0 AS value",
+			ConditionJSON: `{"kind":"threshold","operator":">","value":1}`,
+			GroupByJSON:   `[]`,
+			Enabled:       true,
+		}); err != nil {
+			t.Fatalf("create %s: %v", id, err)
+		}
+	}
+	firedAt := time.Now().UnixNano()
+	if err := store.UpsertAlertInstance(&storage.AlertInstance{
+		RuleID:          "rule-15",
+		GroupKey:        "all",
+		State:           "firing",
+		FiredAt:         &firedAt,
+		LastEvaluatedAt: firedAt,
+	}); err != nil {
+		t.Fatalf("create firing instance: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/alerts?state=all&page=1&limit=15", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d: %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		Data struct {
+			Items []struct {
+				ID string `json:"id"`
+			} `json:"items"`
+			Summary alertListSummary `json:"summary"`
+		} `json:"data"`
+		Meta struct {
+			Total int `json:"total"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if response.Meta.Total != 16 || len(response.Data.Items) != 15 {
+		t.Fatalf("page = %d items, total = %d; want 15, 16", len(response.Data.Items), response.Meta.Total)
+	}
+	if response.Data.Items[0].ID != "rule-15" {
+		t.Fatalf("first rule = %q, want newly firing rule-15", response.Data.Items[0].ID)
+	}
+	if response.Data.Summary.RuleCounts["firing"] != 1 || response.Data.Summary.RuleCounts["resolved"] != 15 {
+		t.Fatalf("unexpected rule summary: %#v", response.Data.Summary.RuleCounts)
 	}
 }

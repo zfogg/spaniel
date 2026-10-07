@@ -192,33 +192,30 @@ func migrations() []*gormigrate.Migration {
 			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0018_telemetry_views.sql") },
 		},
 		{
-			ID:      "0028_alert_history_notifications",
-			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0028_alert_history_notifications.sql") },
+			ID:      "0019_alert_history_notifications",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0019_alert_history_notifications.sql") },
 		},
 		{
-			ID:      "0029_alert_instance_silences",
-			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0029_alert_instance_silences.sql") },
+			ID:      "0020_alert_instance_silences",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0020_alert_instance_silences.sql") },
 		},
 		{
-			ID:      "0030_alert_evaluation_reliability",
-			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0030_alert_evaluation_reliability.sql") },
+			ID:      "0021_alert_evaluation_reliability",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0021_alert_evaluation_reliability.sql") },
 		},
 		{
-			ID:      "0031_alert_yaml_provenance",
-			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0031_alert_yaml_provenance.sql") },
+			ID:      "0022_alert_yaml_provenance",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0022_alert_yaml_provenance.sql") },
 		},
 		{
-			ID:      "0032_alert_ownership_repeat",
-			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0032_alert_ownership_repeat.sql") },
+			ID:      "0023_alert_ownership_repeat",
+			Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0023_alert_ownership_repeat.sql") },
 		},
-		{ID: "0033_alert_acknowledgement_note", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0033_alert_acknowledgement_note.sql") }},
-		{ID: "0034_remove_alert_ownership", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0034_remove_alert_ownership.sql") }},
-		{ID: "0035_alert_timestamp_nanoseconds", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0035_alert_timestamp_nanoseconds.sql") }},
-		{ID: "0036_prune_alert_evaluation_events", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0036_prune_alert_evaluation_events.sql") }},
+		{ID: "0024_alert_acknowledgement_note", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0024_alert_acknowledgement_note.sql") }},
 		{ID: "0025_alert_instance_state_index", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0025_alert_instance_state_index.sql") }},
 		{ID: "0026_alert_instance_discovery", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0026_alert_instance_discovery.sql") }},
-		{ID: "0027_dashboard_panel_order", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0027_dashboard_panel_order.sql") }},
-		{ID: "0037_public_telemetry_views", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0037_public_telemetry_views.sql") }},
+		{ID: "0027_alert_delivery_timestamps", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0027_alert_delivery_timestamps.sql") }},
+		{ID: "0028_notification_inbox", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0028_notification_inbox.sql") }},
 	}
 }
 
@@ -279,31 +276,22 @@ func (d *DB) migrate() error {
 		if err := execMigrationFile(tx, "0018_telemetry_views.sql"); err != nil {
 			return err
 		}
-		if err := execMigrationFile(tx, "0028_alert_history_notifications.sql"); err != nil {
+		if err := execMigrationFile(tx, "0019_alert_history_notifications.sql"); err != nil {
 			return err
 		}
-		if err := execMigrationFile(tx, "0029_alert_instance_silences.sql"); err != nil {
+		if err := execMigrationFile(tx, "0020_alert_instance_silences.sql"); err != nil {
 			return err
 		}
-		if err := execMigrationFile(tx, "0030_alert_evaluation_reliability.sql"); err != nil {
+		if err := execMigrationFile(tx, "0021_alert_evaluation_reliability.sql"); err != nil {
 			return err
 		}
-		if err := execMigrationFile(tx, "0031_alert_yaml_provenance.sql"); err != nil {
+		if err := execMigrationFile(tx, "0022_alert_yaml_provenance.sql"); err != nil {
 			return err
 		}
-		if err := execMigrationFile(tx, "0032_alert_ownership_repeat.sql"); err != nil {
+		if err := execMigrationFile(tx, "0023_alert_ownership_repeat.sql"); err != nil {
 			return err
 		}
-		if err := execMigrationFile(tx, "0033_alert_acknowledgement_note.sql"); err != nil {
-			return err
-		}
-		if err := execMigrationFile(tx, "0034_remove_alert_ownership.sql"); err != nil {
-			return err
-		}
-		if err := execMigrationFile(tx, "0035_alert_timestamp_nanoseconds.sql"); err != nil {
-			return err
-		}
-		if err := execMigrationFile(tx, "0036_prune_alert_evaluation_events.sql"); err != nil {
+		if err := execMigrationFile(tx, "0024_alert_acknowledgement_note.sql"); err != nil {
 			return err
 		}
 		if err := execMigrationFile(tx, "0025_alert_instance_state_index.sql"); err != nil {
@@ -312,10 +300,10 @@ func (d *DB) migrate() error {
 		if err := execMigrationFile(tx, "0026_alert_instance_discovery.sql"); err != nil {
 			return err
 		}
-		if err := execMigrationFile(tx, "0027_dashboard_panel_order.sql"); err != nil {
+		if err := execMigrationFile(tx, "0027_alert_delivery_timestamps.sql"); err != nil {
 			return err
 		}
-		return execMigrationFile(tx, "0037_public_telemetry_views.sql")
+		return execMigrationFile(tx, "0028_notification_inbox.sql")
 	})
 	if err := m.Migrate(); err != nil {
 		return err

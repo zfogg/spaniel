@@ -21,7 +21,11 @@ type AlertDelivery struct {
 	PushoverTemplate func() string
 	PushoverUserKey  string
 	PushoverAPIToken string
-	RecordEvent      func(*storage.AlertEvent)
+	// PushoverTransport exists so delivery can be tested without a network
+	// dependency. Nil uses the production Pushover client.
+	PushoverTransport  func(title, body string, priority int) error
+	RecordEvent        func(*storage.AlertEvent)
+	RecordNotification func(*storage.NotificationRecord)
 }
 
 var alertDelivery struct {
@@ -58,13 +62,27 @@ func deliverPushover(rule *storage.AlertRule, instance *storage.AlertInstance, t
 	case "info":
 		m.Priority = pushover.PriorityLow
 	}
-	_, err := pushover.New(d.PushoverAPIToken).SendMessage(m, pushover.NewRecipient(d.PushoverUserKey))
-	if err != nil {
-		log.Printf("alert pushover delivery failed rule=%q group=%q transition=%s: %v", rule.ID, instance.GroupKey, transition, err)
-		if d.RecordEvent != nil {
-			d.RecordEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: "notification_pushover_failed", State: instance.State, Value: instance.Value, Detail: err.Error()})
+	if d.RecordEvent != nil {
+		d.RecordEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: "notification_pushover_attempted", State: instance.State, Value: instance.Value, Detail: body})
+	}
+	if d.PushoverTransport != nil {
+		err := d.PushoverTransport(m.Title, body, int(m.Priority))
+		if err != nil {
+			log.Printf("alert pushover delivery failed rule=%q group=%q transition=%s: %v", rule.ID, instance.GroupKey, transition, err)
+			if d.RecordEvent != nil {
+				d.RecordEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: "notification_pushover_failed", State: instance.State, Value: instance.Value, Detail: err.Error()})
+			}
+			return err
 		}
-		return err
+	} else {
+		_, err := pushover.New(d.PushoverAPIToken).SendMessage(m, pushover.NewRecipient(d.PushoverUserKey))
+		if err != nil {
+			log.Printf("alert pushover delivery failed rule=%q group=%q transition=%s: %v", rule.ID, instance.GroupKey, transition, err)
+			if d.RecordEvent != nil {
+				d.RecordEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: "notification_pushover_failed", State: instance.State, Value: instance.Value, Detail: err.Error()})
+			}
+			return err
+		}
 	}
 	log.Printf("alert pushover delivery sent rule=%q group=%q transition=%s", rule.ID, instance.GroupKey, transition)
 	if d.RecordEvent != nil {

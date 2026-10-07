@@ -1,7 +1,6 @@
 package api
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
@@ -11,6 +10,7 @@ import (
 	"github.com/zfogg/spaniel/internal/ws"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -50,10 +50,6 @@ func (r *Router) importAlertConfig(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 400, e.Error())
 		return
 	}
-	if e = validateAlertRuleSemantics(x); e != nil {
-		respondErr(w, q, 400, e.Error())
-		return
-	}
 	if existing, err := r.store.WithContext(q.Context()).GetAlertRule(x.ID); err == nil && existing.SourceFile != "" {
 		respondErr(w, q, http.StatusConflict, "alert is managed by YAML file "+existing.SourceFile+"; edit the file and reload it")
 		return
@@ -73,6 +69,8 @@ type alertInput struct {
 	PendingForNs      int64                   `json:"pending_for_ns"`
 	CooldownNs        int64                   `json:"cooldown_ns"`
 	RepeatIntervalNs  int64                   `json:"repeat_interval_ns"`
+	Owner             string                  `json:"owner" validate:"max=120"`
+	Team              string                  `json:"team" validate:"max=120"`
 	Severity          string                  `json:"severity" validate:"omitempty,oneof=info warning critical"`
 	Enabled           *bool                   `json:"enabled"`
 	BrowserEnabled    *bool                   `json:"browser_enabled"`
@@ -96,36 +94,20 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	}
 	var condition alertCondition
 	conditionJSON, _ := json.Marshal(in.Condition)
-	if err := json.Unmarshal(conditionJSON, &condition); err != nil {
+	if err := json.Unmarshal(conditionJSON, &condition); err != nil ||
+		((condition.Kind != "threshold" && condition.Kind != "count" && condition.Kind != "no_data" && condition.Kind != "log_match" && condition.Kind != "any_of" && condition.Kind != "all_of") ||
+			((condition.Kind == "threshold" || condition.Kind == "count") && !validAlertOperator(condition.Operator)) ||
+			(condition.Kind == "log_match" && strings.TrimSpace(condition.Pattern) == "") ||
+			((condition.Kind == "any_of" || condition.Kind == "all_of") && len(condition.RuleIDs) == 0)) {
 		return nil, &dslError{"alert condition must be threshold, count, no_data, log_match, any_of, or all_of"}
-	}
-	_, hasValue := in.Condition["value"]
-	if hasValue {
-		if _, ok := alertNumber(in.Condition["value"]); !ok {
-			return nil, &dslError{"alert condition value must be numeric"}
-		}
-	}
-	if (condition.Kind == "threshold" || condition.Kind == "count") && !hasValue {
-		return nil, &dslError{"threshold and count alerts require a numeric value"}
-	}
-	if condition.Kind == "log_match" && ((condition.Operator == "" && hasValue) || (condition.Operator != "" && !hasValue)) {
-		return nil, &dslError{"log_match operator and value must be specified together"}
 	}
 	condition.Pattern = strings.TrimSpace(condition.Pattern)
 	groups := make([]string, 0, len(in.GroupBy))
 	for _, group := range in.GroupBy {
 		group = strings.TrimSpace(group)
 		if group != "" {
-			for _, existing := range groups {
-				if strings.EqualFold(existing, group) {
-					return nil, &dslError{"group_by columns must be unique"}
-				}
-			}
 			groups = append(groups, group)
 		}
-	}
-	if in.PendingForNs < 0 || in.CooldownNs < 0 || in.RepeatIntervalNs < 0 {
-		return nil, &dslError{"pending_for, cooldown, and repeat_interval must not be negative"}
 	}
 	discoverySQL, discoveryEvery, discoveryStale := "", int64(0), int64(0)
 	if in.InstanceDiscovery != nil && strings.TrimSpace(in.InstanceDiscovery.Query) != "" {
@@ -160,68 +142,116 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	if in.PushoverEnabled != nil {
 		pushover = *in.PushoverEnabled
 	}
-	rule := &storage.AlertRule{Name: in.Name, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, ConditionJSON: string(c), GroupByJSON: string(g), PendingForNs: in.PendingForNs, CooldownNs: in.CooldownNs, RepeatIntervalNs: in.RepeatIntervalNs, Severity: sev, Enabled: on, BrowserEnabled: browser, PushoverEnabled: pushover, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(a)}
-	if err := validateAlertRuleSemantics(rule); err != nil {
-		return nil, err
-	}
-	return rule, nil
+	return &storage.AlertRule{Name: in.Name, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, ConditionJSON: string(c), GroupByJSON: string(g), PendingForNs: in.PendingForNs, CooldownNs: in.CooldownNs, RepeatIntervalNs: in.RepeatIntervalNs, Owner: in.Owner, Team: in.Team, Severity: sev, Enabled: on, BrowserEnabled: browser, PushoverEnabled: pushover, InstanceDiscoverySQL: discoverySQL, InstanceDiscoveryIntervalNs: discoveryEvery, InstanceDiscoveryStaleAfterNs: discoveryStale, AnnotationsJSON: string(a)}, nil
 }
 
-// validateAlertRuleSemantics is used by both JSON and YAML import paths so a
-// saved rule cannot defer basic definition errors until its first evaluation.
-func validateAlertRuleSemantics(rule *storage.AlertRule) error {
-	var condition alertCondition
-	if err := json.Unmarshal([]byte(rule.ConditionJSON), &condition); err != nil {
-		return &dslError{"alert condition must be valid JSON"}
-	}
-	groups := alertGroupColumns(rule.GroupByJSON)
-	seenGroups := map[string]bool{}
-	for _, group := range groups {
-		key := strings.ToLower(strings.TrimSpace(group))
-		if key == "" || seenGroups[key] {
-			return &dslError{"group_by columns must be unique and non-empty"}
-		}
-		seenGroups[key] = true
-	}
-	if rule.PendingForNs < 0 || rule.CooldownNs < 0 || rule.RepeatIntervalNs < 0 {
-		return &dslError{"pending_for, cooldown, and repeat_interval must not be negative"}
-	}
-	switch condition.Kind {
-	case "threshold", "count":
-		if !validAlertOperator(condition.Operator) {
-			return &dslError{"threshold and count alerts require a valid operator and value"}
-		}
-	case "no_data":
-		if len(groups) != 0 || condition.Operator != "" {
-			return &dslError{"no_data alerts cannot group results or specify an operator"}
-		}
-	case "log_match":
-		if strings.TrimSpace(condition.Pattern) == "" || (condition.Operator != "" && !validAlertOperator(condition.Operator)) {
-			return &dslError{"log_match alerts require a pattern and an optional valid operator"}
-		}
-	case "any_of", "all_of":
-		if len(groups) != 0 || len(condition.RuleIDs) == 0 {
-			return &dslError{"composite alerts require source rules and cannot group results"}
-		}
-		seen := map[string]bool{}
-		for _, id := range condition.RuleIDs {
-			if strings.TrimSpace(id) == "" || seen[id] {
-				return &dslError{"composite alert source rule IDs must be unique and non-empty"}
-			}
-			seen[id] = true
-		}
-	default:
-		return &dslError{"alert condition must be threshold, count, no_data, log_match, any_of, or all_of"}
-	}
-	return nil
+type alertListSummary struct {
+	RuleCounts     map[string]int `json:"rule_counts"`
+	InstanceCounts map[string]int `json:"instance_counts"`
 }
+
+type alertListResponse struct {
+	Items   []*storage.AlertRule `json:"items"`
+	Summary alertListSummary     `json:"summary"`
+}
+
+func alertListState(rule *storage.AlertRule) string {
+	for _, instance := range rule.Instances {
+		if instance.State == "firing" {
+			return "firing"
+		}
+	}
+	for _, instance := range rule.Instances {
+		if instance.State == "pending" {
+			return "pending"
+		}
+	}
+	if len(rule.Instances) > 0 {
+		return rule.Instances[0].State
+	}
+	return "resolved"
+}
+
+func alertListRank(state string) int {
+	switch state {
+	case "firing":
+		return 0
+	case "pending":
+		return 1
+	case "error":
+		return 2
+	default:
+		return 3
+	}
+}
+
+func alertListActivity(rule *storage.AlertRule, state string) int64 {
+	var latest int64
+	for _, instance := range rule.Instances {
+		if state == "firing" && instance.FiredAt != nil {
+			latest = max(latest, *instance.FiredAt)
+		}
+		if state == "pending" && instance.FirstPendingAt != nil {
+			latest = max(latest, *instance.FirstPendingAt)
+		}
+	}
+	if latest != 0 {
+		return latest
+	}
+	if rule.LastEvaluatedAt != 0 {
+		return rule.LastEvaluatedAt
+	}
+	return rule.UpdatedAt
+}
+
 func (r *Router) listAlerts(w http.ResponseWriter, q *http.Request) {
 	x, e := r.store.WithContext(q.Context()).ListAlertRules()
 	if e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
 	}
-	respond(w, x, len(x), 1)
+	state := q.URL.Query().Get("state")
+	search := strings.ToLower(strings.TrimSpace(q.URL.Query().Get("search")))
+	summary := alertListSummary{RuleCounts: map[string]int{}, InstanceCounts: map[string]int{}}
+	filtered := make([]*storage.AlertRule, 0, len(x))
+	for _, rule := range x {
+		ruleState := alertListState(rule)
+		summary.RuleCounts[ruleState]++
+		for _, instance := range rule.Instances {
+			summary.InstanceCounts[instance.State]++
+		}
+		matchesState := state == "" || state == "all" ||
+			(state == "attention" && (ruleState == "firing" || ruleState == "pending")) ||
+			ruleState == state
+		matchesSearch := search == "" || strings.Contains(strings.ToLower(rule.Name+" "+rule.QuerySQL), search)
+		if matchesState && matchesSearch {
+			filtered = append(filtered, rule)
+		}
+	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		left, right := alertListState(filtered[i]), alertListState(filtered[j])
+		if alertListRank(left) != alertListRank(right) {
+			return alertListRank(left) < alertListRank(right)
+		}
+		leftActivity, rightActivity := alertListActivity(filtered[i], left), alertListActivity(filtered[j], right)
+		if leftActivity != rightActivity {
+			return leftActivity > rightActivity
+		}
+		return filtered[i].ID < filtered[j].ID
+	})
+	page, limit := positiveQueryInt(q, "page", 1), positiveQueryInt(q, "limit", 15)
+	if limit > 100 {
+		limit = 100
+	}
+	start := (page - 1) * limit
+	if start > len(filtered) {
+		start = len(filtered)
+	}
+	end := start + limit
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+	respond(w, alertListResponse{Items: filtered[start:end], Summary: summary}, len(filtered), page)
 }
 func (r *Router) getAlert(w http.ResponseWriter, q *http.Request) {
 	x, e := r.store.WithContext(q.Context()).GetAlertRule(chi.URLParam(q, "id"))
@@ -427,7 +457,7 @@ func (r *Router) previewAlert(w http.ResponseWriter, q *http.Request) {
 		respond(w, preview, len(preview["rows"].([]map[string]any)), 1)
 		return
 	}
-	cols, values, truncated, e := store.ReadOnlyQueryArgs(q.Context(), x.QuerySQL, alertQueryArgs(store, x.QuerySQL), 1000)
+	cols, values, _, e := store.ReadOnlyQuery(q.Context(), x.QuerySQL, 1000)
 	if e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
@@ -437,7 +467,7 @@ func (r *Router) previewAlert(w http.ResponseWriter, q *http.Request) {
 		return
 	}
 	rows := rowsForColumns(cols, values)
-	respond(w, map[string]any{"columns": cols, "rows": rows, "truncated": truncated, "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(rows), 1)
+	respond(w, map[string]any{"columns": cols, "rows": rows, "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(rows), 1)
 }
 
 // previewAlertDraft evaluates exactly the submitted unsaved definition so an
@@ -460,8 +490,7 @@ func (r *Router) previewAlertDraft(w http.ResponseWriter, q *http.Request) {
 		respond(w, preview, len(preview["rows"].([]map[string]any)), 1)
 		return
 	}
-	store := r.store.WithContext(q.Context())
-	cols, values, truncated, err := store.ReadOnlyQueryArgs(q.Context(), x.QuerySQL, alertQueryArgs(store, x.QuerySQL), 1000)
+	cols, values, _, err := r.store.WithContext(q.Context()).ReadOnlyQuery(q.Context(), x.QuerySQL, 1000)
 	if err != nil {
 		respondErr(w, q, 400, err.Error())
 		return
@@ -470,17 +499,7 @@ func (r *Router) previewAlertDraft(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 400, err.Error())
 		return
 	}
-	respond(w, map[string]any{"columns": cols, "rows": rowsForColumns(cols, values), "truncated": truncated, "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(values), 1)
-}
-
-// alertQueryArgs exposes the same server-owned magic session scope available
-// to dashboard SQL. Alerts intentionally support only $session_id: unlike a
-// dashboard they have no user-controlled variable values at evaluation time.
-func alertQueryArgs(store *storage.DB, query string) []any {
-	if !usesSessionParameter(query) {
-		return nil
-	}
-	return []any{sql.Named("session_id", store.ActiveSessionID())}
+	respond(w, map[string]any{"columns": cols, "rows": rowsForColumns(cols, values), "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(values), 1)
 }
 
 func notificationPreview(rule *storage.AlertRule) []map[string]string {

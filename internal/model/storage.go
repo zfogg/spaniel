@@ -80,15 +80,6 @@ type TraceListRow struct {
 
 type CountValue struct{ Count int64 }
 
-// StatsRow is the aggregate projection used by the generated span statistics query.
-type StatsRow struct {
-	SpanCount       int64
-	TraceCount      int64
-	LogCount        int64
-	SessionCount    int64
-	OldestSessionAt int64
-}
-
 type SourceStatsRow struct {
 	ServiceName string
 	SpanCount   int64
@@ -391,6 +382,8 @@ type AlertRule struct {
 	PendingForNs                  int64            `json:"pending_for_ns"`
 	CooldownNs                    int64            `json:"cooldown_ns"`
 	RepeatIntervalNs              int64            `json:"repeat_interval_ns"`
+	Owner                         string           `json:"owner"`
+	Team                          string           `json:"team"`
 	Severity                      string           `json:"severity"`
 	AnnotationsJSON               string           `json:"annotations_json"`
 	Enabled                       bool             `json:"enabled"`
@@ -407,8 +400,8 @@ type AlertRule struct {
 	LastError                     string           `json:"last_error"`
 	SourceFile                    string           `json:"source_file"`
 	SourceHash                    string           `json:"source_hash"`
-	CreatedAt                     int64            `json:"created_at" gorm:"autoCreateTime:nano"`
-	UpdatedAt                     int64            `json:"updated_at" gorm:"autoUpdateTime:nano"`
+	CreatedAt                     int64            `json:"created_at"`
+	UpdatedAt                     int64            `json:"updated_at"`
 	Instances                     []*AlertInstance `json:"instances,omitempty" gorm:"-"`
 }
 
@@ -428,19 +421,21 @@ type AlertInstanceTarget struct {
 func (AlertInstanceTarget) TableName() string { return "alert_instance_targets" }
 
 type AlertInstance struct {
-	RuleID              string   `json:"rule_id" gorm:"primaryKey"`
-	GroupKey            string   `json:"group_key" gorm:"primaryKey"`
-	LabelsJSON          string   `json:"labels_json"`
-	State               string   `json:"state"`
-	Value               *float64 `json:"value"`
-	FirstPendingAt      *int64   `json:"first_pending_at"`
-	FiredAt             *int64   `json:"fired_at"`
-	ResolvedAt          *int64   `json:"resolved_at"`
-	AcknowledgedAt      *int64   `json:"acknowledged_at"`
-	AcknowledgementNote string   `json:"acknowledgement_note"`
-	LastEvaluatedAt     int64    `json:"last_evaluated_at"`
-	LastError           string   `json:"last_error"`
-	LastNotifiedAt      *int64   `json:"last_notified_at"`
+	RuleID                 string   `json:"rule_id" gorm:"primaryKey"`
+	GroupKey               string   `json:"group_key" gorm:"primaryKey"`
+	LabelsJSON             string   `json:"labels_json"`
+	State                  string   `json:"state"`
+	Value                  *float64 `json:"value"`
+	FirstPendingAt         *int64   `json:"first_pending_at"`
+	FiredAt                *int64   `json:"fired_at"`
+	ResolvedAt             *int64   `json:"resolved_at"`
+	AcknowledgedAt         *int64   `json:"acknowledged_at"`
+	AcknowledgementNote    string   `json:"acknowledgement_note"`
+	LastEvaluatedAt        int64    `json:"last_evaluated_at"`
+	LastError              string   `json:"last_error"`
+	LastNotifiedAt         *int64   `json:"last_notified_at"`
+	LastBrowserNotifiedAt  *int64   `json:"last_browser_notified_at"`
+	LastPushoverNotifiedAt *int64   `json:"last_pushover_notified_at"`
 }
 
 func (AlertInstance) TableName() string { return "alert_instances" }
@@ -472,3 +467,21 @@ type AlertSilence struct {
 }
 
 func (AlertSilence) TableName() string { return "alert_silences" }
+
+// NotificationRecord is the durable, cross-product inbox. Alert events remain
+// the detailed audit trail; this table holds the concise operator-facing item.
+type NotificationRecord struct {
+	ID             string `json:"id"`
+	Source         string `json:"source"`
+	SourceID       string `json:"source_id"`
+	Severity       string `json:"severity"`
+	Title          string `json:"title"`
+	Body           string `json:"body"`
+	Link           string `json:"link"`
+	DedupeKey      string `json:"dedupe_key"`
+	CreatedAt      int64  `json:"created_at"`
+	ReadAt         *int64 `json:"read_at"`
+	AcknowledgedAt *int64 `json:"acknowledged_at"`
+}
+
+func (NotificationRecord) TableName() string { return "notification_records" }

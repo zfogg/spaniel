@@ -30,6 +30,7 @@ var (
 	Meta                *meta
 	Metric              *metric
 	MetricSeriesCatalog *metricSeriesCatalog
+	NotificationRecord  *notificationRecord
 	Session             *session
 	Span                *span
 	SpanEvent           *spanEvent
@@ -52,6 +53,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	Meta = &Q.Meta
 	Metric = &Q.Metric
 	MetricSeriesCatalog = &Q.MetricSeriesCatalog
+	NotificationRecord = &Q.NotificationRecord
 	Session = &Q.Session
 	Span = &Q.Span
 	SpanEvent = &Q.SpanEvent
@@ -75,6 +77,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		Meta:                newMeta(db, opts...),
 		Metric:              newMetric(db, opts...),
 		MetricSeriesCatalog: newMetricSeriesCatalog(db, opts...),
+		NotificationRecord:  newNotificationRecord(db, opts...),
 		Session:             newSession(db, opts...),
 		Span:                newSpan(db, opts...),
 		SpanEvent:           newSpanEvent(db, opts...),
@@ -99,6 +102,7 @@ type Query struct {
 	Meta                meta
 	Metric              metric
 	MetricSeriesCatalog metricSeriesCatalog
+	NotificationRecord  notificationRecord
 	Session             session
 	Span                span
 	SpanEvent           spanEvent
@@ -126,6 +130,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		Meta:                q.Meta.clone(db),
 		Metric:              q.Metric.clone(db),
 		MetricSeriesCatalog: q.MetricSeriesCatalog.clone(db),
+		NotificationRecord:  q.NotificationRecord.clone(db),
 		Session:             q.Session.clone(db),
 		Span:                q.Span.clone(db),
 		SpanEvent:           q.SpanEvent.clone(db),
@@ -158,6 +163,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		Meta:                q.Meta.replaceDB(db),
 		Metric:              q.Metric.replaceDB(db),
 		MetricSeriesCatalog: q.MetricSeriesCatalog.replaceDB(db),
+		NotificationRecord:  q.NotificationRecord.replaceDB(db),
 		Session:             q.Session.replaceDB(db),
 		Span:                q.Span.replaceDB(db),
 		SpanEvent:           q.SpanEvent.replaceDB(db),
@@ -180,6 +186,7 @@ type queryCtx struct {
 	Meta                IMetaDo
 	Metric              IMetricDo
 	MetricSeriesCatalog IMetricSeriesCatalogDo
+	NotificationRecord  INotificationRecordDo
 	Session             ISessionDo
 	Span                ISpanDo
 	SpanEvent           ISpanEventDo
@@ -202,6 +209,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		Meta:                q.Meta.WithContext(ctx),
 		Metric:              q.Metric.WithContext(ctx),
 		MetricSeriesCatalog: q.MetricSeriesCatalog.WithContext(ctx),
+		NotificationRecord:  q.NotificationRecord.WithContext(ctx),
 		Session:             q.Session.WithContext(ctx),
 		Span:                q.Span.WithContext(ctx),
 		SpanEvent:           q.SpanEvent.WithContext(ctx),

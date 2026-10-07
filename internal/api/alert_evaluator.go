@@ -168,7 +168,7 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 	}
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
-	columns, values, _, err := store.ReadOnlyQueryArgs(ctx, rule.QuerySQL, alertQueryArgs(store, rule.QuerySQL), 1000)
+	columns, values, _, err := store.ReadOnlyQuery(ctx, rule.QuerySQL, 1000)
 	if err != nil {
 		return fmt.Errorf("execute alert query: %w", err)
 	}
@@ -298,7 +298,7 @@ func discoverAlertInstanceTargets(ctx context.Context, store *storage.DB, rule *
 		staleAfter = int64((24 * time.Hour).Nanoseconds())
 	}
 	if rule.InstanceDiscoveryLastRunAt == 0 || rule.InstanceDiscoveryIntervalNs <= 0 || now.UnixNano()-rule.InstanceDiscoveryLastRunAt >= rule.InstanceDiscoveryIntervalNs {
-		columns, values, _, err := store.ReadOnlyQueryArgs(ctx, rule.InstanceDiscoverySQL, alertQueryArgs(store, rule.InstanceDiscoverySQL), 1000)
+		columns, values, _, err := store.ReadOnlyQuery(ctx, rule.InstanceDiscoverySQL, 1000)
 		if err != nil {
 			return nil, fmt.Errorf("execute instance discovery query: %w", err)
 		}
@@ -478,6 +478,7 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 		if err := store.UpsertAlertInstance(current); err != nil {
 			return err
 		}
+		_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
 		if prior != "" && prior != "resolved" {
 			emitAlert(hub, rule, current, "resolved", now, true)
 			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "resolved", State: current.State, Value: current.Value})
@@ -500,6 +501,7 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 	if err := store.UpsertAlertInstance(current); err != nil {
 		return err
 	}
+	_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
 	if prior != "firing" && current.State == "firing" {
 		silenced, err := store.IsAlertSilenced(rule.ID, key, now.UnixNano())
 		if err != nil {
@@ -515,23 +517,9 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 			return err
 		}
 	}
-	// A firing instance can predate notification configuration (or an earlier
-	// delivery failure). Once repeats are enabled, give that active incident its
-	// first delivery rather than leaving LastNotifiedAt nil forever.
-	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && (current.LastNotifiedAt == nil || now.UnixNano()-*current.LastNotifiedAt >= rule.RepeatIntervalNs) {
-		// Acknowledgement is operator metadata, not a notification mute: a
-		// firing incident may still repeat. Use an explicit silence to suppress
-		// both its initial and repeat deliveries.
-		silenced, err := store.IsAlertSilenced(rule.ID, key, now.UnixNano())
-		if err != nil {
-			return err
-		}
-		if silenced {
-			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "notification_suppressed", State: current.State, Value: current.Value, Detail: "silenced repeat"})
-		} else {
-			emitAlert(hub, rule, current, "repeat", now, true)
-			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "repeat", State: current.State, Value: current.Value})
-		}
+	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && alertRepeatDue(hub, rule, current, now) {
+		emitAlert(hub, rule, current, "repeat", now, true)
+		_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "repeat", State: current.State, Value: current.Value})
 		if err := store.UpsertAlertInstance(current); err != nil {
 			return err
 		}
@@ -565,34 +553,62 @@ func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInst
 			d.RecordEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: kind, State: instance.State, Value: instance.Value, Detail: detail})
 		}
 	}
-	if hub == nil {
-		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "suppressed")
-		record("notification_suppressed", "notification transport unavailable")
-		return
+	inbox := func(severity, title, body, dedupe string) {
+		if d.RecordNotification != nil {
+			d.RecordNotification(&storage.NotificationRecord{Source: "alert", SourceID: rule.ID, Severity: severity, Title: title, Body: body, Link: "/alerts?id=" + rule.ID, DedupeKey: dedupe})
+		}
 	}
-	if !force && rule.CooldownNs > 0 && instance.LastNotifiedAt != nil && now.UnixNano()-*instance.LastNotifiedAt < rule.CooldownNs {
-		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "suppressed")
-		record("notification_suppressed", "cooldown active")
-		return
-	}
-	n := now.UnixNano()
-	instance.LastNotifiedAt = &n
-	// Event delivery is best effort; state is already durable and is never made
-	// conditional on a websocket client being present.
+	// The websocket hub is only the browser transport. Pushover remains usable
+	// in headless runs, and each destination updates its own success marker.
 	event := alertEvent(rule, instance, transition, now)
-	hub.Broadcast(event)
 	payload, _ := event.Payload.(map[string]any)
-	if payload["browser"] == true && d.RecordEvent != nil {
-		d.RecordEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: "notification_browser", State: instance.State, Value: instance.Value, Detail: fmt.Sprint(payload["body"])})
-	} else {
+	n := now.UnixNano()
+	browserDue := rule.BrowserEnabled && (d.BrowserEnabled == nil || d.BrowserEnabled()) && hub != nil && notificationDue(instance.LastBrowserNotifiedAt, rule.CooldownNs, now, force)
+	if browserDue {
+		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "attempted")
+		record("notification_browser_attempted", fmt.Sprint(payload["body"]))
+		hub.Broadcast(event)
+		instance.LastBrowserNotifiedAt = &n
+		instance.LastNotifiedAt = &n
+		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "sent")
+		record("notification_browser", fmt.Sprint(payload["body"]))
+		inbox(rule.Severity, rule.Name, fmt.Sprint(payload["body"]), "alert:"+rule.ID+":"+instance.GroupKey+":"+transition)
+	} else if rule.BrowserEnabled && hub == nil {
+		record("notification_browser_suppressed", "websocket hub unavailable")
+	} else if !rule.BrowserEnabled || (d.BrowserEnabled != nil && !d.BrowserEnabled()) {
 		record("notification_browser_suppressed", "disabled for this rule or globally")
 	}
-	if !rule.PushoverEnabled || d.PushoverEnabled == nil || !d.PushoverEnabled() || d.PushoverUserKey == "" || d.PushoverAPIToken == "" {
+	pushoverDue := rule.PushoverEnabled && d.PushoverEnabled != nil && d.PushoverEnabled() && d.PushoverUserKey != "" && d.PushoverAPIToken != "" && notificationDue(instance.LastPushoverNotifiedAt, rule.CooldownNs, now, force)
+	if !pushoverDue {
 		record("notification_pushover_suppressed", "disabled or not configured")
-	} else if err := deliverPushover(rule, instance, transition); err != nil {
-		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "error")
+	} else {
+		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "attempted")
+		if err := deliverPushover(rule, instance, transition); err != nil {
+			telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "error")
+			inbox("critical", rule.Name+" delivery failed", err.Error(), "alert-delivery-failed:"+rule.ID+":"+instance.GroupKey)
+		} else {
+			instance.LastPushoverNotifiedAt = &n
+			instance.LastNotifiedAt = &n
+			telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "sent")
+			inbox(rule.Severity, rule.Name, fmt.Sprint(payload["body"]), "alert:"+rule.ID+":"+instance.GroupKey+":"+transition)
+		}
 	}
-	telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "sent")
+}
+
+func notificationDue(last *int64, cooldownNs int64, now time.Time, force bool) bool {
+	if force || cooldownNs <= 0 || last == nil {
+		return true
+	}
+	return now.UnixNano()-*last >= cooldownNs
+}
+
+func alertRepeatDue(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInstance, now time.Time) bool {
+	d := currentAlertDelivery()
+	due := func(last *int64) bool { return last == nil || now.UnixNano()-*last >= rule.RepeatIntervalNs }
+	if hub != nil && rule.BrowserEnabled && (d.BrowserEnabled == nil || d.BrowserEnabled()) && due(instance.LastBrowserNotifiedAt) {
+		return true
+	}
+	return rule.PushoverEnabled && d.PushoverEnabled != nil && d.PushoverEnabled() && d.PushoverUserKey != "" && d.PushoverAPIToken != "" && due(instance.LastPushoverNotifiedAt)
 }
 
 func validAlertOperator(operator string) bool {

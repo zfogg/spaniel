@@ -19,7 +19,7 @@ func main() {
 	})
 
 	g.ApplyBasic(
-		model.AlertRule{}, model.AlertInstance{}, model.AlertInstanceTarget{}, model.AlertEvent{}, model.AlertSilence{},
+		model.AlertRule{}, model.AlertInstance{}, model.AlertInstanceTarget{}, model.AlertEvent{}, model.AlertSilence{}, model.NotificationRecord{},
 		model.Dashboard{}, model.DashboardVariable{}, model.DashboardPanel{},
 		model.Span{}, model.Log{}, model.Session{}, model.LintWarning{},
 		model.TraceIssue{}, model.SpanEvent{}, model.SpanLink{}, model.Metric{}, model.Meta{}, model.MetricSeriesCatalog{},

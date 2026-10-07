@@ -41,6 +41,8 @@ func newAlertInstance(db *gorm.DB, opts ...gen.DOOption) alertInstance {
 	_alertInstance.LastEvaluatedAt = field.NewInt64(tableName, "last_evaluated_at")
 	_alertInstance.LastError = field.NewString(tableName, "last_error")
 	_alertInstance.LastNotifiedAt = field.NewInt64(tableName, "last_notified_at")
+	_alertInstance.LastBrowserNotifiedAt = field.NewInt64(tableName, "last_browser_notified_at")
+	_alertInstance.LastPushoverNotifiedAt = field.NewInt64(tableName, "last_pushover_notified_at")
 
 	_alertInstance.fillFieldMap()
 
@@ -50,20 +52,22 @@ func newAlertInstance(db *gorm.DB, opts ...gen.DOOption) alertInstance {
 type alertInstance struct {
 	alertInstanceDo
 
-	ALL                 field.Asterisk
-	RuleID              field.String
-	GroupKey            field.String
-	LabelsJSON          field.String
-	State               field.String
-	Value               field.Float64
-	FirstPendingAt      field.Int64
-	FiredAt             field.Int64
-	ResolvedAt          field.Int64
-	AcknowledgedAt      field.Int64
-	AcknowledgementNote field.String
-	LastEvaluatedAt     field.Int64
-	LastError           field.String
-	LastNotifiedAt      field.Int64
+	ALL                    field.Asterisk
+	RuleID                 field.String
+	GroupKey               field.String
+	LabelsJSON             field.String
+	State                  field.String
+	Value                  field.Float64
+	FirstPendingAt         field.Int64
+	FiredAt                field.Int64
+	ResolvedAt             field.Int64
+	AcknowledgedAt         field.Int64
+	AcknowledgementNote    field.String
+	LastEvaluatedAt        field.Int64
+	LastError              field.String
+	LastNotifiedAt         field.Int64
+	LastBrowserNotifiedAt  field.Int64
+	LastPushoverNotifiedAt field.Int64
 
 	fieldMap map[string]field.Expr
 }
@@ -93,6 +97,8 @@ func (a *alertInstance) updateTableName(table string) *alertInstance {
 	a.LastEvaluatedAt = field.NewInt64(table, "last_evaluated_at")
 	a.LastError = field.NewString(table, "last_error")
 	a.LastNotifiedAt = field.NewInt64(table, "last_notified_at")
+	a.LastBrowserNotifiedAt = field.NewInt64(table, "last_browser_notified_at")
+	a.LastPushoverNotifiedAt = field.NewInt64(table, "last_pushover_notified_at")
 
 	a.fillFieldMap()
 
@@ -109,7 +115,7 @@ func (a *alertInstance) GetFieldByName(fieldName string) (field.OrderExpr, bool)
 }
 
 func (a *alertInstance) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 13)
+	a.fieldMap = make(map[string]field.Expr, 15)
 	a.fieldMap["rule_id"] = a.RuleID
 	a.fieldMap["group_key"] = a.GroupKey
 	a.fieldMap["labels_json"] = a.LabelsJSON
@@ -123,6 +129,8 @@ func (a *alertInstance) fillFieldMap() {
 	a.fieldMap["last_evaluated_at"] = a.LastEvaluatedAt
 	a.fieldMap["last_error"] = a.LastError
 	a.fieldMap["last_notified_at"] = a.LastNotifiedAt
+	a.fieldMap["last_browser_notified_at"] = a.LastBrowserNotifiedAt
+	a.fieldMap["last_pushover_notified_at"] = a.LastPushoverNotifiedAt
 }
 
 func (a alertInstance) clone(db *gorm.DB) alertInstance {
