@@ -1,0 +1,2 @@
+ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS source_file TEXT DEFAULT '';
+ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS source_hash TEXT DEFAULT '';
