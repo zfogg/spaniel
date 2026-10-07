@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
@@ -426,7 +427,7 @@ func (r *Router) previewAlert(w http.ResponseWriter, q *http.Request) {
 		respond(w, preview, len(preview["rows"].([]map[string]any)), 1)
 		return
 	}
-	cols, values, _, e := store.ReadOnlyQuery(q.Context(), x.QuerySQL, 1000)
+	cols, values, truncated, e := store.ReadOnlyQueryArgs(q.Context(), x.QuerySQL, alertQueryArgs(store, x.QuerySQL), 1000)
 	if e != nil {
 		respondErr(w, q, 500, e.Error())
 		return
@@ -436,7 +437,7 @@ func (r *Router) previewAlert(w http.ResponseWriter, q *http.Request) {
 		return
 	}
 	rows := rowsForColumns(cols, values)
-	respond(w, map[string]any{"columns": cols, "rows": rows, "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(rows), 1)
+	respond(w, map[string]any{"columns": cols, "rows": rows, "truncated": truncated, "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(rows), 1)
 }
 
 // previewAlertDraft evaluates exactly the submitted unsaved definition so an
@@ -459,7 +460,8 @@ func (r *Router) previewAlertDraft(w http.ResponseWriter, q *http.Request) {
 		respond(w, preview, len(preview["rows"].([]map[string]any)), 1)
 		return
 	}
-	cols, values, _, err := r.store.WithContext(q.Context()).ReadOnlyQuery(q.Context(), x.QuerySQL, 1000)
+	store := r.store.WithContext(q.Context())
+	cols, values, truncated, err := store.ReadOnlyQueryArgs(q.Context(), x.QuerySQL, alertQueryArgs(store, x.QuerySQL), 1000)
 	if err != nil {
 		respondErr(w, q, 400, err.Error())
 		return
@@ -468,7 +470,17 @@ func (r *Router) previewAlertDraft(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 400, err.Error())
 		return
 	}
-	respond(w, map[string]any{"columns": cols, "rows": rowsForColumns(cols, values), "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(values), 1)
+	respond(w, map[string]any{"columns": cols, "rows": rowsForColumns(cols, values), "truncated": truncated, "condition": json.RawMessage(x.ConditionJSON), "notification_preview": notificationPreview(x)}, len(values), 1)
+}
+
+// alertQueryArgs exposes the same server-owned magic session scope available
+// to dashboard SQL. Alerts intentionally support only $session_id: unlike a
+// dashboard they have no user-controlled variable values at evaluation time.
+func alertQueryArgs(store *storage.DB, query string) []any {
+	if !usesSessionParameter(query) {
+		return nil
+	}
+	return []any{sql.Named("session_id", store.ActiveSessionID())}
 }
 
 func notificationPreview(rule *storage.AlertRule) []map[string]string {

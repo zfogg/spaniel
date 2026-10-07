@@ -538,6 +538,7 @@ export const QueryPreviewSchema = z.object({
   display_type: z.string().optional(),
   columns: z.array(z.string()),
   rows: z.array(z.record(z.string(), z.unknown())),
+  truncated: z.boolean().optional(),
   warnings: z.array(z.string()).default([]),
   notification_preview: z
     .array(

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -143,6 +145,23 @@ func TestNotificationPreviewHonorsGlobalDelivery(t *testing.T) {
 	preview = notificationPreview(rule)
 	if preview[0]["status"] != "would_send" || preview[1]["status"] != "would_send" {
 		t.Fatalf("enabled global delivery preview=%#v", preview)
+	}
+}
+
+func TestAlertQueryArgs_BindsActiveSession(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "parameters.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	session, err := store.CreateSession("active", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetActiveSession(session.ID, session.Label)
+	columns, rows, _, err := store.ReadOnlyQueryArgs(context.Background(), "SELECT $session_id AS value", alertQueryArgs(store, "SELECT $session_id AS value"), 10)
+	if err != nil || len(columns) != 1 || len(rows) != 1 || rows[0][0] != session.ID {
+		t.Fatalf("alert session parameter columns=%v rows=%v err=%v", columns, rows, err)
 	}
 }
 
