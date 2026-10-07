@@ -125,8 +125,6 @@ type Draft = {
   pendingFor: string
   cooldown: string
   repeatInterval: string
-  owner: string
-  team: string
   severity: string
   enabled: boolean
   browserEnabled: boolean
@@ -184,8 +182,6 @@ const draftFor = (rule: AlertRule): Draft => {
     pendingFor: durationInput(rule.pending_for_ns),
     cooldown: durationInput(rule.cooldown_ns),
     repeatInterval: durationInput(rule.repeat_interval_ns),
-    owner: rule.owner,
-    team: rule.team,
     severity: rule.severity,
     enabled: rule.enabled,
     browserEnabled: rule.browser_enabled,
@@ -211,8 +207,6 @@ const emptyRule = (): AlertRule => ({
   pending_for_ns: 0,
   cooldown_ns: 300000000000,
   repeat_interval_ns: 0,
-  owner: '',
-  team: '',
   severity: 'warning',
   enabled: true,
   browser_enabled: true,
@@ -275,8 +269,6 @@ const draftPayload = (draft: Draft) => {
     pending_for_ns: durationNS(draft.pendingFor, 'Pending for'),
     cooldown_ns: durationNS(draft.cooldown, 'Cooldown'),
     repeat_interval_ns: durationNS(draft.repeatInterval, 'Repeat interval'),
-    owner: draft.owner.trim(),
-    team: draft.team.trim(),
     severity: draft.severity,
     enabled: draft.enabled,
     browser_enabled: draft.browserEnabled,
@@ -332,7 +324,7 @@ export default function Alerts() {
   })
   // Older servers do not include the optional instances array. Keep the rule
   // selector and its YAML action usable while they are being upgraded.
-  const rules = rulesData ?? []
+  const rules = useMemo(() => rulesData ?? [], [rulesData])
   const history = useQuery({
     queryKey: ['alert-history', historyFilters, historyPage],
     queryFn: () =>
@@ -390,13 +382,14 @@ export default function Alerts() {
       setYaml(e instanceof Error ? e.message : String(e))
     }
   }
+  const selectedID = selected?.id
   useEffect(() => {
-    if (mode !== 'yaml' || !selected || yaml !== null) return
+    if (mode !== 'yaml' || !selectedID || yaml !== null) return
     api.alerts
-      .config(selected.id)
+      .config(selectedID)
       .then(setYaml)
       .catch((error: unknown) => setYaml(error instanceof Error ? error.message : String(error)))
-  }, [mode, selected?.id, yaml])
+  }, [mode, selectedID, yaml])
   useEffect(() => {
     setSearchParams(
       (current) => {
@@ -784,17 +777,22 @@ function Inspector({
     setDraft(draftFor(rule))
     setInstancesPage(1)
     setEventsPage(1)
-  }, [rule.id, editingFromURL])
+  }, [rule, editingFromURL])
   useEffect(() => {
     setInstancesPage((page) =>
       Math.min(page, Math.max(1, Math.ceil(instances.length / instancePageSize))),
     )
   }, [instances.length])
+  const {
+    data: notificationData,
+    error: notificationError,
+    reset: resetNotification,
+  } = testNotification
   useEffect(() => {
-    if (!testNotification.data && !testNotification.error) return
-    const timeout = window.setTimeout(() => testNotification.reset(), 12_000)
+    if (!notificationData && !notificationError) return
+    const timeout = window.setTimeout(() => resetNotification(), 12_000)
     return () => window.clearTimeout(timeout)
-  }, [testNotification.data, testNotification.error, testNotification.reset])
+  }, [notificationData, notificationError, resetNotification])
   const save = useMutation({
     mutationFn: () => api.alerts.update(rule.id, draftPayload(draft)),
     onSuccess: () => {
@@ -963,8 +961,6 @@ function Inspector({
           />
           <Field label="Browser" value={rule.browser_enabled ? 'Enabled' : 'Disabled'} />
           <Field label="Pushover" value={rule.pushover_enabled ? 'Enabled' : 'Disabled'} />
-          <Field label="Owner" value={rule.owner || 'Unassigned'} />
-          <Field label="Team" value={rule.team || 'Unassigned'} />
           <Field label="Query version" value={String(rule.query_version)} mono />
           {rule.instance_discovery_sql && (
             <>
@@ -990,7 +986,9 @@ function Inspector({
         {rule.instance_discovery_sql && (
           <div className="mt-3">
             <p className="mb-1 text-xs text-muted-foreground">Discovery query</p>
-            <SqlCode value={rule.instance_discovery_sql} />
+            <div className="rounded border border-border bg-background p-3">
+              <SqlCode value={rule.instance_discovery_sql} />
+            </div>
           </div>
         )}
       </InspectorSection>
@@ -1858,22 +1856,6 @@ function AlertEditor({
               <option key={severity}>{severity}</option>
             ))}
           </select>
-        </label>
-        <label className="text-sm font-medium">
-          Owner
-          <input
-            value={draft.owner}
-            onChange={(event) => set('owner', event.target.value)}
-            className="mt-1.5 w-full rounded border border-border bg-background px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Team
-          <input
-            value={draft.team}
-            onChange={(event) => set('team', event.target.value)}
-            className="mt-1.5 w-full rounded border border-border bg-background px-3 py-2 text-sm"
-          />
         </label>
       </section>
 
