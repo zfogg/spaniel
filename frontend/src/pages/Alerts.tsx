@@ -362,7 +362,7 @@ export default function Alerts() {
   })
   // Older servers do not include the optional instances array. Keep the rule
   // selector and its YAML action usable while they are being upgraded.
-  const rules = useMemo(() => rulesData ?? [], [rulesData])
+  const rules = useMemo(() => rulesData?.data.items ?? [], [rulesData?.data.items])
   const history = useQuery({
     queryKey: ['alert-history', historyFilters, historyPage],
     queryFn: () =>
