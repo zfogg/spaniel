@@ -30,10 +30,14 @@ const severityTone: Record<string, string> = {
   info: 'bg-accent-bg text-accent-ink',
 }
 const stateRowTone: Record<string, string> = {
-  firing: 'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb]',
-  pending: 'border-l-[#b9872f] bg-[#fffaf0] hover:bg-[#fff5e2]',
-  resolved: 'border-l-[#518a6a] bg-[#f4faf6] hover:bg-[#edf7f0]',
-  error: 'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb]',
+  firing:
+    'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb] dark:border-l-[#df7568] dark:bg-[#38262a] dark:hover:bg-[#472d31]',
+  pending:
+    'border-l-[#b9872f] bg-[#fffaf0] hover:bg-[#fff5e2] dark:border-l-[#d6a34a] dark:bg-[#382f20] dark:hover:bg-[#473a25]',
+  resolved:
+    'border-l-[#518a6a] bg-[#f4faf6] hover:bg-[#edf7f0] dark:border-l-[#70aa85] dark:bg-[#21352b] dark:hover:bg-[#294535]',
+  error:
+    'border-l-[#bd5c52] bg-[#fff5f2] hover:bg-[#fff0eb] dark:border-l-[#df7568] dark:bg-[#38262a] dark:hover:bg-[#472d31]',
 }
 const stateSignalColor: Record<string, string> = {
   firing: '#bd5c52',
@@ -568,7 +572,7 @@ export default function Alerts() {
                 <button
                   key={rule.id}
                   onClick={() => setSelectedId(rule.id)}
-                  className={`mb-2 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border border-[#cbd9e4] border-l-4 p-3 text-left shadow-[0_1px_0_rgba(31,56,83,0.04)] transition-colors dark:border-border sm:grid-cols-[minmax(0,1fr)_160px_auto] ${stateRowTone[currentState] ?? 'border-l-[#8ba0b1] bg-white hover:bg-[#f4f8fb]'} ${selected?.id === rule.id ? 'ring-1 ring-[#6f9fc4] ring-offset-1' : ''}`}
+                  className={`mb-2 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border border-[#cbd9e4] border-l-4 p-3 text-left shadow-[0_1px_0_rgba(31,56,83,0.04)] transition-colors dark:border-border sm:grid-cols-[minmax(0,1fr)_160px_auto] ${stateRowTone[currentState] ?? 'border-l-[#8ba0b1] bg-white hover:bg-[#f4f8fb] dark:bg-surface dark:hover:bg-muted'} ${selected?.id === rule.id ? 'ring-1 ring-[#6f9fc4] ring-offset-1 dark:ring-[#84b6df] dark:ring-offset-background' : ''}`}
                 >
                   <span>
                     <b className="flex items-center gap-2 text-sm">
@@ -1348,15 +1352,19 @@ function AlertSummaryStrip({
 }) {
   return (
     <div className="mb-4 grid overflow-hidden rounded-lg border border-[#c9d7e3] bg-white shadow-[0_1px_0_rgba(31,56,83,0.04)] dark:border-border dark:bg-background sm:grid-cols-[1.4fr_repeat(4,minmax(0,0.7fr))]">
-      <div className="flex min-w-0 items-center gap-4 border-b border-[#d7e1e9] bg-[#f7fafc] px-3 py-3 sm:border-b-0 sm:border-r dark:border-border">
+      <div className="flex min-w-0 items-center gap-4 border-b border-[#d7e1e9] bg-[#f7fafc] px-3 py-3 sm:border-b-0 sm:border-r dark:border-border dark:bg-surface">
         <div className="min-w-0">
-          <strong className="block text-xl leading-none text-[#235178]">{totalInstances}</strong>
+          <strong className="block text-xl leading-none text-[#235178] dark:text-[#9fc5e5]">
+            {totalInstances}
+          </strong>
           <span className="mt-1 block font-mono text-[10px] text-[#627e94] dark:text-muted-foreground">
             instances
           </span>
         </div>
         <div className="min-w-0 border-l border-[#d7e1e9] pl-4 dark:border-border">
-          <strong className="block text-xl leading-none text-[#235178]">{totalRules}</strong>
+          <strong className="block text-xl leading-none text-[#235178] dark:text-[#9fc5e5]">
+            {totalRules}
+          </strong>
           <span className="mt-1 block font-mono text-[10px] text-[#627e94] dark:text-muted-foreground">
             alert rules
           </span>
