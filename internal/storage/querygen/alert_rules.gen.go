@@ -36,9 +36,25 @@ func newAlertRule(db *gorm.DB, opts ...gen.DOOption) alertRule {
 	_alertRule.GroupByJSON = field.NewString(tableName, "group_by_json")
 	_alertRule.PendingForNs = field.NewInt64(tableName, "pending_for_ns")
 	_alertRule.CooldownNs = field.NewInt64(tableName, "cooldown_ns")
+	_alertRule.RepeatIntervalNs = field.NewInt64(tableName, "repeat_interval_ns")
+	_alertRule.Owner = field.NewString(tableName, "owner")
+	_alertRule.Team = field.NewString(tableName, "team")
 	_alertRule.Severity = field.NewString(tableName, "severity")
 	_alertRule.AnnotationsJSON = field.NewString(tableName, "annotations_json")
 	_alertRule.Enabled = field.NewBool(tableName, "enabled")
+	_alertRule.BrowserEnabled = field.NewBool(tableName, "browser_enabled")
+	_alertRule.PushoverEnabled = field.NewBool(tableName, "pushover_enabled")
+	_alertRule.InstanceDiscoverySQL = field.NewString(tableName, "instance_discovery_sql")
+	_alertRule.InstanceDiscoveryIntervalNs = field.NewInt64(tableName, "instance_discovery_interval_ns")
+	_alertRule.InstanceDiscoveryStaleAfterNs = field.NewInt64(tableName, "instance_discovery_stale_after_ns")
+	_alertRule.InstanceDiscoveryLastRunAt = field.NewInt64(tableName, "instance_discovery_last_run_at")
+	_alertRule.LastEvaluatedAt = field.NewInt64(tableName, "last_evaluated_at")
+	_alertRule.LastSuccessAt = field.NewInt64(tableName, "last_success_at")
+	_alertRule.LastDurationNs = field.NewInt64(tableName, "last_duration_ns")
+	_alertRule.NextEvaluationAt = field.NewInt64(tableName, "next_evaluation_at")
+	_alertRule.LastError = field.NewString(tableName, "last_error")
+	_alertRule.SourceFile = field.NewString(tableName, "source_file")
+	_alertRule.SourceHash = field.NewString(tableName, "source_hash")
 	_alertRule.CreatedAt = field.NewInt64(tableName, "created_at")
 	_alertRule.UpdatedAt = field.NewInt64(tableName, "updated_at")
 
@@ -50,20 +66,36 @@ func newAlertRule(db *gorm.DB, opts ...gen.DOOption) alertRule {
 type alertRule struct {
 	alertRuleDo
 
-	ALL             field.Asterisk
-	ID              field.String
-	Name            field.String
-	QuerySQL        field.String
-	QueryVersion    field.Int
-	ConditionJSON   field.String
-	GroupByJSON     field.String
-	PendingForNs    field.Int64
-	CooldownNs      field.Int64
-	Severity        field.String
-	AnnotationsJSON field.String
-	Enabled         field.Bool
-	CreatedAt       field.Int64
-	UpdatedAt       field.Int64
+	ALL                           field.Asterisk
+	ID                            field.String
+	Name                          field.String
+	QuerySQL                      field.String
+	QueryVersion                  field.Int
+	ConditionJSON                 field.String
+	GroupByJSON                   field.String
+	PendingForNs                  field.Int64
+	CooldownNs                    field.Int64
+	RepeatIntervalNs              field.Int64
+	Owner                         field.String
+	Team                          field.String
+	Severity                      field.String
+	AnnotationsJSON               field.String
+	Enabled                       field.Bool
+	BrowserEnabled                field.Bool
+	PushoverEnabled               field.Bool
+	InstanceDiscoverySQL          field.String
+	InstanceDiscoveryIntervalNs   field.Int64
+	InstanceDiscoveryStaleAfterNs field.Int64
+	InstanceDiscoveryLastRunAt    field.Int64
+	LastEvaluatedAt               field.Int64
+	LastSuccessAt                 field.Int64
+	LastDurationNs                field.Int64
+	NextEvaluationAt              field.Int64
+	LastError                     field.String
+	SourceFile                    field.String
+	SourceHash                    field.String
+	CreatedAt                     field.Int64
+	UpdatedAt                     field.Int64
 
 	fieldMap map[string]field.Expr
 }
@@ -88,9 +120,25 @@ func (a *alertRule) updateTableName(table string) *alertRule {
 	a.GroupByJSON = field.NewString(table, "group_by_json")
 	a.PendingForNs = field.NewInt64(table, "pending_for_ns")
 	a.CooldownNs = field.NewInt64(table, "cooldown_ns")
+	a.RepeatIntervalNs = field.NewInt64(table, "repeat_interval_ns")
+	a.Owner = field.NewString(table, "owner")
+	a.Team = field.NewString(table, "team")
 	a.Severity = field.NewString(table, "severity")
 	a.AnnotationsJSON = field.NewString(table, "annotations_json")
 	a.Enabled = field.NewBool(table, "enabled")
+	a.BrowserEnabled = field.NewBool(table, "browser_enabled")
+	a.PushoverEnabled = field.NewBool(table, "pushover_enabled")
+	a.InstanceDiscoverySQL = field.NewString(table, "instance_discovery_sql")
+	a.InstanceDiscoveryIntervalNs = field.NewInt64(table, "instance_discovery_interval_ns")
+	a.InstanceDiscoveryStaleAfterNs = field.NewInt64(table, "instance_discovery_stale_after_ns")
+	a.InstanceDiscoveryLastRunAt = field.NewInt64(table, "instance_discovery_last_run_at")
+	a.LastEvaluatedAt = field.NewInt64(table, "last_evaluated_at")
+	a.LastSuccessAt = field.NewInt64(table, "last_success_at")
+	a.LastDurationNs = field.NewInt64(table, "last_duration_ns")
+	a.NextEvaluationAt = field.NewInt64(table, "next_evaluation_at")
+	a.LastError = field.NewString(table, "last_error")
+	a.SourceFile = field.NewString(table, "source_file")
+	a.SourceHash = field.NewString(table, "source_hash")
 	a.CreatedAt = field.NewInt64(table, "created_at")
 	a.UpdatedAt = field.NewInt64(table, "updated_at")
 
@@ -109,7 +157,7 @@ func (a *alertRule) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (a *alertRule) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 13)
+	a.fieldMap = make(map[string]field.Expr, 29)
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["name"] = a.Name
 	a.fieldMap["query_sql"] = a.QuerySQL
@@ -118,9 +166,25 @@ func (a *alertRule) fillFieldMap() {
 	a.fieldMap["group_by_json"] = a.GroupByJSON
 	a.fieldMap["pending_for_ns"] = a.PendingForNs
 	a.fieldMap["cooldown_ns"] = a.CooldownNs
+	a.fieldMap["repeat_interval_ns"] = a.RepeatIntervalNs
+	a.fieldMap["owner"] = a.Owner
+	a.fieldMap["team"] = a.Team
 	a.fieldMap["severity"] = a.Severity
 	a.fieldMap["annotations_json"] = a.AnnotationsJSON
 	a.fieldMap["enabled"] = a.Enabled
+	a.fieldMap["browser_enabled"] = a.BrowserEnabled
+	a.fieldMap["pushover_enabled"] = a.PushoverEnabled
+	a.fieldMap["instance_discovery_sql"] = a.InstanceDiscoverySQL
+	a.fieldMap["instance_discovery_interval_ns"] = a.InstanceDiscoveryIntervalNs
+	a.fieldMap["instance_discovery_stale_after_ns"] = a.InstanceDiscoveryStaleAfterNs
+	a.fieldMap["instance_discovery_last_run_at"] = a.InstanceDiscoveryLastRunAt
+	a.fieldMap["last_evaluated_at"] = a.LastEvaluatedAt
+	a.fieldMap["last_success_at"] = a.LastSuccessAt
+	a.fieldMap["last_duration_ns"] = a.LastDurationNs
+	a.fieldMap["next_evaluation_at"] = a.NextEvaluationAt
+	a.fieldMap["last_error"] = a.LastError
+	a.fieldMap["source_file"] = a.SourceFile
+	a.fieldMap["source_hash"] = a.SourceHash
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
 }

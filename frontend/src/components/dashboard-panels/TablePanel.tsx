@@ -9,7 +9,11 @@ function columnLabel(key: string) {
 }
 
 function tableValue(key: string, value: unknown) {
-  if (/(^|_)(duration|latency)(?:_ns)?$/i.test(key) || /_ns$/i.test(key) && /duration|latency/i.test(key)) return durationLabel(value)
+  if (
+    /(^|_)(duration|latency)(?:_ns)?$/i.test(key) ||
+    (/_ns$/i.test(key) && /duration|latency/i.test(key))
+  )
+    return durationLabel(value)
   if (/timestamp|time(?:_ns)?$|started_at|ended_at/i.test(key)) return timeLabel(value)
   return formatValue(value, key === 'duration_sec' ? 3 : 2)
 }

@@ -80,17 +80,6 @@ type TraceListRow struct {
 
 type CountValue struct{ Count int64 }
 
-// StatsRow is the single-row aggregate backing the dashboard stats endpoint.
-// Keeping its related counts in one projection avoids issuing a query (and
-// therefore recording a storage span) for every individual statistic.
-type StatsRow struct {
-	SpanCount       int64
-	TraceCount      int64
-	LogCount        int64
-	SessionCount    int64
-	OldestSessionAt int64
-}
-
 type SourceStatsRow struct {
 	ServiceName string
 	SpanCount   int64
@@ -384,37 +373,95 @@ type DashboardPanel struct {
 func (DashboardPanel) TableName() string { return "dashboard_panels" }
 
 type AlertRule struct {
-	ID              string           `json:"id"`
-	Name            string           `json:"name"`
-	QuerySQL        string           `json:"query_sql"`
-	QueryVersion    int              `json:"query_version"`
-	ConditionJSON   string           `json:"condition_json"`
-	GroupByJSON     string           `json:"group_by_json"`
-	PendingForNs    int64            `json:"pending_for_ns"`
-	CooldownNs      int64            `json:"cooldown_ns"`
-	Severity        string           `json:"severity"`
-	AnnotationsJSON string           `json:"annotations_json"`
-	Enabled         bool             `json:"enabled"`
-	CreatedAt       int64            `json:"created_at"`
-	UpdatedAt       int64            `json:"updated_at"`
-	Instances       []*AlertInstance `json:"instances,omitempty" gorm:"-"`
+	ID               string           `json:"id"`
+	Name             string           `json:"name"`
+	QuerySQL         string           `json:"query_sql"`
+	QueryVersion     int              `json:"query_version"`
+	ConditionJSON    string           `json:"condition_json"`
+	GroupByJSON      string           `json:"group_by_json"`
+	PendingForNs     int64            `json:"pending_for_ns"`
+	CooldownNs       int64            `json:"cooldown_ns"`
+	RepeatIntervalNs int64            `json:"repeat_interval_ns"`
+	Owner            string           `json:"owner"`
+	Team             string           `json:"team"`
+	Severity         string           `json:"severity"`
+	AnnotationsJSON  string           `json:"annotations_json"`
+	Enabled          bool             `json:"enabled"`
+	BrowserEnabled   bool             `json:"browser_enabled"`
+	PushoverEnabled  bool             `json:"pushover_enabled"`
+	InstanceDiscoverySQL          string `json:"instance_discovery_sql"`
+	InstanceDiscoveryIntervalNs   int64  `json:"instance_discovery_interval_ns"`
+	InstanceDiscoveryStaleAfterNs int64  `json:"instance_discovery_stale_after_ns"`
+	InstanceDiscoveryLastRunAt    int64  `json:"instance_discovery_last_run_at"`
+	LastEvaluatedAt  int64            `json:"last_evaluated_at"`
+	LastSuccessAt    int64            `json:"last_success_at"`
+	LastDurationNs   int64            `json:"last_duration_ns"`
+	NextEvaluationAt int64            `json:"next_evaluation_at"`
+	LastError        string           `json:"last_error"`
+	SourceFile       string           `json:"source_file"`
+	SourceHash       string           `json:"source_hash"`
+	CreatedAt        int64            `json:"created_at"`
+	UpdatedAt        int64            `json:"updated_at"`
+	Instances        []*AlertInstance `json:"instances,omitempty" gorm:"-"`
 }
 
 func (AlertRule) TableName() string { return "alert_rules" }
 
+// AlertInstanceTarget is a discovered member of an alert's expected instance
+// universe. It makes an absent group observable without requiring alert SQL to
+// embed a static VALUES list, while preserving a bounded stale-target window.
+type AlertInstanceTarget struct {
+	RuleID       string `json:"rule_id" gorm:"primaryKey"`
+	GroupKey     string `json:"group_key" gorm:"primaryKey"`
+	LabelsJSON   string `json:"labels_json"`
+	DiscoveredAt int64  `json:"discovered_at"`
+	LastSeenAt   int64  `json:"last_seen_at"`
+}
+
+func (AlertInstanceTarget) TableName() string { return "alert_instance_targets" }
+
 type AlertInstance struct {
-	RuleID          string   `json:"rule_id" gorm:"primaryKey"`
-	GroupKey        string   `json:"group_key" gorm:"primaryKey"`
-	LabelsJSON      string   `json:"labels_json"`
-	State           string   `json:"state"`
-	Value           *float64 `json:"value"`
-	FirstPendingAt  *int64   `json:"first_pending_at"`
-	FiredAt         *int64   `json:"fired_at"`
-	ResolvedAt      *int64   `json:"resolved_at"`
-	AcknowledgedAt  *int64   `json:"acknowledged_at"`
-	LastEvaluatedAt int64    `json:"last_evaluated_at"`
-	LastError       string   `json:"last_error"`
-	LastNotifiedAt  *int64   `json:"last_notified_at"`
+	RuleID              string   `json:"rule_id" gorm:"primaryKey"`
+	GroupKey            string   `json:"group_key" gorm:"primaryKey"`
+	LabelsJSON          string   `json:"labels_json"`
+	State               string   `json:"state"`
+	Value               *float64 `json:"value"`
+	FirstPendingAt      *int64   `json:"first_pending_at"`
+	FiredAt             *int64   `json:"fired_at"`
+	ResolvedAt          *int64   `json:"resolved_at"`
+	AcknowledgedAt      *int64   `json:"acknowledged_at"`
+	AcknowledgementNote string   `json:"acknowledgement_note"`
+	LastEvaluatedAt     int64    `json:"last_evaluated_at"`
+	LastError           string   `json:"last_error"`
+	LastNotifiedAt      *int64   `json:"last_notified_at"`
 }
 
 func (AlertInstance) TableName() string { return "alert_instances" }
+
+// AlertEvent is an append-only account of evaluation, lifecycle, and delivery
+// activity. It deliberately complements AlertInstance, which is only the
+// current state for a rule/group.
+type AlertEvent struct {
+	ID        string   `json:"id"`
+	RuleID    string   `json:"rule_id"`
+	GroupKey  string   `json:"group_key"`
+	Kind      string   `json:"kind"`
+	State     string   `json:"state"`
+	Value     *float64 `json:"value"`
+	Detail    string   `json:"detail"`
+	CreatedAt int64    `json:"created_at"`
+}
+
+func (AlertEvent) TableName() string { return "alert_events" }
+
+type AlertSilence struct {
+	ID        string `json:"id"`
+	RuleID    string `json:"rule_id"`
+	GroupKey  string `json:"group_key"`
+	Comment   string `json:"comment"`
+	StartsAt  int64  `json:"starts_at"`
+	EndsAt    int64  `json:"ends_at"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+func (AlertSilence) TableName() string { return "alert_silences" }

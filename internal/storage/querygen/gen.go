@@ -17,8 +17,11 @@ import (
 
 var (
 	Q                   = new(Query)
+	AlertEvent          *alertEvent
 	AlertInstance       *alertInstance
+	AlertInstanceTarget *alertInstanceTarget
 	AlertRule           *alertRule
+	AlertSilence        *alertSilence
 	Dashboard           *dashboard
 	DashboardPanel      *dashboardPanel
 	DashboardVariable   *dashboardVariable
@@ -36,8 +39,11 @@ var (
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
+	AlertEvent = &Q.AlertEvent
 	AlertInstance = &Q.AlertInstance
+	AlertInstanceTarget = &Q.AlertInstanceTarget
 	AlertRule = &Q.AlertRule
+	AlertSilence = &Q.AlertSilence
 	Dashboard = &Q.Dashboard
 	DashboardPanel = &Q.DashboardPanel
 	DashboardVariable = &Q.DashboardVariable
@@ -56,8 +62,11 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:                  db,
+		AlertEvent:          newAlertEvent(db, opts...),
 		AlertInstance:       newAlertInstance(db, opts...),
+		AlertInstanceTarget: newAlertInstanceTarget(db, opts...),
 		AlertRule:           newAlertRule(db, opts...),
+		AlertSilence:        newAlertSilence(db, opts...),
 		Dashboard:           newDashboard(db, opts...),
 		DashboardPanel:      newDashboardPanel(db, opts...),
 		DashboardVariable:   newDashboardVariable(db, opts...),
@@ -77,8 +86,11 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 type Query struct {
 	db *gorm.DB
 
+	AlertEvent          alertEvent
 	AlertInstance       alertInstance
+	AlertInstanceTarget alertInstanceTarget
 	AlertRule           alertRule
+	AlertSilence        alertSilence
 	Dashboard           dashboard
 	DashboardPanel      dashboardPanel
 	DashboardVariable   dashboardVariable
@@ -101,8 +113,11 @@ func (q *Query) UnderlyingDB() *gorm.DB { return q.db }
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
 		db:                  db,
+		AlertEvent:          q.AlertEvent.clone(db),
 		AlertInstance:       q.AlertInstance.clone(db),
+		AlertInstanceTarget: q.AlertInstanceTarget.clone(db),
 		AlertRule:           q.AlertRule.clone(db),
+		AlertSilence:        q.AlertSilence.clone(db),
 		Dashboard:           q.Dashboard.clone(db),
 		DashboardPanel:      q.DashboardPanel.clone(db),
 		DashboardVariable:   q.DashboardVariable.clone(db),
@@ -130,8 +145,11 @@ func (q *Query) WriteDB() *Query {
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
 		db:                  db,
+		AlertEvent:          q.AlertEvent.replaceDB(db),
 		AlertInstance:       q.AlertInstance.replaceDB(db),
+		AlertInstanceTarget: q.AlertInstanceTarget.replaceDB(db),
 		AlertRule:           q.AlertRule.replaceDB(db),
+		AlertSilence:        q.AlertSilence.replaceDB(db),
 		Dashboard:           q.Dashboard.replaceDB(db),
 		DashboardPanel:      q.DashboardPanel.replaceDB(db),
 		DashboardVariable:   q.DashboardVariable.replaceDB(db),
@@ -149,8 +167,11 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 }
 
 type queryCtx struct {
+	AlertEvent          IAlertEventDo
 	AlertInstance       IAlertInstanceDo
+	AlertInstanceTarget IAlertInstanceTargetDo
 	AlertRule           IAlertRuleDo
+	AlertSilence        IAlertSilenceDo
 	Dashboard           IDashboardDo
 	DashboardPanel      IDashboardPanelDo
 	DashboardVariable   IDashboardVariableDo
@@ -168,8 +189,11 @@ type queryCtx struct {
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
+		AlertEvent:          q.AlertEvent.WithContext(ctx),
 		AlertInstance:       q.AlertInstance.WithContext(ctx),
+		AlertInstanceTarget: q.AlertInstanceTarget.WithContext(ctx),
 		AlertRule:           q.AlertRule.WithContext(ctx),
+		AlertSilence:        q.AlertSilence.WithContext(ctx),
 		Dashboard:           q.Dashboard.WithContext(ctx),
 		DashboardPanel:      q.DashboardPanel.WithContext(ctx),
 		DashboardVariable:   q.DashboardVariable.WithContext(ctx),

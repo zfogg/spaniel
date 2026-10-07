@@ -54,6 +54,11 @@ export interface AlertPayload {
   threshold?: number
   operator?: string
   link?: string
+  browser?: boolean
+}
+export interface AlertSyncPayload {
+  ruleId: string
+  reason: string
 }
 
 export type WsEvent =
@@ -64,6 +69,7 @@ export type WsEvent =
   | { type: 'forwarder'; timestamp_ns: number; payload: ForwarderPayload }
   | { type: 'throughput'; timestamp_ns: number; payload: ThroughputPayload }
   | { type: 'alert'; timestamp_ns: number; payload: AlertPayload }
+  | { type: 'alert_sync'; timestamp_ns: number; payload: AlertSyncPayload }
   | { type: 'heartbeat'; timestamp_ns: number }
 
 // Keep SpanEvent as a backward-compat alias:
