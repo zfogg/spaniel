@@ -915,35 +915,25 @@ function Inspector({
       <header className="border-b border-border pb-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+            <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
               Alert rule
+              <span
+                className={`rounded px-2 py-1 font-mono text-[11px] normal-case tracking-normal ${tone[state] ?? 'bg-muted'}`}
+              >
+                {state}
+              </span>
             </p>
             <h2 className="mt-1 text-lg font-semibold">{rule.name}</h2>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             <div className="flex items-center gap-2">
-              <span
-                className={`rounded px-2 py-1 font-mono text-[11px] ${tone[state] ?? 'bg-muted'}`}
-              >
-                {state}
-              </span>
-              <button
-                disabled={fileManaged}
-                onClick={() => {
-                  setEditing(true)
-                  onEditingChange(true)
-                }}
-                className="rounded border border-border px-2.5 py-1.5 text-xs"
-              >
-                Edit
-              </button>
               {rule.instances?.some(
                 (instance) =>
                   ['pending', 'firing'].includes(instance.state) && !instance.acknowledged_at,
               ) && (
                 <button
                   onClick={() => acknowledge.mutate()}
-                  className="rounded border border-border px-2.5 py-1.5 text-xs"
+                  className="rounded border border-accent-d bg-accent-bg px-2.5 py-1.5 text-xs text-accent-ink hover:bg-accent-bg/80"
                 >
                   Acknowledge
                 </button>
@@ -996,6 +986,16 @@ function Inspector({
               className="rounded border border-border px-2.5 py-1.5 text-xs"
             >
               {duplicate.isPending ? 'Duplicating…' : 'Duplicate'}
+            </button>
+            <button
+              disabled={fileManaged}
+              onClick={() => {
+                setEditing(true)
+                onEditingChange(true)
+              }}
+              className="rounded border border-border bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground hover:bg-secondary/80 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Edit
             </button>
             <button
               disabled={fileManaged}
@@ -1733,7 +1733,7 @@ function Silences({
                     </button>
                     <button
                       onClick={() => setEditing(silence)}
-                      className="rounded border border-border px-2 py-1 text-xs"
+                      className="rounded border border-border bg-secondary px-2 py-1 text-xs text-secondary-foreground hover:bg-secondary/80"
                     >
                       Edit
                     </button>
