@@ -80,6 +80,15 @@ type TraceListRow struct {
 
 type CountValue struct{ Count int64 }
 
+// StatsRow is the aggregate projection used by the generated span statistics query.
+type StatsRow struct {
+	SpanCount       int64
+	TraceCount      int64
+	LogCount        int64
+	SessionCount    int64
+	OldestSessionAt int64
+}
+
 type SourceStatsRow struct {
 	ServiceName string
 	SpanCount   int64

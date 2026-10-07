@@ -37,6 +37,7 @@ func newAlertInstance(db *gorm.DB, opts ...gen.DOOption) alertInstance {
 	_alertInstance.FiredAt = field.NewInt64(tableName, "fired_at")
 	_alertInstance.ResolvedAt = field.NewInt64(tableName, "resolved_at")
 	_alertInstance.AcknowledgedAt = field.NewInt64(tableName, "acknowledged_at")
+	_alertInstance.AcknowledgementNote = field.NewString(tableName, "acknowledgement_note")
 	_alertInstance.LastEvaluatedAt = field.NewInt64(tableName, "last_evaluated_at")
 	_alertInstance.LastError = field.NewString(tableName, "last_error")
 	_alertInstance.LastNotifiedAt = field.NewInt64(tableName, "last_notified_at")
@@ -49,19 +50,20 @@ func newAlertInstance(db *gorm.DB, opts ...gen.DOOption) alertInstance {
 type alertInstance struct {
 	alertInstanceDo
 
-	ALL             field.Asterisk
-	RuleID          field.String
-	GroupKey        field.String
-	LabelsJSON      field.String
-	State           field.String
-	Value           field.Float64
-	FirstPendingAt  field.Int64
-	FiredAt         field.Int64
-	ResolvedAt      field.Int64
-	AcknowledgedAt  field.Int64
-	LastEvaluatedAt field.Int64
-	LastError       field.String
-	LastNotifiedAt  field.Int64
+	ALL                 field.Asterisk
+	RuleID              field.String
+	GroupKey            field.String
+	LabelsJSON          field.String
+	State               field.String
+	Value               field.Float64
+	FirstPendingAt      field.Int64
+	FiredAt             field.Int64
+	ResolvedAt          field.Int64
+	AcknowledgedAt      field.Int64
+	AcknowledgementNote field.String
+	LastEvaluatedAt     field.Int64
+	LastError           field.String
+	LastNotifiedAt      field.Int64
 
 	fieldMap map[string]field.Expr
 }
@@ -87,6 +89,7 @@ func (a *alertInstance) updateTableName(table string) *alertInstance {
 	a.FiredAt = field.NewInt64(table, "fired_at")
 	a.ResolvedAt = field.NewInt64(table, "resolved_at")
 	a.AcknowledgedAt = field.NewInt64(table, "acknowledged_at")
+	a.AcknowledgementNote = field.NewString(table, "acknowledgement_note")
 	a.LastEvaluatedAt = field.NewInt64(table, "last_evaluated_at")
 	a.LastError = field.NewString(table, "last_error")
 	a.LastNotifiedAt = field.NewInt64(table, "last_notified_at")
@@ -106,7 +109,7 @@ func (a *alertInstance) GetFieldByName(fieldName string) (field.OrderExpr, bool)
 }
 
 func (a *alertInstance) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 12)
+	a.fieldMap = make(map[string]field.Expr, 13)
 	a.fieldMap["rule_id"] = a.RuleID
 	a.fieldMap["group_key"] = a.GroupKey
 	a.fieldMap["labels_json"] = a.LabelsJSON
@@ -116,6 +119,7 @@ func (a *alertInstance) fillFieldMap() {
 	a.fieldMap["fired_at"] = a.FiredAt
 	a.fieldMap["resolved_at"] = a.ResolvedAt
 	a.fieldMap["acknowledged_at"] = a.AcknowledgedAt
+	a.fieldMap["acknowledgement_note"] = a.AcknowledgementNote
 	a.fieldMap["last_evaluated_at"] = a.LastEvaluatedAt
 	a.fieldMap["last_error"] = a.LastError
 	a.fieldMap["last_notified_at"] = a.LastNotifiedAt
