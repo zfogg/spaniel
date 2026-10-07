@@ -142,6 +142,8 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("mcp_allow_writes", false)
 	v.SetDefault("alerts.browser_enabled", true)
 	v.SetDefault("alerts.pushover_enabled", true)
+	v.SetDefault("alerts.pushover_user_key", "")
+	v.SetDefault("alerts.pushover_api_token", "")
 	v.SetDefault("alerts.browser_template", "")
 	v.SetDefault("alerts.pushover_template", "")
 

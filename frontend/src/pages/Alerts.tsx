@@ -401,6 +401,21 @@ export default function Alerts() {
       }, {}),
     [rules],
   )
+  const latestFiring = useMemo(() => {
+    let latest: { name: string; firedAt: number; instanceCount: number } | undefined
+    for (const rule of rules) {
+      const firingInstances = (rule.instances ?? []).filter(
+        (instance) => instance.state === 'firing' && instance.fired_at,
+      )
+      for (const instance of firingInstances) {
+        const firedAt = Number(instance.fired_at)
+        if (!latest || firedAt > latest.firedAt) {
+          latest = { name: rule.name, firedAt, instanceCount: firingInstances.length }
+        }
+      }
+    }
+    return latest
+  }, [rules])
   const showYaml = async () => {
     if (!selected) return
     try {
@@ -474,7 +489,7 @@ export default function Alerts() {
           </div>
         </header>
         <div className="p-4">
-          <AlertSummaryStrip selected={selected} counts={instanceCounts} />
+          <AlertSummaryStrip latestFiring={latestFiring} counts={instanceCounts} />
           <div className="mb-3 flex gap-1">
             <button
               onClick={() => {
@@ -1250,25 +1265,31 @@ function InspectorSection({ title, children }: { title: string; children: ReactN
   )
 }
 function AlertSummaryStrip({
-  selected,
+  latestFiring,
   counts,
 }: {
-  selected?: AlertRule
+  latestFiring?: { name: string; firedAt: number; instanceCount: number }
   counts: Record<string, number>
 }) {
-  const selectedState = selected ? ruleState(selected) : 'resolved'
   return (
     <div className="mb-4 grid overflow-hidden rounded-lg border border-[#c9d7e3] bg-white shadow-[0_1px_0_rgba(31,56,83,0.04)] dark:border-border dark:bg-background sm:grid-cols-[1.4fr_repeat(3,minmax(0,0.7fr))]">
       <div
-        className={`flex min-w-0 items-center gap-2 border-b border-[#d7e1e9] px-3 py-3 sm:border-b-0 sm:border-r dark:border-border ${stateRowTone[selectedState] ?? 'bg-[#f7fafc]'}`}
+        className={`flex min-w-0 items-center gap-2 border-b border-[#d7e1e9] px-3 py-3 sm:border-b-0 sm:border-r dark:border-border ${latestFiring ? stateRowTone.firing : 'bg-[#f7fafc]'}`}
       >
         <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-80" />
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold">{selected?.name ?? 'No alert selected'}</p>
+          <p className="truncate text-xs font-semibold">
+            {latestFiring?.name ?? 'No firing alerts'}
+          </p>
           <p className="mt-0.5 font-mono text-[10px] opacity-70">
-            {selected
-              ? `${selectedState} · ${selected.instances?.length ?? 0} instances`
-              : 'Select a rule to inspect it'}
+            {latestFiring ? (
+              <>
+                Latest firing · {latestFiring.instanceCount} instances ·{' '}
+                <TimestampWithAgo nanoseconds={latestFiring.firedAt} />
+              </>
+            ) : (
+              'No rule is currently firing'
+            )}
           </p>
         </div>
       </div>

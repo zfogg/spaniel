@@ -53,6 +53,15 @@ import (
 // init() falls back to the VCS metadata Go embeds in the binary.
 var version = "dev"
 
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 // spaHandler serves a React SPA with client-side routing.
 // Falls back to index.html for any request that doesn't match a static asset.
 type spaHandler struct {
@@ -926,8 +935,8 @@ func run(cfg runConfig) error {
 		PushoverEnabled:  func() bool { return cfg.Viper.GetBool("alerts.pushover_enabled") },
 		BrowserTemplate:  func() string { return cfg.Viper.GetString("alerts.browser_template") },
 		PushoverTemplate: func() string { return cfg.Viper.GetString("alerts.pushover_template") },
-		PushoverUserKey:  os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"),
-		PushoverAPIToken: os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"),
+		PushoverUserKey:  firstNonEmpty(os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"), cfg.Viper.GetString("alerts.pushover_user_key")),
+		PushoverAPIToken: firstNonEmpty(os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"), cfg.Viper.GetString("alerts.pushover_api_token")),
 		RecordEvent: func(event *storage.AlertEvent) {
 			if err := store.RecordAlertEvent(event); err != nil {
 				slog.Warn("record alert delivery event", "err", err)
