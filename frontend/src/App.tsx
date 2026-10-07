@@ -98,12 +98,33 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
 
 function DocsMenu() {
   const [open, setOpen] = useState(false)
-  return <div className="relative" onMouseEnter={() => setOpen(true)}>
-    <button type="button" onClick={() => setOpen((value) => !value)} className="inline-flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-muted-foreground hover:text-foreground">
-      Docs {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-    </button>
-    {open && <div className="absolute left-0 top-full z-50 w-48 rounded-md border border-border bg-background p-1 shadow-lg"><NavLink to="/docs/openapi" className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">OpenAPI schema</NavLink><NavLink to="/docs/database-schema" className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Database schema</NavLink></div>}
-  </div>
+  return (
+    <div className="relative" onMouseEnter={() => setOpen(true)}>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        Docs {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-50 w-48 rounded-md border border-border bg-background p-1 shadow-lg">
+          <NavLink
+            to="/docs/openapi"
+            className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            OpenAPI schema
+          </NavLink>
+          <NavLink
+            to="/docs/database-schema"
+            className="block rounded px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            Database schema
+          </NavLink>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
@@ -297,7 +318,7 @@ function AppShell() {
             <Route path="/dashboards/:dashboardId" element={<DashboardEditor />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/docs/database-schema" element={<DatabaseSchema />} />
-			<Route path="/docs/openapi" element={<OpenAPI />} />
+            <Route path="/docs/openapi" element={<OpenAPI />} />
             <Route path="/coverage" element={<Coverage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/services" element={<ServiceMap />} />
@@ -310,7 +331,7 @@ function AppShell() {
       <BottomBar />
       <IssueToast />
       <AlertToast />
-      <Toaster position="bottom-right" offset={44} visibleToasts={3} />
+      <Toaster position="top-right" offset={72} visibleToasts={3} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )

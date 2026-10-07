@@ -1371,8 +1371,8 @@ function AlertSummaryStrip({
         </div>
       </div>
       {[
-        ['firing_instances', 'firing', '#a34339'],
         ['firing_rules', 'firing', '#a34339'],
+        ['firing_instances', 'firing', '#a34339'],
         ['pending', 'pending', '#9a6a14'],
         ['resolved', 'resolved', '#387558'],
       ].map(([key, state, color]) => (
