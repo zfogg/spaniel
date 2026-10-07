@@ -99,6 +99,9 @@ func GenerateSchemaCatalog(path string) (*SchemaCatalog, error) {
 			return nil, err
 		}
 		view := SchemaView{Name: name, Purpose: schemaViewMetadata[name].Purpose, Samples: samplesFor(name)}
+		if view.Samples == nil {
+			view.Samples = []SchemaSample{}
+		}
 		for rows.Next() {
 			var n, typ string
 			if err := rows.Scan(&n, &typ); err != nil {

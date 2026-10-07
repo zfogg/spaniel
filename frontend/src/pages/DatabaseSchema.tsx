@@ -122,7 +122,7 @@ export default function DatabaseSchema() {
               >
                 <span className="font-mono">{view.name}</span>
                 <small className="mt-1 block font-mono text-[9px] font-normal text-[#7890a1]">
-                  {view.columns.length} columns · {view.samples.length} samples
+                  {view.columns.length} columns · {(view.samples ?? []).length} samples
                 </small>
               </button>
             ))}
@@ -171,7 +171,7 @@ export default function DatabaseSchema() {
                 </tbody>
               </table>
             </div>
-            {selected.samples.map((sample) => (
+            {(selected.samples ?? []).map((sample) => (
               <section
                 key={sample.id}
                 className="mt-4 overflow-hidden rounded-md border border-[#cbdce8] bg-[#f5faff] dark:border-border dark:bg-muted"
