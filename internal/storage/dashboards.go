@@ -83,7 +83,13 @@ func (d *DB) ReplaceDashboardDefinition(x *Dashboard) error {
 		return err
 	}
 	q := d.namedQuery("storage.ReplaceDashboardDefinition")
-	if err := q.Dashboard.Create(x); err != nil {
+	// Create the parent on its own. GORM otherwise persists the preloaded
+	// association slices here and the explicit child creates below attempt to
+	// write them a second time.
+	dashboard := *x
+	dashboard.Variables = nil
+	dashboard.Panels = nil
+	if err := q.Dashboard.Create(&dashboard); err != nil {
 		return err
 	}
 	if len(x.Variables) > 0 {
