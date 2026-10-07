@@ -1,7 +1,11 @@
 import { test, expect, type Route, type Page } from '@playwright/test'
 import type { CoverageReport } from '../src/lib/api'
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 0, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -10,40 +14,60 @@ function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown>
 }
 
 async function stubChrome(page: Page) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/stats*', r => jsonResponse(r, {
-    span_count: 0, trace_count: 0, log_count: 0, db_size: 0,
-    session_count: 0, oldest_session_at: 0,
-  }))
-  await page.route('**/api/forwarders', r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route('**/api/stats*', (r) =>
+    jsonResponse(r, {
+      span_count: 0,
+      trace_count: 0,
+      log_count: 0,
+      db_size: 0,
+      session_count: 0,
+      oldest_session_at: 0,
+    }),
+  )
+  await page.route('**/api/forwarders', (r) => jsonResponse(r, []))
+  await page.route('**/api/sessions/active', (r) => jsonResponse(r, { id: '', label: '' }))
 }
 
 async function stubCoverage(page: Page, report: CoverageReport | null) {
-  await page.route(url => new URL(url.toString()).pathname === '/api/coverage',
-    r => jsonResponse(r, report ?? { services: [], overall: { observed_operations: 0, total_routes: 0, dark_count: 0, coverage_pct: 0 } }))
+  await page.route(
+    (url) => new URL(url.toString()).pathname === '/api/coverage',
+    (r) =>
+      jsonResponse(
+        r,
+        report ?? {
+          services: [],
+          overall: { observed_operations: 0, total_routes: 0, dark_count: 0, coverage_pct: 0 },
+        },
+      ),
+  )
 }
 
 const fullReport: CoverageReport = {
   services: [
     {
-      name: 'api', source: 'openapi', spec: 'openapi.yaml',
-      observed_operations: 2, total_routes: 4, coverage_pct: 50,
+      name: 'api',
+      source: 'openapi',
+      spec: 'openapi.yaml',
+      observed_operations: 2,
+      total_routes: 4,
+      coverage_pct: 50,
       observed_routes: [
-        { method: 'GET',  path: '/api/products', hits: 241, p95_ns: 78_000_000 },
-        { method: 'POST', path: '/api/cart',     hits: 46,  p95_ns: 46_000_000 },
+        { method: 'GET', path: '/api/products', hits: 241, p95_ns: 78_000_000 },
+        { method: 'POST', path: '/api/cart', hits: 46, p95_ns: 46_000_000 },
       ],
       dark_routes: [
-        { method: 'POST',   path: '/api/v1/export',     hits: 0 },
-        { method: 'DELETE', path: '/api/v1/users/:id',  hits: 0 },
+        { method: 'POST', path: '/api/v1/export', hits: 0 },
+        { method: 'DELETE', path: '/api/v1/users/:id', hits: 0 },
       ],
     },
     {
-      name: 'pricing', source: 'observed',
-      observed_operations: 1, total_routes: 1, coverage_pct: 100,
-      observed_routes: [
-        { method: 'RPC', path: 'pricing.v1.Quote', hits: 34, p95_ns: 80_000_000 },
-      ],
+      name: 'pricing',
+      source: 'observed',
+      observed_operations: 1,
+      total_routes: 1,
+      coverage_pct: 100,
+      observed_routes: [{ method: 'RPC', path: 'pricing.v1.Quote', hits: 34, p95_ns: 80_000_000 }],
       dark_routes: [],
     },
   ],
@@ -120,7 +144,9 @@ test.describe('Coverage page', () => {
     await expect(page.getByText('/api/products')).toHaveCount(0)
   })
 
-  test('clicking a dark route opens the inspector with the "instrument this route" hint', async ({ page }) => {
+  test('clicking a dark route opens the inspector with the "instrument this route" hint', async ({
+    page,
+  }) => {
     await stubChrome(page)
     await stubCoverage(page, fullReport)
     await page.goto('/coverage')

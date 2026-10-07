@@ -17,7 +17,9 @@ describe('RouteErrorBoundary', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     render(
       <MemoryRouter>
-        <RouteErrorBoundary><Boom /></RouteErrorBoundary>
+        <RouteErrorBoundary>
+          <Boom />
+        </RouteErrorBoundary>
       </MemoryRouter>,
     )
     expect(screen.getByRole('alert')).toBeTruthy()
@@ -30,7 +32,9 @@ describe('RouteErrorBoundary', () => {
   it('renders children normally when they do not throw', () => {
     render(
       <MemoryRouter>
-        <RouteErrorBoundary><div>all good</div></RouteErrorBoundary>
+        <RouteErrorBoundary>
+          <div>all good</div>
+        </RouteErrorBoundary>
       </MemoryRouter>,
     )
     expect(screen.getByText('all good')).toBeTruthy()

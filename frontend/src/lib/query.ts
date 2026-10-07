@@ -39,8 +39,8 @@ export const qk = {
   sources: () => ['sources'] as const,
   storage: () => ['storage'] as const,
   settings: () => ['settings'] as const,
-	 dashboards: () => ['dashboards'] as const,
-	 alerts: () => ['alerts'] as const,
+  dashboards: () => ['dashboards'] as const,
+  alerts: () => ['alerts'] as const,
 }
 
 // Maps a live WebSocket event type to the query-key prefixes it should
@@ -50,12 +50,23 @@ const INVALIDATIONS: Record<string, string[]> = {
   // Dashboard panels execute read-only queries over these same live streams.
   // Invalidate their active observers from the event that made their results
   // stale, rather than polling the preview endpoint.
-  span: ['traces', 'trace', 'spans', 'span', 'service-map', 'stats', 'lint', 'coverage', 'sessions', 'dashboard-panel'],
+  span: [
+    'traces',
+    'trace',
+    'spans',
+    'span',
+    'service-map',
+    'stats',
+    'lint',
+    'coverage',
+    'sessions',
+    'dashboard-panel',
+  ],
   log: ['logs', 'dashboard-panel'],
   metric: ['metrics', 'metric-series', 'dashboard-panel'],
   issue: ['issues', 'traces', 'trace'],
   forwarder: ['forwarders'],
-	 alert: ['alerts'],
+  alert: ['alerts'],
 }
 
 // Opens a single WebSocket and turns live events into throttled query
@@ -76,9 +87,9 @@ export function useLiveInvalidation() {
     }
 
     const unsub = onWSEvent((ev) => {
-			// Self-telemetry catalog frames update the Metrics sidebar locally. They
-			// must not refetch telemetry queries, which would form a feedback loop.
-			if (ev.type === 'metric' && ev.payload.catalogOnly) return
+      // Self-telemetry catalog frames update the Metrics sidebar locally. They
+      // must not refetch telemetry queries, which would form a feedback loop.
+      if (ev.type === 'metric' && ev.payload.catalogOnly) return
       const prefixes = INVALIDATIONS[ev.type]
       if (!prefixes) return
       for (const p of prefixes) dirty.add(p)

@@ -37,11 +37,20 @@ export function useDebouncedSave<T>({ enabled, key, save, value, delay = 300 }: 
     }
     if (Object.is(initial.current.value, value)) return
     setPending(true)
-    timer.current = setTimeout(() => { void flush() }, delay)
-    return () => { if (timer.current) clearTimeout(timer.current) }
+    timer.current = setTimeout(() => {
+      void flush()
+    }, delay)
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+    }
   }, [delay, enabled, flush, key, value])
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -55,14 +64,26 @@ export function useDebouncedSave<T>({ enabled, key, save, value, delay = 300 }: 
 
   useEffect(() => {
     const onLinkClick = (event: MouseEvent) => {
-      if (!pending || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+      if (
+        !pending ||
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return
       const link = (event.target as Element | null)?.closest('a[href]') as HTMLAnchorElement | null
       if (!link || link.target || link.origin !== window.location.origin) return
       event.preventDefault()
       event.stopPropagation()
-      void flush().then(() => window.location.assign(link.href)).catch(() => {
-        if (window.confirm('Your changes could not be saved. Leave this page anyway?')) window.location.assign(link.href)
-      })
+      void flush()
+        .then(() => window.location.assign(link.href))
+        .catch(() => {
+          if (window.confirm('Your changes could not be saved. Leave this page anyway?'))
+            window.location.assign(link.href)
+        })
     }
     document.addEventListener('click', onLinkClick, true)
     return () => document.removeEventListener('click', onLinkClick, true)

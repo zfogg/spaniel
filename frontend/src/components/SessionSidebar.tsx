@@ -7,10 +7,12 @@ export default function SessionSidebar() {
   const [sessions, setSessions] = useState<Session[]>([])
 
   function load() {
-    api.sessions.list().then(r => setSessions(r.data ?? []))
+    api.sessions.list().then((r) => setSessions(r.data ?? []))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   async function newSession() {
     await api.sessions.create()

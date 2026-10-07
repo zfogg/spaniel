@@ -38,27 +38,23 @@ const LANG_LABELS: Record<Lang, string> = {
 }
 
 const LANG_SNIPPETS: Record<Lang, string> = {
-  python:
-`pip install opentelemetry-distro opentelemetry-exporter-otlp
+  python: `pip install opentelemetry-distro opentelemetry-exporter-otlp
 opentelemetry-bootstrap -a install
 opentelemetry-instrument python app.py`,
 
-  nodejs:
-`npm install @opentelemetry/api \\
+  nodejs: `npm install @opentelemetry/api \\
   @opentelemetry/auto-instrumentations-node
 
 # add to your start command:
 node -r @opentelemetry/auto-instrumentations-node/register app.js`,
 
-  go:
-`go get go.opentelemetry.io/otel \\
+  go: `go get go.opentelemetry.io/otel \\
   go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 
 // wrap your handler:
 handler = otelhttp.NewHandler(handler, "my-service")`,
 
-  java:
-`# download the javaagent:
+  java: `# download the javaagent:
 curl -LO https://github.com/open-telemetry/opentelemetry-java-instrumentation/\\
   releases/latest/download/opentelemetry-javaagent.jar
 
@@ -72,15 +68,44 @@ function SpanielWaiting() {
       <span className="ping absolute inset-[-2px] block rounded-full border-2 border-[var(--ok)]" />
       <span className="ping absolute inset-[-2px] block rounded-full border-2 border-[var(--ok)] [animation-delay:0.8s]" />
       <svg width={76} height={76} viewBox="0 0 76 76" className="block">
-        <ellipse cx="20" cy="36" rx="14" ry="23" fill="var(--accent)" opacity="0.72" transform="rotate(-13 20 36)" />
-        <ellipse cx="56" cy="36" rx="14" ry="23" fill="var(--accent)" opacity="0.46" transform="rotate(13 56 36)" />
-        <circle cx="38" cy="38" r="19" fill="var(--surface)" stroke="var(--ink)" strokeWidth="1.4" />
+        <ellipse
+          cx="20"
+          cy="36"
+          rx="14"
+          ry="23"
+          fill="var(--accent)"
+          opacity="0.72"
+          transform="rotate(-13 20 36)"
+        />
+        <ellipse
+          cx="56"
+          cy="36"
+          rx="14"
+          ry="23"
+          fill="var(--accent)"
+          opacity="0.46"
+          transform="rotate(13 56 36)"
+        />
+        <circle
+          cx="38"
+          cy="38"
+          r="19"
+          fill="var(--surface)"
+          stroke="var(--ink)"
+          strokeWidth="1.4"
+        />
         <circle cx="32" cy="36" r="2.3" fill="var(--ink)" />
         <circle cx="44" cy="36" r="2.3" fill="var(--ink)" />
         <circle cx="33.2" cy="35.2" r="0.7" fill="var(--surface)" />
         <circle cx="45.2" cy="35.2" r="0.7" fill="var(--surface)" />
         <ellipse cx="38" cy="42" rx="2.8" ry="2" fill="var(--ink2)" />
-        <path d="M33.5 46.5 Q38 50 42.5 46.5" stroke="var(--ink)" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+        <path
+          d="M33.5 46.5 Q38 50 42.5 46.5"
+          stroke="var(--ink)"
+          strokeWidth="1.4"
+          fill="none"
+          strokeLinecap="round"
+        />
       </svg>
     </div>
   )
@@ -104,7 +129,7 @@ function EmptyState() {
   // user changed the config without restarting yet).
   const { data: settings } = useQuery({
     queryKey: qk.settings(),
-    queryFn: () => api.settings.get().then(r => r.data),
+    queryFn: () => api.settings.get().then((r) => r.data),
   })
   const ports = {
     http: settings?.runtime?.otlp_http_port || 4318,
@@ -139,7 +164,7 @@ function EmptyState() {
           Step 2 — install the SDK
         </p>
         <div className="mb-1.5 flex gap-0.5 rounded-lg bg-muted p-0.5">
-          {(Object.keys(LANG_LABELS) as Lang[]).map(l => (
+          {(Object.keys(LANG_LABELS) as Lang[]).map((l) => (
             <button
               key={l}
               type="button"
@@ -172,22 +197,27 @@ function EmptyState() {
 type TagTone = 'danger' | 'warn' | 'accent'
 
 const TAG_TONE: Record<NonNullable<ReturnType<typeof traceTag>>, TagTone> = {
-  'n+1':     'danger',
-  'slow':    'warn',
-  'baseline': 'accent',
-  'error':   'danger',
+  'n+1': 'danger',
+  slow: 'warn',
+  baseline: 'accent',
+  error: 'danger',
 }
 
 const TONE_CLASS: Record<TagTone, string> = {
   danger: 'bg-[var(--danger-bg)] text-[var(--danger-ink)]',
-  warn:   'bg-[var(--warn-bg)]   text-[var(--warn-ink)]',
+  warn: 'bg-[var(--warn-bg)]   text-[var(--warn-ink)]',
   accent: 'bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] text-[var(--accent)]',
 }
 
 const ISSUE_ABBREV: Record<string, string> = {
-  slow_db: 'slow db', chatty_http: 'chatty', large_payload: 'large',
-  cache_miss_storm: 'cache', tracing_gap: 'gap', error_chain: 'err chain',
-  serial_promise: 'serial', synchronous_io: 'sync io',
+  slow_db: 'slow db',
+  chatty_http: 'chatty',
+  large_payload: 'large',
+  cache_miss_storm: 'cache',
+  tracing_gap: 'gap',
+  error_chain: 'err chain',
+  serial_promise: 'serial',
+  synchronous_io: 'sync io',
 }
 
 function IssueKindChip({ kind }: { kind: string }) {
@@ -202,7 +232,9 @@ function IssueKindChip({ kind }: { kind: string }) {
 function TagChip({ tag }: { tag: NonNullable<ReturnType<typeof traceTag>> }) {
   const tone = TAG_TONE[tag]
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0 font-mono text-[9px] font-bold uppercase tracking-wide ${TONE_CLASS[tone]}`}>
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0 font-mono text-[9px] font-bold uppercase tracking-wide ${TONE_CLASS[tone]}`}
+    >
       {tag}
     </span>
   )
@@ -233,9 +265,7 @@ function TraceRowItem({
       className="grid cursor-pointer items-center gap-0 px-[18px] py-[10px] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] border-b border-b-[var(--line2)]"
       style={{
         gridTemplateColumns: GRID_COLS,
-        background: isFirst
-          ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
-          : undefined,
+        background: isFirst ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))' : undefined,
         borderLeft: isFirst ? '2px solid var(--accent)' : '2px solid transparent',
       }}
     >
@@ -246,9 +276,12 @@ function TraceRowItem({
             {httpDisplayName(trace)}
           </span>
           {tag && <TagChip tag={tag} />}
-          {(trace.issue_kinds ?? []).filter(k => k !== 'n_plus_one').slice(0, 2).map(k => (
-            <IssueKindChip key={k} kind={k} />
-          ))}
+          {(trace.issue_kinds ?? [])
+            .filter((k) => k !== 'n_plus_one')
+            .slice(0, 2)
+            .map((k) => (
+              <IssueKindChip key={k} kind={k} />
+            ))}
         </div>
         <div className="font-mono text-[10px] text-[var(--ink3)]">
           {trace.trace_id.slice(0, 16)}…
@@ -261,9 +294,7 @@ function TraceRowItem({
       </div>
 
       {/* span count */}
-      <div className="text-right font-mono text-[11px] text-[var(--ink2)]">
-        {trace.span_count}
-      </div>
+      <div className="text-right font-mono text-[11px] text-[var(--ink2)]">{trace.span_count}</div>
 
       {/* shape bar */}
       <div className="pl-3">
@@ -276,7 +307,10 @@ function TraceRowItem({
       </div>
 
       {/* absolute timestamp */}
-      <div className="text-right font-mono text-[10px] text-[var(--ink3)]" title={fmtDateTime(trace.start_ns)}>
+      <div
+        className="text-right font-mono text-[10px] text-[var(--ink3)]"
+        title={fmtDateTime(trace.start_ns)}
+      >
         {fmtDateTime(trace.start_ns)}
       </div>
     </div>
@@ -326,7 +360,11 @@ function SbItem({
   // Render a real <button> when clickable so keyboard/AT get native semantics
   // and the global focus-visible ring; a plain <div> for the decorative case.
   return onClick ? (
-    <button type="button" onClick={onClick} className={`w-full appearance-none border-0 text-left ${cls}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full appearance-none border-0 text-left ${cls}`}
+    >
       {inner}
     </button>
   ) : (
@@ -351,7 +389,10 @@ export default function TraceList() {
   // Filters live in the URL (typed, via nuqs) so they're shareable/bookmarkable.
   const [filterService, setFilterService] = useQueryState('service', { defaultValue: 'all' })
   const [filterSession, setFilterSession] = useQueryState('session')
-  const [quickFilter, setQuickFilter] = useQueryState('status', parseAsStringLiteral(['lint', 'slow', 'errors'] as const))
+  const [quickFilter, setQuickFilter] = useQueryState(
+    'status',
+    parseAsStringLiteral(['lint', 'slow', 'errors'] as const),
+  )
   const [page, setPage] = useState(1)
   const navigate = useNavigate()
 
@@ -369,17 +410,29 @@ export default function TraceList() {
   // Live refresh is driven centrally by useLiveInvalidation() in App.tsx, which
   // invalidates the 'traces' key on span events (throttled), so this query
   // re-fetches automatically instead of optimistically prepending rows here.
-  const { data: traceResponse, isLoading: loading, isError, error, refetch } = useQuery({
+  const {
+    data: traceResponse,
+    isLoading: loading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: qk.traces({ sessionId: filterSession, service: filterService, page }),
-    queryFn: () => api.traces.list({ sessionId: filterSession ?? undefined, service: filterService === 'all' ? undefined : filterService, page, limit: PAGE_SIZE }),
+    queryFn: () =>
+      api.traces.list({
+        sessionId: filterSession ?? undefined,
+        service: filterService === 'all' ? undefined : filterService,
+        page,
+        limit: PAGE_SIZE,
+      }),
   })
   const traces = traceResponse?.data ?? []
   const traceTotal = traceResponse?.meta.total ?? 0
   const { data: sessions = [] } = useQuery({
     queryKey: qk.sessions(),
-    queryFn: () => api.sessions.list().then(r => r.data ?? []),
+    queryFn: () => api.sessions.list().then((r) => r.data ?? []),
   })
-  const baselineSessionId = sessions.find(s => s.is_baseline)?.id ?? null
+  const baselineSessionId = sessions.find((s) => s.is_baseline)?.id ?? null
 
   // Per-service trace counts + most-recent timestamp, derived from the
   // loaded traces. Services are ordered by recency (newest trace first).
@@ -389,26 +442,34 @@ export default function TraceList() {
     serviceCounts[t.service_name] = (serviceCounts[t.service_name] ?? 0) + 1
     serviceLatest[t.service_name] = Math.max(serviceLatest[t.service_name] ?? 0, t.start_ns)
   }
-  const serviceNames = Object.keys(serviceCounts).sort((a, b) => serviceLatest[b] - serviceLatest[a])
+  const serviceNames = Object.keys(serviceCounts).sort(
+    (a, b) => serviceLatest[b] - serviceLatest[a],
+  )
   const sessionsByRecent = [...sessions].sort((a, b) => b.created_at - a.created_at)
 
-  const lintCount = traces.filter(t => t.has_n1).length
-  const slowCount = traces.filter(t => t.duration_ns > SLOW_NS).length
-  const errorCount = traces.filter(t => t.status_code === 2).length
+  const lintCount = traces.filter((t) => t.has_n1).length
+  const slowCount = traces.filter((t) => t.duration_ns > SLOW_NS).length
+  const errorCount = traces.filter((t) => t.status_code === 2).length
 
   const matchesQuick = (t: TraceRow) =>
-    quickFilter === 'lint' ? t.has_n1
-    : quickFilter === 'slow' ? t.duration_ns > SLOW_NS
-    : quickFilter === 'errors' ? t.status_code === 2
-    : true
+    quickFilter === 'lint'
+      ? t.has_n1
+      : quickFilter === 'slow'
+        ? t.duration_ns > SLOW_NS
+        : quickFilter === 'errors'
+          ? t.status_code === 2
+          : true
 
-  const filtered = traces.filter(t =>
-    (filterService === 'all' || t.service_name === filterService) &&
-    (filterSession === null || t.session_id === filterSession) &&
-    matchesQuick(t),
+  const filtered = traces.filter(
+    (t) =>
+      (filterService === 'all' || t.service_name === filterService) &&
+      (filterSession === null || t.session_id === filterSession) &&
+      matchesQuick(t),
   )
 
-  useEffect(() => { setPage(1) }, [filterSession, filterService, quickFilter])
+  useEffect(() => {
+    setPage(1)
+  }, [filterSession, filterService, quickFilter])
 
   const maxNs = filtered.reduce((m, t) => Math.max(m, t.duration_ns), 0)
 
@@ -443,7 +504,7 @@ export default function TraceList() {
       <aside className="flex w-[200px] shrink-0 flex-col gap-[18px] overflow-y-auto border-r border-[var(--line)] bg-[var(--surface2)] px-[14px] py-[18px] font-sans">
         {sessionsByRecent.length > 0 && (
           <SbGroup title="sessions">
-            {sessionsByRecent.slice(0, MAX_SESSIONS).map(s => (
+            {sessionsByRecent.slice(0, MAX_SESSIONS).map((s) => (
               <SbItem
                 key={s.id}
                 active={filterSession === s.id}
@@ -451,7 +512,8 @@ export default function TraceList() {
                 count={s.trace_count}
                 onClick={() => toggle(filterSession, s.id, setFilterSession, null, true)}
               >
-                {s.label}{s.is_baseline ? ' · baseline' : ''}
+                {s.label}
+                {s.is_baseline ? ' · baseline' : ''}
               </SbItem>
             ))}
             {sessionsByRecent.length > MAX_SESSIONS && (
@@ -462,7 +524,7 @@ export default function TraceList() {
 
         {serviceNames.length > 0 && (
           <SbGroup title="services">
-            {serviceNames.slice(0, MAX_SERVICES).map(name => (
+            {serviceNames.slice(0, MAX_SERVICES).map((name) => (
               <SbItem
                 key={name}
                 active={filterService === name}
@@ -535,7 +597,13 @@ export default function TraceList() {
           >
             ⌘K
           </button>
-          <PaginationControls page={page} pageSize={PAGE_SIZE} total={traceTotal} itemLabel="traces" onPageChange={setPage} />
+          <PaginationControls
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={traceTotal}
+            itemLabel="traces"
+            onPageChange={setPage}
+          />
         </div>
 
         {filtered.length === 0 ? (

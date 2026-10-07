@@ -6,12 +6,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Metrics from './Metrics'
 import { bucketPoints } from '@/lib/metrics-bucket'
 
-type MetricEvent = { type: string; payload: { name?: string; serviceName?: string; catalogOnly?: boolean } }
+type MetricEvent = {
+  type: string
+  payload: { name?: string; serviceName?: string; catalogOnly?: boolean }
+}
 let liveEvents = new Set<(event: MetricEvent) => void>()
 vi.mock('@/lib/ws', () => ({
   onWSEvent: (listener: (event: MetricEvent) => void) => {
     liveEvents.add(listener)
-    return () => { liveEvents.delete(listener) }
+    return () => {
+      liveEvents.delete(listener)
+    }
   },
 }))
 
@@ -26,7 +31,10 @@ const renderMetrics = (initialEntries = ['/metrics']) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={initialEntries}><Metrics /><LocationProbe /></MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
+        <Metrics />
+        <LocationProbe />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -36,11 +44,18 @@ import type { MetricCatalogEntry, MetricSeries } from '@/lib/api'
 // Routes per-path responses; uses the latest setup() values when called.
 
 let routes: Record<string, unknown> = {}
-type MetricCatalogFixture = Omit<MetricCatalogEntry, 'last_timestamp_ns'> & Partial<Pick<MetricCatalogEntry, 'last_timestamp_ns'>>
+type MetricCatalogFixture = Omit<MetricCatalogEntry, 'last_timestamp_ns'> &
+  Partial<Pick<MetricCatalogEntry, 'last_timestamp_ns'>>
 
 function setup(opts: { catalog?: MetricCatalogFixture[]; series?: Record<string, MetricSeries> }) {
   routes = {
-    '/api/metrics': { data: (opts.catalog ?? []).map((metric, index) => ({ ...metric, last_timestamp_ns: metric.last_timestamp_ns ?? index })), meta: { total: 0, page: 1 } },
+    '/api/metrics': {
+      data: (opts.catalog ?? []).map((metric, index) => ({
+        ...metric,
+        last_timestamp_ns: metric.last_timestamp_ns ?? index,
+      })),
+      meta: { total: 0, page: 1 },
+    },
     '/api/metrics/cardinality': { data: [], meta: { total: 0, page: 1 } },
   }
   for (const [key, series] of Object.entries(opts.series ?? {})) {
@@ -51,29 +66,35 @@ function setup(opts: { catalog?: MetricCatalogFixture[]; series?: Record<string,
 beforeEach(() => {
   routes = {}
   liveEvents = new Set()
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-    // match by path; ignore query param order and additional params like 'from'
-    for (const [routePath, body] of Object.entries(routes)) {
-      const routeBase = routePath.split('?')[0]
-      const urlBase = url.split('?')[0]
-      if (urlBase === routeBase) {
-        // check if all required query params are present
-        const routeParams = new URLSearchParams(routePath.split('?')[1] || '')
-        const urlParams = new URLSearchParams(url.split('?')[1] || '')
-        let allMatch = true
-        for (const [key, value] of routeParams.entries()) {
-          if (urlParams.get(key) !== value) {
-            allMatch = false
-            break
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      // match by path; ignore query param order and additional params like 'from'
+      for (const [routePath, body] of Object.entries(routes)) {
+        const routeBase = routePath.split('?')[0]
+        const urlBase = url.split('?')[0]
+        if (urlBase === routeBase) {
+          // check if all required query params are present
+          const routeParams = new URLSearchParams(routePath.split('?')[1] || '')
+          const urlParams = new URLSearchParams(url.split('?')[1] || '')
+          let allMatch = true
+          for (const [key, value] of routeParams.entries()) {
+            if (urlParams.get(key) !== value) {
+              allMatch = false
+              break
+            }
+          }
+          if (allMatch) {
+            return new Response(JSON.stringify(body), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            })
           }
         }
-        if (allMatch) {
-          return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
-        }
       }
-    }
-    return new Response('{}', { status: 404 })
-  }))
+      return new Response('{}', { status: 404 })
+    }),
+  )
 })
 
 afterEach(() => {
@@ -103,13 +124,37 @@ describe('<Metrics />', () => {
   it('groups the catalog by service and shows each metric name + kind tag', async () => {
     setup({
       catalog: [
-        { name: 'http.requests',  service_name: 'api',      type: 'counter',   unit: 'req',  description: '', sample_count: 12 },
-        { name: 'http.dur',       service_name: 'api',      type: 'histogram', unit: 'ms',   description: '', sample_count: 30 },
-        { name: 'pool.in_use',    service_name: 'postgres', type: 'gauge',     unit: 'conn', description: '', sample_count: 8 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 12,
+        },
+        {
+          name: 'http.dur',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'ms',
+          description: '',
+          sample_count: 30,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          sample_count: 8,
+        },
       ],
       series: {
         'name=http.requests&service=api&with_traces=1': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
           description: 'request count',
           points: [
             { timestamp_ns: 1, value: 5 },
@@ -142,8 +187,22 @@ describe('<Metrics />', () => {
   it('filters by search query', async () => {
     setup({
       catalog: [
-        { name: 'http.requests', service_name: 'api',      type: 'counter', unit: 'req',  description: '', sample_count: 1 },
-        { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',   unit: 'conn', description: '', sample_count: 1 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 1,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          sample_count: 1,
+        },
       ],
     })
     renderMetrics()
@@ -159,9 +218,30 @@ describe('<Metrics />', () => {
   it('filters metrics by service= search token alongside text terms', async () => {
     setup({
       catalog: [
-        { name: 'http.requests', service_name: 'spaniel', type: 'counter', unit: 'req', description: 'inbound requests', sample_count: 1 },
-        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'outbound requests', sample_count: 1 },
-        { name: 'db.latency', service_name: 'spaniel', type: 'histogram', unit: 'ms', description: '', sample_count: 1 },
+        {
+          name: 'http.requests',
+          service_name: 'spaniel',
+          type: 'counter',
+          unit: 'req',
+          description: 'inbound requests',
+          sample_count: 1,
+        },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'outbound requests',
+          sample_count: 1,
+        },
+        {
+          name: 'db.latency',
+          service_name: 'spaniel',
+          type: 'histogram',
+          unit: 'ms',
+          description: '',
+          sample_count: 1,
+        },
       ],
     })
     renderMetrics()
@@ -170,7 +250,9 @@ describe('<Metrics />', () => {
     const input = screen.getByPlaceholderText(/search metrics/i)
     fireEvent.change(input, { target: { value: 'service=spaniel http' } })
 
-    const metricButtons = screen.getAllByRole('button').filter(button => /http\.requests|db\.latency/.test(button.textContent ?? ''))
+    const metricButtons = screen
+      .getAllByRole('button')
+      .filter((button) => /http\.requests|db\.latency/.test(button.textContent ?? ''))
     expect(metricButtons).toHaveLength(1)
     expect(metricButtons[0].textContent).toContain('http.requests')
   })
@@ -178,14 +260,30 @@ describe('<Metrics />', () => {
   it('does not treat a service name as ordinary metric text', async () => {
     setup({
       catalog: [
-        { name: 'runtime.memory', service_name: 'spaniel', type: 'gauge', unit: 'By', description: '', sample_count: 1 },
-        { name: 'spaniel.version', service_name: 'other', type: 'gauge', unit: '1', description: '', sample_count: 1 },
+        {
+          name: 'runtime.memory',
+          service_name: 'spaniel',
+          type: 'gauge',
+          unit: 'By',
+          description: '',
+          sample_count: 1,
+        },
+        {
+          name: 'spaniel.version',
+          service_name: 'other',
+          type: 'gauge',
+          unit: '1',
+          description: '',
+          sample_count: 1,
+        },
       ],
     })
     renderMetrics()
     await screen.findByText('runtime.memory')
 
-    fireEvent.change(screen.getByPlaceholderText(/search metrics/i), { target: { value: 'spaniel' } })
+    fireEvent.change(screen.getByPlaceholderText(/search metrics/i), {
+      target: { value: 'spaniel' },
+    })
 
     expect(screen.queryByText('runtime.memory')).toBeNull()
     expect(screen.getByText('spaniel.version')).toBeTruthy()
@@ -194,8 +292,22 @@ describe('<Metrics />', () => {
   it('filters by type chip', async () => {
     setup({
       catalog: [
-        { name: 'http.requests', service_name: 'api',      type: 'counter', unit: 'req',  description: '', sample_count: 1 },
-        { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',   unit: 'conn', description: '', sample_count: 1 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 1,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          sample_count: 1,
+        },
       ],
     })
     renderMetrics()
@@ -213,7 +325,18 @@ describe('<Metrics />', () => {
   })
 
   it('includes a SUM filter for OTLP sum instruments', async () => {
-    setup({ catalog: [{ name: 'signals', service_name: 'api', type: 'sum', unit: '1', description: '', sample_count: 1 }] })
+    setup({
+      catalog: [
+        {
+          name: 'signals',
+          service_name: 'api',
+          type: 'sum',
+          unit: '1',
+          description: '',
+          sample_count: 1,
+        },
+      ],
+    })
     renderMetrics()
     await waitFor(() => expect(screen.getByText('signals')).toBeTruthy())
     expect(screen.getByRole('button', { name: /^sum$/i })).toBeTruthy()
@@ -221,10 +344,25 @@ describe('<Metrics />', () => {
 
   it('offers long metric-history ranges including all retained data', async () => {
     setup({
-      catalog: [{ name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: '', sample_count: 1 }],
+      catalog: [
+        {
+          name: 'memory.usage',
+          service_name: 'api',
+          type: 'gauge',
+          unit: 'By',
+          description: '',
+          sample_count: 1,
+        },
+      ],
       series: {
         'name=memory.usage&service=api&with_traces=1': {
-          name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: '', points: [], traces: [],
+          name: 'memory.usage',
+          service_name: 'api',
+          type: 'gauge',
+          unit: 'By',
+          description: '',
+          points: [],
+          traces: [],
         },
       },
     })
@@ -233,18 +371,28 @@ describe('<Metrics />', () => {
     await waitFor(() => expect(screen.getByText(/No points in this time range/i)).toBeTruthy())
     const picker = screen.getByRole('combobox', { name: 'Time range' }) as HTMLSelectElement
     for (const range of ['7d', '30d', '3mo', '6mo', '1yr', 'all']) {
-      expect(Array.from(picker.options).some(option => option.value === range)).toBe(true)
+      expect(Array.from(picker.options).some((option) => option.value === range)).toBe(true)
     }
   })
 
   it('renders chart + stats after selecting a metric', async () => {
     setup({
       catalog: [
-        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'request count', sample_count: 2 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'request count',
+          sample_count: 2,
+        },
       ],
       series: {
         'name=http.requests&service=api&with_traces=1': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
           description: 'request count',
           points: [
             { timestamp_ns: 1, value: 5 },
@@ -277,12 +425,34 @@ describe('<Metrics />', () => {
   it('debounces catalog refreshes from metric WebSocket events for 2.5 seconds', async () => {
     setup({
       catalog: [
-        { name: 'older.metric', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2, last_timestamp_ns: 1 },
-			{ name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2, last_timestamp_ns: 2 },
+        {
+          name: 'older.metric',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 2,
+          last_timestamp_ns: 1,
+        },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 2,
+          last_timestamp_ns: 2,
+        },
       ],
       series: {
         'name=http.requests&service=api&with_traces=1': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', points: [], traces: [],
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          points: [],
+          traces: [],
         },
       },
     })
@@ -290,41 +460,84 @@ describe('<Metrics />', () => {
     await screen.findByText('http.requests')
 
     // The server response is still timestamp-ordered. The WebSocket sequence
-		// moves the metric that actually updated most recently to the top.
+    // moves the metric that actually updated most recently to the top.
     routes['/api/metrics'] = {
-		data: [
-			{ name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2, last_timestamp_ns: 2 },
-			{ name: 'older.metric', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 3, last_timestamp_ns: 1 },
-		],
-		meta: { total: 2, page: 1 },
+      data: [
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 2,
+          last_timestamp_ns: 2,
+        },
+        {
+          name: 'older.metric',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 3,
+          last_timestamp_ns: 1,
+        },
+      ],
+      meta: { total: 2, page: 1 },
     }
-		for (const notify of liveEvents) notify({ type: 'metric', payload: { name: 'older.metric', serviceName: 'api' } })
-		expect(screen.getAllByText('2 pts')).toHaveLength(2)
+    for (const notify of liveEvents)
+      notify({ type: 'metric', payload: { name: 'older.metric', serviceName: 'api' } })
+    expect(screen.getAllByText('2 pts')).toHaveLength(2)
     await waitFor(() => expect(screen.getByText('3 pts')).toBeTruthy(), { timeout: 4_000 })
-		const metricButtons = screen.getAllByRole('button').filter(button => /http\.requests|older\.metric/.test(button.textContent ?? ''))
-		expect(metricButtons.map(button => button.textContent)).toEqual([
-			expect.stringContaining('older.metric'),
-			expect.stringContaining('http.requests'),
-		])
+    const metricButtons = screen
+      .getAllByRole('button')
+      .filter((button) => /http\.requests|older\.metric/.test(button.textContent ?? ''))
+    expect(metricButtons.map((button) => button.textContent)).toEqual([
+      expect.stringContaining('older.metric'),
+      expect.stringContaining('http.requests'),
+    ])
   })
 
   it('keeps the API order for metrics with the same timestamp', async () => {
     setup({
       catalog: [
-        { name: 'newer.inserted', service_name: 'api', type: 'gauge', unit: '1', description: '', sample_count: 1, last_timestamp_ns: 100 },
-        { name: 'older.inserted', service_name: 'api', type: 'gauge', unit: '1', description: '', sample_count: 1, last_timestamp_ns: 100 },
+        {
+          name: 'newer.inserted',
+          service_name: 'api',
+          type: 'gauge',
+          unit: '1',
+          description: '',
+          sample_count: 1,
+          last_timestamp_ns: 100,
+        },
+        {
+          name: 'older.inserted',
+          service_name: 'api',
+          type: 'gauge',
+          unit: '1',
+          description: '',
+          sample_count: 1,
+          last_timestamp_ns: 100,
+        },
       ],
       series: {
         'name=newer.inserted&service=api&with_traces=1': {
-          name: 'newer.inserted', service_name: 'api', type: 'gauge', unit: '1', description: '', points: [], traces: [],
+          name: 'newer.inserted',
+          service_name: 'api',
+          type: 'gauge',
+          unit: '1',
+          description: '',
+          points: [],
+          traces: [],
         },
       },
     })
 
     renderMetrics()
     await screen.findByText('newer.inserted')
-    const metricButtons = screen.getAllByRole('button').filter(button => /newer\.inserted|older\.inserted/.test(button.textContent ?? ''))
-    expect(metricButtons.map(button => button.textContent)).toEqual([
+    const metricButtons = screen
+      .getAllByRole('button')
+      .filter((button) => /newer\.inserted|older\.inserted/.test(button.textContent ?? ''))
+    expect(metricButtons.map((button) => button.textContent)).toEqual([
       expect.stringContaining('newer.inserted'),
       expect.stringContaining('older.inserted'),
     ])
@@ -333,13 +546,25 @@ describe('<Metrics />', () => {
   it('opens the label summary with the same disclosure affordance as variants', async () => {
     setup({
       catalog: [
-        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 2 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 2,
+        },
       ],
       series: {
         'name=http.requests&service=api&with_traces=1': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
           dimensions: { 'http.method': ['GET', 'POST'] },
-          points: [{ timestamp_ns: 1, value: 1 }], traces: [],
+          points: [{ timestamp_ns: 1, value: 1 }],
+          traces: [],
         },
       },
     })
@@ -358,11 +583,24 @@ describe('<Metrics />', () => {
   it('explains when a selected metric has no points in the active range', async () => {
     setup({
       catalog: [
-        { name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: 'resident memory', sample_count: 1 },
+        {
+          name: 'memory.usage',
+          service_name: 'api',
+          type: 'gauge',
+          unit: 'By',
+          description: 'resident memory',
+          sample_count: 1,
+        },
       ],
       series: {
         'name=memory.usage&service=api&with_traces=1': {
-          name: 'memory.usage', service_name: 'api', type: 'gauge', unit: 'By', description: 'resident memory', points: [], traces: [],
+          name: 'memory.usage',
+          service_name: 'api',
+          type: 'gauge',
+          unit: 'By',
+          description: 'resident memory',
+          points: [],
+          traces: [],
         },
       },
     })
@@ -375,28 +613,79 @@ describe('<Metrics />', () => {
   it('stores the selected metric in the URL', async () => {
     setup({
       catalog: [
-        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 1 },
-        { name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '', sample_count: 1 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 1,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          sample_count: 1,
+        },
       ],
       series: {
-        'name=http.requests&service=api&with_traces=1': { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', points: [], traces: [] },
-        'name=pool.in_use&service=postgres&with_traces=1': { name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '', points: [], traces: [] },
+        'name=http.requests&service=api&with_traces=1': {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          points: [],
+          traces: [],
+        },
+        'name=pool.in_use&service=postgres&with_traces=1': {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          points: [],
+          traces: [],
+        },
       },
     })
 
     renderMetrics()
     await waitFor(() => expect(screen.getByText('pool.in_use')).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: /pool\.in_use/i }))
-    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toBe('?metric=pool.in_use&service=postgres'))
+    await waitFor(() =>
+      expect(screen.getByTestId('location-search').textContent).toBe(
+        '?metric=pool.in_use&service=postgres',
+      ),
+    )
   })
 
   it('uses p95 when a histogram is opened directly from its URL', async () => {
     setup({
-      catalog: [{ name: 'http.response.bytes', service_name: 'api', type: 'histogram', unit: 'By', description: '', sample_count: 1 }],
+      catalog: [
+        {
+          name: 'http.response.bytes',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'By',
+          description: '',
+          sample_count: 1,
+        },
+      ],
       series: {
         'name=http.response.bytes&service=api&operation=p95&with_traces=1': {
-          name: 'http.response.bytes', service_name: 'api', type: 'histogram', unit: 'By', description: '',
-          operation: 'p95', points: [{ timestamp_ns: 1, value: 48.75, count: 1, sum: 40, bounds: [50], buckets: [1] }], traces: [],
+          name: 'http.response.bytes',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'By',
+          description: '',
+          operation: 'p95',
+          points: [
+            { timestamp_ns: 1, value: 48.75, count: 1, sum: 40, bounds: [50], buckets: [1] },
+          ],
+          traces: [],
         },
       },
     })
@@ -404,29 +693,70 @@ describe('<Metrics />', () => {
     renderMetrics(['/metrics?metric=http.response.bytes&service=api'])
     await waitFor(() => expect(screen.getByText('http.response.bytes')).toBeTruthy())
     await waitFor(() => {
-      expect((fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes('operation=p95'))).toBe(true)
+      expect(
+        (fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) =>
+          String(url).includes('operation=p95'),
+        ),
+      ).toBe(true)
     })
   })
 
   it('uses the exact average for a body-size histogram', async () => {
     setup({
-      catalog: [{ name: 'http.server.response.body.size', service_name: 'api', type: 'histogram', unit: 'By', description: '', sample_count: 1 }],
+      catalog: [
+        {
+          name: 'http.server.response.body.size',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'By',
+          description: '',
+          sample_count: 1,
+        },
+      ],
       series: {
         'name=http.server.response.body.size&service=api&operation=avg&with_traces=1': {
-          name: 'http.server.response.body.size', service_name: 'api', type: 'histogram', unit: 'By', description: '', operation: 'avg', points: [], traces: [],
+          name: 'http.server.response.body.size',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'By',
+          description: '',
+          operation: 'avg',
+          points: [],
+          traces: [],
         },
       },
     })
     renderMetrics(['/metrics?metric=http.server.response.body.size&service=api'])
-    await waitFor(() => expect((fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes('operation=avg'))).toBe(true))
+    await waitFor(() =>
+      expect(
+        (fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) =>
+          String(url).includes('operation=avg'),
+        ),
+      ).toBe(true),
+    )
   })
 
   it('refreshes the selected metric from its matching WebSocket event', async () => {
     setup({
-      catalog: [{ name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', sample_count: 1 }],
+      catalog: [
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 1,
+        },
+      ],
       series: {
         'name=http.requests&service=api&operation=raw&with_traces=1': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '', points: [], traces: [],
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          points: [],
+          traces: [],
         },
       },
     })
@@ -434,7 +764,8 @@ describe('<Metrics />', () => {
     await waitFor(() => expect(liveEvents.size).toBeGreaterThan(0))
     const fetchMock = fetch as ReturnType<typeof vi.fn>
     const before = fetchMock.mock.calls.length
-    for (const notify of liveEvents) notify({ type: 'metric', payload: { name: 'http.requests', serviceName: 'api' } })
+    for (const notify of liveEvents)
+      notify({ type: 'metric', payload: { name: 'http.requests', serviceName: 'api' } })
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before))
   })
 
@@ -458,15 +789,15 @@ describe('<Metrics />', () => {
     expect(result.p99).toBeDefined()
 
     // Data should not be flat zeros (this is the bug being tested)
-    const allP50 = result.p50!.every(v => v === 0)
-    const allP95 = result.p95!.every(v => v === 0)
-    const allP99 = result.p99!.every(v => v === 0)
+    const allP50 = result.p50!.every((v) => v === 0)
+    const allP95 = result.p95!.every((v) => v === 0)
+    const allP99 = result.p99!.every((v) => v === 0)
     expect(allP50 || allP95 || allP99).toBeFalsy()
 
     // Should have actual values, not just zeros
-    expect(result.p50!.some(v => v > 0)).toBeTruthy()
-    expect(result.p95!.some(v => v > 0)).toBeTruthy()
-    expect(result.p99!.some(v => v > 0)).toBeTruthy()
+    expect(result.p50!.some((v) => v > 0)).toBeTruthy()
+    expect(result.p95!.some((v) => v > 0)).toBeTruthy()
+    expect(result.p99!.some((v) => v > 0)).toBeTruthy()
   })
 
   it('histogram without percentile attribute distributes to all percentiles (fallback)', () => {
@@ -481,8 +812,8 @@ describe('<Metrics />', () => {
     const result = bucketPoints(histogramPointsWithoutPercentile, 'histogram', 60)
 
     // All three percentiles should have the same values (distributed equally)
-    expect(result.p50!.some(v => v > 0)).toBeTruthy()
-    expect(result.p95!.some(v => v > 0)).toBeTruthy()
-    expect(result.p99!.some(v => v > 0)).toBeTruthy()
+    expect(result.p50!.some((v) => v > 0)).toBeTruthy()
+    expect(result.p95!.some((v) => v > 0)).toBeTruthy()
+    expect(result.p99!.some((v) => v > 0)).toBeTruthy()
   })
 })

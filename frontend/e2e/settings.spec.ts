@@ -1,7 +1,11 @@
 import { test, expect, type Route, type Page } from '@playwright/test'
 import type { Settings, StorageBreakdown } from '../src/lib/api'
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 1, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 1, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -40,15 +44,15 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 function makeBreakdown(overrides: Partial<StorageBreakdown> = {}): StorageBreakdown {
   return {
     tables: [
-      { name: 'spans',        row_count: 1200, approx_bytes: 512 * 1024 },
-      { name: 'logs',         row_count: 300,  approx_bytes: 128 * 1024 },
-      { name: 'metrics',      row_count: 80,   approx_bytes: 64 * 1024  },
-      { name: 'span_events',  row_count: 50,   approx_bytes: 32 * 1024  },
-      { name: 'trace_issues', row_count: 4,    approx_bytes: 4 * 1024   },
+      { name: 'spans', row_count: 1200, approx_bytes: 512 * 1024 },
+      { name: 'logs', row_count: 300, approx_bytes: 128 * 1024 },
+      { name: 'metrics', row_count: 80, approx_bytes: 64 * 1024 },
+      { name: 'span_events', row_count: 50, approx_bytes: 32 * 1024 },
+      { name: 'trace_issues', row_count: 4, approx_bytes: 4 * 1024 },
     ],
     sessions: [
       { id: 'sess-aaa', label: 'prod-2025-05-27', approx_bytes: 400 * 1024, span_count: 900 },
-      { id: 'sess-bbb', label: 'staging',         approx_bytes: 112 * 1024, span_count: 300 },
+      { id: 'sess-bbb', label: 'staging', approx_bytes: 112 * 1024, span_count: 300 },
     ],
     wal_bytes: 0,
     main_bytes: 640 * 1024,
@@ -58,14 +62,20 @@ function makeBreakdown(overrides: Partial<StorageBreakdown> = {}): StorageBreakd
 }
 
 async function stubChrome(page: Page, breakdown?: StorageBreakdown) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/stats*', r => jsonResponse(r, {
-    span_count: 0, trace_count: 0, log_count: 0, db_size: 0,
-    session_count: 0, oldest_session_at: 0,
-  }))
-  await page.route('**/api/forwarders', r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/storage', r => jsonResponse(r, breakdown ?? makeBreakdown()))
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route('**/api/stats*', (r) =>
+    jsonResponse(r, {
+      span_count: 0,
+      trace_count: 0,
+      log_count: 0,
+      db_size: 0,
+      session_count: 0,
+      oldest_session_at: 0,
+    }),
+  )
+  await page.route('**/api/forwarders', (r) => jsonResponse(r, []))
+  await page.route('**/api/sessions/active', (r) => jsonResponse(r, { id: '', label: '' }))
+  await page.route('**/api/storage', (r) => jsonResponse(r, breakdown ?? makeBreakdown()))
 }
 
 interface SettingsHarness {
@@ -81,30 +91,36 @@ async function stubSettings(page: Page, initial: Settings): Promise<SettingsHarn
   let putCount = 0
   let dropCount = 0
 
-  await page.route(url => {
-    const p = new URL(url.toString()).pathname
-    return p === '/api/settings' || p === '/api/settings/data'
-  }, async r => {
-    const req = r.request()
-    const url = new URL(req.url())
-    if (url.pathname === '/api/settings/data') {
-      dropCount++
-      return jsonResponse(r, { ok: true })
-    }
-    if (req.method() === 'PUT') {
-      putCount++
-      const body = JSON.parse(req.postData() ?? '{}')
-      lastPut = body
-      // Validate port like the backend does.
-      if (typeof body.port === 'number' && (body.port < 1 || body.port > 65535)) {
-        return r.fulfill({ status: 400, contentType: 'application/json',
-          body: JSON.stringify({ error: `port must be 1–65535, got ${body.port}` }) })
+  await page.route(
+    (url) => {
+      const p = new URL(url.toString()).pathname
+      return p === '/api/settings' || p === '/api/settings/data'
+    },
+    async (r) => {
+      const req = r.request()
+      const url = new URL(req.url())
+      if (url.pathname === '/api/settings/data') {
+        dropCount++
+        return jsonResponse(r, { ok: true })
       }
-      state = { ...state, ...body, runtime: state.runtime }
+      if (req.method() === 'PUT') {
+        putCount++
+        const body = JSON.parse(req.postData() ?? '{}')
+        lastPut = body
+        // Validate port like the backend does.
+        if (typeof body.port === 'number' && (body.port < 1 || body.port > 65535)) {
+          return r.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: `port must be 1–65535, got ${body.port}` }),
+          })
+        }
+        state = { ...state, ...body, runtime: state.runtime }
+        return jsonResponse(r, state)
+      }
       return jsonResponse(r, state)
-    }
-    return jsonResponse(r, state)
-  })
+    },
+  )
 
   return {
     current: () => state,
@@ -144,7 +160,9 @@ test.describe('Settings page', () => {
     await expect(page.getByTestId('row-http').getByText(/listening :4318/)).toBeVisible()
   })
 
-  test('toggling gRPC off flips the pill to stopped and PUTs otlp_grpc_port=0', async ({ page }) => {
+  test('toggling gRPC off flips the pill to stopped and PUTs otlp_grpc_port=0', async ({
+    page,
+  }) => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
@@ -174,7 +192,9 @@ test.describe('Settings page', () => {
     await expect(page.getByTestId('retention-pill')).toContainText('7min')
   })
 
-  test('storage usage bar fills proportionally and clamps under 85% to accent color', async ({ page }) => {
+  test('storage usage bar fills proportionally and clamps under 85% to accent color', async ({
+    page,
+  }) => {
     await stubChrome(page)
     // 612 MB used of 500 MB cap → over 100% → clamps to 100% width, danger color.
     await stubSettings(page, makeSettings({ max_db_size_mb: 500 }))
@@ -184,7 +204,7 @@ test.describe('Settings page', () => {
     const fill = page.getByTestId('usage-bar-fill')
     await expect(fill).toBeVisible()
     // clamped at 100%
-    const width = await fill.evaluate(el => (el as HTMLElement).style.width)
+    const width = await fill.evaluate((el) => (el as HTMLElement).style.width)
     expect(width).toBe('100%')
   })
 
@@ -225,13 +245,13 @@ test.describe('Settings page', () => {
     await page.getByRole('button', { name: 'Storage', exact: true }).click()
 
     // 1) cancel — no API call.
-    page.once('dialog', d => d.dismiss())
+    page.once('dialog', (d) => d.dismiss())
     await page.getByRole('button', { name: /drop & recreate/i }).click()
     await page.waitForTimeout(150)
     expect(h.dropCount()).toBe(0)
 
     // 2) accept — one API call.
-    page.once('dialog', d => d.accept())
+    page.once('dialog', (d) => d.accept())
     await page.getByRole('button', { name: /drop & recreate/i }).click()
     await expect.poll(() => h.dropCount()).toBe(1)
   })
@@ -247,7 +267,9 @@ test.describe('Settings page', () => {
     await input.blur()
 
     await expect.poll(() => h.lastPut()).toMatchObject({ bind_address_v4: '0.0.0.0' })
-    await expect(page.getByTestId('row-bind-v4').getByText('all interfaces', { exact: true })).toBeVisible()
+    await expect(
+      page.getByTestId('row-bind-v4').getByText('all interfaces', { exact: true }),
+    ).toBeVisible()
   })
 
   test('changing the IPv6 bind address PUTs bind_address_v6', async ({ page }) => {
@@ -261,10 +283,14 @@ test.describe('Settings page', () => {
     await input.blur()
 
     await expect.poll(() => h.lastPut()).toMatchObject({ bind_address_v6: '::' })
-    await expect(page.getByTestId('row-bind-v6').getByText('all interfaces', { exact: true })).toBeVisible()
+    await expect(
+      page.getByTestId('row-bind-v6').getByText('all interfaces', { exact: true }),
+    ).toBeVisible()
   })
 
-  test('moving the forward-sampling slider updates the percentage pill and PUTs forward_sample', async ({ page }) => {
+  test('moving the forward-sampling slider updates the percentage pill and PUTs forward_sample', async ({
+    page,
+  }) => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
@@ -294,7 +320,9 @@ test.describe('Settings page', () => {
     await expect(page.getByText('/home/user/.spaniel/config.yaml').first()).toBeVisible()
   })
 
-  test('breakdown bar shows segments for each table with correct title attributes', async ({ page }) => {
+  test('breakdown bar shows segments for each table with correct title attributes', async ({
+    page,
+  }) => {
     const bd = makeBreakdown()
     await stubChrome(page, bd)
     await stubSettings(page, makeSettings())
@@ -331,9 +359,13 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     let compactCalled = 0
-    await page.route('**/api/settings/compact', async r => {
+    await page.route('**/api/settings/compact', async (r) => {
       compactCalled++
-      return jsonResponse(r, { bytes_before: 640 * 1024, bytes_after: 512 * 1024, reclaimed: 128 * 1024 })
+      return jsonResponse(r, {
+        bytes_before: 640 * 1024,
+        bytes_after: 512 * 1024,
+        reclaimed: 128 * 1024,
+      })
     })
     await page.goto('/settings')
     await page.getByRole('button', { name: 'Storage', exact: true }).click()
@@ -345,14 +377,24 @@ test.describe('Settings page', () => {
 
   test('check-updates: shows available update when is_outdated', async ({ page }) => {
     // stub POST /api/settings/check-updates
-    await page.route('**/api/settings/check-updates', r => r.fulfill({
-      status: 200, contentType: 'application/json',
-      body: JSON.stringify({ data: {
-        current: '0.4.2', latest: '0.5.0', channel: 'stable',
-        is_outdated: true, release_notes_url: 'https://github.com/zfogg/spaniel/releases/tag/v0.5.0',
-        checked_at_ns: Date.now() * 1_000_000, error: '',
-      }, meta: { total: 1, page: 1 } }),
-    }))
+    await page.route('**/api/settings/check-updates', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            current: '0.4.2',
+            latest: '0.5.0',
+            channel: 'stable',
+            is_outdated: true,
+            release_notes_url: 'https://github.com/zfogg/spaniel/releases/tag/v0.5.0',
+            checked_at_ns: Date.now() * 1_000_000,
+            error: '',
+          },
+          meta: { total: 1, page: 1 },
+        }),
+      }),
+    )
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     await page.goto('/settings#about')
@@ -363,6 +405,9 @@ test.describe('Settings page', () => {
     await expect(result).toBeVisible()
     const link = result.getByRole('link')
     await expect(link).toContainText('0.5.0 available')
-    await expect(link).toHaveAttribute('href', 'https://github.com/zfogg/spaniel/releases/tag/v0.5.0')
+    await expect(link).toHaveAttribute(
+      'href',
+      'https://github.com/zfogg/spaniel/releases/tag/v0.5.0',
+    )
   })
 })

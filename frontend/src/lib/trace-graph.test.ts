@@ -25,11 +25,7 @@ function span(id: string, parent: string, start: number, end: number, name = id)
 
 describe('buildGraph', () => {
   it('returns a single root and assigns depths', () => {
-    const spans = [
-      span('root', '', 0, 100),
-      span('a',    'root', 0, 50),
-      span('b',    'a',    10, 40),
-    ]
+    const spans = [span('root', '', 0, 100), span('a', 'root', 0, 50), span('b', 'a', 10, 40)]
     const { roots, nodes } = buildGraph(spans)
     expect(roots).toEqual(['root'])
     expect(nodes.get('root')!.depth).toBe(0)
@@ -46,10 +42,7 @@ describe('buildGraph', () => {
   })
 
   it('treats spans whose parent is missing as roots (orphans)', () => {
-    const spans = [
-      span('child', 'missing-parent', 0, 10),
-      span('real-root', '', 0, 20),
-    ]
+    const spans = [span('child', 'missing-parent', 0, 10), span('real-root', '', 0, 20)]
     const { roots } = buildGraph(spans)
     expect(roots.sort()).toEqual(['child', 'real-root'])
   })
@@ -60,9 +53,9 @@ describe('criticalPath', () => {
     // root has 3 parallel children; b ends latest, so the path is root → b.
     const spans = [
       span('root', '', 0, 100),
-      span('a',    'root', 0, 30),
-      span('b',    'root', 0, 80), // latest end among siblings
-      span('c',    'root', 0, 50),
+      span('a', 'root', 0, 30),
+      span('b', 'root', 0, 80), // latest end among siblings
+      span('c', 'root', 0, 50),
     ]
     const path = criticalPath(spans)
     expect([...path].sort()).toEqual(['b', 'root'])
@@ -72,10 +65,10 @@ describe('criticalPath', () => {
     // root → a (ends 60) vs b (ends 90). Pick b. b → b1 (ends 70) vs b2 (ends 90). Pick b2.
     const spans = [
       span('root', '', 0, 100),
-      span('a',    'root', 0, 60),
-      span('b',    'root', 0, 90),
-      span('b1',   'b',    10, 70),
-      span('b2',   'b',    10, 90),
+      span('a', 'root', 0, 60),
+      span('b', 'root', 0, 90),
+      span('b1', 'b', 10, 70),
+      span('b2', 'b', 10, 90),
     ]
     const path = criticalPath(spans)
     expect([...path].sort()).toEqual(['b', 'b2', 'root'])

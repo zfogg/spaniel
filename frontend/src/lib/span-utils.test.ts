@@ -33,13 +33,24 @@ describe('fmtNs', () => {
 
 function makeSpan(id: string, parentId = ''): Span {
   return {
-    trace_id: 'trace-1', span_id: id, parent_span_id: parentId,
-    service_name: 'svc', name: id, kind: 1,
-    start_ns: 0, end_ns: 100, duration_ns: 100,
-    status_code: 0, status_message: '',
-    attributes: '{}', resource: '{}',
-    session_id: '', session_label: '', received_at: 0,
-    events: [], links: [],
+    trace_id: 'trace-1',
+    span_id: id,
+    parent_span_id: parentId,
+    service_name: 'svc',
+    name: id,
+    kind: 1,
+    start_ns: 0,
+    end_ns: 100,
+    duration_ns: 100,
+    status_code: 0,
+    status_message: '',
+    attributes: '{}',
+    resource: '{}',
+    session_id: '',
+    session_label: '',
+    received_at: 0,
+    events: [],
+    links: [],
   }
 }
 
@@ -59,7 +70,7 @@ describe('flatten', () => {
   it('places children after parent in DFS order', () => {
     const spans = [makeSpan('root'), makeSpan('child', 'root'), makeSpan('grandchild', 'child')]
     const result = flatten(spans)
-    expect(result.map(f => f.span.span_id)).toEqual(['root', 'child', 'grandchild'])
+    expect(result.map((f) => f.span.span_id)).toEqual(['root', 'child', 'grandchild'])
   })
 
   it('assigns correct depths', () => {
@@ -84,14 +95,10 @@ describe('flatten', () => {
   })
 
   it('handles sibling spans at same depth', () => {
-    const spans = [
-      makeSpan('root'),
-      makeSpan('child-a', 'root'),
-      makeSpan('child-b', 'root'),
-    ]
+    const spans = [makeSpan('root'), makeSpan('child-a', 'root'), makeSpan('child-b', 'root')]
     const result = flatten(spans)
     expect(result).toHaveLength(3)
-    const depths = result.map(f => f.depth)
+    const depths = result.map((f) => f.depth)
     expect(depths[0]).toBe(0)
     expect(depths[1]).toBe(1)
     expect(depths[2]).toBe(1)
@@ -101,8 +108,8 @@ describe('flatten', () => {
     const spans = [makeSpan('root-a'), makeSpan('root-b')]
     const result = flatten(spans)
     expect(result).toHaveLength(2)
-    expect(result.every(f => f.depth === 0)).toBe(true)
-    expect(result.every(f => !f.orphan)).toBe(true)
+    expect(result.every((f) => f.depth === 0)).toBe(true)
+    expect(result.every((f) => !f.orphan)).toBe(true)
   })
 })
 
@@ -110,8 +117,13 @@ describe('flatten', () => {
 
 function makeLint(spanId: string, ruleId: string): LintWarning {
   return {
-    span_id: spanId, trace_id: 'trace-1', session_id: '',
-    rule_id: ruleId, message: 'msg', severity: 'warn', created_at: 0,
+    span_id: spanId,
+    trace_id: 'trace-1',
+    session_id: '',
+    rule_id: ruleId,
+    message: 'msg',
+    severity: 'warn',
+    created_at: 0,
   }
 }
 
@@ -131,10 +143,7 @@ describe('buildTagMap', () => {
   })
 
   it('first warning wins for a span with multiple warnings', () => {
-    const warnings = [
-      makeLint('span-3', 'HTTP.MISSING_METHOD'),
-      makeLint('span-3', 'PERF.N+1'),
-    ]
+    const warnings = [makeLint('span-3', 'HTTP.MISSING_METHOD'), makeLint('span-3', 'PERF.N+1')]
     const map = buildTagMap(warnings)
     expect(map.get('span-3')).toBe('lint')
   })
@@ -205,29 +214,35 @@ describe('shortTraceId', () => {
 describe('httpDisplayName', () => {
   it('prefers the stable http.route template over a concrete request path', async () => {
     const { httpDisplayName } = await import('./span-utils')
-    expect(httpDisplayName({
-      name: 'POST /api/dashboards/{id}/query-preview',
-      attributes: JSON.stringify({
-        'http.request.method': 'POST',
-        'http.route': '/api/dashboards/{id}/query-preview',
-        'url.path': '/api/dashboards/3816d107-32a5-4a39-af88-09f092d508f1/query-preview',
+    expect(
+      httpDisplayName({
+        name: 'POST /api/dashboards/{id}/query-preview',
+        attributes: JSON.stringify({
+          'http.request.method': 'POST',
+          'http.route': '/api/dashboards/{id}/query-preview',
+          'url.path': '/api/dashboards/3816d107-32a5-4a39-af88-09f092d508f1/query-preview',
+        }),
       }),
-    })).toBe('POST /api/dashboards/{id}/query-preview')
+    ).toBe('POST /api/dashboards/{id}/query-preview')
   })
 
   it('combines a bare HTTP method span name with url.path', async () => {
     const { httpDisplayName } = await import('./span-utils')
-    expect(httpDisplayName({
-      name: 'GET',
-      attributes: JSON.stringify({ 'url.path': '/api/traces' }),
-    })).toBe('GET /api/traces')
+    expect(
+      httpDisplayName({
+        name: 'GET',
+        attributes: JSON.stringify({ 'url.path': '/api/traces' }),
+      }),
+    ).toBe('GET /api/traces')
   })
 
   it('combines a legacy unknown span name with the path from http.url', async () => {
     const { httpDisplayName } = await import('./span-utils')
-    expect(httpDisplayName({
-      name: 'GET unknown',
-      attributes: JSON.stringify({ 'http.url': 'http://pi5:8081/api/settings?tab=storage' }),
-    })).toBe('GET pi5:8081/api/settings')
+    expect(
+      httpDisplayName({
+        name: 'GET unknown',
+        attributes: JSON.stringify({ 'http.url': 'http://pi5:8081/api/settings?tab=storage' }),
+      }),
+    ).toBe('GET pi5:8081/api/settings')
   })
 })

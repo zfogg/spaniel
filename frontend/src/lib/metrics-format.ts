@@ -70,8 +70,18 @@ export function statsFor(m: MetricSeries, b: BucketedSeries): Stat[] {
   const p99Last = p99[p99.length - 1] ?? 0
   return [
     { label: 'p50', value: fmtVal(p50[p50.length - 1] ?? 0, m.unit), sub: 'latest' },
-    { label: 'p95', value: fmtVal(p95Last, m.unit), sub: 'latest', tone: p95Last > 300 ? 'danger' : undefined },
-    { label: 'p99', value: fmtVal(p99Last, m.unit), sub: 'latest', tone: p99Last > 600 ? 'danger' : undefined },
+    {
+      label: 'p95',
+      value: fmtVal(p95Last, m.unit),
+      sub: 'latest',
+      tone: p95Last > 300 ? 'danger' : undefined,
+    },
+    {
+      label: 'p99',
+      value: fmtVal(p99Last, m.unit),
+      sub: 'latest',
+      tone: p99Last > 600 ? 'danger' : undefined,
+    },
     { label: 'max p99', value: fmtVal(p99.length ? Math.max(...p99) : 0, m.unit), sub: 'window' },
   ]
 }

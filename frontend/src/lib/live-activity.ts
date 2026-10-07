@@ -26,7 +26,12 @@ export function useLiveActivity() {
     })
   }, [])
 
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    [],
+  )
 
   return { streaming, activeSessionId }
 }

@@ -33,7 +33,9 @@ describe('traceTag', () => {
   })
 
   it('slow wins over baseline', () => {
-    expect(traceTag(make({ duration_ns: 300_000_000, session_id: 'base-1' }), 'base-1')).toBe('slow')
+    expect(traceTag(make({ duration_ns: 300_000_000, session_id: 'base-1' }), 'base-1')).toBe(
+      'slow',
+    )
   })
 
   it('returns error when status_code is 2', () => {

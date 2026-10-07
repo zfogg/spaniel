@@ -7,7 +7,15 @@ afterEach(cleanup)
 
 it('reports the current slice and navigates between pages', () => {
   const onPageChange = vi.fn()
-  render(<PaginationControls page={2} pageSize={100} total={250} itemLabel="traces" onPageChange={onPageChange} />)
+  render(
+    <PaginationControls
+      page={2}
+      pageSize={100}
+      total={250}
+      itemLabel="traces"
+      onPageChange={onPageChange}
+    />,
+  )
 
   expect(screen.getByText('100')).toBeTruthy()
   expect(screen.getByText(/of 250 traces/)).toBeTruthy()
@@ -19,8 +27,18 @@ it('reports the current slice and navigates between pages', () => {
 })
 
 it('shows the remainder and disables next on the final page', () => {
-  render(<PaginationControls page={3} pageSize={100} total={250} itemLabel="traces" onPageChange={() => undefined} />)
+  render(
+    <PaginationControls
+      page={3}
+      pageSize={100}
+      total={250}
+      itemLabel="traces"
+      onPageChange={() => undefined}
+    />,
+  )
 
   expect(screen.getByText('50')).toBeTruthy()
-  expect((screen.getByRole('button', { name: 'Next traces page' }) as HTMLButtonElement).disabled).toBe(true)
+  expect(
+    (screen.getByRole('button', { name: 'Next traces page' }) as HTMLButtonElement).disabled,
+  ).toBe(true)
 })

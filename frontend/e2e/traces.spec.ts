@@ -2,7 +2,11 @@ import { test, expect, type Route, type Page } from '@playwright/test'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 0, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -16,19 +20,29 @@ interface Fixture {
 }
 
 async function stubBackend(page: Page, fx: Fixture) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
-    const pathname = new URL(r.request().url()).pathname
-    if (pathname === '/api/stats')
-      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
-    if (pathname === '/api/forwarders') return jsonResponse(r, [])
-    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
-    if (pathname === '/api/sessions') return jsonResponse(r, [])
-    if (pathname === '/api/services') return jsonResponse(r, fx.services ?? [])
-    if (pathname.startsWith('/api/lint')) return jsonResponse(r, [])
-    if (pathname.startsWith('/api/traces')) return jsonResponse(r, fx.traces ?? [])
-    return r.continue()
-  })
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route(
+    (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+    (r) => {
+      const pathname = new URL(r.request().url()).pathname
+      if (pathname === '/api/stats')
+        return jsonResponse(r, {
+          span_count: 0,
+          trace_count: 0,
+          log_count: 0,
+          db_size: 0,
+          session_count: 0,
+          oldest_session_at: 0,
+        })
+      if (pathname === '/api/forwarders') return jsonResponse(r, [])
+      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+      if (pathname === '/api/sessions') return jsonResponse(r, [])
+      if (pathname === '/api/services') return jsonResponse(r, fx.services ?? [])
+      if (pathname.startsWith('/api/lint')) return jsonResponse(r, [])
+      if (pathname.startsWith('/api/traces')) return jsonResponse(r, fx.traces ?? [])
+      return r.continue()
+    },
+  )
 }
 
 function trace(overrides: {
@@ -92,17 +106,17 @@ test.describe('Traces page', () => {
 
     const main = page.getByRole('main')
     await expect(main.getByText('operation', { exact: true })).toBeVisible()
-    await expect(main.getByText('dur',       { exact: true })).toBeVisible()
-    await expect(main.getByText('spans',     { exact: true })).toBeVisible()
-    await expect(main.getByText('shape',     { exact: true })).toBeVisible()
-    await expect(main.getByText('ago',       { exact: true })).toBeVisible()
+    await expect(main.getByText('dur', { exact: true })).toBeVisible()
+    await expect(main.getByText('spans', { exact: true })).toBeVisible()
+    await expect(main.getByText('shape', { exact: true })).toBeVisible()
+    await expect(main.getByText('ago', { exact: true })).toBeVisible()
   })
 
   test('renders operation name, duration, and span count', async ({ page }) => {
     await stubBackend(page, {
       traces: [
-        trace({ id: 'aaa111', name: 'GET /cart',     durationNs: 12_000_000,  spanCount: 5 }),
-        trace({ id: 'bbb222', name: 'pricing.Quote', durationNs: 80_000_000,  spanCount: 12 }),
+        trace({ id: 'aaa111', name: 'GET /cart', durationNs: 12_000_000, spanCount: 5 }),
+        trace({ id: 'bbb222', name: 'pricing.Quote', durationNs: 80_000_000, spanCount: 12 }),
         trace({ id: 'ccc333', name: 'POST /checkout', durationNs: 320_000_000, spanCount: 8 }),
       ],
       services: ['api', 'pricing'],
@@ -119,7 +133,9 @@ test.describe('Traces page', () => {
 
     // Span count column.
     await expect(page.getByTestId('trace-row-aaa111').getByText('5', { exact: true })).toBeVisible()
-    await expect(page.getByTestId('trace-row-bbb222').getByText('12', { exact: true })).toBeVisible()
+    await expect(
+      page.getByTestId('trace-row-bbb222').getByText('12', { exact: true }),
+    ).toBeVisible()
   })
 
   test('n+1 chip appears for traces with has_n1=true', async ({ page }) => {
@@ -130,18 +146,20 @@ test.describe('Traces page', () => {
     })
     await page.goto('/')
 
-    await expect(page.getByTestId('trace-row-n1-trace').getByText('n+1', { exact: true })).toBeVisible()
+    await expect(
+      page.getByTestId('trace-row-n1-trace').getByText('n+1', { exact: true }),
+    ).toBeVisible()
   })
 
   test('slow chip appears for traces with duration > 250ms', async ({ page }) => {
     await stubBackend(page, {
-      traces: [
-        trace({ id: 'slow-trace', name: 'POST /checkout', durationNs: 300_000_000 }),
-      ],
+      traces: [trace({ id: 'slow-trace', name: 'POST /checkout', durationNs: 300_000_000 })],
     })
     await page.goto('/')
 
-    await expect(page.getByTestId('trace-row-slow-trace').getByText('slow', { exact: true })).toBeVisible()
+    await expect(
+      page.getByTestId('trace-row-slow-trace').getByText('slow', { exact: true }),
+    ).toBeVisible()
   })
 
   test('error chip appears for traces with status_code=2', async ({ page }) => {
@@ -152,7 +170,9 @@ test.describe('Traces page', () => {
     })
     await page.goto('/')
 
-    await expect(page.getByTestId('trace-row-err-trace').getByText('error', { exact: true })).toBeVisible()
+    await expect(
+      page.getByTestId('trace-row-err-trace').getByText('error', { exact: true }),
+    ).toBeVisible()
   })
 
   test('shape bar fill width is proportional to duration', async ({ page }) => {
@@ -179,7 +199,7 @@ test.describe('Traces page', () => {
   test('filters traces by service via the select', async ({ page }) => {
     await stubBackend(page, {
       traces: [
-        trace({ id: 'aaa111', service: 'api',     name: 'GET /cart',     durationNs: 12_000_000 }),
+        trace({ id: 'aaa111', service: 'api', name: 'GET /cart', durationNs: 12_000_000 }),
         trace({ id: 'bbb222', service: 'pricing', name: 'pricing.Quote', durationNs: 80_000_000 }),
       ],
       services: ['api', 'pricing'],

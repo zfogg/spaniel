@@ -17,8 +17,13 @@ vi.mock('./ws', () => ({
 import { useLiveInvalidation } from './query'
 
 describe('useLiveInvalidation', () => {
-  beforeEach(() => { vi.useFakeTimers(); captured = null })
-  afterEach(() => { vi.useRealTimers() })
+  beforeEach(() => {
+    vi.useFakeTimers()
+    captured = null
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
   it('invalidates the traces query on a span event, throttled by ~1s', () => {
     const qc = new QueryClient()

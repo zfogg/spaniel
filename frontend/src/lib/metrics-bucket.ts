@@ -44,22 +44,22 @@ export function bucketPoints(
     const values = new Array(bins).fill(NaN)
     for (const p of points) {
       const i = Math.min(bins - 1, Math.floor(((p.timestamp_ns - tMin) / span) * bins))
-		// A derived histogram value of zero after a prior cumulative snapshot
-		// means no new observations arrived in that export interval. Leave the
-		// bin empty so forwardFill keeps the last observed percentile instead
-		// of drawing a misleading fall to a literal zero-sized observation.
-		if (p.value !== 0) values[i] = p.value
-		if (p.bounds?.length && p.buckets?.length) {
-			out.p50[i] = histogramPercentile(p.bounds, p.buckets, 0.50)
-			out.p95[i] = histogramPercentile(p.bounds, p.buckets, 0.95)
-			out.p99[i] = histogramPercentile(p.bounds, p.buckets, 0.99)
-		} else if (p.percentile) {
-			out[p.percentile][i] = p.value
-		} else {
-			out.p50[i] = p.value
-			out.p95[i] = p.value
-			out.p99[i] = p.value
-		}
+      // A derived histogram value of zero after a prior cumulative snapshot
+      // means no new observations arrived in that export interval. Leave the
+      // bin empty so forwardFill keeps the last observed percentile instead
+      // of drawing a misleading fall to a literal zero-sized observation.
+      if (p.value !== 0) values[i] = p.value
+      if (p.bounds?.length && p.buckets?.length) {
+        out.p50[i] = histogramPercentile(p.bounds, p.buckets, 0.5)
+        out.p95[i] = histogramPercentile(p.bounds, p.buckets, 0.95)
+        out.p99[i] = histogramPercentile(p.bounds, p.buckets, 0.99)
+      } else if (p.percentile) {
+        out[p.percentile][i] = p.value
+      } else {
+        out.p50[i] = p.value
+        out.p95[i] = p.value
+        out.p99[i] = p.value
+      }
     }
     for (const k of ['p50', 'p95', 'p99'] as const) {
       forwardFill(out[k])
@@ -85,13 +85,13 @@ function histogramPercentile(bounds: number[], counts: number[], q: number) {
   for (let i = 0; i < counts.length; i++) {
     const next = cumulative + counts[i]
     if (next >= target) {
-		if (i >= bounds.length) return bounds.length ? bounds[bounds.length - 1] : 0
+      if (i >= bounds.length) return bounds.length ? bounds[bounds.length - 1] : 0
       const lo = i ? bounds[i - 1] : 0
       return counts[i] ? lo + ((target - cumulative) / counts[i]) * (bounds[i] - lo) : bounds[i]
     }
     cumulative = next
   }
-	return bounds.length ? bounds[bounds.length - 1] : 0
+  return bounds.length ? bounds[bounds.length - 1] : 0
 }
 
 function forwardFill(arr: number[]) {

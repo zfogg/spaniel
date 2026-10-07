@@ -67,7 +67,11 @@ export function criticalPath(spans: Span[]): Set<string> {
 const N1_THRESHOLD = 10
 
 function attrs(span: Span): Record<string, unknown> {
-  try { return JSON.parse(span.attributes ?? '{}') } catch { return {} }
+  try {
+    return JSON.parse(span.attributes ?? '{}')
+  } catch {
+    return {}
+  }
 }
 
 /** Span IDs that should be flagged with the N+1 badge. Combines server-side
@@ -85,8 +89,9 @@ export function detectN1SpanIds(flatSpans: FlatSpan[], issues: TraceIssue[]): Se
   const counts = new Map<string, string[]>()
   for (const flat of flatSpans) {
     const a = attrs(flat.span)
-    const stmt = (typeof a['db.statement'] === 'string' && a['db.statement']) ||
-                 (typeof a['db.query.text'] === 'string' && a['db.query.text'])
+    const stmt =
+      (typeof a['db.statement'] === 'string' && a['db.statement']) ||
+      (typeof a['db.query.text'] === 'string' && a['db.query.text'])
     if (!stmt) continue
     const ids = counts.get(stmt) ?? []
     ids.push(flat.span.span_id)
@@ -116,28 +121,34 @@ export interface N1BannerEntry {
 export function n1IssueForSpan(span: Span | null, issues: TraceIssue[]): TraceIssue | null {
   if (!span) return null
   let a: Record<string, unknown> = {}
-  try { a = JSON.parse(span.attributes || '{}') } catch { /* empty */ }
+  try {
+    a = JSON.parse(span.attributes || '{}')
+  } catch {
+    /* empty */
+  }
   const hasStmt = typeof a['db.statement'] === 'string' || typeof a['db.query.text'] === 'string'
   if (!hasStmt) return null
   for (const issue of issues) {
     if (issue.kind !== 'n_plus_one') continue
     if (issue.example_span_id && issue.example_span_id === span.span_id) return issue
-    if (issue.parent_span_id && span.parent_span_id && issue.parent_span_id === span.parent_span_id) return issue
+    if (issue.parent_span_id && span.parent_span_id && issue.parent_span_id === span.parent_span_id)
+      return issue
   }
   return null
 }
 
 export function n1BannerEntries(flatSpans: FlatSpan[], issues: TraceIssue[]): N1BannerEntry[] {
   const server = issues
-    .filter(i => i.kind === 'n_plus_one')
-    .map(i => ({ fingerprint: i.fingerprint, count: i.count, wastedNs: i.wasted_ns }))
+    .filter((i) => i.kind === 'n_plus_one')
+    .map((i) => ({ fingerprint: i.fingerprint, count: i.count, wastedNs: i.wasted_ns }))
   if (server.length > 0) return server.sort((a, b) => b.wastedNs - a.wastedNs)
 
   const groups = new Map<string, { ids: string[]; totalNs: number }>()
   for (const flat of flatSpans) {
     const a = attrs(flat.span)
-    const stmt = (typeof a['db.statement'] === 'string' && a['db.statement']) ||
-                 (typeof a['db.query.text'] === 'string' && a['db.query.text'])
+    const stmt =
+      (typeof a['db.statement'] === 'string' && a['db.statement']) ||
+      (typeof a['db.query.text'] === 'string' && a['db.query.text'])
     if (!stmt) continue
     const g = groups.get(stmt) ?? { ids: [], totalNs: 0 }
     g.ids.push(flat.span.span_id)
@@ -146,7 +157,8 @@ export function n1BannerEntries(flatSpans: FlatSpan[], issues: TraceIssue[]): N1
   }
   const out: N1BannerEntry[] = []
   for (const [fp, { ids, totalNs }] of groups) {
-    if (ids.length >= N1_THRESHOLD) out.push({ fingerprint: fp, count: ids.length, wastedNs: totalNs })
+    if (ids.length >= N1_THRESHOLD)
+      out.push({ fingerprint: fp, count: ids.length, wastedNs: totalNs })
   }
   return out.sort((a, b) => b.wastedNs - a.wastedNs)
 }

@@ -12,7 +12,7 @@ export function fmtRelMs(eventNs: number, spanStartNs: number): string {
   if (deltaNs === 0) return '+0ms'
   const sign = deltaNs >= 0 ? '+' : ''
   const abs = Math.abs(deltaNs)
-  if (abs < 1_000)   return `${sign}${deltaNs}ns`
+  if (abs < 1_000) return `${sign}${deltaNs}ns`
   if (abs < 100_000) return `${sign}${(deltaNs / 1_000).toFixed(1)}µs`
   return `${sign}${(deltaNs / 1_000_000).toFixed(1)}ms`
 }

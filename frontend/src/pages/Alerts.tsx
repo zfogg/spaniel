@@ -4,18 +4,416 @@ import { AlertTriangle, BellRing, Check, Plus, Radio, Search } from 'lucide-reac
 import { api, type AlertRule } from '@/lib/api'
 import { qk } from '@/lib/query'
 
-const tone: Record<string, string> = { firing: 'bg-danger-bg text-danger-ink border-danger', pending: 'bg-warn-bg text-warn-ink border-warn', resolved: 'bg-ok-bg text-ok-ink border-ok', error: 'bg-danger-bg text-danger-ink border-danger' }
+const tone: Record<string, string> = {
+  firing: 'bg-danger-bg text-danger-ink border-danger',
+  pending: 'bg-warn-bg text-warn-ink border-warn',
+  resolved: 'bg-ok-bg text-ok-ink border-ok',
+  error: 'bg-danger-bg text-danger-ink border-danger',
+}
 const toNS = (v: string) => Math.max(0, Number(v) || 0) * 60e9
 const fromNS = (v: number) => String(v / 60e9)
-type Draft = { name:string; query:string; threshold:string; operator:string; severity:string; pending:string; cooldown:string; groupBy:string; enabled:boolean; annotations:string }
-const blank = (): Draft => ({ name:'Elevated error traces', query:'SELECT service_name, count(*) AS value FROM telemetry_spans WHERE status_code = 2 GROUP BY service_name', threshold:'10', operator:'>', severity:'warning', pending:'0', cooldown:'5', groupBy:'service_name', enabled:true, annotations:'{}' })
-const json = <T,>(s:string, fallback:T):T => { try { return JSON.parse(s) as T } catch { return fallback } }
-const stateOf = (r:AlertRule) => r.instances.find(x=>x.state==='firing')?.state ?? r.instances.find(x=>x.state==='pending')?.state ?? r.instances[0]?.state ?? 'resolved'
-function draftFor(r:AlertRule):Draft { const c=json<{operator?:string;value?:number}>(r.condition_json,{}); return { name:r.name, query:r.query_sql, threshold:String(c.value??0), operator:c.operator??'>', severity:r.severity, pending:fromNS(r.pending_for_ns), cooldown:fromNS(r.cooldown_ns), groupBy:json<string[]>(r.group_by_json,[])[0]??'', enabled:r.enabled, annotations:r.annotations_json||'{}' } }
-function body(d:Draft) { let annotations:Record<string,string>; try { annotations=JSON.parse(d.annotations) } catch { throw new Error('Annotations must be a JSON object') }; return { name:d.name, query_sql:d.query, condition:{kind:'threshold',operator:d.operator,value:Number(d.threshold)}, group_by:d.groupBy?[d.groupBy]:[], pending_for_ns:toNS(d.pending), cooldown_ns:toNS(d.cooldown), severity:d.severity, enabled:d.enabled, annotations } }
+type Draft = {
+  name: string
+  query: string
+  threshold: string
+  operator: string
+  severity: string
+  pending: string
+  cooldown: string
+  groupBy: string
+  enabled: boolean
+  annotations: string
+}
+const blank = (): Draft => ({
+  name: 'Elevated error traces',
+  query:
+    'SELECT service_name, count(*) AS value FROM telemetry_spans WHERE status_code = 2 GROUP BY service_name',
+  threshold: '10',
+  operator: '>',
+  severity: 'warning',
+  pending: '0',
+  cooldown: '5',
+  groupBy: 'service_name',
+  enabled: true,
+  annotations: '{}',
+})
+const json = <T,>(s: string, fallback: T): T => {
+  try {
+    return JSON.parse(s) as T
+  } catch {
+    return fallback
+  }
+}
+const stateOf = (r: AlertRule) =>
+  r.instances.find((x) => x.state === 'firing')?.state ??
+  r.instances.find((x) => x.state === 'pending')?.state ??
+  r.instances[0]?.state ??
+  'resolved'
+function draftFor(r: AlertRule): Draft {
+  const c = json<{ operator?: string; value?: number }>(r.condition_json, {})
+  return {
+    name: r.name,
+    query: r.query_sql,
+    threshold: String(c.value ?? 0),
+    operator: c.operator ?? '>',
+    severity: r.severity,
+    pending: fromNS(r.pending_for_ns),
+    cooldown: fromNS(r.cooldown_ns),
+    groupBy: json<string[]>(r.group_by_json, [])[0] ?? '',
+    enabled: r.enabled,
+    annotations: r.annotations_json || '{}',
+  }
+}
+function body(d: Draft) {
+  let annotations: Record<string, string>
+  try {
+    annotations = JSON.parse(d.annotations)
+  } catch {
+    throw new Error('Annotations must be a JSON object')
+  }
+  return {
+    name: d.name,
+    query_sql: d.query,
+    condition: { kind: 'threshold', operator: d.operator, value: Number(d.threshold) },
+    group_by: d.groupBy ? [d.groupBy] : [],
+    pending_for_ns: toNS(d.pending),
+    cooldown_ns: toNS(d.cooldown),
+    severity: d.severity,
+    enabled: d.enabled,
+    annotations,
+  }
+}
 
 export default function Alerts() {
- const qc=useQueryClient(); const {data:alerts=[],error:loadError}=useQuery({queryKey:qk.alerts(),queryFn:()=>api.alerts.list().then(x=>x.data)}); const [selected,setSelected]=useState<string|null>(null); const [editing,setEditing]=useState(false); const [filter,setFilter]=useState(''); const [draft,setDraft]=useState<Draft>(blank); const active=alerts.find(a=>a.id===selected)??alerts[0]; const shown=useMemo(()=>alerts.filter(a=>(a.name+a.query_sql).toLowerCase().includes(filter.toLowerCase())),[alerts,filter]); useEffect(()=>{if(active&&!editing)setDraft(draftFor(active))},[active?.id,editing]); const refresh=()=>qc.invalidateQueries({queryKey:qk.alerts()}); const save=useMutation({mutationFn:()=>active&&editing?api.alerts.update(active.id,body(draft)):api.alerts.create(body(draft)),onSuccess:r=>{setSelected(r.data.id);setEditing(false);refresh()}}); const ack=useMutation({mutationFn:()=>api.alerts.acknowledge(active!.id),onSuccess:refresh}); const preview=useQuery({queryKey:['alert-preview',active?.id],queryFn:()=>api.alerts.preview(active!.id).then(x=>x.data),enabled:Boolean(active&&!editing),retry:false}); const set=<K extends keyof Draft>(k:K,v:Draft[K])=>setDraft(d=>({...d,[k]:v})); const newRule=()=>{setSelected(null);setDraft(blank());setEditing(true);save.reset()}; const edit=()=>{if(active){setDraft(draftFor(active));setEditing(true);save.reset()}}
- return <div className="flex min-h-0 flex-1 overflow-hidden bg-background"><section className="w-[46%] min-w-[390px] overflow-auto border-r border-border"><header className="flex items-start gap-3 border-b border-border bg-surface px-6 py-5"><div className="flex-1"><div className="flex items-center gap-2"><Radio size={16} className="text-danger"/><h1 className="text-xl font-semibold">Alerts</h1></div><p className="mt-1 text-sm text-muted-foreground">Saved telemetry conditions evaluated on a schedule.</p></div><button onClick={newRule} className="flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-medium text-accent-ink"><Plus size={14}/> New rule</button></header><div className="p-4"><label className="mb-3 flex items-center gap-2 rounded border border-border bg-surface px-2 py-1.5"><Search size={13}/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter alerts" className="w-full bg-transparent text-sm outline-none"/></label>{loadError&&<p role="alert" className="text-sm text-danger">Could not load alerts: {loadError.message}</p>}{shown.length===0?<div className="rounded border border-dashed border-border p-10 text-center"><BellRing className="mx-auto"/><p className="mt-3 text-sm">No matching alert rules.</p></div>:shown.map(rule=>{const state=stateOf(rule);return <button key={rule.id} onClick={()=>{setSelected(rule.id);setEditing(false)}} className={`mb-2 grid w-full grid-cols-[10px_minmax(0,1fr)_auto] gap-3 rounded-lg border p-3 text-left ${active?.id===rule.id&&!editing?'border-accent bg-accent-bg':'border-border bg-surface'}`}><span className={`mt-1 h-2 w-2 rounded-full ${state==='firing'?'bg-danger':state==='pending'?'bg-warn':'bg-ok'}`}/><span><span className="block text-sm font-semibold">{rule.name}</span><span className="font-mono text-[10px] text-muted-foreground">{rule.instances.length} instances · {rule.severity}</span></span><span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] ${tone[state]??tone.resolved}`}>{state}</span></button>})}</div></section><aside className="flex-1 overflow-auto bg-surface p-5">{editing||!active?<Editor draft={draft} set={set} save={()=>save.mutate()} pending={save.isPending} error={save.error?.message} cancel={active?()=>setEditing(false):undefined}/>:<><div className="flex gap-3"><AlertTriangle className="text-danger"/><div className="flex-1"><h2 className="text-lg font-semibold">{active.name}</h2><p className="font-mono text-xs text-muted-foreground">{active.severity} · {active.enabled?'enabled':'disabled'}</p></div><button onClick={edit} className="rounded border border-border px-2 text-xs">Edit</button></div><section className="mt-6"><h3 className="text-xs font-semibold">Query preview</h3>{preview.isPending&&<p className="mt-2 text-sm">Running query…</p>}{preview.isError&&<p role="alert" className="mt-2 text-sm text-danger">Preview failed: {preview.error.message}</p>}{preview.data&&<p className="mt-2 text-sm text-muted-foreground">{preview.data.rows.length} rows · {preview.data.columns.join(', ')}</p>}</section><section className="mt-5"><h3 className="text-xs font-semibold">Current instances</h3>{active.instances.map(i=><div key={i.group_key} className="mt-2 rounded border border-border p-3 font-mono text-xs"><span>{i.group_key}</span><span className="float-right">{i.state}</span></div>)}</section>{ack.isError&&<p role="alert" className="mt-3 text-sm text-danger">Could not acknowledge: {ack.error.message}</p>}<button onClick={()=>ack.mutate()} disabled={ack.isPending} className="mt-6 flex w-full items-center justify-center gap-2 rounded border border-border bg-muted px-3 py-2 text-sm"><Check size={14}/> Acknowledge active instances</button></>}</aside></div>
+  const qc = useQueryClient()
+  const { data: alerts = [], error: loadError } = useQuery({
+    queryKey: qk.alerts(),
+    queryFn: () => api.alerts.list().then((x) => x.data),
+  })
+  const [selected, setSelected] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [filter, setFilter] = useState('')
+  const [draft, setDraft] = useState<Draft>(blank)
+  const active = alerts.find((a) => a.id === selected) ?? alerts[0]
+  const shown = useMemo(
+    () => alerts.filter((a) => (a.name + a.query_sql).toLowerCase().includes(filter.toLowerCase())),
+    [alerts, filter],
+  )
+  useEffect(() => {
+    if (active && !editing) setDraft(draftFor(active))
+  }, [active?.id, editing])
+  const refresh = () => qc.invalidateQueries({ queryKey: qk.alerts() })
+  const save = useMutation({
+    mutationFn: () =>
+      active && editing
+        ? api.alerts.update(active.id, body(draft))
+        : api.alerts.create(body(draft)),
+    onSuccess: (r) => {
+      setSelected(r.data.id)
+      setEditing(false)
+      refresh()
+    },
+  })
+  const ack = useMutation({
+    mutationFn: () => api.alerts.acknowledge(active!.id),
+    onSuccess: refresh,
+  })
+  const preview = useQuery({
+    queryKey: ['alert-preview', active?.id],
+    queryFn: () => api.alerts.preview(active!.id).then((x) => x.data),
+    enabled: Boolean(active && !editing),
+    retry: false,
+  })
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }))
+  const newRule = () => {
+    setSelected(null)
+    setDraft(blank())
+    setEditing(true)
+    save.reset()
+  }
+  const edit = () => {
+    if (active) {
+      setDraft(draftFor(active))
+      setEditing(true)
+      save.reset()
+    }
+  }
+  return (
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
+      <section className="w-[46%] min-w-[390px] overflow-auto border-r border-border">
+        <header className="flex items-start gap-3 border-b border-border bg-surface px-6 py-5">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <Radio size={16} className="text-danger" />
+              <h1 className="text-xl font-semibold">Alerts</h1>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Saved telemetry conditions evaluated on a schedule.
+            </p>
+          </div>
+          <button
+            onClick={newRule}
+            className="flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-medium text-accent-ink"
+          >
+            <Plus size={14} /> New rule
+          </button>
+        </header>
+        <div className="p-4">
+          <label className="mb-3 flex items-center gap-2 rounded border border-border bg-surface px-2 py-1.5">
+            <Search size={13} />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter alerts"
+              className="w-full bg-transparent text-sm outline-none"
+            />
+          </label>
+          {loadError && (
+            <p role="alert" className="text-sm text-danger">
+              Could not load alerts: {loadError.message}
+            </p>
+          )}
+          {shown.length === 0 ? (
+            <div className="rounded border border-dashed border-border p-10 text-center">
+              <BellRing className="mx-auto" />
+              <p className="mt-3 text-sm">No matching alert rules.</p>
+            </div>
+          ) : (
+            shown.map((rule) => {
+              const state = stateOf(rule)
+              return (
+                <button
+                  key={rule.id}
+                  onClick={() => {
+                    setSelected(rule.id)
+                    setEditing(false)
+                  }}
+                  className={`mb-2 grid w-full grid-cols-[10px_minmax(0,1fr)_auto] gap-3 rounded-lg border p-3 text-left ${active?.id === rule.id && !editing ? 'border-accent bg-accent-bg' : 'border-border bg-surface'}`}
+                >
+                  <span
+                    className={`mt-1 h-2 w-2 rounded-full ${state === 'firing' ? 'bg-danger' : state === 'pending' ? 'bg-warn' : 'bg-ok'}`}
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold">{rule.name}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {rule.instances.length} instances · {rule.severity}
+                    </span>
+                  </span>
+                  <span
+                    className={`rounded border px-1.5 py-0.5 font-mono text-[10px] ${tone[state] ?? tone.resolved}`}
+                  >
+                    {state}
+                  </span>
+                </button>
+              )
+            })
+          )}
+        </div>
+      </section>
+      <aside className="flex-1 overflow-auto bg-surface p-5">
+        {editing || !active ? (
+          <Editor
+            draft={draft}
+            set={set}
+            save={() => save.mutate()}
+            pending={save.isPending}
+            error={save.error?.message}
+            cancel={active ? () => setEditing(false) : undefined}
+          />
+        ) : (
+          <>
+            <div className="flex gap-3">
+              <AlertTriangle className="text-danger" />
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold">{active.name}</h2>
+                <p className="font-mono text-xs text-muted-foreground">
+                  {active.severity} · {active.enabled ? 'enabled' : 'disabled'}
+                </p>
+              </div>
+              <button onClick={edit} className="rounded border border-border px-2 text-xs">
+                Edit
+              </button>
+            </div>
+            <section className="mt-6">
+              <h3 className="text-xs font-semibold">Query preview</h3>
+              {preview.isPending && <p className="mt-2 text-sm">Running query…</p>}
+              {preview.isError && (
+                <p role="alert" className="mt-2 text-sm text-danger">
+                  Preview failed: {preview.error.message}
+                </p>
+              )}
+              {preview.data && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {preview.data.rows.length} rows · {preview.data.columns.join(', ')}
+                </p>
+              )}
+            </section>
+            <section className="mt-5">
+              <h3 className="text-xs font-semibold">Current instances</h3>
+              {active.instances.map((i) => (
+                <div
+                  key={i.group_key}
+                  className="mt-2 rounded border border-border p-3 font-mono text-xs"
+                >
+                  <span>{i.group_key}</span>
+                  <span className="float-right">{i.state}</span>
+                </div>
+              ))}
+            </section>
+            {ack.isError && (
+              <p role="alert" className="mt-3 text-sm text-danger">
+                Could not acknowledge: {ack.error.message}
+              </p>
+            )}
+            <button
+              onClick={() => ack.mutate()}
+              disabled={ack.isPending}
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded border border-border bg-muted px-3 py-2 text-sm"
+            >
+              <Check size={14} /> Acknowledge active instances
+            </button>
+          </>
+        )}
+      </aside>
+    </div>
+  )
 }
-function Editor({draft,set,save,pending,error,cancel}:{draft:Draft;set:<K extends keyof Draft>(k:K,v:Draft[K])=>void;save:()=>void;pending:boolean;error?:string;cancel?:()=>void}) { return <section><div className="flex justify-between"><div><h2 className="text-lg font-semibold">Create or edit alert rule</h2><p className="text-sm text-muted-foreground">Read-only DuckDB SQL must return a numeric <code>value</code> column.</p></div>{cancel&&<button onClick={cancel} className="text-xs underline">Cancel</button>}</div><div className="mt-5 grid gap-3"><label className="text-xs">Rule name<input value={draft.name} onChange={e=>set('name',e.target.value)} className="mt-1 w-full rounded border p-2"/></label><label className="text-xs">DuckDB SQL<textarea value={draft.query} onChange={e=>set('query',e.target.value)} className="mt-1 h-24 w-full rounded border p-2 font-mono"/></label><div className="grid grid-cols-3 gap-2"><label className="text-xs">Operator<select value={draft.operator} onChange={e=>set('operator',e.target.value)} className="mt-1 w-full rounded border p-2">{['>','>=','<','<=','=','!='].map(x=><option key={x}>{x}</option>)}</select></label><label className="text-xs">Threshold<input value={draft.threshold} onChange={e=>set('threshold',e.target.value)} className="mt-1 w-full rounded border p-2"/></label><label className="text-xs">Severity<select value={draft.severity} onChange={e=>set('severity',e.target.value)} className="mt-1 w-full rounded border p-2">{['info','warning','critical'].map(x=><option key={x}>{x}</option>)}</select></label></div><div className="grid grid-cols-3 gap-2"><label className="text-xs">Pending min<input value={draft.pending} onChange={e=>set('pending',e.target.value)} className="mt-1 w-full rounded border p-2"/></label><label className="text-xs">Cooldown min<input value={draft.cooldown} onChange={e=>set('cooldown',e.target.value)} className="mt-1 w-full rounded border p-2"/></label><label className="text-xs">Group column<input value={draft.groupBy} onChange={e=>set('groupBy',e.target.value)} className="mt-1 w-full rounded border p-2"/></label></div><label className="flex gap-2 text-xs"><input type="checkbox" checked={draft.enabled} onChange={e=>set('enabled',e.target.checked)}/>Enabled</label><label className="text-xs">Annotations JSON<textarea value={draft.annotations} onChange={e=>set('annotations',e.target.value)} className="mt-1 h-16 w-full rounded border p-2 font-mono"/></label>{error&&<p role="alert" className="text-sm text-danger">Could not save alert: {error}</p>}<button onClick={save} disabled={pending} className="rounded bg-accent px-3 py-2 text-sm text-accent-ink">{pending?'Saving…':'Save rule'}</button></div></section> }
+function Editor({
+  draft,
+  set,
+  save,
+  pending,
+  error,
+  cancel,
+}: {
+  draft: Draft
+  set: <K extends keyof Draft>(k: K, v: Draft[K]) => void
+  save: () => void
+  pending: boolean
+  error?: string
+  cancel?: () => void
+}) {
+  return (
+    <section>
+      <div className="flex justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Create or edit alert rule</h2>
+          <p className="text-sm text-muted-foreground">
+            Read-only DuckDB SQL must return a numeric <code>value</code> column.
+          </p>
+        </div>
+        {cancel && (
+          <button onClick={cancel} className="text-xs underline">
+            Cancel
+          </button>
+        )}
+      </div>
+      <div className="mt-5 grid gap-3">
+        <label className="text-xs">
+          Rule name
+          <input
+            value={draft.name}
+            onChange={(e) => set('name', e.target.value)}
+            className="mt-1 w-full rounded border p-2"
+          />
+        </label>
+        <label className="text-xs">
+          DuckDB SQL
+          <textarea
+            value={draft.query}
+            onChange={(e) => set('query', e.target.value)}
+            className="mt-1 h-24 w-full rounded border p-2 font-mono"
+          />
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="text-xs">
+            Operator
+            <select
+              value={draft.operator}
+              onChange={(e) => set('operator', e.target.value)}
+              className="mt-1 w-full rounded border p-2"
+            >
+              {['>', '>=', '<', '<=', '=', '!='].map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs">
+            Threshold
+            <input
+              value={draft.threshold}
+              onChange={(e) => set('threshold', e.target.value)}
+              className="mt-1 w-full rounded border p-2"
+            />
+          </label>
+          <label className="text-xs">
+            Severity
+            <select
+              value={draft.severity}
+              onChange={(e) => set('severity', e.target.value)}
+              className="mt-1 w-full rounded border p-2"
+            >
+              {['info', 'warning', 'critical'].map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="text-xs">
+            Pending min
+            <input
+              value={draft.pending}
+              onChange={(e) => set('pending', e.target.value)}
+              className="mt-1 w-full rounded border p-2"
+            />
+          </label>
+          <label className="text-xs">
+            Cooldown min
+            <input
+              value={draft.cooldown}
+              onChange={(e) => set('cooldown', e.target.value)}
+              className="mt-1 w-full rounded border p-2"
+            />
+          </label>
+          <label className="text-xs">
+            Group column
+            <input
+              value={draft.groupBy}
+              onChange={(e) => set('groupBy', e.target.value)}
+              className="mt-1 w-full rounded border p-2"
+            />
+          </label>
+        </div>
+        <label className="flex gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={draft.enabled}
+            onChange={(e) => set('enabled', e.target.checked)}
+          />
+          Enabled
+        </label>
+        <label className="text-xs">
+          Annotations JSON
+          <textarea
+            value={draft.annotations}
+            onChange={(e) => set('annotations', e.target.value)}
+            className="mt-1 h-16 w-full rounded border p-2 font-mono"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            Could not save alert: {error}
+          </p>
+        )}
+        <button
+          onClick={save}
+          disabled={pending}
+          className="rounded bg-accent px-3 py-2 text-sm text-accent-ink"
+        >
+          {pending ? 'Saving…' : 'Save rule'}
+        </button>
+      </div>
+    </section>
+  )
+}

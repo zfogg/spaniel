@@ -10,17 +10,12 @@ describe('bucketPoints', () => {
   it('returns zeros when input is empty', () => {
     const r = bucketPoints([], 'gauge', 10)
     expect(r.values).toHaveLength(10)
-    expect(r.values.every(v => v === 0)).toBe(true)
+    expect(r.values.every((v) => v === 0)).toBe(true)
   })
 
   it('places each point into its time bin', () => {
     // 4 points spread across the window — at the start, 1/3, 2/3, and end.
-    const pts: MetricSeriesPoint[] = [
-      pt(0, 1),
-      pt(30, 2),
-      pt(60, 3),
-      pt(90, 4),
-    ]
+    const pts: MetricSeriesPoint[] = [pt(0, 1), pt(30, 2), pt(60, 3), pt(90, 4)]
     const r = bucketPoints(pts, 'gauge', 4)
     expect(r.values).toEqual([1, 2, 3, 4])
   })
@@ -35,8 +30,12 @@ describe('bucketPoints', () => {
 
   it('splits histogram points by percentile', () => {
     const pts: MetricSeriesPoint[] = [
-      pt(0,  10, 'p50'), pt(0,  30, 'p95'), pt(0,  60, 'p99'),
-      pt(90, 12, 'p50'), pt(90, 40, 'p95'), pt(90, 80, 'p99'),
+      pt(0, 10, 'p50'),
+      pt(0, 30, 'p95'),
+      pt(0, 60, 'p99'),
+      pt(90, 12, 'p50'),
+      pt(90, 40, 'p95'),
+      pt(90, 80, 'p99'),
     ]
     const r = bucketPoints(pts, 'histogram', 4)
     expect(r.p50).toEqual([10, 10, 10, 12])

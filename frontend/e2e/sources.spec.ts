@@ -30,39 +30,51 @@ const SOURCES = [
 test.describe('Services page — Sources tab', () => {
   test.beforeEach(async ({ page }) => {
     // Stub the API endpoints needed by the Services page.
-    await page.route('**/api/sources', route =>
+    await page.route('**/api/sources', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: SOURCES, meta: { total: 3, page: 1 } }),
       }),
     )
-    await page.route('**/api/service-map**', route =>
+    await page.route('**/api/service-map**', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: { nodes: [], edges: [] }, meta: { total: 0, page: 1 } }),
       }),
     )
-    await page.route('**/api/sessions**', route =>
+    await page.route('**/api/sessions**', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: [], meta: { total: 0, page: 1 } }),
       }),
     )
-    await page.route('**/api/sessions/active**', route =>
+    await page.route('**/api/sessions/active**', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: {} }),
       }),
     )
-    await page.route('**/api/stats**', route =>
+    await page.route('**/api/stats**', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ data: { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, spans_per_sec: 0, logs_per_sec: 0, metrics_per_sec: 0, peak_spans_per_sec: 0 }, meta: { total: 1, page: 1 } }),
+        body: JSON.stringify({
+          data: {
+            span_count: 0,
+            trace_count: 0,
+            log_count: 0,
+            db_size: 0,
+            spans_per_sec: 0,
+            logs_per_sec: 0,
+            metrics_per_sec: 0,
+            peak_spans_per_sec: 0,
+          },
+          meta: { total: 1, page: 1 },
+        }),
       }),
     )
     await page.goto('/services')
@@ -103,9 +115,13 @@ test.describe('Services page — Sources tab', () => {
     await expect(badges).toHaveCount(1)
   })
 
-  test('rate-limit dot appears on Sources tab button when any source is limited', async ({ page }) => {
+  test('rate-limit dot appears on Sources tab button when any source is limited', async ({
+    page,
+  }) => {
     // payment-svc has rejected_per_sec > 0, so the tab button should show a dot
-    const dot = page.getByRole('button', { name: /Sources/ }).locator('[aria-label="rate-limited sources"]')
+    const dot = page
+      .getByRole('button', { name: /Sources/ })
+      .locator('[aria-label="rate-limited sources"]')
     await expect(dot).toBeVisible()
   })
 

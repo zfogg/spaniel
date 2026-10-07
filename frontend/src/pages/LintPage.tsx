@@ -29,9 +29,9 @@ interface SummaryStatProps {
 
 function SummaryStat({ tone, big, label, sub }: SummaryStatProps) {
   const dotClass = {
-    danger:  'bg-danger',
-    warn:    'bg-warn',
-    ok:      'bg-ok',
+    danger: 'bg-danger',
+    warn: 'bg-warn',
+    ok: 'bg-ok',
     neutral: 'bg-ink3',
   }[tone]
   return (
@@ -53,9 +53,7 @@ function LintRow({ w, last }: { w: LintWarning; last: boolean }) {
   const badgeClass = sevBadgeClass(w.severity)
 
   return (
-    <div
-      className={`px-[18px] py-3 flex gap-3 items-start ${last ? '' : 'border-b border-line2'}`}
-    >
+    <div className={`px-[18px] py-3 flex gap-3 items-start ${last ? '' : 'border-b border-line2'}`}>
       {/* severity dot */}
       <span
         className="w-[9px] h-[9px] rounded-full mt-[5px] shrink-0"
@@ -69,7 +67,9 @@ function LintRow({ w, last }: { w: LintWarning; last: boolean }) {
         {/* header row: rule id + badge + span id */}
         <div className="flex items-baseline gap-2 mb-[3px] flex-wrap">
           <span className="font-mono text-[11px] font-bold text-ink">{w.rule_id}</span>
-          <span className={`px-1.5 py-px rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase ${badgeClass}`}>
+          <span
+            className={`px-1.5 py-px rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase ${badgeClass}`}
+          >
             {w.severity}
           </span>
           <span className="flex-1" />
@@ -85,10 +85,9 @@ function LintRow({ w, last }: { w: LintWarning; last: boolean }) {
         {w.trace_id && (
           <div className="font-mono text-[10px] text-accent-ink bg-accent-bg rounded-[5px] px-2 py-[3px] mt-1.5 inline-block">
             <span className="text-ink3">trace → </span>
-            <a
-              href={`/traces/${w.trace_id}`}
-              className="text-inherit no-underline"
-            >{w.trace_id.slice(0, 16)}…</a>
+            <a href={`/traces/${w.trace_id}`} className="text-inherit no-underline">
+              {w.trace_id.slice(0, 16)}…
+            </a>
           </div>
         )}
       </div>
@@ -99,15 +98,15 @@ function LintRow({ w, last }: { w: LintWarning; last: boolean }) {
 // ── LintPage ──────────────────────────────────────────────────────────────────
 
 const KIND_LABELS: Record<string, string> = {
-  n_plus_one:      'N+1 queries',
-  slow_db:         'slow DB',
-  chatty_http:     'chatty HTTP',
-  large_payload:   'large payload',
-  cache_miss_storm:'cache miss storm',
-  tracing_gap:     'tracing gap',
-  error_chain:     'error chain',
-  serial_promise:  'serial promises',
-  synchronous_io:  'synchronous I/O',
+  n_plus_one: 'N+1 queries',
+  slow_db: 'slow DB',
+  chatty_http: 'chatty HTTP',
+  large_payload: 'large payload',
+  cache_miss_storm: 'cache miss storm',
+  tracing_gap: 'tracing gap',
+  error_chain: 'error chain',
+  serial_promise: 'serial promises',
+  synchronous_io: 'synchronous I/O',
 }
 
 function kindLabel(kind: string): string {
@@ -115,22 +114,28 @@ function kindLabel(kind: string): string {
 }
 
 export default function LintPage() {
-  const { data: warnings = [], isLoading: lintLoading, isError: lintError, error: lintErr, refetch } = useQuery({
+  const {
+    data: warnings = [],
+    isLoading: lintLoading,
+    isError: lintError,
+    error: lintErr,
+    refetch,
+  } = useQuery({
     queryKey: qk.lint(),
-    queryFn: () => api.lint.list().then(r => r.data ?? []),
+    queryFn: () => api.lint.list().then((r) => r.data ?? []),
   })
   const { data: traceIssues = [], isLoading: issuesLoading } = useQuery({
     queryKey: qk.issues(),
-    queryFn: () => api.issues.list().then(r => r.data ?? []),
+    queryFn: () => api.issues.list().then((r) => r.data ?? []),
   })
   const loading = lintLoading || issuesLoading
 
-  const errors   = warnings.filter(w => w.severity === 'error').length
-  const warnCnt  = warnings.filter(w => w.severity === 'warning').length
-  const infoCnt  = warnings.filter(w => w.severity === 'info').length
+  const errors = warnings.filter((w) => w.severity === 'error').length
+  const warnCnt = warnings.filter((w) => w.severity === 'warning').length
+  const infoCnt = warnings.filter((w) => w.severity === 'info').length
 
-  const reqAttr  = warnings.filter(w => w.severity === 'error').length
-  const semconvW = warnings.filter(w => w.severity === 'warning').length
+  const reqAttr = warnings.filter((w) => w.severity === 'error').length
+  const semconvW = warnings.filter((w) => w.severity === 'warning').length
 
   // Aggregate detector issues by kind.
   const kindMap = new Map<string, { count: number; first: TraceIssue }>()
@@ -151,8 +156,12 @@ export default function LintPage() {
       {/* panel head */}
       <div className="px-[18px] py-3 border-b border-line bg-surface flex items-center gap-3 shrink-0">
         <div className="flex-1">
-          <div className="font-sans text-[13px] font-semibold text-ink tracking-[-0.01em]">Lint warnings</div>
-          <div className="font-mono text-[10px] text-ink3 mt-0.5">OTel semantic conventions · N+1 detector</div>
+          <div className="font-sans text-[13px] font-semibold text-ink tracking-[-0.01em]">
+            Lint warnings
+          </div>
+          <div className="font-mono text-[10px] text-ink3 mt-0.5">
+            OTel semantic conventions · N+1 detector
+          </div>
         </div>
         <div className="flex gap-1.5">
           {errors > 0 && (
@@ -185,7 +194,9 @@ export default function LintPage() {
           tone="danger"
           big={reqAttr}
           label="missing required attr"
-          sub={reqAttr > 0 ? warnings.find(w => w.severity === 'error')?.rule_id ?? '—' : 'none'}
+          sub={
+            reqAttr > 0 ? (warnings.find((w) => w.severity === 'error')?.rule_id ?? '—') : 'none'
+          }
         />
         <SummaryStat
           tone="neutral"
@@ -206,9 +217,7 @@ export default function LintPage() {
 
       {/* warning list */}
       <div className="flex-1 overflow-auto bg-surface">
-        {loading && (
-          <div className="px-[18px] py-8 font-mono text-xs text-ink3">Loading…</div>
-        )}
+        {loading && <div className="px-[18px] py-8 font-mono text-xs text-ink3">Loading…</div>}
         {!loading && lintError && (
           <ErrorState what="lint results" error={lintErr} onRetry={() => refetch()} />
         )}
@@ -219,14 +228,25 @@ export default function LintPage() {
             glyph={
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                 <circle cx="16" cy="16" r="11" stroke="var(--ok)" strokeWidth="1.5" opacity="0.7" />
-                <path d="M11 16.5 L14.5 20 L21 13" stroke="var(--ok)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M11 16.5 L14.5 20 L21 13"
+                  stroke="var(--ok)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             }
           />
         )}
-        {!loading && warnings.map((w, i) => (
-          <LintRow key={`${w.rule_id}-${w.span_id}-${i}`} w={w} last={i === warnings.length - 1} />
-        ))}
+        {!loading &&
+          warnings.map((w, i) => (
+            <LintRow
+              key={`${w.rule_id}-${w.span_id}-${i}`}
+              w={w}
+              last={i === warnings.length - 1}
+            />
+          ))}
       </div>
     </div>
   )

@@ -5,7 +5,9 @@ const NOW_MS = 1_700_000_000_000
 
 afterEach(() => vi.useRealTimers())
 
-function nowNs() { return NOW_MS * 1_000_000 }
+function nowNs() {
+  return NOW_MS * 1_000_000
+}
 
 describe('fmtRelative', () => {
   it('returns "just now" for sub-second differences', () => {

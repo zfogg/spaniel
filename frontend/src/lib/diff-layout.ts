@@ -64,7 +64,10 @@ function clampPct(v: number): number {
 
 // columnWindow — pick the [start, span] pair for the visible bars in one
 // column. Empty spans → 0/0 (the SpanColumn renders an empty state).
-export function columnWindow(spans: Pick<Span, 'start_ns' | 'end_ns'>[]): { startNs: number; windowNs: number } {
+export function columnWindow(spans: Pick<Span, 'start_ns' | 'end_ns'>[]): {
+  startNs: number
+  windowNs: number
+} {
   if (spans.length === 0) return { startNs: 0, windowNs: 0 }
   let lo = spans[0].start_ns
   let hi = spans[0].end_ns

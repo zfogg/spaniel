@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from 'cmdk'
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from 'cmdk'
 import { useNavigate } from 'react-router-dom'
 import { Clock, FileText, GitBranch, Hash, Layers, Server } from 'lucide-react'
 import { api, type SearchResult } from '@/lib/api'
@@ -10,36 +17,43 @@ const RECENT_KEY = 'spaniel:search-recent'
 const MAX_RECENT = 8
 
 function getRecent(): string[] {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] }
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
+  } catch {
+    return []
+  }
 }
 
 function saveRecent(q: string) {
   if (!q.trim()) return
-  const next = [q, ...getRecent().filter(r => r !== q)].slice(0, MAX_RECENT)
+  const next = [q, ...getRecent().filter((r) => r !== q)].slice(0, MAX_RECENT)
   localStorage.setItem(RECENT_KEY, JSON.stringify(next))
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-const KIND_META: Record<SearchResult['kind'], {
-  label: string
-  Icon: React.ComponentType<{ className?: string }>
-}> = {
-  trace:   { label: 'trace',   Icon: Hash },
-  span:    { label: 'span',    Icon: GitBranch },
+const KIND_META: Record<
+  SearchResult['kind'],
+  {
+    label: string
+    Icon: React.ComponentType<{ className?: string }>
+  }
+> = {
+  trace: { label: 'trace', Icon: Hash },
+  span: { label: 'span', Icon: GitBranch },
   session: { label: 'session', Icon: Layers },
   service: { label: 'service', Icon: Server },
-  log:     { label: 'log',     Icon: FileText },
+  log: { label: 'log', Icon: FileText },
 }
 
 const GROUP_ORDER: SearchResult['kind'][] = ['trace', 'span', 'session', 'service', 'log']
 
 const GROUP_LABELS: Record<SearchResult['kind'], string> = {
-  trace:   'Traces',
-  span:    'Spans',
+  trace: 'Traces',
+  span: 'Spans',
   session: 'Sessions',
   service: 'Services',
-  log:     'Logs',
+  log: 'Logs',
 }
 
 function resultKey(r: SearchResult, i: number) {
@@ -109,14 +123,17 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     setQuery(q)
   }
 
-  const grouped = GROUP_ORDER
-    .map(kind => ({ kind, items: results.filter(r => r.kind === kind) }))
-    .filter(g => g.items.length > 0)
+  const grouped = GROUP_ORDER.map((kind) => ({
+    kind,
+    items: results.filter((r) => r.kind === kind),
+  })).filter((g) => g.items.length > 0)
 
   return (
     <CommandDialog
       open={open}
-      onOpenChange={v => { if (!v) onClose() }}
+      onOpenChange={(v) => {
+        if (!v) onClose()
+      }}
       label="Global search"
       shouldFilter={false}
       // cmdk's Dialog ships ZERO styling — without these classes the
@@ -143,12 +160,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       <CommandList className="min-h-0 max-h-[360px] flex-1 overflow-y-auto py-1">
         {/* Recent searches */}
         {!query.trim() && recent.length > 0 && (
-          <CommandGroup heading={
-            <span className="px-4 py-1.5 font-sans text-[10px] uppercase tracking-wider text-muted-foreground">
-              Recent
-            </span>
-          }>
-            {recent.map(q => (
+          <CommandGroup
+            heading={
+              <span className="px-4 py-1.5 font-sans text-[10px] uppercase tracking-wider text-muted-foreground">
+                Recent
+              </span>
+            }
+          >
+            {recent.map((q) => (
               <CommandItem
                 key={`recent-${q}`}
                 value={`recent:${q}`}
@@ -164,55 +183,66 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         )}
 
         {/* Grouped results */}
-        {query.trim() && grouped.map(({ kind, items }) => {
-          const { Icon } = KIND_META[kind]
-          return (
-            <CommandGroup
-              key={kind}
-              heading={
-                <span className="px-4 py-1.5 font-sans text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {GROUP_LABELS[kind]}
-                </span>
-              }
-            >
-              {items.map((r, i) => (
-                <CommandItem
-                  key={resultKey(r, i)}
-                  value={`${kind}:${r.trace_id}:${r.title}:${i}`}
-                  onSelect={() => activate(r)}
-                  className="flex items-center gap-3 px-4 py-2.5 cursor-pointer aria-selected:bg-muted"
-                >
-                  <Icon className="size-3.5 shrink-0 text-accent" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-sans text-sm text-foreground">{r.title}</div>
-                    <div className="flex items-center gap-1.5 truncate font-sans text-[11px] text-muted-foreground">
-                      <span>{r.subtitle}</span>
-                      {r.trace_id && (
-                        <span className="font-mono opacity-50">{r.trace_id.slice(0, 8)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <span className="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                    {KIND_META[kind].label}
+        {query.trim() &&
+          grouped.map(({ kind, items }) => {
+            const { Icon } = KIND_META[kind]
+            return (
+              <CommandGroup
+                key={kind}
+                heading={
+                  <span className="px-4 py-1.5 font-sans text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {GROUP_LABELS[kind]}
                   </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )
-        })}
+                }
+              >
+                {items.map((r, i) => (
+                  <CommandItem
+                    key={resultKey(r, i)}
+                    value={`${kind}:${r.trace_id}:${r.title}:${i}`}
+                    onSelect={() => activate(r)}
+                    className="flex items-center gap-3 px-4 py-2.5 cursor-pointer aria-selected:bg-muted"
+                  >
+                    <Icon className="size-3.5 shrink-0 text-accent" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-sans text-sm text-foreground">{r.title}</div>
+                      <div className="flex items-center gap-1.5 truncate font-sans text-[11px] text-muted-foreground">
+                        <span>{r.subtitle}</span>
+                        {r.trace_id && (
+                          <span className="font-mono opacity-50">{r.trace_id.slice(0, 8)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {KIND_META[kind].label}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )
+          })}
 
         {query.trim() && !loading && results.length === 0 && (
           <CommandEmpty className="px-4 py-8 text-center font-sans text-sm text-muted-foreground">
-            No results for{' '}
-            <span className="font-medium text-foreground">"{query}"</span>
+            No results for <span className="font-medium text-foreground">"{query}"</span>
           </CommandEmpty>
         )}
       </CommandList>
 
       <div className="flex items-center gap-4 border-t border-border px-4 py-2">
-        {([['↑↓', 'navigate'], ['↵', 'open'], ['Esc', 'close']] as const).map(([key, label]) => (
-          <span key={label} className="flex items-center gap-1 font-sans text-[10px] text-muted-foreground">
-            <kbd className="rounded border border-border px-1 py-px font-mono text-[9px]">{key}</kbd>
+        {(
+          [
+            ['↑↓', 'navigate'],
+            ['↵', 'open'],
+            ['Esc', 'close'],
+          ] as const
+        ).map(([key, label]) => (
+          <span
+            key={label}
+            className="flex items-center gap-1 font-sans text-[10px] text-muted-foreground"
+          >
+            <kbd className="rounded border border-border px-1 py-px font-mono text-[9px]">
+              {key}
+            </kbd>
             {label}
           </span>
         ))}

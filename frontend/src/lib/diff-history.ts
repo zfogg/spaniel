@@ -25,7 +25,7 @@ function writeDiffHistory(entries: DiffHistoryEntry[]) {
 
 export function pushDiffHistory(entry: DiffHistoryEntry) {
   const existing = readDiffHistory().filter(
-    e => !(e.baselineId === entry.baselineId && e.compareId === entry.compareId)
+    (e) => !(e.baselineId === entry.baselineId && e.compareId === entry.compareId),
   )
   writeDiffHistory([entry, ...existing])
 }
@@ -37,7 +37,7 @@ export function updateDiffHistoryDeltas(
   deltaSpans: number,
 ) {
   const entries = readDiffHistory()
-  const idx = entries.findIndex(e => e.baselineId === baselineId && e.compareId === compareId)
+  const idx = entries.findIndex((e) => e.baselineId === baselineId && e.compareId === compareId)
   if (idx >= 0) {
     entries[idx] = { ...entries[idx], deltaMs, deltaSpans }
     writeDiffHistory(entries)

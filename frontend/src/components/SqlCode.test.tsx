@@ -6,7 +6,7 @@ import { SqlCode } from './SqlCode'
 afterEach(cleanup)
 it('highlights complete SQL in a wrapping div without an editor', () => {
   const value = "SELECT 'hello' AS name, 42 AS value\n-- comment\nFROM spans"
-  render(<SqlCode value={value}/> )
+  render(<SqlCode value={value} />)
   const code = screen.getByLabelText('SQL query')
   expect(code.tagName).toBe('DIV')
   expect(code.textContent).toBe(value)

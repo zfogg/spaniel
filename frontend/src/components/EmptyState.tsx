@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 
-interface CTAProps { label: string; href: string }
+interface CTAProps {
+  label: string
+  href: string
+}
 
 interface EmptyStateProps {
   title: string
@@ -15,9 +18,7 @@ export default function EmptyState({ title, hint, glyph, cta }: EmptyStateProps)
       data-testid="empty-state"
       className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center"
     >
-      {glyph && (
-        <div className="mb-1 opacity-60 text-[var(--accent)]">{glyph}</div>
-      )}
+      {glyph && <div className="mb-1 opacity-60 text-[var(--accent)]">{glyph}</div>}
       <div className="font-mono text-[13px] font-semibold text-foreground">{title}</div>
       <div className="max-w-[380px] font-mono text-[11px] leading-relaxed text-muted-foreground">
         {hint}

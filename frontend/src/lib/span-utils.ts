@@ -25,18 +25,22 @@ export interface FlatSpan {
 }
 
 export function flatten(spans: Span[]): FlatSpan[] {
-  const byId = new Map(spans.map(s => [s.span_id, s]))
+  const byId = new Map(spans.map((s) => [s.span_id, s]))
   const children = new Map<string, Span[]>()
   for (const s of spans) {
-    const pid = s.parent_span_id && s.parent_span_id !== ZERO_ID && byId.has(s.parent_span_id)
-      ? s.parent_span_id : ''
+    const pid =
+      s.parent_span_id && s.parent_span_id !== ZERO_ID && byId.has(s.parent_span_id)
+        ? s.parent_span_id
+        : ''
     if (!children.has(pid)) children.set(pid, [])
     children.get(pid)!.push(s)
   }
   const orphanIds = new Set(
     spans
-      .filter(s => s.parent_span_id && s.parent_span_id !== ZERO_ID && !byId.has(s.parent_span_id))
-      .map(s => s.span_id),
+      .filter(
+        (s) => s.parent_span_id && s.parent_span_id !== ZERO_ID && !byId.has(s.parent_span_id),
+      )
+      .map((s) => s.span_id),
   )
   const result: FlatSpan[] = []
   function walk(pid: string, depth: number) {
@@ -74,7 +78,9 @@ export function buildTagMap(warnings: LintWarning[]): Map<string, string> {
 
 // hasLinks: true when the span carries at least one OTel span link. The
 // waterfall uses this to render the chain-icon badge.
-export function hasLinks(span: { links?: { linked_trace_id?: string }[] } | null | undefined): boolean {
+export function hasLinks(
+  span: { links?: { linked_trace_id?: string }[] } | null | undefined,
+): boolean {
   if (!span || !span.links) return false
   return span.links.length > 0
 }
@@ -88,7 +94,8 @@ export function shortTraceId(id: string): string {
 
 // ── HTTP display name ─────────────────────────────────────────────────────────
 
-const HTTP_METHOD_RE = /^(?:HTTP\s+)?(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)(?:\s+|$)/i
+const HTTP_METHOD_RE =
+  /^(?:HTTP\s+)?(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)(?:\s+|$)/i
 
 /** Build a human-friendly display name for HTTP spans.
  *  Preserve a templated span name: it is the stable operation name, whereas
@@ -100,9 +107,12 @@ export function httpDisplayName(span: { name: string; attributes?: string | null
     const a = JSON.parse(span.attributes ?? '{}')
     // Extract HTTP method: prefer attributes, then accept common span names
     // such as "GET", "GET unknown", and "HTTP GET".
-    let method = typeof a['http.request.method'] === 'string'
-      ? a['http.request.method']
-      : typeof a['http.method'] === 'string' ? a['http.method'] : ''
+    let method =
+      typeof a['http.request.method'] === 'string'
+        ? a['http.request.method']
+        : typeof a['http.method'] === 'string'
+          ? a['http.method']
+          : ''
     if (!method) {
       const m = span.name.match(HTTP_METHOD_RE)
       if (m) method = m[1].toUpperCase()
@@ -120,12 +130,17 @@ export function httpDisplayName(span: { name: string; attributes?: string | null
       }
     }
     // Fallback: url.path or http.target with method
-    const path = typeof a['url.path'] === 'string'
-      ? a['url.path']
-      : typeof a['http.target'] === 'string' ? a['http.target'] : ''
+    const path =
+      typeof a['url.path'] === 'string'
+        ? a['url.path']
+        : typeof a['http.target'] === 'string'
+          ? a['http.target']
+          : ''
     if (method && path) return `${method} ${path}`
     if (path) return path
-  } catch { /* empty */ }
+  } catch {
+    /* empty */
+  }
   // Avoid returning raw "unknown" — use just the method if we have one
   if (span.name.toLowerCase().includes('unknown')) {
     const m = span.name.match(HTTP_METHOD_RE)

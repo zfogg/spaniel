@@ -10,9 +10,16 @@ import ErrorState from '@/components/ErrorState'
 
 // Drift-aligned palette — sky, sage, amber, lavender, slate, mint, sand…
 const PALETTE = [
-  '#7aa3c4', '#88b29a', '#d6b46a', '#a08cc8',
-  '#6a98b8', '#8ab8a0', '#c8a870', '#7898c0',
-  '#d69882', '#98a8c0',
+  '#7aa3c4',
+  '#88b29a',
+  '#d6b46a',
+  '#a08cc8',
+  '#6a98b8',
+  '#8ab8a0',
+  '#c8a870',
+  '#7898c0',
+  '#d69882',
+  '#98a8c0',
 ]
 
 function svcColor(name: string): { fg: string; bg: string } {
@@ -26,10 +33,10 @@ function svcColor(name: string): { fg: string; bg: string } {
 
 const NODE_W = 148
 const NODE_H = 48
-const GAP_X  = 168 // wide enough to fit the "N calls · Xms avg" edge label between layers
-const GAP_Y  = 34
-const PAD    = 40
-const LANE   = 9  // vertical offset for one half of a bidirectional pair
+const GAP_X = 168 // wide enough to fit the "N calls · Xms avg" edge label between layers
+const GAP_Y = 34
+const PAD = 40
+const LANE = 9 // vertical offset for one half of a bidirectional pair
 
 function computeLayout(
   nodeIds: string[],
@@ -37,8 +44,12 @@ function computeLayout(
 ): Map<string, { x: number; y: number }> {
   const outgoing = new Map<string, string[]>()
   const incoming = new Map<string, string[]>()
-  const inDegree  = new Map<string, number>()
-  for (const n of nodeIds) { outgoing.set(n, []); incoming.set(n, []); inDegree.set(n, 0) }
+  const inDegree = new Map<string, number>()
+  for (const n of nodeIds) {
+    outgoing.set(n, [])
+    incoming.set(n, [])
+    inDegree.set(n, 0)
+  }
   for (const e of edges) {
     if (e.from === e.to) continue
     outgoing.get(e.from)?.push(e.to)
@@ -50,7 +61,10 @@ function computeLayout(
   const layer = new Map<string, number>()
   const queue: string[] = []
   for (const n of nodeIds) {
-    if ((inDegree.get(n) ?? 0) === 0) { layer.set(n, 0); queue.push(n) }
+    if ((inDegree.get(n) ?? 0) === 0) {
+      layer.set(n, 0)
+      queue.push(n)
+    }
   }
   const visited = new Set<string>()
   while (queue.length > 0) {
@@ -74,26 +88,26 @@ function computeLayout(
   // Repeatedly reorder each layer so a node sits near the average position of its
   // neighbours in the adjacent layer; this is what stops edges from overlapping.
   const order = new Map<string, number>()
-  layers.forEach(l => l.forEach((n, i) => order.set(n, i)))
+  layers.forEach((l) => l.forEach((n, i) => order.set(n, i)))
 
   const barycenter = (n: string, neighbors: Map<string, string[]>): number => {
-    const idx = (neighbors.get(n) ?? []).map(m => order.get(m)).filter((v): v is number => v != null)
+    const idx = (neighbors.get(n) ?? [])
+      .map((m) => order.get(m))
+      .filter((v): v is number => v != null)
     return idx.length ? idx.reduce((a, b) => a + b, 0) / idx.length : (order.get(n) ?? 0)
   }
 
   for (let sweep = 0; sweep < 12; sweep++) {
     const downward = sweep % 2 === 0
-    const indices = downward
-      ? layers.map((_, i) => i)
-      : layers.map((_, i) => i).reverse()
+    const indices = downward ? layers.map((_, i) => i) : layers.map((_, i) => i).reverse()
     for (const li of indices) {
       const neighbors = downward ? incoming : outgoing
       // layer 0 (downward) / last layer (upward) has no reference neighbours
       if ((downward && li === 0) || (!downward && li === layers.length - 1)) continue
       const ranked = layers[li]
-        .map(n => ({ n, b: barycenter(n, neighbors) }))
+        .map((n) => ({ n, b: barycenter(n, neighbors) }))
         .sort((a, b) => a.b - b.b)
-      layers[li] = ranked.map(r => r.n)
+      layers[li] = ranked.map((r) => r.n)
       layers[li].forEach((n, i) => order.set(n, i))
     }
   }
@@ -140,15 +154,17 @@ function computePorts(
   const buckets = new Map<string, Slot[]>()
   const add = (k: string, s: Slot) => {
     const b = buckets.get(k)
-    if (b) b.push(s); else buckets.set(k, [s])
+    if (b) b.push(s)
+    else buckets.set(k, [s])
   }
 
   edges.forEach((e, i) => {
-    const A = pos.get(e.from), B = pos.get(e.to)
+    const A = pos.get(e.from),
+      B = pos.get(e.to)
     if (!A || !B) return
     const ltr = B.x >= A.x
     add(`${e.from}|${ltr ? 'R' : 'L'}`, { i, role: 'src', otherY: B.y })
-    add(`${e.to}|${ltr ? 'L' : 'R'}`,   { i, role: 'dst', otherY: A.y })
+    add(`${e.to}|${ltr ? 'L' : 'R'}`, { i, role: 'dst', otherY: A.y })
   })
 
   const src = new Array(edges.length).fill(0)
@@ -167,7 +183,8 @@ function computePorts(
 }
 
 function canvasSize(positions: Map<string, { x: number; y: number }>) {
-  let maxX = 0, maxY = 0
+  let maxX = 0,
+    maxY = 0
   for (const { x, y } of positions.values()) {
     maxX = Math.max(maxX, x + NODE_W + PAD)
     maxY = Math.max(maxY, y + NODE_H + PAD)
@@ -199,11 +216,12 @@ function computeEdgeLabels(
   const list: (EdgeLabel & { i: number })[] = []
 
   edges.forEach((edge, i) => {
-    const A = pos.get(edge.from), B = pos.get(edge.to)
+    const A = pos.get(edge.from),
+      B = pos.get(edge.to)
     if (!A || !B) return
     const { x1, y1, x2, y2, dir } = edgeGeom(A, B, ports.src[i], ports.dst[i])
     const x = x1 + dir * (GAP_X / 2)
-    const t = x2 !== x1 ? Math.min(0.5, (GAP_X / 2) / Math.abs(x2 - x1)) : 0.5
+    const t = x2 !== x1 ? Math.min(0.5, GAP_X / 2 / Math.abs(x2 - x1)) : 0.5
     const y = y1 + (y2 - y1) * t - 4
     const text =
       `${dir === 1 ? '→' : '←'} ${edge.call_count} calls · ${fmtNs(edge.avg_duration_ns)} avg` +
@@ -232,7 +250,16 @@ function computeEdgeLabels(
 
 // ── SVG pieces ────────────────────────────────────────────────────────────────
 
-function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
+function SvgEdge({
+  edge,
+  pos,
+  label,
+  srcOff,
+  dstOff,
+  hot,
+  dim,
+  onHover,
+}: {
   edge: ServiceMapEdge
   pos: Map<string, { x: number; y: number }>
   label?: EdgeLabel
@@ -242,7 +269,8 @@ function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
   dim: boolean
   onHover: (e: ServiceMapEdge | null) => void
 }) {
-  const A = pos.get(edge.from), B = pos.get(edge.to)
+  const A = pos.get(edge.from),
+    B = pos.get(edge.to)
   if (!A || !B) return null
 
   const { x1, y1, x2, y2, mx } = edgeGeom(A, B, srcOff, dstOff)
@@ -261,12 +289,7 @@ function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
       className="cursor-pointer"
     >
       <defs>
-        <marker
-          id={markerId}
-          markerWidth="6" markerHeight="6"
-          refX="5" refY="3"
-          orient="auto"
-        >
+        <marker id={markerId} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <path d="M0,0 L0,6 L6,3 z" fill={stroke} opacity={baseOpacity} />
         </marker>
       </defs>
@@ -288,17 +311,22 @@ function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
       {label && (
         <>
           <rect
-            x={label.x - label.w / 2} y={label.y - 9}
-            width={label.w} height={13}
-            rx="3" ry="3"
+            x={label.x - label.w / 2}
+            y={label.y - 9}
+            width={label.w}
+            height={13}
+            rx="3"
+            ry="3"
             fill="var(--background)"
             opacity={dim ? 0.4 : 0.92}
             pointerEvents="none"
           />
           <text
-            x={label.x} y={label.y}
+            x={label.x}
+            y={label.y}
             textAnchor="middle"
-            fontFamily="var(--font-mono)" fontSize="9"
+            fontFamily="var(--font-mono)"
+            fontSize="9"
             fill={hasError ? 'var(--danger)' : 'var(--muted-foreground)'}
             opacity={dim ? 0.4 : 1}
             pointerEvents="none"
@@ -311,7 +339,14 @@ function SvgEdge({ edge, pos, label, srcOff, dstOff, hot, dim, onHover }: {
   )
 }
 
-function SvgNode({ node, pos, selected, highlighted, dim, onClick }: {
+function SvgNode({
+  node,
+  pos,
+  selected,
+  highlighted,
+  dim,
+  onClick,
+}: {
   node: ServiceMapNode
   pos: Map<string, { x: number; y: number }>
   selected: boolean
@@ -338,8 +373,10 @@ function SvgNode({ node, pos, selected, highlighted, dim, onClick }: {
       style={{ opacity }}
     >
       <rect
-        width={NODE_W} height={NODE_H}
-        rx="10" ry="10"
+        width={NODE_W}
+        height={NODE_H}
+        rx="10"
+        ry="10"
         fill={c.bg}
         stroke={borderColor}
         strokeOpacity={selected || hasError || highlighted ? 0.9 : 0.35}
@@ -349,26 +386,16 @@ function SvgNode({ node, pos, selected, highlighted, dim, onClick }: {
       {/* left colour pip */}
       <circle cx="14" cy={NODE_H / 2} r="5" fill={c.fg} opacity="0.85" />
       {/* service name */}
-      <text
-        x="26" y="20"
-        fontFamily="var(--font-mono)" fontSize="11" fontWeight="600"
-        fill={c.fg}
-      >
+      <text x="26" y="20" fontFamily="var(--font-mono)" fontSize="11" fontWeight="600" fill={c.fg}>
         {node.id}
       </text>
       {/* stats line */}
-      <text
-        x="26" y="36"
-        fontFamily="var(--font-mono)" fontSize="9"
-        fill={c.fg} opacity="0.65"
-      >
+      <text x="26" y="36" fontFamily="var(--font-mono)" fontSize="9" fill={c.fg} opacity="0.65">
         {node.span_count} spans
         {hasError ? ` · ${(errRate * 100).toFixed(0)}% err` : ''}
       </text>
       {/* error dot */}
-      {hasError && (
-        <circle cx={NODE_W - 10} cy="10" r="4" fill="var(--danger)" opacity="0.85" />
-      )}
+      {hasError && <circle cx={NODE_W - 10} cy="10" r="4" fill="var(--danger)" opacity="0.85" />}
     </g>
   )
 }
@@ -407,8 +434,16 @@ function NodeInspector({ node, onClose }: { node: ServiceMapNode; onClose: () =>
       <div className="grid grid-cols-2 border-b border-border">
         <Stat label="spans" value={node.span_count.toLocaleString()} />
         <Stat label="p95" value={fmtNs(node.p95_ns)} />
-        <Stat label="errors" value={String(node.error_count)} tone={hasError ? 'danger' : undefined} />
-        <Stat label="err rate" value={`${errRate.toFixed(1)}%`} tone={errRate > 5 ? 'danger' : undefined} />
+        <Stat
+          label="errors"
+          value={String(node.error_count)}
+          tone={hasError ? 'danger' : undefined}
+        />
+        <Stat
+          label="err rate"
+          value={`${errRate.toFixed(1)}%`}
+          tone={errRate > 5 ? 'danger' : undefined}
+        />
       </div>
 
       <div className="p-4">
@@ -419,12 +454,14 @@ function NodeInspector({ node, onClose }: { node: ServiceMapNode; onClose: () =>
           <div className="font-mono text-[11px] text-muted-foreground">no operations recorded</div>
         ) : (
           <ul className="space-y-1.5">
-            {(node.top_operations ?? []).map(op => (
+            {(node.top_operations ?? []).map((op) => (
               <li
                 key={op.name}
                 className="flex items-baseline justify-between gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5"
               >
-                <span className="min-w-0 truncate font-mono text-[11px] text-foreground">{op.name}</span>
+                <span className="min-w-0 truncate font-mono text-[11px] text-foreground">
+                  {op.name}
+                </span>
                 <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
                   {op.count}× · {fmtNs(op.p95_ns)} p95
                 </span>
@@ -440,7 +477,9 @@ function NodeInspector({ node, onClose }: { node: ServiceMapNode; onClose: () =>
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
   return (
     <div className="border-r border-b border-border p-3 last:border-r-0">
-      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </div>
       <div
         className={
           'mt-1 font-serif text-[22px] font-semibold leading-none ' +
@@ -466,8 +505,24 @@ function Empty() {
             <circle cx="16" cy="24" r="7" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
             <circle cx="36" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
             <circle cx="36" cy="36" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-            <line x1="23" y1="20" x2="31" y2="14" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
-            <line x1="23" y1="28" x2="31" y2="34" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
+            <line
+              x1="23"
+              y1="20"
+              x2="31"
+              y2="14"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              opacity="0.4"
+            />
+            <line
+              x1="23"
+              y1="28"
+              x2="31"
+              y2="34"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              opacity="0.4"
+            />
           </svg>
         }
       />
@@ -487,45 +542,56 @@ function fmtSourceRate(n: number): string {
 function fmtSourceBytes(n: number): string {
   if (!n) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB']
-  let i = 0, v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  let i = 0,
+    v = n
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024
+    i++
+  }
   return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
 }
 
 export default function ServiceMap() {
   const navigate = useNavigate()
   const [selectedSvc, setSelected] = useState<string | null>(null)
-  const [hoverEdge, setHoverEdge]  = useState<ServiceMapEdge | null>(null)
-  const [sessionId, setSessionId]  = useState<string>('') // '' = all
-  const [tab, setTab]              = useState<'map' | 'sources'>('map')
+  const [hoverEdge, setHoverEdge] = useState<ServiceMapEdge | null>(null)
+  const [sessionId, setSessionId] = useState<string>('') // '' = all
+  const [tab, setTab] = useState<'map' | 'sources'>('map')
   const [sourceSort, setSourceSort] = useState<keyof SourceStats>('accepted_per_sec')
 
   // sessionId is part of the request (in the key); span events refresh the map
   // via useLiveInvalidation() in App.tsx. Sources keep their own 2s poll.
-  const { data = { nodes: [], edges: [] }, isLoading: loading, isError, error, refetch } = useQuery({
+  const {
+    data = { nodes: [], edges: [] },
+    isLoading: loading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: qk.serviceMap(sessionId || undefined),
-    queryFn: () => api.serviceMap.get(sessionId || undefined).then(r => r.data ?? { nodes: [], edges: [] }),
+    queryFn: () =>
+      api.serviceMap.get(sessionId || undefined).then((r) => r.data ?? { nodes: [], edges: [] }),
   })
   const { data: sessions = [] } = useQuery({
     queryKey: qk.sessions(),
-    queryFn: () => api.sessions.list().then(r => r.data ?? []),
+    queryFn: () => api.sessions.list().then((r) => r.data ?? []),
   })
   const { data: sources = [] } = useQuery({
     queryKey: qk.sources(),
-    queryFn: () => api.sources.list().then(r => r.data ?? []),
+    queryFn: () => api.sources.list().then((r) => r.data ?? []),
     refetchInterval: 2000,
   })
 
   const nodes = data?.nodes ?? []
   const edges = data?.edges ?? []
 
-  const nodeIds  = nodes.map(n => n.id)
+  const nodeIds = nodes.map((n) => n.id)
   const positions = computeLayout(nodeIds, edges)
   const ports = computePorts(edges, positions)
   const edgeLabels = computeEdgeLabels(edges, positions, ports)
   const { w, h } = canvasSize(positions)
 
-  const totalSpans  = nodes.reduce((s, n) => s + n.span_count, 0)
+  const totalSpans = nodes.reduce((s, n) => s + n.span_count, 0)
   const totalErrors = nodes.reduce((s, n) => s + n.error_count, 0)
 
   function handleNodeClick(id: string) {
@@ -542,7 +608,7 @@ export default function ServiceMap() {
     }
   }
 
-  const selectedNode = selectedSvc ? nodes.find(n => n.id === selectedSvc) ?? null : null
+  const selectedNode = selectedSvc ? (nodes.find((n) => n.id === selectedSvc) ?? null) : null
 
   const sortedSources = [...sources]
     .sort((a, b) => (b[sourceSort] as number) - (a[sourceSort] as number))
@@ -555,7 +621,9 @@ export default function ServiceMap() {
         <div>
           <div className="font-sans text-[13px] font-semibold text-foreground">Services</div>
           <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-            {tab === 'map' ? 'auto-generated from span relationships' : 'live ingest rates per service'}
+            {tab === 'map'
+              ? 'auto-generated from span relationships'
+              : 'live ingest rates per service'}
           </div>
         </div>
 
@@ -574,8 +642,11 @@ export default function ServiceMap() {
             className={`px-3 py-1 border-l border-border ${tab === 'sources' ? 'bg-surface text-ink' : 'bg-background text-ink3 hover:text-ink'}`}
           >
             Sources
-            {sources.some(s => s.rejected_per_sec > 0) && (
-              <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-danger align-middle" aria-label="rate-limited sources" />
+            {sources.some((s) => s.rejected_per_sec > 0) && (
+              <span
+                className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-danger align-middle"
+                aria-label="rate-limited sources"
+              />
             )}
           </button>
         </div>
@@ -588,12 +659,14 @@ export default function ServiceMap() {
           <select
             data-testid="session-filter"
             value={sessionId}
-            onChange={e => setSessionId(e.target.value)}
+            onChange={(e) => setSessionId(e.target.value)}
             className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-hidden"
           >
             <option value="">all sessions</option>
-            {sessions.map(s => (
-              <option key={s.id} value={s.id}>{s.label || s.id.slice(0, 12)}</option>
+            {sessions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label || s.id.slice(0, 12)}
+              </option>
             ))}
           </select>
         </label>
@@ -619,33 +692,45 @@ export default function ServiceMap() {
       {tab === 'sources' && (
         <div className="flex-1 overflow-auto p-4">
           {sortedSources.length === 0 ? (
-            <p className="font-mono text-[11px] text-ink3 mt-8 text-center">No sources seen yet — start sending spans.</p>
+            <p className="font-mono text-[11px] text-ink3 mt-8 text-center">
+              No sources seen yet — start sending spans.
+            </p>
           ) : (
-            <table className="w-full font-mono text-[11px] border border-border rounded-lg overflow-hidden" data-testid="sources-table">
+            <table
+              className="w-full font-mono text-[11px] border border-border rounded-lg overflow-hidden"
+              data-testid="sources-table"
+            >
               <thead>
                 <tr className="bg-surface-raised border-b border-border text-ink3">
                   <th className="px-3 py-2 text-left">service</th>
-                  {([
-                    ['accepted/s', 'accepted_per_sec'],
-                    ['rejected/s', 'rejected_per_sec'],
-                    ['errors',   'error_rate'],
-                    ['bytes/s',  'bytes_per_sec'],
-                  ] as [string, keyof SourceStats][]).map(([label, k]) => (
+                  {(
+                    [
+                      ['accepted/s', 'accepted_per_sec'],
+                      ['rejected/s', 'rejected_per_sec'],
+                      ['errors', 'error_rate'],
+                      ['bytes/s', 'bytes_per_sec'],
+                    ] as [string, keyof SourceStats][]
+                  ).map(([label, k]) => (
                     <th
                       key={k}
                       className={`px-3 py-2 text-right cursor-pointer select-none hover:text-ink ${sourceSort === k ? 'text-ink' : ''}`}
                       onClick={() => setSourceSort(k)}
                     >
-                      {label}{sourceSort === k ? ' ↓' : ''}
+                      {label}
+                      {sourceSort === k ? ' ↓' : ''}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {sortedSources.map(s => {
+                {sortedSources.map((s) => {
                   const rateLimited = s.rejected_per_sec > 0
                   return (
-                    <tr key={s.service} className="border-b border-border/50 hover:bg-surface-raised/40" data-testid="source-row">
+                    <tr
+                      key={s.service}
+                      className="border-b border-border/50 hover:bg-surface-raised/40"
+                      data-testid="source-row"
+                    >
                       <td className="px-3 py-2 text-ink flex items-center gap-1.5">
                         {rateLimited && (
                           <span
@@ -654,16 +739,26 @@ export default function ServiceMap() {
                             data-testid="rate-limited-badge"
                           />
                         )}
-                        <span title={s.service} className="truncate max-w-[220px]">{s.service}</span>
+                        <span title={s.service} className="truncate max-w-[220px]">
+                          {s.service}
+                        </span>
                       </td>
-                      <td className="px-3 py-2 text-right text-ok">{fmtSourceRate(s.accepted_per_sec)}</td>
-                      <td className={`px-3 py-2 text-right ${rateLimited ? 'text-danger font-semibold' : 'text-ink3'}`}>
+                      <td className="px-3 py-2 text-right text-ok">
+                        {fmtSourceRate(s.accepted_per_sec)}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right ${rateLimited ? 'text-danger font-semibold' : 'text-ink3'}`}
+                      >
                         {fmtSourceRate(s.rejected_per_sec)}
                       </td>
-                      <td className={`px-3 py-2 text-right ${s.error_rate > 0.05 ? 'text-warning' : 'text-ink3'}`}>
+                      <td
+                        className={`px-3 py-2 text-right ${s.error_rate > 0.05 ? 'text-warning' : 'text-ink3'}`}
+                      >
                         {(s.error_rate * 100).toFixed(1)}%
                       </td>
-                      <td className="px-3 py-2 text-right text-ink2">{fmtSourceBytes(s.bytes_per_sec)}</td>
+                      <td className="px-3 py-2 text-right text-ink2">
+                        {fmtSourceBytes(s.bytes_per_sec)}
+                      </td>
                     </tr>
                   )
                 })}
@@ -674,73 +769,81 @@ export default function ServiceMap() {
       )}
 
       {/* canvas + inspector */}
-      {tab === 'map' && <div className="flex min-h-0 flex-1">
-        <div
-          className="relative flex-1 overflow-auto bg-background"
-          style={{
-            backgroundImage: 'radial-gradient(circle at 20px 20px, var(--border) 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        >
-          {loading ? (
-            <div className="absolute inset-0 flex items-center justify-center font-mono text-[13px] text-muted-foreground">
-              Loading…
-            </div>
-          ) : isError ? (
-            <div className="absolute inset-0">
-              <ErrorState what="the service map" error={error} onRetry={() => refetch()} />
-            </div>
-          ) : nodes.length === 0 ? (
-            <Empty />
-          ) : (
-            <svg
-              viewBox={`0 0 ${w} ${h}`}
-              width={w} height={h}
-              className="block min-h-full min-w-full"
-              onClick={e => { if (e.target === e.currentTarget) { setSelected(null); setHoverEdge(null) } }}
-            >
-              {/* edges (rendered behind nodes) */}
-              {edges.map((e, i) => {
-                const isHoveredEdge = hoverEdge?.from === e.from && hoverEdge?.to === e.to
-                const dim = hoverEdge != null && !isHoveredEdge
-                return (
-                  <SvgEdge
-                    key={i}
-                    edge={e}
-                    pos={positions}
-                    label={edgeLabels.get(i)}
-                    srcOff={ports.src[i]}
-                    dstOff={ports.dst[i]}
-                    hot={e.avg_duration_ns > 200_000_000}
-                    dim={dim}
-                    onHover={setHoverEdge}
-                  />
-                )
-              })}
-              {/* nodes */}
-              {nodes.map(n => {
-                const highlighted = hoverEdge != null && (hoverEdge.from === n.id || hoverEdge.to === n.id)
-                const dim = hoverEdge != null && !highlighted
-                return (
-                  <SvgNode
-                    key={n.id}
-                    node={n}
-                    pos={positions}
-                    selected={n.id === selectedSvc}
-                    highlighted={highlighted}
-                    dim={dim}
-                    onClick={() => handleNodeClick(n.id)}
-                  />
-                )
-              })}
-            </svg>
-          )}
-        </div>
+      {tab === 'map' && (
+        <div className="flex min-h-0 flex-1">
+          <div
+            className="relative flex-1 overflow-auto bg-background"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 20px 20px, var(--border) 1px, transparent 1px)',
+              backgroundSize: '24px 24px',
+            }}
+          >
+            {loading ? (
+              <div className="absolute inset-0 flex items-center justify-center font-mono text-[13px] text-muted-foreground">
+                Loading…
+              </div>
+            ) : isError ? (
+              <div className="absolute inset-0">
+                <ErrorState what="the service map" error={error} onRetry={() => refetch()} />
+              </div>
+            ) : nodes.length === 0 ? (
+              <Empty />
+            ) : (
+              <svg
+                viewBox={`0 0 ${w} ${h}`}
+                width={w}
+                height={h}
+                className="block min-h-full min-w-full"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    setSelected(null)
+                    setHoverEdge(null)
+                  }
+                }}
+              >
+                {/* edges (rendered behind nodes) */}
+                {edges.map((e, i) => {
+                  const isHoveredEdge = hoverEdge?.from === e.from && hoverEdge?.to === e.to
+                  const dim = hoverEdge != null && !isHoveredEdge
+                  return (
+                    <SvgEdge
+                      key={i}
+                      edge={e}
+                      pos={positions}
+                      label={edgeLabels.get(i)}
+                      srcOff={ports.src[i]}
+                      dstOff={ports.dst[i]}
+                      hot={e.avg_duration_ns > 200_000_000}
+                      dim={dim}
+                      onHover={setHoverEdge}
+                    />
+                  )
+                })}
+                {/* nodes */}
+                {nodes.map((n) => {
+                  const highlighted =
+                    hoverEdge != null && (hoverEdge.from === n.id || hoverEdge.to === n.id)
+                  const dim = hoverEdge != null && !highlighted
+                  return (
+                    <SvgNode
+                      key={n.id}
+                      node={n}
+                      pos={positions}
+                      selected={n.id === selectedSvc}
+                      highlighted={highlighted}
+                      dim={dim}
+                      onClick={() => handleNodeClick(n.id)}
+                    />
+                  )
+                })}
+              </svg>
+            )}
+          </div>
 
-        {selectedNode && (
-          <NodeInspector node={selectedNode} onClose={() => setSelected(null)} />
-        )}
-      </div>}
+          {selectedNode && <NodeInspector node={selectedNode} onClose={() => setSelected(null)} />}
+        </div>
+      )}
 
       {/* footer legend */}
       <footer className="flex shrink-0 items-center gap-[18px] border-t border-border bg-background px-4 py-2 font-mono text-[10.5px] text-muted-foreground">

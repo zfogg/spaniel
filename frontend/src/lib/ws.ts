@@ -1,11 +1,48 @@
 import { useEffect, useRef, useState } from 'react'
 
-export interface SpanPayload { traceId: string; spanId: string; serviceName: string; name: string; durationNs: number; statusCode: number; sessionId: string }
-export interface LogPayload { traceId: string; spanId: string; severity: number; body: string; serviceName: string; sessionId: string }
-export interface MetricPayload { name: string; serviceName: string; value: number; type: string; catalogOnly?: boolean }
-export interface IssuePayload { traceId: string; kind: string; fingerprint: string; count: number; wastedNs: number }
-export interface ForwarderPayload { url: string; sent: number; errors: number; lastError?: string; pendingBytes?: number; droppedSpool?: number }
-export interface ThroughputPayload { spansPerSec: number; logsPerSec: number }
+export interface SpanPayload {
+  traceId: string
+  spanId: string
+  serviceName: string
+  name: string
+  durationNs: number
+  statusCode: number
+  sessionId: string
+}
+export interface LogPayload {
+  traceId: string
+  spanId: string
+  severity: number
+  body: string
+  serviceName: string
+  sessionId: string
+}
+export interface MetricPayload {
+  name: string
+  serviceName: string
+  value: number
+  type: string
+  catalogOnly?: boolean
+}
+export interface IssuePayload {
+  traceId: string
+  kind: string
+  fingerprint: string
+  count: number
+  wastedNs: number
+}
+export interface ForwarderPayload {
+  url: string
+  sent: number
+  errors: number
+  lastError?: string
+  pendingBytes?: number
+  droppedSpool?: number
+}
+export interface ThroughputPayload {
+  spansPerSec: number
+  logsPerSec: number
+}
 export interface AlertPayload {
   ruleId: string
   ruleName: string
@@ -20,14 +57,14 @@ export interface AlertPayload {
 }
 
 export type WsEvent =
-  | { type: 'span';       timestamp_ns: number; payload: SpanPayload }
-  | { type: 'log';        timestamp_ns: number; payload: LogPayload }
-  | { type: 'metric';     timestamp_ns: number; payload: MetricPayload }
-  | { type: 'issue';      timestamp_ns: number; payload: IssuePayload }
-  | { type: 'forwarder';  timestamp_ns: number; payload: ForwarderPayload }
+  | { type: 'span'; timestamp_ns: number; payload: SpanPayload }
+  | { type: 'log'; timestamp_ns: number; payload: LogPayload }
+  | { type: 'metric'; timestamp_ns: number; payload: MetricPayload }
+  | { type: 'issue'; timestamp_ns: number; payload: IssuePayload }
+  | { type: 'forwarder'; timestamp_ns: number; payload: ForwarderPayload }
   | { type: 'throughput'; timestamp_ns: number; payload: ThroughputPayload }
-	| { type: 'alert';      timestamp_ns: number; payload: AlertPayload }
-  | { type: 'heartbeat';  timestamp_ns: number }
+  | { type: 'alert'; timestamp_ns: number; payload: AlertPayload }
+  | { type: 'heartbeat'; timestamp_ns: number }
 
 // Keep SpanEvent as a backward-compat alias:
 export type SpanEvent = Extract<WsEvent, { type: 'span' }>
@@ -113,7 +150,14 @@ export function useWS(onEvent: Handler, onStatus?: StatusHandler) {
   evRef.current = onEvent
   const stRef = useRef(onStatus)
   stRef.current = onStatus
-  useEffect(() => createWS(e => evRef.current(e), s => stRef.current?.(s)), [])
+  useEffect(
+    () =>
+      createWS(
+        (e) => evRef.current(e),
+        (s) => stRef.current?.(s),
+      ),
+    [],
+  )
 }
 
 // ── Shared event bus ──────────────────────────────────────────────────────────
@@ -155,8 +199,17 @@ export interface WSStatus {
 // current connection has been up. `since` resets on every (re)connect.
 export function useWSStatus(): WSStatus {
   const [status, setStatus] = useState<WSStatus>({ connected: false, since: null })
-  useEffect(() => createWS(() => {}, (connected) => {
-    setStatus(connected ? { connected: true, since: Date.now() } : { connected: false, since: null })
-  }), [])
+  useEffect(
+    () =>
+      createWS(
+        () => {},
+        (connected) => {
+          setStatus(
+            connected ? { connected: true, since: Date.now() } : { connected: false, since: null },
+          )
+        },
+      ),
+    [],
+  )
   return status
 }

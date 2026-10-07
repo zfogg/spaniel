@@ -44,11 +44,11 @@ describe('statsFor — gauge', () => {
     const m = mkSeries('gauge')
     const b: BucketedSeries = { values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
     const s = statsFor(m, b)
-    expect(s.map(x => x.label)).toEqual(['now', '5m ago', 'min', 'max'])
-    expect(s[0].value).toBe('10.0')             // last
-    expect(s[1].value).toBe('5.00')             // 6 from the end (idx 4 in a len-10 array)
-    expect(s[2].value).toBe('1.00')             // min
-    expect(s[3].value).toBe('10.0')             // max
+    expect(s.map((x) => x.label)).toEqual(['now', '5m ago', 'min', 'max'])
+    expect(s[0].value).toBe('10.0') // last
+    expect(s[1].value).toBe('5.00') // 6 from the end (idx 4 in a len-10 array)
+    expect(s[2].value).toBe('1.00') // min
+    expect(s[3].value).toBe('10.0') // max
   })
   it('flags a downward trend as danger', () => {
     const m = mkSeries('gauge')
@@ -71,12 +71,12 @@ describe('statsFor — counter', () => {
     const m = mkSeries('counter', 'req')
     const b: BucketedSeries = { values: [1, 2, 9, 3, 5] }
     const s = statsFor(m, b)
-    expect(s.map(x => x.label)).toEqual(['rate / min', 'total', 'peak', 'unit'])
-    expect(s[0].value).toBe('5.00')                       // last sample
-    expect(s[1].value).toBe('20.0')                       // sum
-    expect(s[2].value).toBe('9.00')                       // peak
-    expect(s[2].sub).toBe('idx 2')                        // peak idx
-    expect(s[3].value).toBe('req')                        // unit pass-through
+    expect(s.map((x) => x.label)).toEqual(['rate / min', 'total', 'peak', 'unit'])
+    expect(s[0].value).toBe('5.00') // last sample
+    expect(s[1].value).toBe('20.0') // sum
+    expect(s[2].value).toBe('9.00') // peak
+    expect(s[2].sub).toBe('idx 2') // peak idx
+    expect(s[3].value).toBe('req') // unit pass-through
   })
   it('falls back to "—" when unit is empty', () => {
     const m = mkSeries('counter', '')
@@ -95,11 +95,11 @@ describe('statsFor — histogram', () => {
       p99: [120, 140, 160],
     }
     const s = statsFor(m, b)
-    expect(s.map(x => x.label)).toEqual(['p50', 'p95', 'p99', 'max p99'])
-    expect(s[0].value).toBe('14.0')   // p50 latest
-    expect(s[1].value).toBe('100')    // p95 latest
-    expect(s[2].value).toBe('160')    // p99 latest
-    expect(s[3].value).toBe('160')    // max p99 in window
+    expect(s.map((x) => x.label)).toEqual(['p50', 'p95', 'p99', 'max p99'])
+    expect(s[0].value).toBe('14.0') // p50 latest
+    expect(s[1].value).toBe('100') // p95 latest
+    expect(s[2].value).toBe('160') // p99 latest
+    expect(s[3].value).toBe('160') // max p99 in window
   })
   it('flags p95 > 300ms and p99 > 600ms as danger', () => {
     const m = mkSeries('histogram', 'ms')
@@ -110,8 +110,8 @@ describe('statsFor — histogram', () => {
       p99: [800],
     }
     const s = statsFor(m, b)
-    expect(s[1].tone).toBe('danger')   // p95 > 300
-    expect(s[2].tone).toBe('danger')   // p99 > 600
+    expect(s[1].tone).toBe('danger') // p95 > 300
+    expect(s[2].tone).toBe('danger') // p99 > 600
   })
   it('does not flag healthy histograms', () => {
     const m = mkSeries('histogram', 'ms')

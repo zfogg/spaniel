@@ -2,7 +2,11 @@ import { test, expect, type Route, type Page } from '@playwright/test'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 0, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -11,15 +15,19 @@ function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown>
 }
 
 async function stubBackend(page: Page, searchResults: unknown[] = []) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/traces*', r => jsonResponse(r, []))
-  await page.route('**/api/services', r => jsonResponse(r, []))
-  await page.route('**/api/stats*', r => jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0 }))
-  await page.route('**/api/forwarders', r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/sessions', r => jsonResponse(r, []))
-  await page.route('**/api/lint*', r => jsonResponse(r, []))
-  await page.route('**/api/search*', r => jsonResponse(r, searchResults, { total: searchResults.length, page: 1 }))
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route('**/api/traces*', (r) => jsonResponse(r, []))
+  await page.route('**/api/services', (r) => jsonResponse(r, []))
+  await page.route('**/api/stats*', (r) =>
+    jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0 }),
+  )
+  await page.route('**/api/forwarders', (r) => jsonResponse(r, []))
+  await page.route('**/api/sessions/active', (r) => jsonResponse(r, { id: '', label: '' }))
+  await page.route('**/api/sessions', (r) => jsonResponse(r, []))
+  await page.route('**/api/lint*', (r) => jsonResponse(r, []))
+  await page.route('**/api/search*', (r) =>
+    jsonResponse(r, searchResults, { total: searchResults.length, page: 1 }),
+  )
 }
 
 // expectPaletteOpen asserts the palette is *actually* on top of the page,
@@ -44,15 +52,26 @@ async function expectPaletteOpen(page: Page) {
     const r = (el as HTMLElement).getBoundingClientRect()
     const input = el.querySelector('input')
     const inputTop = input?.getBoundingClientRect().top ?? r.top
-    return { position: cs.position, zIndex: parseInt(cs.zIndex, 10) || 0, width: r.width, height: r.height, top: r.top, left: r.left, inputTop }
+    return {
+      position: cs.position,
+      zIndex: parseInt(cs.zIndex, 10) || 0,
+      width: r.width,
+      height: r.height,
+      top: r.top,
+      left: r.left,
+      inputTop,
+    }
   })
   expect(contentStyle.position, 'palette content must be position:fixed').toBe('fixed')
   expect(contentStyle.zIndex, 'palette content must have a positive z-index').toBeGreaterThan(0)
-  expect(contentStyle.width,  'palette content must have nonzero width').toBeGreaterThan(200)
+  expect(contentStyle.width, 'palette content must have nonzero width').toBeGreaterThan(200)
   expect(contentStyle.height, 'palette content must have nonzero height').toBeGreaterThan(50)
   // The global keyboard focus ring sits outside the input. Leave enough room
   // above it that the dialog's overflow clipping cannot cut it off.
-  expect(contentStyle.inputTop - contentStyle.top, 'input top focus-ring gutter').toBeGreaterThanOrEqual(5)
+  expect(
+    contentStyle.inputTop - contentStyle.top,
+    'input top focus-ring gutter',
+  ).toBeGreaterThanOrEqual(5)
 
   const overlayStyle = await overlay.evaluate((el) => getComputedStyle(el as HTMLElement).position)
   expect(overlayStyle, 'palette overlay must be position:fixed').toBe('fixed')
@@ -63,11 +82,14 @@ async function expectPaletteOpen(page: Page) {
   // Keep a fixed top gutter so the search input is never flush with or clipped
   // by the browser's top edge. The palette list is the scrollable region when
   // the viewport is too short for its natural height.
-  expect(contentStyle.top,  'content top gutter').toBeGreaterThanOrEqual(16)
-  expect(contentStyle.top,  'content top within viewport').toBeLessThan(vp.height)
+  expect(contentStyle.top, 'content top gutter').toBeGreaterThanOrEqual(16)
+  expect(contentStyle.top, 'content top within viewport').toBeLessThan(vp.height)
   expect(contentStyle.left, 'content left within viewport').toBeGreaterThanOrEqual(0)
   expect(contentStyle.left, 'content left within viewport').toBeLessThan(vp.width)
-  expect(contentStyle.top + contentStyle.height, 'content bottom within viewport').toBeLessThanOrEqual(vp.height)
+  expect(
+    contentStyle.top + contentStyle.height,
+    'content bottom within viewport',
+  ).toBeLessThanOrEqual(vp.height)
 }
 
 function traceResult(traceId: string, title: string, subtitle = 'my-svc') {
@@ -75,7 +97,14 @@ function traceResult(traceId: string, title: string, subtitle = 'my-svc') {
 }
 
 function logResult(traceId: string, body: string, subtitle = 'my-svc') {
-  return { kind: 'log', trace_id: traceId, span_id: 'sp1', title: body, subtitle, session_id: 's1' }
+  return {
+    kind: 'log',
+    trace_id: traceId,
+    span_id: 'sp1',
+    title: body,
+    subtitle,
+    session_id: 's1',
+  }
 }
 
 // ── opening the palette ───────────────────────────────────────────────────────
@@ -167,24 +196,28 @@ test.describe('Command palette', () => {
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
 
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('orders')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('orders')
 
     await expect(page.getByText('GET /api/orders')).toBeVisible()
     await expect(page.getByText('POST /api/checkout')).toBeVisible()
   })
 
   test('displays log results with a "log" kind badge', async ({ page }) => {
-    await stubBackend(page, [
-      logResult('trace-log', 'database connection timed out'),
-    ])
+    await stubBackend(page, [logResult('trace-log', 'database connection timed out')])
     await page.goto('/')
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('timeout')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('timeout')
 
     await expect(page.getByText('database connection timed out')).toBeVisible()
     // Kind badge is a separate element with exact text "log".
-    await expect(page.locator('[class*="rounded"][class*="border"]').filter({ hasText: /^log$/ })).toBeVisible()
+    await expect(
+      page.locator('[class*="rounded"][class*="border"]').filter({ hasText: /^log$/ }),
+    ).toBeVisible()
   })
 
   test('shows "no results" message when API returns empty', async ({ page }) => {
@@ -192,7 +225,9 @@ test.describe('Command palette', () => {
     await page.goto('/')
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('xyzzy-nonexistent')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('xyzzy-nonexistent')
 
     await expect(page.getByText(/No results for/)).toBeVisible()
     await expect(page.getByText('xyzzy-nonexistent')).toBeVisible()
@@ -202,17 +237,21 @@ test.describe('Command palette', () => {
 
   test('clicking a trace result navigates to /traces/:id', async ({ page }) => {
     await stubBackend(page, [traceResult('trace-nav', 'GET /orders')])
-    await page.route('**/api/traces/trace-nav', r => jsonResponse(r, []))
-    await page.route('**/api/issues*', r => jsonResponse(r, []))
+    await page.route('**/api/traces/trace-nav', (r) => jsonResponse(r, []))
+    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
     await page.goto('/')
 
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('orders')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('orders')
     await page.getByText('GET /orders').click()
 
     await expect(page).toHaveURL(/\/traces\/trace-nav$/)
-    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')).not.toBeVisible()
+    await expect(
+      page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…'),
+    ).not.toBeVisible()
   })
 
   test('clicking a log result navigates to /logs', async ({ page }) => {
@@ -221,22 +260,28 @@ test.describe('Command palette', () => {
 
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('payment')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('payment')
     await page.getByText('payment failed').click()
 
     await expect(page).toHaveURL(/\/logs$/)
-    await expect(page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')).not.toBeVisible()
+    await expect(
+      page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…'),
+    ).not.toBeVisible()
   })
 
   test('Enter on the selected result navigates', async ({ page }) => {
     await stubBackend(page, [traceResult('trace-enter', 'PUT /resource')])
-    await page.route('**/api/traces/trace-enter', r => jsonResponse(r, []))
-    await page.route('**/api/issues*', r => jsonResponse(r, []))
+    await page.route('**/api/traces/trace-enter', (r) => jsonResponse(r, []))
+    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
     await page.goto('/')
 
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('resource')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('resource')
     await expect(page.getByText('PUT /resource')).toBeVisible()
     await page.keyboard.press('Enter')
 
@@ -250,13 +295,15 @@ test.describe('Command palette', () => {
       traceResult('trace-first', 'GET /first'),
       traceResult('trace-second', 'GET /second'),
     ])
-    await page.route('**/api/traces/trace-second', r => jsonResponse(r, []))
-    await page.route('**/api/issues*', r => jsonResponse(r, []))
+    await page.route('**/api/traces/trace-second', (r) => jsonResponse(r, []))
+    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
     await page.goto('/')
 
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('get')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('get')
     await expect(page.getByText('GET /first')).toBeVisible()
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('Enter')
@@ -268,14 +315,16 @@ test.describe('Command palette', () => {
 
   test('shows recent searches when palette reopens with no query', async ({ page }) => {
     await stubBackend(page, [traceResult('trace-recent', 'GET /recent')])
-    await page.route('**/api/traces/trace-recent', r => jsonResponse(r, []))
-    await page.route('**/api/issues*', r => jsonResponse(r, []))
+    await page.route('**/api/traces/trace-recent', (r) => jsonResponse(r, []))
+    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
     await page.goto('/')
 
     // Make a search and activate a result to save it to recents.
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
-    await page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…').fill('recent')
+    await page
+      .getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
+      .fill('recent')
     await expect(page.getByText('GET /recent')).toBeVisible()
     await page.getByText('GET /recent').click()
 

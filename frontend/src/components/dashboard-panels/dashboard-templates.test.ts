@@ -7,8 +7,8 @@ it('offers None plus complete, uniquely titled eight-type dashboards', () => {
   for (const template of dashboardTemplates.slice(1)) {
     expect(template.panels.length).toBeGreaterThanOrEqual(6)
     expect(template.panels.length).toBeLessThanOrEqual(10)
-    expect(new Set(template.panels.map(p => p.display_type)).size).toBe(8)
-    expect(new Set(template.panels.map(p => p.title)).size).toBe(template.panels.length)
+    expect(new Set(template.panels.map((p) => p.display_type)).size).toBe(8)
+    expect(new Set(template.panels.map((p) => p.title)).size).toBe(template.panels.length)
     for (const panel of template.panels) {
       expect(panel.title.length).toBeLessThanOrEqual(160)
       expect(panel.query_sql).toMatch(/^(SELECT|WITH) /)
@@ -18,18 +18,25 @@ it('offers None plus complete, uniquely titled eight-type dashboards', () => {
   }
 })
 
-it.skipIf(!import.meta.env.SPANIEL_VERIFY_URL)('executes all template queries against read-only DuckDB', async () => {
-  const base = import.meta.env.SPANIEL_VERIFY_URL
-  const dashboards = await fetch(`${base}/api/dashboards`).then(r => r.json())
-  const id = dashboards.data[0]?.id
-  expect(id, 'A saved dashboard is required for the read-only preview endpoint').toBeTruthy()
-  for (const template of dashboardTemplates.slice(1)) {
-    for (const panel of template.panels) {
-      const response = await fetch(`${base}/api/dashboards/${id}/query-preview`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query_sql: panel.query_sql, display_type: panel.display_type }),
-      })
-      expect(response.ok, `${template.name} / ${panel.title}: ${await response.text()}`).toBe(true)
+it.skipIf(!import.meta.env.SPANIEL_VERIFY_URL)(
+  'executes all template queries against read-only DuckDB',
+  async () => {
+    const base = import.meta.env.SPANIEL_VERIFY_URL
+    const dashboards = await fetch(`${base}/api/dashboards`).then((r) => r.json())
+    const id = dashboards.data[0]?.id
+    expect(id, 'A saved dashboard is required for the read-only preview endpoint').toBeTruthy()
+    for (const template of dashboardTemplates.slice(1)) {
+      for (const panel of template.panels) {
+        const response = await fetch(`${base}/api/dashboards/${id}/query-preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query_sql: panel.query_sql, display_type: panel.display_type }),
+        })
+        expect(response.ok, `${template.name} / ${panel.title}: ${await response.text()}`).toBe(
+          true,
+        )
+      }
     }
-  }
-}, 120_000)
+  },
+  120_000,
+)

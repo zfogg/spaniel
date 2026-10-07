@@ -40,7 +40,8 @@ export default function StorageFullBanner() {
     >
       <span className="font-semibold whitespace-nowrap">⚠ Storage full</span>
       <span className="text-foreground/80 min-w-0 truncate">
-        Ingestion is paused — Spaniel is returning 503 to exporters. Free disk space, raise max_db_size, or prune old sessions.
+        Ingestion is paused — Spaniel is returning 503 to exporters. Free disk space, raise
+        max_db_size, or prune old sessions.
       </span>
       <div className="flex-1" />
       <button

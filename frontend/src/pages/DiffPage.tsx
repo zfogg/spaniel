@@ -5,7 +5,13 @@ import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { api, type Span, type Session } from '@/lib/api'
 import { fmtNs, svcColor, flatten, httpDisplayName } from '@/lib/span-utils'
-import { diffStatusFor, layoutSpan, columnWindow, sharedWindowNs, type DiffStatus } from '@/lib/diff-layout'
+import {
+  diffStatusFor,
+  layoutSpan,
+  columnWindow,
+  sharedWindowNs,
+  type DiffStatus,
+} from '@/lib/diff-layout'
 import { updateDiffHistoryDeltas } from '@/lib/diff-history'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -85,12 +91,11 @@ function DiffStat({
 
   return (
     <div className="min-w-24">
-      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink3">
-        {label}
-      </div>
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink3">{label}</div>
       <div className="flex items-baseline gap-1.5 mt-0.5">
         <span className="font-serif text-lg font-semibold text-ink">
-          {fmtValue(after)}{unit && !raw ? unit : ''}
+          {fmtValue(after)}
+          {unit && !raw ? unit : ''}
         </span>
         {delta !== 0 && (
           <span
@@ -149,9 +154,9 @@ function WaterfallRow({
   const color = svcColor(span.service_name)
 
   const rowBg: Record<DiffStatus, string> = {
-    removed:   'color-mix(in oklch, var(--danger) 10%, var(--surface))',
-    added:     'color-mix(in oklch, var(--ok)     10%, var(--surface))',
-    changed:   'color-mix(in oklch, var(--warn)   10%, var(--surface))',
+    removed: 'color-mix(in oklch, var(--danger) 10%, var(--surface))',
+    added: 'color-mix(in oklch, var(--ok)     10%, var(--surface))',
+    changed: 'color-mix(in oklch, var(--warn)   10%, var(--surface))',
     unchanged: 'transparent',
   }
 
@@ -165,7 +170,10 @@ function WaterfallRow({
     >
       {/* service chip */}
       <div className="flex items-center gap-[5px] min-w-0" style={{ paddingLeft: depth * 8 }}>
-        <span className="w-[6px] h-[6px] rounded-full opacity-85 flex-none" style={{ background: color.fg }} />
+        <span
+          className="w-[6px] h-[6px] rounded-full opacity-85 flex-none"
+          style={{ background: color.fg }}
+        />
         <span
           className="font-mono text-[9.5px] font-semibold tracking-[-0.01em] overflow-hidden text-ellipsis whitespace-nowrap"
           style={{ color: color.fg }}
@@ -179,8 +187,10 @@ function WaterfallRow({
         <div
           className="absolute rounded-[2px]"
           style={{
-            top: 3, height: 8,
-            left: `${leftPct}%`, width: `${widthPct}%`,
+            top: 3,
+            height: 8,
+            left: `${leftPct}%`,
+            width: `${widthPct}%`,
             background: color.bg,
             boxShadow: `inset 2px 0 0 ${color.fg}`,
             opacity: status === 'removed' ? 0.45 : 1,
@@ -235,9 +245,7 @@ function WaterfallColumn({
             : 'color-mix(in oklch, var(--ok) 18%, var(--surface))',
         }}
       >
-        <Badge tone={isBaseline ? 'accent' : 'ok'}>
-          {isBaseline ? 'baseline' : 'compare'}
-        </Badge>
+        <Badge tone={isBaseline ? 'accent' : 'ok'}>{isBaseline ? 'baseline' : 'compare'}</Badge>
         <span className="font-mono text-[11px] text-ink flex-1">{label}</span>
         <span className="font-serif text-lg font-semibold text-ink">{fmtNs(totalDurNs)}</span>
       </div>
@@ -280,11 +288,17 @@ export default function DiffPage() {
   // sessions list for the selectors
   const { data: sessions = [] } = useQuery({
     queryKey: qk.sessions(),
-    queryFn: () => api.sessions.list().then(r => r.data ?? []),
+    queryFn: () => api.sessions.list().then((r) => r.data ?? []),
   })
 
   // diff refetches automatically whenever both ids are set (they're in the key)
-  const { data: diff = null, isFetching: loading, isError, error, refetch } = useQuery({
+  const {
+    data: diff = null,
+    isFetching: loading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['diff', baselineId, compareId],
     enabled: !!baselineId && !!compareId,
     queryFn: async () => {
@@ -294,7 +308,8 @@ export default function DiffPage() {
       const result = json.data as DiffResult | null
       if (result?.summary) {
         updateDiffHistoryDeltas(
-          baselineId, compareId,
+          baselineId,
+          compareId,
           Math.round(result.summary.duration_delta_ns / 1_000_000),
           (result.summary.spans_added ?? 0) - (result.summary.spans_removed ?? 0),
         )
@@ -312,28 +327,28 @@ export default function DiffPage() {
     updateIds(compareId, baselineId)
   }
 
-  const selectClass = "font-mono text-[11px] bg-surface2 text-ink border border-line rounded-md h-7 px-2 outline-none cursor-pointer min-w-[160px]"
+  const selectClass =
+    'font-mono text-[11px] bg-surface2 text-ink border border-line rounded-md h-7 px-2 outline-none cursor-pointer min-w-[160px]'
 
-  const baselineSess = sessions.find(s => s.id === baselineId)
-  const compareSess = sessions.find(s => s.id === compareId)
+  const baselineSess = sessions.find((s) => s.id === baselineId)
+  const compareSess = sessions.find((s) => s.id === compareId)
 
   // Shared time scale so both columns' bars are proportionally comparable.
   const windowNs = useMemo(
-    () => diff ? sharedWindowNs(diff.baseline_spans, diff.compare_spans) : 0,
+    () => (diff ? sharedWindowNs(diff.baseline_spans, diff.compare_spans) : 0),
     [diff],
   )
   const baseStartNs = useMemo(
-    () => diff?.baseline_spans.length ? columnWindow(diff.baseline_spans).startNs : 0,
+    () => (diff?.baseline_spans.length ? columnWindow(diff.baseline_spans).startNs : 0),
     [diff],
   )
   const cmpStartNs = useMemo(
-    () => diff?.compare_spans.length ? columnWindow(diff.compare_spans).startNs : 0,
+    () => (diff?.compare_spans.length ? columnWindow(diff.compare_spans).startNs : 0),
     [diff],
   )
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-
       {/* 1. Top breadcrumb bar */}
       <div className="h-9 px-3 border-b border-line bg-surface flex items-center gap-2.5 shrink-0">
         <button
@@ -346,17 +361,17 @@ export default function DiffPage() {
 
         <div className="w-px h-[18px] bg-line shrink-0" />
 
-        <span className="font-mono text-[10px] text-ink3">
-          baseline
-        </span>
+        <span className="font-mono text-[10px] text-ink3">baseline</span>
         <select
           className={selectClass}
           value={baselineId}
-          onChange={e => updateIds(e.target.value, compareId)}
+          onChange={(e) => updateIds(e.target.value, compareId)}
         >
           <option value="">— select baseline —</option>
-          {sessions.map(s => (
-            <option key={s.id} value={s.id}>{s.label || s.id.slice(0, 8)}</option>
+          {sessions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label || s.id.slice(0, 8)}
+            </option>
           ))}
         </select>
 
@@ -369,17 +384,17 @@ export default function DiffPage() {
           ⇄
         </button>
 
-        <span className="font-mono text-[10px] text-ink3">
-          compare
-        </span>
+        <span className="font-mono text-[10px] text-ink3">compare</span>
         <select
           className={selectClass}
           value={compareId}
-          onChange={e => updateIds(baselineId, e.target.value)}
+          onChange={(e) => updateIds(baselineId, e.target.value)}
         >
           <option value="">— select compare —</option>
-          {sessions.map(s => (
-            <option key={s.id} value={s.id}>{s.label || s.id.slice(0, 8)}</option>
+          {sessions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label || s.id.slice(0, 8)}
+            </option>
           ))}
         </select>
       </div>
@@ -388,13 +403,9 @@ export default function DiffPage() {
       {diff && (
         <div className="px-[18px] py-3.5 border-b border-line bg-surface flex items-center gap-[18px] shrink-0">
           <div className="flex-1">
-            <div className="font-serif text-lg font-semibold text-ink">
-              {diff.baseline.label}
-            </div>
+            <div className="font-serif text-lg font-semibold text-ink">{diff.baseline.label}</div>
             <div className="font-mono text-[10px] text-ink3">
-              baseline @{' '}
-              <span className="text-ink2">{diff.baseline.label}</span>
-              {' '}↔ compare @{' '}
+              baseline @ <span className="text-ink2">{diff.baseline.label}</span> ↔ compare @{' '}
               <span className="text-ink2">{diff.compare.label}</span>
             </div>
           </div>
@@ -436,9 +447,36 @@ export default function DiffPage() {
             hint="Pick a baseline and compare session on the Sessions page."
             glyph={
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <rect x="4" y="8" width="10" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-                <rect x="18" y="8" width="10" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-                <line x1="14" y1="16" x2="18" y2="16" stroke="currentColor" strokeWidth="1.5" opacity="0.4" strokeDasharray="2 2" />
+                <rect
+                  x="4"
+                  y="8"
+                  width="10"
+                  height="16"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  opacity="0.5"
+                />
+                <rect
+                  x="18"
+                  y="8"
+                  width="10"
+                  height="16"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  opacity="0.5"
+                />
+                <line
+                  x1="14"
+                  y1="16"
+                  x2="18"
+                  y2="16"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  opacity="0.4"
+                  strokeDasharray="2 2"
+                />
               </svg>
             }
           />
@@ -476,7 +514,8 @@ export default function DiffPage() {
         <div className="px-4 py-2.5 border-t border-line bg-surface2 flex items-center gap-[18px] shrink-0 font-mono text-[11px] text-ink2">
           {diff.summary.spans_removed > 0 && (
             <span>
-              <strong style={{ color: '#3e6a3e' }}>−{diff.summary.spans_removed}</strong> spans removed
+              <strong style={{ color: '#3e6a3e' }}>−{diff.summary.spans_removed}</strong> spans
+              removed
             </span>
           )}
           {diff.summary.spans_added > 0 && (
@@ -487,8 +526,11 @@ export default function DiffPage() {
           {diff.summary.db_call_delta !== 0 && (
             <span>
               db calls:{' '}
-              <strong style={{ color: diff.summary.db_call_delta < 0 ? '#3e6a3e' : 'var(--danger-ink)' }}>
-                {diff.summary.db_call_delta > 0 ? '+' : ''}{diff.summary.db_call_delta}
+              <strong
+                style={{ color: diff.summary.db_call_delta < 0 ? '#3e6a3e' : 'var(--danger-ink)' }}
+              >
+                {diff.summary.db_call_delta > 0 ? '+' : ''}
+                {diff.summary.db_call_delta}
               </strong>
             </span>
           )}

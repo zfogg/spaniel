@@ -6,12 +6,18 @@ import { sevLabel, matchesSevFilter } from './LogViewer'
 
 describe('sevLabel', () => {
   it.each([
-    [1, 'TRACE'], [4, 'TRACE'],
-    [5, 'DEBUG'], [8, 'DEBUG'],
-    [9, 'INFO'], [12, 'INFO'],
-    [13, 'WARN'], [16, 'WARN'],
-    [17, 'ERROR'], [20, 'ERROR'],
-    [21, 'FATAL'], [24, 'FATAL'],
+    [1, 'TRACE'],
+    [4, 'TRACE'],
+    [5, 'DEBUG'],
+    [8, 'DEBUG'],
+    [9, 'INFO'],
+    [12, 'INFO'],
+    [13, 'WARN'],
+    [16, 'WARN'],
+    [17, 'ERROR'],
+    [20, 'ERROR'],
+    [21, 'FATAL'],
+    [24, 'FATAL'],
   ])('severity %d → %s', (n, label) => {
     expect(sevLabel(n)).toBe(label)
   })

@@ -6,7 +6,9 @@ function decode(raw: string) {
     const ev = JSON.parse(raw)
     if (typeof ev?.type !== 'string') return null
     return ev
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 describe('WsEvent decoder', () => {
@@ -24,7 +26,11 @@ describe('WsEvent decoder', () => {
   })
 
   it('parses a throughput event', () => {
-    const raw = JSON.stringify({ type: 'throughput', timestamp_ns: 3000, payload: { spansPerSec: 4.5, logsPerSec: 1.2 } })
+    const raw = JSON.stringify({
+      type: 'throughput',
+      timestamp_ns: 3000,
+      payload: { spansPerSec: 4.5, logsPerSec: 1.2 },
+    })
     const ev = decode(raw)
     expect(ev?.payload?.spansPerSec).toBe(4.5)
   })

@@ -22,7 +22,7 @@ describe('EmptyState', () => {
         title="T"
         hint="H"
         cta={{ label: 'Learn more', href: 'https://example.com/docs' }}
-      />
+      />,
     )
     const link = screen.getByRole('link', { name: 'Learn more' })
     expect(link.getAttribute('href')).toBe('https://example.com/docs')
@@ -35,13 +35,7 @@ describe('EmptyState', () => {
   })
 
   it('renders the glyph when provided', () => {
-    render(
-      <EmptyState
-        title="T"
-        hint="H"
-        glyph={<svg data-testid="test-glyph" />}
-      />
-    )
+    render(<EmptyState title="T" hint="H" glyph={<svg data-testid="test-glyph" />} />)
     expect(document.querySelector('[data-testid="test-glyph"]')).toBeTruthy()
   })
 

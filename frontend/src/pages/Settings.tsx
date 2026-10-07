@@ -6,7 +6,13 @@ import { FormProvider, useForm, useFormContext, useFormState } from 'react-hook-
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
 import { qk } from '@/lib/query'
 import { SettingsFormSchema, pickFormValues, type SettingsFormValues } from '@/lib/settings-form'
-import { api, type Settings as SettingsT, type SettingsUpdate, type StorageBreakdown, type UpdateCheckResult } from '@/lib/api'
+import {
+  api,
+  type Settings as SettingsT,
+  type SettingsUpdate,
+  type StorageBreakdown,
+  type UpdateCheckResult,
+} from '@/lib/api'
 
 // Inline validation message for an editable settings field. Reads RHF's
 // per-field error (populated by the zod resolver) via context, so the section
@@ -26,7 +32,17 @@ function FieldError({ name }: { name: keyof SettingsFormValues }) {
 
 // ── atoms ────────────────────────────────────────────────────────────────────
 
-function MCPConfigTable({ entries }: { entries: Array<{ label: string; value: string; copied: boolean; onCopy: () => void; block?: boolean }> }) {
+function MCPConfigTable({
+  entries,
+}: {
+  entries: Array<{
+    label: string
+    value: string
+    copied: boolean
+    onCopy: () => void
+    block?: boolean
+  }>
+}) {
   return (
     <table className="w-full table-fixed border-collapse">
       <colgroup>
@@ -37,12 +53,27 @@ function MCPConfigTable({ entries }: { entries: Array<{ label: string; value: st
       <tbody>
         {entries.map(({ label, value, copied, onCopy, block }) => (
           <tr key={label} className={block ? 'align-top' : 'align-middle'}>
-            <th scope="row" className="pr-2 py-1 text-left font-mono text-[10px] font-normal text-muted-foreground">{label}</th>
+            <th
+              scope="row"
+              className="pr-2 py-1 text-left font-mono text-[10px] font-normal text-muted-foreground"
+            >
+              {label}
+            </th>
             <td className="py-1">
-              <code className={`block w-full break-all rounded bg-muted px-2 py-1 font-mono text-[10px] text-foreground ${block ? 'whitespace-pre-wrap' : 'truncate'}`}>{value}</code>
+              <code
+                className={`block w-full break-all rounded bg-muted px-2 py-1 font-mono text-[10px] text-foreground ${block ? 'whitespace-pre-wrap' : 'truncate'}`}
+              >
+                {value}
+              </code>
             </td>
             <td className="pl-2 py-1 align-top">
-              <button type="button" onClick={onCopy} className="w-full rounded border border-border px-2 py-1 font-mono text-[10px] text-foreground hover:bg-muted">{copied ? 'copied' : 'copy'}</button>
+              <button
+                type="button"
+                onClick={onCopy}
+                className="w-full rounded border border-border px-2 py-1 font-mono text-[10px] text-foreground hover:bg-muted"
+              >
+                {copied ? 'copied' : 'copy'}
+              </button>
             </td>
           </tr>
         ))}
@@ -51,7 +82,15 @@ function MCPConfigTable({ entries }: { entries: Array<{ label: string; value: st
   )
 }
 
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+function Toggle({
+  on,
+  onChange,
+  label,
+}: {
+  on: boolean
+  onChange: (v: boolean) => void
+  label: string
+}) {
   return (
     <button
       type="button"
@@ -72,12 +111,24 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
 // Bind address commits on blur / Enter rather than per-keystroke: the value is
 // validated server-side, and partial input ("192.168.1") would otherwise be
 // rejected and reverted mid-typing.
-function BindAddressBox({ value, onCommit, ariaLabel, placeholder }: {
-  value: string; onCommit: (v: string) => void; ariaLabel: string; placeholder?: string
+function BindAddressBox({
+  value,
+  onCommit,
+  ariaLabel,
+  placeholder,
+}: {
+  value: string
+  onCommit: (v: string) => void
+  ariaLabel: string
+  placeholder?: string
 }) {
   const [draft, setDraft] = useState(value)
-  useEffect(() => { setDraft(value) }, [value])
-  const commit = () => { if (draft !== value) onCommit(draft.trim()) }
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+  const commit = () => {
+    if (draft !== value) onCommit(draft.trim())
+  }
   return (
     <span
       className="inline-flex items-center bg-white dark:bg-background border border-border rounded-md px-2.5 h-[30px] max-w-full"
@@ -88,9 +139,11 @@ function BindAddressBox({ value, onCommit, ariaLabel, placeholder }: {
         aria-label={ariaLabel}
         placeholder={placeholder}
         value={draft}
-        onChange={e => setDraft(e.target.value)}
+        onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
         className="flex-1 min-w-0 border-none outline-hidden bg-transparent text-xs text-foreground font-mono"
       />
     </span>
@@ -112,9 +165,24 @@ function bindAddressLabel(addr: string | undefined): string {
   }
 }
 
-function NumberBox({ value, onChange, min, max, step, w = 110, suffix, ariaLabel }: {
-  value: number; onChange: (v: number) => void
-  min?: number; max?: number; step?: number; w?: number; suffix?: string; ariaLabel: string
+function NumberBox({
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  w = 110,
+  suffix,
+  ariaLabel,
+}: {
+  value: number
+  onChange: (v: number) => void
+  min?: number
+  max?: number
+  step?: number
+  w?: number
+  suffix?: string
+  ariaLabel: string
 }) {
   return (
     <span
@@ -125,20 +193,33 @@ function NumberBox({ value, onChange, min, max, step, w = 110, suffix, ariaLabel
         type="number"
         aria-label={ariaLabel}
         value={value}
-        min={min} max={max} step={step}
-        onChange={e => onChange(Number(e.target.value))}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => onChange(Number(e.target.value))}
         className="flex-1 min-w-0 border-none outline-hidden bg-transparent font-mono text-xs text-foreground"
       />
       {suffix && (
-        <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.12em] ml-1">{suffix}</span>
+        <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.12em] ml-1">
+          {suffix}
+        </span>
       )}
     </span>
   )
 }
 
-function TextBox({ value, onChange, w = 320, mono = true, ariaLabel }: {
-  value: string; onChange: (v: string) => void
-  w?: number; mono?: boolean; ariaLabel: string
+function TextBox({
+  value,
+  onChange,
+  w = 320,
+  mono = true,
+  ariaLabel,
+}: {
+  value: string
+  onChange: (v: string) => void
+  w?: number
+  mono?: boolean
+  ariaLabel: string
 }) {
   return (
     <span
@@ -149,16 +230,25 @@ function TextBox({ value, onChange, w = 320, mono = true, ariaLabel }: {
         type="text"
         aria-label={ariaLabel}
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         className={`flex-1 min-w-0 border-none outline-hidden bg-transparent text-xs text-foreground ${mono ? 'font-mono' : 'font-sans'}`}
       />
     </span>
   )
 }
 
-function SelectBox<T extends string>({ value, onChange, options, w = 130, ariaLabel }: {
-  value: T; onChange: (v: T) => void
-  options: readonly T[]; w?: number; ariaLabel: string
+function SelectBox<T extends string>({
+  value,
+  onChange,
+  options,
+  w = 130,
+  ariaLabel,
+}: {
+  value: T
+  onChange: (v: T) => void
+  options: readonly T[]
+  w?: number
+  ariaLabel: string
 }) {
   return (
     <span
@@ -168,37 +258,61 @@ function SelectBox<T extends string>({ value, onChange, options, w = 130, ariaLa
       <select
         aria-label={ariaLabel}
         value={value}
-        onChange={e => onChange(e.target.value as T)}
+        onChange={(e) => onChange(e.target.value as T)}
         className="flex-1 min-w-0 border-none outline-hidden bg-transparent font-mono text-xs text-foreground px-2 appearance-none"
       >
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
       </select>
       <span className="font-mono text-muted-foreground text-[9px]">▾</span>
     </span>
   )
 }
 
-function Pill({ tone = 'neutral', children }: { tone?: 'neutral' | 'ok' | 'warn' | 'danger' | 'accent'; children: React.ReactNode }) {
+function Pill({
+  tone = 'neutral',
+  children,
+}: {
+  tone?: 'neutral' | 'ok' | 'warn' | 'danger' | 'accent'
+  children: React.ReactNode
+}) {
   const tones = {
     neutral: { bg: 'var(--muted)', fg: 'var(--muted-foreground)', bd: 'var(--border)' },
-    ok:      { bg: '#dff0e0', fg: '#3e6a3e', bd: '#9bc4a4' },
-    warn:    { bg: '#fcefcf', fg: '#8a6118', bd: '#d9b878' },
-    danger:  { bg: '#fde8e8', fg: '#922020', bd: '#e0a0a0' },
-    accent:  { bg: 'color-mix(in oklch, var(--accent, #6b7cff) 18%, var(--background))',
-               fg: 'var(--accent, #4a5dc7)',
-               bd: 'color-mix(in oklch, var(--accent, #6b7cff) 40%, transparent)' },
+    ok: { bg: '#dff0e0', fg: '#3e6a3e', bd: '#9bc4a4' },
+    warn: { bg: '#fcefcf', fg: '#8a6118', bd: '#d9b878' },
+    danger: { bg: '#fde8e8', fg: '#922020', bd: '#e0a0a0' },
+    accent: {
+      bg: 'color-mix(in oklch, var(--accent, #6b7cff) 18%, var(--background))',
+      fg: 'var(--accent, #4a5dc7)',
+      bd: 'color-mix(in oklch, var(--accent, #6b7cff) 40%, transparent)',
+    },
   } as const
   const t = tones[tone]
   return (
     <span
       className="inline-flex items-center gap-[5px] py-[3px] px-2 rounded-[14px] font-mono text-[10px] font-semibold whitespace-nowrap"
       style={{ background: t.bg, color: t.fg, border: `1px solid ${t.bd}` }}
-    >{children}</span>
+    >
+      {children}
+    </span>
   )
 }
 
-function Row({ label, hint, danger, children, testid, align = 'start' }: {
-  label: string; hint?: string; danger?: boolean; testid?: string
+function Row({
+  label,
+  hint,
+  danger,
+  children,
+  testid,
+  align = 'start',
+}: {
+  label: string
+  hint?: string
+  danger?: boolean
+  testid?: string
   align?: 'start' | 'center'
   children: React.ReactNode
 }) {
@@ -209,21 +323,36 @@ function Row({ label, hint, danger, children, testid, align = 'start' }: {
       style={{ gridTemplateColumns: 'minmax(0, 260px) 1fr' }}
     >
       <div>
-        <div className={`font-sans text-[13px] font-semibold ${danger ? 'text-danger' : 'text-foreground'}`}>{label}</div>
+        <div
+          className={`font-sans text-[13px] font-semibold ${danger ? 'text-danger' : 'text-foreground'}`}
+        >
+          {label}
+        </div>
         {hint && (
-          <div className="font-sans text-[11.5px] text-muted-foreground mt-[3px] leading-[1.45]">{hint}</div>
+          <div className="font-sans text-[11.5px] text-muted-foreground mt-[3px] leading-[1.45]">
+            {hint}
+          </div>
         )}
       </div>
-      <div className="flex items-center gap-2.5 flex-wrap">
-        {children}
-      </div>
+      <div className="flex items-center gap-2.5 flex-wrap">{children}</div>
     </div>
   )
 }
 
-function Card({ id, title, sub, right, children, hidden }: {
-  id: string; title: string; sub?: string; right?: React.ReactNode
-  children: React.ReactNode; hidden?: boolean
+function Card({
+  id,
+  title,
+  sub,
+  right,
+  children,
+  hidden,
+}: {
+  id: string
+  title: string
+  sub?: string
+  right?: React.ReactNode
+  children: React.ReactNode
+  hidden?: boolean
 }) {
   if (hidden) return null
   return (
@@ -233,10 +362,10 @@ function Card({ id, title, sub, right, children, hidden }: {
     >
       <div className="flex items-center gap-2.5 mb-2 pb-3 border-b border-border">
         <div>
-          <div className="font-serif text-xl font-semibold text-foreground tracking-[-0.01em]">{title}</div>
-          {sub && (
-            <div className="font-sans text-xs text-muted-foreground mt-0.5">{sub}</div>
-          )}
+          <div className="font-serif text-xl font-semibold text-foreground tracking-[-0.01em]">
+            {title}
+          </div>
+          {sub && <div className="font-sans text-xs text-muted-foreground mt-0.5">{sub}</div>}
         </div>
         <div className="flex-1" />
         {right}
@@ -269,10 +398,8 @@ function fmtMB(bytes: number): string {
 type RetentionUnit = 'seconds' | 'minutes' | 'hours' | 'days'
 
 function humanRetention(n: number, unit: RetentionUnit): string {
-  const sec = unit === 'seconds' ? n
-    : unit === 'minutes' ? n * 60
-    : unit === 'hours' ? n * 3600
-    : n * 86400
+  const sec =
+    unit === 'seconds' ? n : unit === 'minutes' ? n * 60 : unit === 'hours' ? n * 3600 : n * 86400
   if (sec < 60) return `${sec}s`
   if (sec < 3600) return `${Math.round(sec / 60)}min`
   if (sec < 86400) return `${Math.round(sec / 3600)}h`
@@ -284,17 +411,23 @@ function humanRetention(n: number, unit: RetentionUnit): string {
 function ForwarderStatusRows() {
   const { data: statuses = [] } = useQuery({
     queryKey: qk.forwarders(),
-    queryFn: () => api.forwarders.list().then(r => r.data),
+    queryFn: () => api.forwarders.list().then((r) => r.data),
     refetchInterval: 5000,
   })
 
-  const active = statuses.filter(s => (s.pending_bytes ?? 0) > 0 || (s.dropped_spool ?? 0) > 0)
+  const active = statuses.filter((s) => (s.pending_bytes ?? 0) > 0 || (s.dropped_spool ?? 0) > 0)
   if (active.length === 0) return null
 
   return (
     <>
-      {active.map(s => {
-        const host = (() => { try { return new URL(s.url).host } catch { return s.url } })()
+      {active.map((s) => {
+        const host = (() => {
+          try {
+            return new URL(s.url).host
+          } catch {
+            return s.url
+          }
+        })()
         const pending = s.pending_bytes ?? 0
         const dropped = s.dropped_spool ?? 0
         return (
@@ -316,101 +449,174 @@ function ForwarderStatusRows() {
 function fmtSettingsBytes(n: number): string {
   if (!n) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB']
-  let i = 0, v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  let i = 0,
+    v = n
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024
+    i++
+  }
   return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
 }
 
-function NetworkSection({ s, mutate, hidden }: {
-  s: SettingsT; mutate: (patch: SettingsUpdate) => void; hidden: boolean
+function NetworkSection({
+  s,
+  mutate,
+  hidden,
+}: {
+  s: SettingsT
+  mutate: (patch: SettingsUpdate) => void
+  hidden: boolean
 }) {
   return (
-    <Card
-      id="network"
-      title="Network"
-      sub="OTLP receivers and proxy forwarding"
-      hidden={hidden}
-    >
-      <Row label="OTLP gRPC receiver"
+    <Card id="network" title="Network" sub="OTLP receivers and proxy forwarding" hidden={hidden}>
+      <Row
+        label="OTLP gRPC receiver"
         hint="The :4317 listener that speaks protobuf over gRPC. Set port = 0 to disable."
-        testid="row-grpc">
-        <Toggle on={s.otlp_grpc_port > 0} onChange={v => mutate({ otlp_grpc_port: v ? 4317 : 0 })} label="enable grpc receiver" />
-        <NumberBox value={s.otlp_grpc_port} onChange={v => mutate({ otlp_grpc_port: v })}
-          min={0} max={65535} suffix=":port" ariaLabel="grpc port" />
-        {s.otlp_grpc_port > 0
-          ? <Pill tone="ok">● listening :{s.runtime.otlp_grpc_port}</Pill>
-          : <Pill>stopped</Pill>}
+        testid="row-grpc"
+      >
+        <Toggle
+          on={s.otlp_grpc_port > 0}
+          onChange={(v) => mutate({ otlp_grpc_port: v ? 4317 : 0 })}
+          label="enable grpc receiver"
+        />
+        <NumberBox
+          value={s.otlp_grpc_port}
+          onChange={(v) => mutate({ otlp_grpc_port: v })}
+          min={0}
+          max={65535}
+          suffix=":port"
+          ariaLabel="grpc port"
+        />
+        {s.otlp_grpc_port > 0 ? (
+          <Pill tone="ok">● listening :{s.runtime.otlp_grpc_port}</Pill>
+        ) : (
+          <Pill>stopped</Pill>
+        )}
         <FieldError name="otlp_grpc_port" />
       </Row>
-      <Row label="OTLP HTTP receiver"
+      <Row
+        label="OTLP HTTP receiver"
         hint="The :4318 listener that speaks both protobuf and JSON. Set port = 0 to disable."
-        testid="row-http">
-        <Toggle on={s.otlp_http_port > 0} onChange={v => mutate({ otlp_http_port: v ? 4318 : 0 })} label="enable http receiver" />
-        <NumberBox value={s.otlp_http_port} onChange={v => mutate({ otlp_http_port: v })}
-          min={0} max={65535} suffix=":port" ariaLabel="http port" />
-        {s.otlp_http_port > 0
-          ? <Pill tone="ok">● listening :{s.runtime.otlp_http_port}</Pill>
-          : <Pill>stopped</Pill>}
+        testid="row-http"
+      >
+        <Toggle
+          on={s.otlp_http_port > 0}
+          onChange={(v) => mutate({ otlp_http_port: v ? 4318 : 0 })}
+          label="enable http receiver"
+        />
+        <NumberBox
+          value={s.otlp_http_port}
+          onChange={(v) => mutate({ otlp_http_port: v })}
+          min={0}
+          max={65535}
+          suffix=":port"
+          ariaLabel="http port"
+        />
+        {s.otlp_http_port > 0 ? (
+          <Pill tone="ok">● listening :{s.runtime.otlp_http_port}</Pill>
+        ) : (
+          <Pill>stopped</Pill>
+        )}
         <FieldError name="otlp_http_port" />
       </Row>
-      <Row label="IPv4 bind address"
+      <Row
+        label="IPv4 bind address"
         hint="IPv4 address the UI and OTLP receivers listen on. 127.0.0.1 = localhost; 0.0.0.0 = all interfaces (LAN / docker). Leave blank to disable IPv4."
-        testid="row-bind-v4">
+        testid="row-bind-v4"
+      >
         <BindAddressBox
           value={s.bind_address_v4 ?? ''}
-          onCommit={v => mutate({ bind_address_v4: v })}
-          ariaLabel="ipv4 bind address" placeholder="127.0.0.1"
+          onCommit={(v) => mutate({ bind_address_v4: v })}
+          ariaLabel="ipv4 bind address"
+          placeholder="127.0.0.1"
         />
         <Pill>{bindAddressLabel(s.bind_address_v4)}</Pill>
         <FieldError name="bind_address_v4" />
       </Row>
-      <Row label="IPv6 bind address"
+      <Row
+        label="IPv6 bind address"
         hint="IPv6 address the UI and OTLP receivers listen on. ::1 = localhost; :: = all interfaces. Served alongside IPv4 (dual-stack). Leave blank to disable IPv6."
-        testid="row-bind-v6">
+        testid="row-bind-v6"
+      >
         <BindAddressBox
           value={s.bind_address_v6 ?? ''}
-          onCommit={v => mutate({ bind_address_v6: v })}
-          ariaLabel="ipv6 bind address" placeholder="::1"
+          onCommit={(v) => mutate({ bind_address_v6: v })}
+          ariaLabel="ipv6 bind address"
+          placeholder="::1"
         />
         <Pill>{bindAddressLabel(s.bind_address_v6)}</Pill>
         <FieldError name="bind_address_v6" />
       </Row>
-      <Row label="Forward sampling"
+      <Row
+        label="Forward sampling"
         hint="Fraction of received payloads to forward upstream (1.0 = everything, 0.1 = 10%)."
-        testid="row-forward-sample">
+        testid="row-forward-sample"
+      >
         <input
           type="range"
-          min={0} max={1} step={0.01}
+          min={0}
+          max={1}
+          step={0.01}
           value={s.forward_sample}
-          onChange={e => mutate({ forward_sample: parseFloat(e.target.value) })}
+          onChange={(e) => mutate({ forward_sample: parseFloat(e.target.value) })}
           aria-label="forward sample"
           className="w-[180px]"
         />
-        <NumberBox value={s.forward_sample} onChange={v => mutate({ forward_sample: v })}
-          min={0} max={1} step={0.01} w={90} ariaLabel="forward sample number" />
+        <NumberBox
+          value={s.forward_sample}
+          onChange={(v) => mutate({ forward_sample: v })}
+          min={0}
+          max={1}
+          step={0.01}
+          w={90}
+          ariaLabel="forward sample number"
+        />
         <Pill tone="accent">
           {s.forward_sample >= 1 ? 'everything' : `${Math.round(s.forward_sample * 100)}% of spans`}
         </Pill>
         <FieldError name="forward_sample" />
       </Row>
-      <Row label="UI / API port"
+      <Row
+        label="UI / API port"
         hint="HTTP port the spaniel UI and JSON API are served on. Restart required."
-        testid="row-port">
-        <NumberBox value={s.port} onChange={v => mutate({ port: v })}
-          min={1} max={65535} ariaLabel="ui port" suffix=":port" />
+        testid="row-port"
+      >
+        <NumberBox
+          value={s.port}
+          onChange={(v) => mutate({ port: v })}
+          min={1}
+          max={65535}
+          ariaLabel="ui port"
+          suffix=":port"
+        />
         <FieldError name="port" />
       </Row>
-      <Row label="Upstream OTLP endpoint(s)"
+      <Row
+        label="Upstream OTLP endpoint(s)"
         hint="If set, every received OTLP payload is forwarded to these URLs after being stored locally."
-        testid="row-forward">
+        testid="row-forward"
+      >
         <TextBox
           value={(s.forward ?? []).join(', ')}
-          onChange={v => mutate({ forward: v.split(',').map(x => x.trim()).filter(Boolean) })}
-          w={420} ariaLabel="forward urls" mono
+          onChange={(v) =>
+            mutate({
+              forward: v
+                .split(',')
+                .map((x) => x.trim())
+                .filter(Boolean),
+            })
+          }
+          w={420}
+          ariaLabel="forward urls"
+          mono
         />
-        {(s.forward ?? []).length > 0
-          ? <Pill tone="accent">forwarding to {s.forward.length} upstream{s.forward.length === 1 ? '' : 's'}</Pill>
-          : <Pill>off</Pill>}
+        {(s.forward ?? []).length > 0 ? (
+          <Pill tone="accent">
+            forwarding to {s.forward.length} upstream{s.forward.length === 1 ? '' : 's'}
+          </Pill>
+        ) : (
+          <Pill>off</Pill>
+        )}
         <FieldError name="forward" />
       </Row>
       <ForwarderStatusRows />
@@ -419,16 +625,27 @@ function NetworkSection({ s, mutate, hidden }: {
 }
 
 const TABLE_SEGMENTS = [
-  { key: 'spans',         color: 'var(--accent, #6b7cff)',    label: 'Spans' },
-  { key: 'logs',          color: '#3e9c8a',                   label: 'Logs' },
-  { key: 'metrics',       color: '#b58400',                   label: 'Metrics' },
-  { key: 'span_events',   color: '#7c5cbf',                   label: 'Events' },
-  { key: 'trace_issues',  color: 'var(--danger, #b04040)',    label: 'Issues' },
+  { key: 'spans', color: 'var(--accent, #6b7cff)', label: 'Spans' },
+  { key: 'logs', color: '#3e9c8a', label: 'Logs' },
+  { key: 'metrics', color: '#b58400', label: 'Metrics' },
+  { key: 'span_events', color: '#7c5cbf', label: 'Events' },
+  { key: 'trace_issues', color: 'var(--danger, #b04040)', label: 'Issues' },
 ] as const
 
-function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompact }: {
-  s: SettingsT; mutate: (patch: SettingsUpdate) => void; hidden: boolean
-  onPrune: () => void; onDrop: () => void
+function StorageSection({
+  s,
+  mutate,
+  hidden,
+  onPrune,
+  onDrop,
+  breakdown,
+  onCompact,
+}: {
+  s: SettingsT
+  mutate: (patch: SettingsUpdate) => void
+  hidden: boolean
+  onPrune: () => void
+  onDrop: () => void
   breakdown: StorageBreakdown | null
   onCompact: () => Promise<void>
 }) {
@@ -436,15 +653,18 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
   const [compacting, setCompacting] = useState(false)
   const [compactMsg, setCompactMsg] = useState<string | null>(null)
 
-  const usedPct = s.max_db_size_mb > 0
-    ? Math.min(100, Math.round((s.runtime.db_size_bytes / (s.max_db_size_mb * 1024 * 1024)) * 100))
-    : 0
-  const barColor = usedPct > 85 ? 'var(--danger, #b04040)' : usedPct > 60 ? '#b58400' : 'var(--accent, #6b7cff)'
+  const usedPct =
+    s.max_db_size_mb > 0
+      ? Math.min(
+          100,
+          Math.round((s.runtime.db_size_bytes / (s.max_db_size_mb * 1024 * 1024)) * 100),
+        )
+      : 0
+  const barColor =
+    usedPct > 85 ? 'var(--danger, #b04040)' : usedPct > 60 ? '#b58400' : 'var(--accent, #6b7cff)'
 
   // Stacked bar: total bytes across the tracked tables.
-  const totalBytes = breakdown
-    ? breakdown.tables.reduce((sum, t) => sum + t.approx_bytes, 0)
-    : 0
+  const totalBytes = breakdown ? breakdown.tables.reduce((sum, t) => sum + t.approx_bytes, 0) : 0
 
   const handleCompact = useCallback(async () => {
     setCompacting(true)
@@ -460,33 +680,71 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
   }, [onCompact])
 
   return (
-    <Card id="storage" title="Storage" sub="Embedded DuckDB · spans, logs, metrics, sessions"
+    <Card
+      id="storage"
+      title="Storage"
+      sub="Embedded DuckDB · spans, logs, metrics, sessions"
       right={<Pill tone="accent">duckdb · {fmtMB(s.runtime.db_size_bytes)}</Pill>}
-      hidden={hidden}>
-      <Row label="Database file" hint="The single .duckdb file that holds all of spaniel's local data."
-        testid="row-dbpath">
-        <TextBox value={s.db_path} onChange={v => mutate({ db_path: v })} w={420} ariaLabel="db path" />
+      hidden={hidden}
+    >
+      <Row
+        label="Database file"
+        hint="The single .duckdb file that holds all of spaniel's local data."
+        testid="row-dbpath"
+      >
+        <TextBox
+          value={s.db_path}
+          onChange={(v) => mutate({ db_path: v })}
+          w={420}
+          ariaLabel="db path"
+        />
         <FieldError name="db_path" />
       </Row>
-      <Row label="Max database size"
+      <Row
+        label="Max database size"
         hint="Hard size cap for the DuckDB file. 0 = unlimited."
-        testid="row-maxsize">
-        <NumberBox value={s.max_db_size_mb} onChange={v => mutate({ max_db_size_mb: v })}
-          min={0} max={102400} suffix="MB" w={130} ariaLabel="max db size mb" />
+        testid="row-maxsize"
+      >
+        <NumberBox
+          value={s.max_db_size_mb}
+          onChange={(v) => mutate({ max_db_size_mb: v })}
+          min={0}
+          max={102400}
+          suffix="MB"
+          w={130}
+          ariaLabel="max db size mb"
+        />
         <FieldError name="max_db_size_mb" />
       </Row>
-      <Row label="Auto-prune storage"
+      <Row
+        label="Auto-prune storage"
         hint="Enabled: delete oldest sessions near the cap to keep storage below it. Disabled: preserve data, pause ingestion at the cap, and report storage full."
-        testid="row-auto-prune">
-        <Toggle on={s.auto_prune} onChange={v => mutate({ auto_prune: v })} label="auto prune storage" />
-        <Pill tone={s.auto_prune ? 'ok' : 'danger'}>{s.auto_prune ? 'enabled · stays below cap' : 'disabled · fills to cap'}</Pill>
+        testid="row-auto-prune"
+      >
+        <Toggle
+          on={s.auto_prune}
+          onChange={(v) => mutate({ auto_prune: v })}
+          label="auto prune storage"
+        />
+        <Pill tone={s.auto_prune ? 'ok' : 'danger'}>
+          {s.auto_prune ? 'enabled · stays below cap' : 'disabled · fills to cap'}
+        </Pill>
         <FieldError name="auto_prune" />
       </Row>
-      <Row label="Retention"
+      <Row
+        label="Retention"
         hint="How long to keep spans before they're dropped. Lower = less disk pressure."
-        testid="row-retention">
-        <NumberBox value={s.retention_days} onChange={v => mutate({ retention_days: v })}
-          min={0} max={3650} ariaLabel="retention days" w={120} suffix="days" />
+        testid="row-retention"
+      >
+        <NumberBox
+          value={s.retention_days}
+          onChange={(v) => mutate({ retention_days: v })}
+          min={0}
+          max={3650}
+          ariaLabel="retention days"
+          w={120}
+          suffix="days"
+        />
         <SelectBox<RetentionUnit>
           value={retUnit}
           onChange={setRetUnit}
@@ -498,39 +756,80 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         </span>
         <FieldError name="retention_days" />
       </Row>
-      <Row label="Max sessions"
+      <Row
+        label="Max sessions"
         hint="Cap the number of sessions kept on disk. Oldest are dropped first. 0 = unlimited."
-        testid="row-maxsessions">
-        <NumberBox value={s.max_sessions} onChange={v => mutate({ max_sessions: v })}
-          min={0} max={10000} ariaLabel="max sessions" w={120} />
+        testid="row-maxsessions"
+      >
+        <NumberBox
+          value={s.max_sessions}
+          onChange={(v) => mutate({ max_sessions: v })}
+          min={0}
+          max={10000}
+          ariaLabel="max sessions"
+          w={120}
+        />
         <FieldError name="max_sessions" />
       </Row>
-      <Row label="Advance session on start"
+      <Row
+        label="Advance session on start"
         hint="Enabled: start a fresh session when Spaniel starts. Disabled: resume the active session until you choose another one."
-        testid="row-advance-session-on-start">
-        <Toggle on={s.advance_session_on_start} onChange={v => mutate({ advance_session_on_start: v })} label="advance session on start" />
-        <Pill tone={s.advance_session_on_start ? 'ok' : 'accent'}>{s.advance_session_on_start ? 'enabled · new session on restart' : 'disabled · resume active session'}</Pill>
+        testid="row-advance-session-on-start"
+      >
+        <Toggle
+          on={s.advance_session_on_start}
+          onChange={(v) => mutate({ advance_session_on_start: v })}
+          label="advance session on start"
+        />
+        <Pill tone={s.advance_session_on_start ? 'ok' : 'accent'}>
+          {s.advance_session_on_start
+            ? 'enabled · new session on restart'
+            : 'disabled · resume active session'}
+        </Pill>
         <FieldError name="advance_session_on_start" />
       </Row>
-      <Row label="Per-source rate limit"
+      <Row
+        label="Per-source rate limit"
         hint="Max spans/sec accepted per service.name. Excess spans are dropped and counted in the Sources panel. 0 = unlimited."
-        testid="row-source-rps">
-        <NumberBox value={s.source_rps} onChange={v => mutate({ source_rps: v })}
-          min={0} max={1000000} step={0.1} ariaLabel="source rps" w={120} />
-        <span className="font-mono text-[11px] text-muted-foreground">spans / s&nbsp;&nbsp;(0 = unlimited)</span>
+        testid="row-source-rps"
+      >
+        <NumberBox
+          value={s.source_rps}
+          onChange={(v) => mutate({ source_rps: v })}
+          min={0}
+          max={1000000}
+          step={0.1}
+          ariaLabel="source rps"
+          w={120}
+        />
+        <span className="font-mono text-[11px] text-muted-foreground">
+          spans / s&nbsp;&nbsp;(0 = unlimited)
+        </span>
         <FieldError name="source_rps" />
       </Row>
-      <Row label="Per-source burst"
+      <Row
+        label="Per-source burst"
         hint="Token bucket capacity per service. Allows short spikes above the rate limit. 0 = rate limit × 5."
-        testid="row-source-burst">
-        <NumberBox value={s.source_burst} onChange={v => mutate({ source_burst: v })}
-          min={0} max={1000000} ariaLabel="source burst" w={120} />
-        <span className="font-mono text-[11px] text-muted-foreground">spans&nbsp;&nbsp;(0 = rps × 5)</span>
+        testid="row-source-burst"
+      >
+        <NumberBox
+          value={s.source_burst}
+          onChange={(v) => mutate({ source_burst: v })}
+          min={0}
+          max={1000000}
+          ariaLabel="source burst"
+          w={120}
+        />
+        <span className="font-mono text-[11px] text-muted-foreground">
+          spans&nbsp;&nbsp;(0 = rps × 5)
+        </span>
         <FieldError name="source_burst" />
       </Row>
-      <Row label="Storage usage"
+      <Row
+        label="Storage usage"
         hint={`Currently ${fmtMB(s.runtime.db_size_bytes)} on disk.`}
-        testid="row-usage">
+        testid="row-usage"
+      >
         <div className="w-[340px] flex flex-col gap-1.5">
           <div
             data-testid="usage-bar"
@@ -553,36 +852,46 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
           type="button"
           onClick={onPrune}
           className="px-3 h-[30px] rounded-md cursor-pointer bg-white dark:bg-background border border-border font-sans text-xs text-foreground outline-hidden"
-        >spaniel prune</button>
+        >
+          spaniel prune
+        </button>
       </Row>
 
       {/* Per-table stacked bar breakdown */}
-      <Row label="Breakdown" hint="Estimated bytes per table from DuckDB's internal catalogue." testid="row-breakdown">
+      <Row
+        label="Breakdown"
+        hint="Estimated bytes per table from DuckDB's internal catalogue."
+        testid="row-breakdown"
+      >
         <div className="w-[340px] flex flex-col gap-2">
           <div
             data-testid="breakdown-bar"
             className="h-3 rounded-lg bg-muted border border-border overflow-hidden flex"
           >
-            {totalBytes > 0 && TABLE_SEGMENTS.map(seg => {
-              const tbl = breakdown?.tables.find(t => t.name === seg.key)
-              const pct = tbl ? (tbl.approx_bytes / totalBytes) * 100 : 0
-              if (pct < 0.5) return null
-              return (
-                <div
-                  key={seg.key}
-                  data-testid={`breakdown-seg-${seg.key}`}
-                  title={`${seg.label}: ${fmtMB(tbl?.approx_bytes ?? 0)}`}
-                  style={{ width: `${pct}%`, background: seg.color }}
-                />
-              )
-            })}
+            {totalBytes > 0 &&
+              TABLE_SEGMENTS.map((seg) => {
+                const tbl = breakdown?.tables.find((t) => t.name === seg.key)
+                const pct = tbl ? (tbl.approx_bytes / totalBytes) * 100 : 0
+                if (pct < 0.5) return null
+                return (
+                  <div
+                    key={seg.key}
+                    data-testid={`breakdown-seg-${seg.key}`}
+                    title={`${seg.label}: ${fmtMB(tbl?.approx_bytes ?? 0)}`}
+                    style={{ width: `${pct}%`, background: seg.color }}
+                  />
+                )
+              })}
           </div>
           <div className="flex gap-2.5 flex-wrap font-mono text-[10px] text-muted-foreground">
-            {TABLE_SEGMENTS.map(seg => {
-              const tbl = breakdown?.tables.find(t => t.name === seg.key)
+            {TABLE_SEGMENTS.map((seg) => {
+              const tbl = breakdown?.tables.find((t) => t.name === seg.key)
               return (
                 <span key={seg.key} className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-sm inline-block" style={{ background: seg.color }} />
+                  <span
+                    className="w-2 h-2 rounded-sm inline-block"
+                    style={{ background: seg.color }}
+                  />
                   {seg.label}
                   {tbl ? ` · ${fmtMB(tbl.approx_bytes)}` : ''}
                 </span>
@@ -599,12 +908,14 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
               <div className="text-[10px] uppercase tracking-[0.05em] opacity-70 mb-0.5">
                 Top sessions by size
               </div>
-              {breakdown.sessions.slice(0, 5).map(ss => (
+              {breakdown.sessions.slice(0, 5).map((ss) => (
                 <div key={ss.id} className="flex justify-between">
                   <span className="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">
                     {ss.label || ss.id.slice(0, 8)}
                   </span>
-                  <span className="opacity-70">{fmtMB(ss.approx_bytes)} · {ss.span_count} spans</span>
+                  <span className="opacity-70">
+                    {fmtMB(ss.approx_bytes)} · {ss.span_count} spans
+                  </span>
                 </div>
               ))}
             </div>
@@ -613,7 +924,11 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
       </Row>
 
       {/* Compact button */}
-      <Row label="Compact" hint="CHECKPOINT + VACUUM — returns free pages to the OS." testid="row-compact">
+      <Row
+        label="Compact"
+        hint="CHECKPOINT + VACUUM — returns free pages to the OS."
+        testid="row-compact"
+      >
         <button
           type="button"
           data-testid="compact-btn"
@@ -633,32 +948,48 @@ function StorageSection({ s, mutate, hidden, onPrune, onDrop, breakdown, onCompa
         )}
       </Row>
 
-      <Row danger label="Drop all data"
+      <Row
+        danger
+        label="Drop all data"
         hint="Wipe the database and start over. Cannot be undone."
-        testid="row-drop">
+        testid="row-drop"
+      >
         <button
           type="button"
           onClick={onDrop}
           className="px-3.5 h-[30px] rounded-md cursor-pointer bg-transparent border border-danger text-danger font-sans text-xs font-semibold outline-hidden"
-        >drop &amp; recreate</button>
+        >
+          drop &amp; recreate
+        </button>
       </Row>
     </Card>
   )
 }
 
-function GeneralSection({ s, mutate, hidden }: {
-  s: SettingsT; mutate: (patch: SettingsUpdate) => void; hidden: boolean
+function GeneralSection({
+  s,
+  mutate,
+  hidden,
+}: {
+  s: SettingsT
+  mutate: (patch: SettingsUpdate) => void
+  hidden: boolean
 }) {
   const [copied, setCopied] = useState<string | null>(null)
   const endpoint = `${window.location.origin}/mcp`
   const claudeAddCmd = `claude mcp add --transport http spaniel ${endpoint}`
   const codexAddCmd = `codex mcp add spaniel --url ${endpoint}`
   const openCodeAddCmd = `opencode mcp add spaniel --url ${endpoint}`
-  const mcpJson = JSON.stringify({ mcpServers: { spaniel: { type: 'http', url: endpoint } } }, null, 2)
+  const mcpJson = JSON.stringify(
+    { mcpServers: { spaniel: { type: 'http', url: endpoint } } },
+    null,
+    2,
+  )
   const codexConfig = `[mcp_servers.spaniel]\nurl = "${endpoint}"`
 
   const copy = useCallback((key: string, text: string) => {
-    navigator.clipboard?.writeText(text)
+    navigator.clipboard
+      ?.writeText(text)
       .then(() => {
         setCopied(key)
         setTimeout(() => setCopied(null), 1500)
@@ -668,72 +999,146 @@ function GeneralSection({ s, mutate, hidden }: {
 
   return (
     <>
-    <Card id="general" title="General" sub="Startup and self-monitoring" hidden={hidden}>
-      <Row label="Auto-open browser on startup"
-        hint="When the daemon starts, open the spaniel UI in the default browser."
-        testid="row-autoopen">
-        <Toggle on={!s.no_browser} onChange={v => mutate({ no_browser: !v })} label="auto open browser" />
-      </Row>
-      <Row label="Self-monitor"
-        hint="Send Spaniel's own traces, metrics, and structured logs to itself via its OTLP gRPC port. Enables the dogfood loop: see request latency, DB query times, ingest spans, and Spaniel logs in the Traces, Metrics, and Logs tabs. Takes effect immediately."
-        testid="row-self-monitor">
-        <Toggle on={s.self_monitor} onChange={v => mutate({ self_monitor: v })} label="self monitor" />
-        {s.self_monitor && (
-          <span className="font-mono text-[11px] text-muted-foreground">
-            → localhost:{s.runtime.otlp_grpc_port}
-          </span>
-        )}
-      </Row>
-    </Card>
+      <Card id="general" title="General" sub="Startup and self-monitoring" hidden={hidden}>
+        <Row
+          label="Auto-open browser on startup"
+          hint="When the daemon starts, open the spaniel UI in the default browser."
+          testid="row-autoopen"
+        >
+          <Toggle
+            on={!s.no_browser}
+            onChange={(v) => mutate({ no_browser: !v })}
+            label="auto open browser"
+          />
+        </Row>
+        <Row
+          label="Self-monitor"
+          hint="Send Spaniel's own traces, metrics, and structured logs to itself via its OTLP gRPC port. Enables the dogfood loop: see request latency, DB query times, ingest spans, and Spaniel logs in the Traces, Metrics, and Logs tabs. Takes effect immediately."
+          testid="row-self-monitor"
+        >
+          <Toggle
+            on={s.self_monitor}
+            onChange={(v) => mutate({ self_monitor: v })}
+            label="self monitor"
+          />
+          {s.self_monitor && (
+            <span className="font-mono text-[11px] text-muted-foreground">
+              → localhost:{s.runtime.otlp_grpc_port}
+            </span>
+          )}
+        </Row>
+      </Card>
 
-    <Card id="mcp" title="MCP" sub="Model Context Protocol endpoint for AI agents (Codex, Claude Code, Desktop)" hidden={hidden}>
-      <Row label="Endpoint" hint="Streamable-HTTP MCP endpoint served on the UI port." testid="row-mcp-endpoint" align="center">
-        {s.mcp_enabled
-          ? <>
+      <Card
+        id="mcp"
+        title="MCP"
+        sub="Model Context Protocol endpoint for AI agents (Codex, Claude Code, Desktop)"
+        hidden={hidden}
+      >
+        <Row
+          label="Endpoint"
+          hint="Streamable-HTTP MCP endpoint served on the UI port."
+          testid="row-mcp-endpoint"
+          align="center"
+        >
+          {s.mcp_enabled ? (
+            <>
               <code className="font-mono text-xs text-foreground">{endpoint}</code>
               <Pill tone="ok">● enabled</Pill>
             </>
-          : <>
+          ) : (
+            <>
               <Pill tone="warn">disabled</Pill>
               <span className="font-sans text-xs text-muted-foreground">
-                Start with <code className="font-mono text-xs text-foreground">--mcp-enabled</code> or set <code className="font-mono text-xs text-foreground">mcp_enabled: true</code>.
+                Start with <code className="font-mono text-xs text-foreground">--mcp-enabled</code>{' '}
+                or set <code className="font-mono text-xs text-foreground">mcp_enabled: true</code>.
               </span>
-            </>}
-      </Row>
+            </>
+          )}
+        </Row>
 
-      {s.mcp_enabled && (
-        <>
-          <Row label="Write tools" hint="Whether agents can mutate state (create/activate sessions, set baseline, prune)." testid="row-mcp-writes" align="center">
-            {s.mcp_allow_writes
-              ? <>
+        {s.mcp_enabled && (
+          <>
+            <Row
+              label="Write tools"
+              hint="Whether agents can mutate state (create/activate sessions, set baseline, prune)."
+              testid="row-mcp-writes"
+              align="center"
+            >
+              {s.mcp_allow_writes ? (
+                <>
                   <Pill tone="warn">read + write</Pill>
-                  <span className="font-sans text-xs text-muted-foreground">Agents can modify sessions and prune data.</span>
+                  <span className="font-sans text-xs text-muted-foreground">
+                    Agents can modify sessions and prune data.
+                  </span>
                 </>
-              : <>
+              ) : (
+                <>
                   <Pill tone="ok">read-only</Pill>
                   <span className="font-sans text-xs text-muted-foreground">
-                    Enable writes with <code className="font-mono text-xs text-foreground">--mcp-allow-writes</code>.
+                    Enable writes with{' '}
+                    <code className="font-mono text-xs text-foreground">--mcp-allow-writes</code>.
                   </span>
-                </>}
-          </Row>
+                </>
+              )}
+            </Row>
 
-          <Row label="Agent CLI command" hint="Register Spaniel using the command for your agent CLI." testid="row-mcp-connect">
-            <MCPConfigTable entries={[
-              { label: 'Codex', value: codexAddCmd, copied: copied === 'codex-cmd', onCopy: () => copy('codex-cmd', codexAddCmd) },
-              { label: 'OpenCode', value: openCodeAddCmd, copied: copied === 'opencode-cmd', onCopy: () => copy('opencode-cmd', openCodeAddCmd) },
-              { label: 'Claude Code', value: claudeAddCmd, copied: copied === 'claude-cmd', onCopy: () => copy('claude-cmd', claudeAddCmd) },
-            ]} />
-          </Row>
+            <Row
+              label="Agent CLI command"
+              hint="Register Spaniel using the command for your agent CLI."
+              testid="row-mcp-connect"
+            >
+              <MCPConfigTable
+                entries={[
+                  {
+                    label: 'Codex',
+                    value: codexAddCmd,
+                    copied: copied === 'codex-cmd',
+                    onCopy: () => copy('codex-cmd', codexAddCmd),
+                  },
+                  {
+                    label: 'OpenCode',
+                    value: openCodeAddCmd,
+                    copied: copied === 'opencode-cmd',
+                    onCopy: () => copy('opencode-cmd', openCodeAddCmd),
+                  },
+                  {
+                    label: 'Claude Code',
+                    value: claudeAddCmd,
+                    copied: copied === 'claude-cmd',
+                    onCopy: () => copy('claude-cmd', claudeAddCmd),
+                  },
+                ]}
+              />
+            </Row>
 
-          <Row label="Agent file config" hint="Add the configuration for your agent to its config file." testid="row-mcp-agent-config">
-            <MCPConfigTable entries={[
-              { label: '.mcp.json', value: mcpJson, copied: copied === 'json', onCopy: () => copy('json', mcpJson), block: true },
-              { label: '.codex/config.toml', value: codexConfig, copied: copied === 'codex-config', onCopy: () => copy('codex-config', codexConfig), block: true },
-            ]} />
-          </Row>
-        </>
-      )}
-    </Card>
+            <Row
+              label="Agent file config"
+              hint="Add the configuration for your agent to its config file."
+              testid="row-mcp-agent-config"
+            >
+              <MCPConfigTable
+                entries={[
+                  {
+                    label: '.mcp.json',
+                    value: mcpJson,
+                    copied: copied === 'json',
+                    onCopy: () => copy('json', mcpJson),
+                    block: true,
+                  },
+                  {
+                    label: '.codex/config.toml',
+                    value: codexConfig,
+                    copied: copied === 'codex-config',
+                    onCopy: () => copy('codex-config', codexConfig),
+                    block: true,
+                  },
+                ]}
+              />
+            </Row>
+          </>
+        )}
+      </Card>
     </>
   )
 }
@@ -748,7 +1153,15 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
       const { data } = await api.settings.checkUpdates()
       setUpdateResult(data)
     } catch {
-      setUpdateResult({ current: s.runtime.version, latest: '', channel: s.runtime.channel, is_outdated: false, release_notes_url: '', checked_at_ns: 0, error: "couldn't reach github" })
+      setUpdateResult({
+        current: s.runtime.version,
+        latest: '',
+        channel: s.runtime.channel,
+        is_outdated: false,
+        release_notes_url: '',
+        checked_at_ns: 0,
+        error: "couldn't reach github",
+      })
     } finally {
       setCheckingUpdate(false)
     }
@@ -757,9 +1170,7 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
   return (
     <Card id="about" title="About" sub="Build, license, source" hidden={hidden}>
       <Row label="Version" hint="Current binary build." testid="row-version">
-        <code className="font-mono text-xs text-foreground">
-          spaniel {s.runtime.version}
-        </code>
+        <code className="font-mono text-xs text-foreground">spaniel {s.runtime.version}</code>
         <Pill tone="accent">channel: {s.runtime.channel}</Pill>
         <button
           type="button"
@@ -772,17 +1183,20 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
         </button>
         {updateResult && (
           <div data-testid="update-result" className="font-mono text-[11px]">
-            {updateResult.error
-              ? <span className="text-muted-foreground">couldn't reach github</span>
-              : updateResult.is_outdated
-              ? <a
-                  href={updateResult.release_notes_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-accent-d underline decoration-dotted"
-                >↑ {updateResult.latest} available</a>
-              : <span className="text-[#3e6a3e]">✓ on latest ({updateResult.latest})</span>
-            }
+            {updateResult.error ? (
+              <span className="text-muted-foreground">couldn't reach github</span>
+            ) : updateResult.is_outdated ? (
+              <a
+                href={updateResult.release_notes_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent-d underline decoration-dotted"
+              >
+                ↑ {updateResult.latest} available
+              </a>
+            ) : (
+              <span className="text-[#3e6a3e]">✓ on latest ({updateResult.latest})</span>
+            )}
           </div>
         )}
       </Row>
@@ -793,20 +1207,26 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
           target="_blank"
           rel="noreferrer"
           className="font-sans text-xs text-accent-d underline decoration-dotted"
-        >view source</a>
+        >
+          view source
+        </a>
       </Row>
       <Row label="Creator" hint="Who thought of spaniel?" testid="row-creator" align="center">
         <span className="font-sans text-xs text-foreground">Zachary Fogg</span>
         <a
           href="mailto:me@zfo.gg"
           className="font-sans text-xs text-accent-d underline decoration-dotted"
-        >me@zfo.gg</a>
+        >
+          me@zfo.gg
+        </a>
         <a
           href="https://zfo.gg"
           target="_blank"
           rel="noreferrer"
           className="font-sans text-xs text-accent-d underline decoration-dotted"
-        >zfo.gg</a>
+        >
+          zfo.gg
+        </a>
         <span className="font-sans text-xs text-muted-foreground">·</span>
         <span className="font-sans text-xs text-foreground">Claude</span>
         <a
@@ -814,7 +1234,9 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
           target="_blank"
           rel="noreferrer"
           className="font-sans text-xs text-accent-d underline decoration-dotted"
-        >claude.ai</a>
+        >
+          claude.ai
+        </a>
         <span className="font-sans text-xs text-muted-foreground">·</span>
         <span className="font-sans text-xs text-foreground">ChatGPT</span>
         <a
@@ -822,7 +1244,9 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
           target="_blank"
           rel="noreferrer"
           className="font-sans text-xs text-accent-d underline decoration-dotted"
-        >chatgpt.com</a>
+        >
+          chatgpt.com
+        </a>
       </Row>
     </Card>
   )
@@ -841,14 +1265,14 @@ export default function Settings() {
 
   const settingsQuery = useQuery({
     queryKey: qk.settings(),
-    queryFn: () => api.settings.get().then(r => r.data),
+    queryFn: () => api.settings.get().then((r) => r.data),
   })
   const data = settingsQuery.data ?? null
   const error = localError ?? (settingsQuery.isError ? String(settingsQuery.error) : null)
 
   const { data: breakdown = null } = useQuery({
     queryKey: qk.storage(),
-    queryFn: () => api.storage.get().then(r => r.data),
+    queryFn: () => api.storage.get().then((r) => r.data),
   })
 
   // Advisory validation: the form mirrors the (optimistically-updated) server
@@ -862,29 +1286,37 @@ export default function Settings() {
     mode: 'onChange',
   })
   // Re-validate whenever the synced values change so errors track the inputs.
-  useEffect(() => { if (formValues) form.trigger() }, [formValues, form])
+  useEffect(() => {
+    if (formValues) form.trigger()
+  }, [formValues, form])
 
-  const mutate = useCallback(async (patch: SettingsUpdate) => {
-    if (!data) return
-    // Optimistic cache update so toggles & inputs feel snappy.
-    queryClient.setQueryData<SettingsT>(qk.settings(), prev => prev ? { ...prev, ...patch } : prev)
-    setSaving(true)
-    setLocalError(null)
-    try {
-      const r = await api.settings.update(patch)
-      queryClient.setQueryData(qk.settings(), r.data)
-      setSavedAt(Date.now())
-    } catch (e) {
-      setLocalError(String(e))
-      // Refetch to reconcile.
-      queryClient.invalidateQueries({ queryKey: qk.settings() })
-    } finally {
-      setSaving(false)
-    }
-  }, [data, queryClient])
+  const mutate = useCallback(
+    async (patch: SettingsUpdate) => {
+      if (!data) return
+      // Optimistic cache update so toggles & inputs feel snappy.
+      queryClient.setQueryData<SettingsT>(qk.settings(), (prev) =>
+        prev ? { ...prev, ...patch } : prev,
+      )
+      setSaving(true)
+      setLocalError(null)
+      try {
+        const r = await api.settings.update(patch)
+        queryClient.setQueryData(qk.settings(), r.data)
+        setSavedAt(Date.now())
+      } catch (e) {
+        setLocalError(String(e))
+        // Refetch to reconcile.
+        queryClient.invalidateQueries({ queryKey: qk.settings() })
+      } finally {
+        setSaving(false)
+      }
+    },
+    [data, queryClient],
+  )
 
   const onPrune = useCallback(async () => {
-    if (!confirm('Apply retention now? Drops old sessions according to your retention settings.')) return
+    if (!confirm('Apply retention now? Drops old sessions according to your retention settings.'))
+      return
     try {
       const { data: res } = await api.settings.prune()
       const deleted = res.deleted_by_age + res.deleted_by_count + res.deleted_by_size
@@ -893,18 +1325,23 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: qk.settings() })
       queryClient.invalidateQueries({ queryKey: qk.storage() })
       queryClient.invalidateQueries({ queryKey: qk.sessions() })
-      alert(deleted > 0
-        ? `Pruned ${deleted} session${deleted === 1 ? '' : 's'} `
-          + `(age ${res.deleted_by_age}, count ${res.deleted_by_count}, size ${res.deleted_by_size}). `
-          + `${res.final_sessions} remain, ${(res.final_db_size_bytes / 1_048_576).toFixed(1)} MB on disk.`
-        : `Nothing to prune — ${res.final_sessions} session${res.final_sessions === 1 ? '' : 's'} within policy.`)
+      alert(
+        deleted > 0
+          ? `Pruned ${deleted} session${deleted === 1 ? '' : 's'} ` +
+              `(age ${res.deleted_by_age}, count ${res.deleted_by_count}, size ${res.deleted_by_size}). ` +
+              `${res.final_sessions} remain, ${(res.final_db_size_bytes / 1_048_576).toFixed(1)} MB on disk.`
+          : `Nothing to prune — ${res.final_sessions} session${res.final_sessions === 1 ? '' : 's'} within policy.`,
+      )
     } catch (e) {
       alert(`Prune failed: ${e instanceof Error ? e.message : String(e)}`)
     }
   }, [queryClient])
 
   const onDrop = useCallback(async () => {
-    if (!confirm('Drop ALL spans, logs, metrics, sessions, and lint warnings? This cannot be undone.')) return
+    if (
+      !confirm('Drop ALL spans, logs, metrics, sessions, and lint warnings? This cannot be undone.')
+    )
+      return
     try {
       await api.settings.dropAllData()
       setSavedAt(Date.now())
@@ -921,20 +1358,21 @@ export default function Settings() {
     queryClient.invalidateQueries({ queryKey: qk.storage() })
   }, [queryClient])
 
-  const sections = useMemo(() => ([
-    { id: 'general' as const, label: 'General' },
-    { id: 'network' as const, label: 'Network' },
-    { id: 'storage' as const, label: 'Storage' },
-    { id: 'about'   as const, label: 'About' },
-  ]), [])
+  const sections = useMemo(
+    () => [
+      { id: 'general' as const, label: 'General' },
+      { id: 'network' as const, label: 'Network' },
+      { id: 'storage' as const, label: 'Storage' },
+      { id: 'about' as const, label: 'About' },
+    ],
+    [],
+  )
 
   if (error && !data) {
     return (
       <div className="flex-1 flex items-center justify-center p-10">
         <div className="text-center max-w-[460px]">
-          <div className="font-mono text-[13px] text-danger mb-2">
-            Couldn't load settings
-          </div>
+          <div className="font-mono text-[13px] text-danger mb-2">Couldn't load settings</div>
           <div className="font-mono text-[11px] text-muted-foreground">{error}</div>
         </div>
       </div>
@@ -951,69 +1389,92 @@ export default function Settings() {
 
   return (
     <FormProvider {...form}>
-    <div className="flex-1 flex min-h-0 overflow-hidden">
-      {/* sidebar */}
-      <div className="w-[220px] border-r border-border bg-muted py-3.5 px-3 flex flex-col gap-4 shrink-0">
-        <div>
-          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">settings</div>
-          {sections.map(sec => {
-            const on = section === sec.id
-            return (
-              <button
-                key={sec.id}
-                type="button"
-                onClick={() => setSection(sec.id)}
-                className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer text-foreground font-mono text-[11px] outline-hidden text-left mb-0.5 ${on ? 'bg-background border border-border' : 'bg-transparent border border-transparent'}`}
-              >
-                {sec.label}
-              </button>
-            )
-          })}
-        </div>
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* sidebar */}
+        <div className="w-[220px] border-r border-border bg-muted py-3.5 px-3 flex flex-col gap-4 shrink-0">
+          <div>
+            <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">
+              settings
+            </div>
+            {sections.map((sec) => {
+              const on = section === sec.id
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => setSection(sec.id)}
+                  className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer text-foreground font-mono text-[11px] outline-hidden text-left mb-0.5 ${on ? 'bg-background border border-border' : 'bg-transparent border border-transparent'}`}
+                >
+                  {sec.label}
+                </button>
+              )
+            })}
+          </div>
 
-        <div>
-          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">config file</div>
-          <div className="font-mono text-[10.5px] text-foreground py-[5px] px-2 bg-background border border-border rounded-md leading-[1.4] break-all">{data.runtime.config_path}</div>
-        </div>
+          <div>
+            <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">
+              config file
+            </div>
+            <div className="font-mono text-[10.5px] text-foreground py-[5px] px-2 bg-background border border-border rounded-md leading-[1.4] break-all">
+              {data.runtime.config_path}
+            </div>
+          </div>
 
-        <div className="flex-1" />
+          <div className="flex-1" />
 
-        <div
-          data-testid="daemon-pill"
-          className="py-1.5 px-2 rounded-md bg-[#dff0e0] border border-[#9bc4a4] font-mono text-[10.5px] text-[#3e6a3e] flex flex-col gap-0.5"
-        >
-          <span>
-            <span className="w-1.5 h-1.5 rounded-full bg-[#3e6a3e] inline-block mr-1.5" />
-            daemon running
-          </span>
-          <span className="opacity-70">pid {data.runtime.pid} · {fmtUptime(data.runtime.uptime_ns)}</span>
-        </div>
-      </div>
-
-      {/* main */}
-      <div className="flex-1 overflow-x-hidden overflow-y-auto pt-5 px-6 pb-10">
-        <div className="mb-[18px]">
-          <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.18em] mb-1.5">preferences</div>
-          <h1 className="m-0 font-serif text-[28px] font-semibold tracking-[-0.02em] text-foreground">Settings</h1>
-          <div className="font-sans text-[13px] text-muted-foreground mt-1 max-w-[640px]">
-            Saved to <code className="font-mono text-xs text-foreground bg-muted py-px px-1.5 rounded">{data.runtime.config_path}</code>. Port changes take effect after restart.
+          <div
+            data-testid="daemon-pill"
+            className="py-1.5 px-2 rounded-md bg-[#dff0e0] border border-[#9bc4a4] font-mono text-[10.5px] text-[#3e6a3e] flex flex-col gap-0.5"
+          >
+            <span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3e6a3e] inline-block mr-1.5" />
+              daemon running
+            </span>
+            <span className="opacity-70">
+              pid {data.runtime.pid} · {fmtUptime(data.runtime.uptime_ns)}
+            </span>
           </div>
         </div>
 
-        {/* save state strip */}
-        <div data-testid="save-state" className="mb-3 min-h-[18px] font-mono text-[11px]">
-          {error && <span className="text-danger">✗ {error}</span>}
-          {!error && saving && <span className="text-muted-foreground">saving…</span>}
-          {!error && !saving && savedAt && <span className="text-[#3e6a3e]">✓ saved</span>}
-        </div>
+        {/* main */}
+        <div className="flex-1 overflow-x-hidden overflow-y-auto pt-5 px-6 pb-10">
+          <div className="mb-[18px]">
+            <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.18em] mb-1.5">
+              preferences
+            </div>
+            <h1 className="m-0 font-serif text-[28px] font-semibold tracking-[-0.02em] text-foreground">
+              Settings
+            </h1>
+            <div className="font-sans text-[13px] text-muted-foreground mt-1 max-w-[640px]">
+              Saved to{' '}
+              <code className="font-mono text-xs text-foreground bg-muted py-px px-1.5 rounded">
+                {data.runtime.config_path}
+              </code>
+              . Port changes take effect after restart.
+            </div>
+          </div>
 
-        <GeneralSection s={data} mutate={mutate} hidden={section !== 'general'} />
-        <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />
-        <StorageSection s={data} mutate={mutate} hidden={section !== 'storage'}
-          onPrune={onPrune} onDrop={onDrop} breakdown={breakdown} onCompact={onCompact} />
-        <AboutSection s={data} hidden={section !== 'about'} />
+          {/* save state strip */}
+          <div data-testid="save-state" className="mb-3 min-h-[18px] font-mono text-[11px]">
+            {error && <span className="text-danger">✗ {error}</span>}
+            {!error && saving && <span className="text-muted-foreground">saving…</span>}
+            {!error && !saving && savedAt && <span className="text-[#3e6a3e]">✓ saved</span>}
+          </div>
+
+          <GeneralSection s={data} mutate={mutate} hidden={section !== 'general'} />
+          <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />
+          <StorageSection
+            s={data}
+            mutate={mutate}
+            hidden={section !== 'storage'}
+            onPrune={onPrune}
+            onDrop={onDrop}
+            breakdown={breakdown}
+            onCompact={onCompact}
+          />
+          <AboutSection s={data} hidden={section !== 'about'} />
+        </div>
       </div>
-    </div>
     </FormProvider>
   )
 }

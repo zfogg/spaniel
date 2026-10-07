@@ -2,7 +2,11 @@ import { test, expect, type Route, type Page } from '@playwright/test'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 0, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -25,30 +29,40 @@ interface Log {
 function makeLog(overrides: Partial<Log> = {}): Log {
   return {
     timestamp_ns: Date.now() * 1_000_000,
-    trace_id:     '0000000000000000',
-    span_id:      'span-001',
-    severity:     9,   // INFO
-    body:         'default log message',
-    attributes:   '{}',
+    trace_id: '0000000000000000',
+    span_id: 'span-001',
+    severity: 9, // INFO
+    body: 'default log message',
+    attributes: '{}',
     service_name: 'my-service',
-    session_id:   's1',
-    received_at:  0,
+    session_id: 's1',
+    received_at: 0,
     ...overrides,
   }
 }
 
 async function stubLogs(page: Page, logs: Log[], services: string[] = []) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
-    const pathname = new URL(r.request().url()).pathname
-    if (pathname === '/api/stats')
-      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: logs.length, db_size: 0, session_count: 0, oldest_session_at: 0 })
-    if (pathname === '/api/forwarders') return jsonResponse(r, [])
-    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
-    if (pathname === '/api/services') return jsonResponse(r, services)
-    if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
-    return r.continue()
-  })
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route(
+    (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+    (r) => {
+      const pathname = new URL(r.request().url()).pathname
+      if (pathname === '/api/stats')
+        return jsonResponse(r, {
+          span_count: 0,
+          trace_count: 0,
+          log_count: logs.length,
+          db_size: 0,
+          session_count: 0,
+          oldest_session_at: 0,
+        })
+      if (pathname === '/api/forwarders') return jsonResponse(r, [])
+      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+      if (pathname === '/api/services') return jsonResponse(r, services)
+      if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
+      return r.continue()
+    },
+  )
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────
@@ -74,7 +88,7 @@ test.describe('LogViewer', () => {
 
   test('clicking the ERROR chip hides non-error logs', async ({ page }) => {
     await stubLogs(page, [
-      makeLog({ severity: 9,  body: 'Info message here',  span_id: 'span-001' }),
+      makeLog({ severity: 9, body: 'Info message here', span_id: 'span-001' }),
       makeLog({ severity: 17, body: 'Fatal error occurred', span_id: 'span-002' }),
     ])
     await page.goto('/logs')
@@ -94,7 +108,7 @@ test.describe('LogViewer', () => {
   test('search box filters logs by body text', async ({ page }) => {
     await stubLogs(page, [
       makeLog({ body: 'Request received from client', span_id: 'span-a' }),
-      makeLog({ body: 'Database query executed',      span_id: 'span-b' }),
+      makeLog({ body: 'Database query executed', span_id: 'span-b' }),
     ])
     await page.goto('/logs')
 
@@ -127,8 +141,11 @@ test.describe('LogViewer', () => {
     const traceId = 'abcdef1234567890abcdef1234567890'
     await stubLogs(page, [
       makeLog({
-        trace_id: traceId, span_id: 'span-x', severity: 17,
-        service_name: 'pricing', body: 'connection refused: dial tcp 127.0.0.1:5432',
+        trace_id: traceId,
+        span_id: 'span-x',
+        severity: 17,
+        service_name: 'pricing',
+        body: 'connection refused: dial tcp 127.0.0.1:5432',
         attributes: JSON.stringify({ 'error.kind': 'NetworkError', retry: '3' }),
       }),
     ])
@@ -150,9 +167,7 @@ test.describe('LogViewer', () => {
   })
 
   test('Esc closes the inspector', async ({ page }) => {
-    await stubLogs(page, [
-      makeLog({ body: 'click me to open the inspector' }),
-    ])
+    await stubLogs(page, [makeLog({ body: 'click me to open the inspector' })])
     await page.goto('/logs')
 
     await page.getByText('click me to open the inspector').click()
@@ -165,16 +180,16 @@ test.describe('LogViewer', () => {
   test('severity chips are auto-generated from the present severities', async ({ page }) => {
     // Only INFO + ERROR present — DEBUG/WARN/FATAL/TRACE chips should not show.
     await stubLogs(page, [
-      makeLog({ severity: 9,  body: 'info one' }),
+      makeLog({ severity: 9, body: 'info one' }),
       makeLog({ severity: 17, body: 'error one' }),
     ])
     await page.goto('/logs')
 
-    await expect(page.getByRole('button', { name: 'ALL',   exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'INFO',  exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'ALL', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'INFO', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'ERROR', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'DEBUG', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'WARN',  exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'WARN', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'FATAL', exact: true })).toHaveCount(0)
   })
 
@@ -198,19 +213,29 @@ test.describe('LogViewer', () => {
     // Multiple WS connections are created per page (BottomBar × 2, LogViewer's
     // central invalidator × 1), so collect all of them and broadcast to each.
     const serverWsList: import('@playwright/test').WebSocketRoute[] = []
-    await page.routeWebSocket('**/ws', ws => {
+    await page.routeWebSocket('**/ws', (ws) => {
       serverWsList.push(ws)
     })
-    await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
-      const pathname = new URL(r.request().url()).pathname
-      if (pathname === '/api/stats')
-        return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
-      if (pathname === '/api/forwarders') return jsonResponse(r, [])
-      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
-      if (pathname === '/api/services') return jsonResponse(r, [])
-      if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
-      return r.continue()
-    })
+    await page.route(
+      (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+      (r) => {
+        const pathname = new URL(r.request().url()).pathname
+        if (pathname === '/api/stats')
+          return jsonResponse(r, {
+            span_count: 0,
+            trace_count: 0,
+            log_count: 0,
+            db_size: 0,
+            session_count: 0,
+            oldest_session_at: 0,
+          })
+        if (pathname === '/api/forwarders') return jsonResponse(r, [])
+        if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+        if (pathname === '/api/services') return jsonResponse(r, [])
+        if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
+        return r.continue()
+      },
+    )
 
     await page.goto('/logs')
     await expect(page.getByText('No logs yet')).toBeVisible()
@@ -230,7 +255,11 @@ test.describe('LogViewer', () => {
       },
     }
     for (const ws of serverWsList) {
-      try { ws.send(JSON.stringify(logEvent)) } catch { /* connection may be closed */ }
+      try {
+        ws.send(JSON.stringify(logEvent))
+      } catch {
+        /* connection may be closed */
+      }
     }
 
     await expect(page.getByText('live log from websocket')).toBeVisible()

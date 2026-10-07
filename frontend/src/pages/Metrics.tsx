@@ -24,7 +24,11 @@ function defaultMetricOperation(metric: Pick<MetricCatalogEntry, 'name' | 'type'
   if (displayMetricType(metric.type) !== 'histogram') return 'raw'
   // Body-size histograms have an exact sum/count mean. It reacts to changing
   // payloads, unlike a percentile that can stay in the same broad byte bucket.
-  if (metric.name === 'http.server.request.body.size' || metric.name === 'http.server.response.body.size') return 'avg'
+  if (
+    metric.name === 'http.server.request.body.size' ||
+    metric.name === 'http.server.response.body.size'
+  )
+    return 'avg'
   return 'p95'
 }
 
@@ -33,8 +37,22 @@ function MtIcon({ type }: { type: string }) {
   if (type === 'gauge') {
     return (
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-        <path d="M2 10a5 5 0 0 1 10 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-        <line x1="7" y1="10" x2="10" y2="6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <path
+          d="M2 10a5 5 0 0 1 10 0"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <line
+          x1="7"
+          y1="10"
+          x2="10"
+          y2="6"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
         <circle cx="7" cy="10" r="1" fill="currentColor" />
       </svg>
     )
@@ -42,16 +60,29 @@ function MtIcon({ type }: { type: string }) {
   if (type === 'counter') {
     return (
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-        <path d="M2 11 L5 7 L8 9 L12 3" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M9 3h3v3" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+        <path
+          d="M2 11 L5 7 L8 9 L12 3"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M9 3h3v3"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          fill="none"
+          strokeLinecap="round"
+        />
       </svg>
     )
   }
   return (
     <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-      <rect x="2"  y="8" width="2" height="4" fill="currentColor" opacity="0.45" />
-      <rect x="5"  y="5" width="2" height="7" fill="currentColor" opacity="0.7" />
-      <rect x="8"  y="3" width="2" height="9" fill="currentColor" opacity="0.9" />
+      <rect x="2" y="8" width="2" height="4" fill="currentColor" opacity="0.45" />
+      <rect x="5" y="5" width="2" height="7" fill="currentColor" opacity="0.7" />
+      <rect x="8" y="3" width="2" height="9" fill="currentColor" opacity="0.9" />
       <rect x="11" y="6" width="2" height="6" fill="currentColor" opacity="0.6" />
     </svg>
   )
@@ -60,9 +91,11 @@ function MtIcon({ type }: { type: string }) {
 function MetricKindTag({ type }: { type: string }) {
   const displayType = displayMetricType(type)
   const tone =
-    displayType === 'gauge' ? { fg: '#356a99', bd: '#7aa3c5', bg: '#dfe7ef' } :
-    displayType === 'counter' ? { fg: '#3e6a3e', bd: '#88b29a', bg: '#dee9de' } :
-    { fg: '#7a3a23', bd: '#c89a86', bg: '#ecd9cf' }
+    displayType === 'gauge'
+      ? { fg: '#356a99', bd: '#7aa3c5', bg: '#dfe7ef' }
+      : displayType === 'counter'
+        ? { fg: '#3e6a3e', bd: '#88b29a', bg: '#dee9de' }
+        : { fg: '#7a3a23', bd: '#c89a86', bg: '#ecd9cf' }
   return (
     <span
       className="inline-flex items-center gap-1 px-[7px] py-px rounded-[5px] font-mono text-[9px] font-bold tracking-[0.08em] uppercase border"
@@ -77,16 +110,28 @@ function MetricKindTag({ type }: { type: string }) {
 // ── sparkline ────────────────────────────────────────────────────────────────
 
 function Spark({ series, color }: { series: number[]; color: string }) {
-  const w = 60, h = 22
+  const w = 60,
+    h = 22
   if (series.length === 0) return <svg width={w} height={h} />
-  const min = Math.min(...series), max = Math.max(...series)
+  const min = Math.min(...series),
+    max = Math.max(...series)
   const span = max - min || 1
-  const pts = series.map((v, i) =>
-    `${(i / Math.max(1, series.length - 1)) * w},${h - ((v - min) / span) * (h - 2) - 1}`
-  ).join(' ')
+  const pts = series
+    .map(
+      (v, i) =>
+        `${(i / Math.max(1, series.length - 1)) * w},${h - ((v - min) / span) * (h - 2) - 1}`,
+    )
+    .join(' ')
   return (
     <svg width={w} height={h} className="flex-none overflow-visible">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -102,22 +147,36 @@ function useChartSize(ref: React.RefObject<HTMLElement | null>) {
     const update = () => {
       const w = ref.current?.clientWidth || 920
       const h = Math.round(Math.max(320, Math.min(720, window.innerHeight * 0.56)))
-      setSize(prev => (prev.w === w && prev.h === h ? prev : { w, h }))
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
     }
     update()
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
     if (ro && ref.current) ro.observe(ref.current)
     window.addEventListener('resize', update)
-    return () => { ro?.disconnect(); window.removeEventListener('resize', update) }
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', update)
+    }
   }, [ref])
   return size
 }
 
-function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; bucketed: BucketedSeries; traces: TraceOverlay[]; operation: string }) {
+function Chart({
+  metric,
+  bucketed,
+  traces,
+  operation,
+}: {
+  metric: MetricSeries
+  bucketed: BucketedSeries
+  traces: TraceOverlay[]
+  operation: string
+}) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const { w: W, h: H } = useChartSize(wrapRef)
   const P = { l: 56, r: 16, t: 24, b: 36 }
-  const cw = W - P.l - P.r, ch = H - P.t - P.b
+  const cw = W - P.l - P.r,
+    ch = H - P.t - P.b
   // The metric API derives the requested histogram operation for each export
   // interval. Plot that selected series rather than silently replacing it
   // with p50/p95/p99 calculated from raw cumulative buckets.
@@ -152,7 +211,9 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
   return (
     <div className="relative" ref={wrapRef}>
       <svg
-        viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height={H}
         className="block cursor-crosshair"
         onMouseLeave={() => setHoverI(null)}
         onMouseMove={(e) => {
@@ -164,11 +225,23 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
       >
         {ticks.map((v, i) => (
           <g key={i}>
-            <line x1={P.l} x2={W - P.r} y1={yAt(v)} y2={yAt(v)}
-              stroke="var(--border)" strokeWidth="1"
-              strokeDasharray={i === 0 ? '0' : '2 4'} />
-            <text x={P.l - 8} y={yAt(v) + 3} textAnchor="end"
-              fontFamily="var(--font-mono)" fontSize="10" fill="var(--muted-foreground)">
+            <line
+              x1={P.l}
+              x2={W - P.r}
+              y1={yAt(v)}
+              y2={yAt(v)}
+              stroke="var(--border)"
+              strokeWidth="1"
+              strokeDasharray={i === 0 ? '0' : '2 4'}
+            />
+            <text
+              x={P.l - 8}
+              y={yAt(v) + 3}
+              textAnchor="end"
+              fontFamily="var(--font-mono)"
+              fontSize="10"
+              fill="var(--muted-foreground)"
+            >
               {fmtVal(v, metric.unit)}
             </text>
           </g>
@@ -177,16 +250,27 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
         {series.length === 1 ? (
           <g>
             <path d={areaPath(series[0])} fill={COLORS[0]} opacity="0.12" />
-            <path d={linePath(series[0])} fill="none" stroke={COLORS[0]} strokeWidth="2"
-              strokeLinejoin="round" strokeLinecap="round" />
+            <path
+              d={linePath(series[0])}
+              fill="none"
+              stroke={COLORS[0]}
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
           </g>
         ) : (
           series.map((s, i) => (
-            <path key={i} d={linePath(s)} fill="none"
+            <path
+              key={i}
+              d={linePath(s)}
+              fill="none"
               stroke={COLORS[i]}
               strokeWidth={i === series.length - 1 ? 2.4 : 1.6}
               opacity={i === 0 ? 0.7 : 1}
-              strokeLinejoin="round" strokeLinecap="round" />
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
           ))
         )}
 
@@ -198,12 +282,20 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
           if (bin == null) return null
           const x = xAt(bin)
           const isError = t.status_code === 2
-          const isSlow  = t.duration_ns >= 250_000_000 // 250ms
+          const isSlow = t.duration_ns >= 250_000_000 // 250ms
           const tone = isError || isSlow ? 'var(--danger)' : 'var(--ink3)'
           return (
             <g key={t.trace_id} data-testid="metric-trace-marker">
-              <line x1={x} x2={x} y1={P.t} y2={H - P.b}
-                stroke={tone} strokeWidth="1" strokeDasharray="2 3" opacity="0.55" />
+              <line
+                x1={x}
+                x2={x}
+                y1={P.t}
+                y2={H - P.b}
+                stroke={tone}
+                strokeWidth="1"
+                strokeDasharray="2 3"
+                opacity="0.55"
+              />
               <circle cx={x} cy={P.t - 4} r="2.5" fill={tone} />
               <title>{`${t.op} · ${t.trace_id.slice(0, 8)}`}</title>
             </g>
@@ -220,7 +312,8 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
                 <g key={`${i}-${j}`} opacity="0.7" className="cursor-pointer hover:opacity-100">
                   <polygon
                     points={`${x},${P.t - 6} ${x + 2.5},${P.t - 3.5} ${x},${P.t - 1} ${x - 2.5},${P.t - 3.5}`}
-                    fill="var(--accent)" />
+                    fill="var(--accent)"
+                  />
                   <title>{`trace: ${ex.trace_id.slice(0, 8)}`}</title>
                 </g>
               ))}
@@ -230,11 +323,24 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
 
         {hoverI != null && (
           <g>
-            <line x1={xAt(hoverI)} x2={xAt(hoverI)} y1={P.t} y2={H - P.b}
-              stroke="var(--foreground)" strokeWidth="1" />
+            <line
+              x1={xAt(hoverI)}
+              x2={xAt(hoverI)}
+              y1={P.t}
+              y2={H - P.b}
+              stroke="var(--foreground)"
+              strokeWidth="1"
+            />
             {series.map((s, i) => (
-              <circle key={i} cx={xAt(hoverI)} cy={yAt(s[hoverI])} r="3.5"
-                fill="var(--background)" stroke={COLORS[i]} strokeWidth="2" />
+              <circle
+                key={i}
+                cx={xAt(hoverI)}
+                cy={yAt(s[hoverI])}
+                r="3.5"
+                fill="var(--background)"
+                stroke={COLORS[i]}
+                strokeWidth="2"
+              />
             ))}
           </g>
         )}
@@ -274,7 +380,10 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
 
       <div className="flex items-center gap-[18px] pt-2.5 px-4 flex-wrap">
         {LABELS.map((L, i) => (
-          <span key={i} className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+          <span
+            key={i}
+            className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground"
+          >
             <span className="w-[18px] h-[2.4px]" style={{ background: COLORS[i] }} />
             {L}
           </span>
@@ -289,38 +398,66 @@ function Chart({ metric, bucketed, traces, operation }: { metric: MetricSeries; 
 function StatBox({ s }: { s: Stat }) {
   return (
     <div className="px-[18px] py-3.5 border-r border-border">
-      <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">{s.label}</div>
+      <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">
+        {s.label}
+      </div>
       <div
         className="text-[26px] font-semibold leading-[1.05] mt-1"
         style={{
           fontFamily: 'var(--font-serif, serif)',
-          color: s.tone === 'danger' ? '#9a3b3b' : s.tone === 'ok' ? '#3e6a3e' : 'var(--foreground)',
+          color:
+            s.tone === 'danger' ? '#9a3b3b' : s.tone === 'ok' ? '#3e6a3e' : 'var(--foreground)',
         }}
-      >{s.value}</div>
-      {s.sub && (
-        <div className="font-mono text-[10px] text-muted-foreground mt-1">{s.sub}</div>
-      )}
+      >
+        {s.value}
+      </div>
+      {s.sub && <div className="font-mono text-[10px] text-muted-foreground mt-1">{s.sub}</div>}
     </div>
   )
 }
 
 // ── time range ───────────────────────────────────────────────────────────────
 
-type TimeRange = '30s' | '3m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d' | '3mo' | '6mo' | '1yr' | 'all'
-const TIME_RANGES: TimeRange[] = ['30s', '3m', '15m', '1h', '6h', '24h', '7d', '30d', '3mo', '6mo', '1yr', 'all']
+type TimeRange =
+  | '30s'
+  | '3m'
+  | '15m'
+  | '1h'
+  | '6h'
+  | '24h'
+  | '7d'
+  | '30d'
+  | '3mo'
+  | '6mo'
+  | '1yr'
+  | 'all'
+const TIME_RANGES: TimeRange[] = [
+  '30s',
+  '3m',
+  '15m',
+  '1h',
+  '6h',
+  '24h',
+  '7d',
+  '30d',
+  '3mo',
+  '6mo',
+  '1yr',
+  'all',
+]
 
 const RANGE_NS: Record<Exclude<TimeRange, 'all'>, number> = {
-  '30s':  30 * 1_000_000_000,
-  '3m':   3  * 60 * 1_000_000_000,
-  '15m':  15 * 60 * 1_000_000_000,
-  '1h':   60 * 60 * 1_000_000_000,
-  '6h':   6  * 60 * 60 * 1_000_000_000,
-  '24h':  24 * 60 * 60 * 1_000_000_000,
-  '7d':   7  * 24 * 60 * 60 * 1_000_000_000,
-  '30d':  30 * 24 * 60 * 60 * 1_000_000_000,
-  '3mo':  90 * 24 * 60 * 60 * 1_000_000_000,
-  '6mo':  180 * 24 * 60 * 60 * 1_000_000_000,
-  '1yr':  365 * 24 * 60 * 60 * 1_000_000_000,
+  '30s': 30 * 1_000_000_000,
+  '3m': 3 * 60 * 1_000_000_000,
+  '15m': 15 * 60 * 1_000_000_000,
+  '1h': 60 * 60 * 1_000_000_000,
+  '6h': 6 * 60 * 60 * 1_000_000_000,
+  '24h': 24 * 60 * 60 * 1_000_000_000,
+  '7d': 7 * 24 * 60 * 60 * 1_000_000_000,
+  '30d': 30 * 24 * 60 * 60 * 1_000_000_000,
+  '3mo': 90 * 24 * 60 * 60 * 1_000_000_000,
+  '6mo': 180 * 24 * 60 * 60 * 1_000_000_000,
+  '1yr': 365 * 24 * 60 * 60 * 1_000_000_000,
 }
 
 function rangeFromNs(range: TimeRange): number | undefined {
@@ -343,14 +480,29 @@ function displayUnit(unit: string): string {
 // chart needs a narrower path: refresh it from its matching metric event,
 // without waiting for the global one-second invalidation sweep or refetching
 // unrelated metric views.
-function useSelectedMetricLiveRefresh(metric: MetricCatalogEntry | null, range: TimeRange, operation: string) {
+function useSelectedMetricLiveRefresh(
+  metric: MetricCatalogEntry | null,
+  range: TimeRange,
+  operation: string,
+) {
   const queryClient = useQueryClient()
   useEffect(() => {
     if (!metric) return
     let timer: ReturnType<typeof setTimeout> | null = null
-    const key = qk.metricSeries({ name: metric.name, service: metric.service_name, range, operation })
+    const key = qk.metricSeries({
+      name: metric.name,
+      service: metric.service_name,
+      range,
+      operation,
+    })
     const unsubscribe = onWSEvent((event) => {
-			if (event.type !== 'metric' || event.payload.catalogOnly || event.payload.name !== metric.name || event.payload.serviceName !== metric.service_name) return
+      if (
+        event.type !== 'metric' ||
+        event.payload.catalogOnly ||
+        event.payload.name !== metric.name ||
+        event.payload.serviceName !== metric.service_name
+      )
+        return
       if (timer) return
       timer = setTimeout(() => {
         timer = null
@@ -369,39 +521,61 @@ function useSelectedMetricLiveRefresh(metric: MetricCatalogEntry | null, range: 
 // before reloading it. The server orders the catalog by latest point timestamp.
 function useMetricCatalogLiveRefresh() {
   const queryClient = useQueryClient()
-	const [recentUpdates, setRecentUpdates] = useState<Record<string, number>>({})
+  const [recentUpdates, setRecentUpdates] = useState<Record<string, number>>({})
   useEffect(() => {
-		let sequence = 0
-		const pendingUpdates = new Map<string, { sequence: number; count: number; catalogOnly: boolean }>()
-    const refresh = debounce(() => {
-			const updates = Object.fromEntries([...pendingUpdates].map(([key, update]) => [key, update.sequence]))
-			const catalogOnlyUpdates = new Map([...pendingUpdates].filter(([, update]) => update.catalogOnly).map(([key, update]) => [key, update.count]))
-		const hasExternalUpdates = [...pendingUpdates.values()].some(update => !update.catalogOnly)
-			pendingUpdates.clear()
-			setRecentUpdates(previous => ({ ...previous, ...updates }))
-			if (catalogOnlyUpdates.size > 0) {
-				queryClient.setQueryData<MetricCatalogEntry[]>(qk.metrics(), previous => previous?.map(metric => {
-					const count = catalogOnlyUpdates.get(`${metric.service_name}/${metric.name}`)
-					return count === undefined ? metric : { ...metric, sample_count: metric.sample_count + count }
-				}))
-			}
-			if (hasExternalUpdates) {
-				queryClient.invalidateQueries({ queryKey: qk.metrics() })
-			}
-    }, { wait: 2_500 })
+    let sequence = 0
+    const pendingUpdates = new Map<
+      string,
+      { sequence: number; count: number; catalogOnly: boolean }
+    >()
+    const refresh = debounce(
+      () => {
+        const updates = Object.fromEntries(
+          [...pendingUpdates].map(([key, update]) => [key, update.sequence]),
+        )
+        const catalogOnlyUpdates = new Map(
+          [...pendingUpdates]
+            .filter(([, update]) => update.catalogOnly)
+            .map(([key, update]) => [key, update.count]),
+        )
+        const hasExternalUpdates = [...pendingUpdates.values()].some(
+          (update) => !update.catalogOnly,
+        )
+        pendingUpdates.clear()
+        setRecentUpdates((previous) => ({ ...previous, ...updates }))
+        if (catalogOnlyUpdates.size > 0) {
+          queryClient.setQueryData<MetricCatalogEntry[]>(qk.metrics(), (previous) =>
+            previous?.map((metric) => {
+              const count = catalogOnlyUpdates.get(`${metric.service_name}/${metric.name}`)
+              return count === undefined
+                ? metric
+                : { ...metric, sample_count: metric.sample_count + count }
+            }),
+          )
+        }
+        if (hasExternalUpdates) {
+          queryClient.invalidateQueries({ queryKey: qk.metrics() })
+        }
+      },
+      { wait: 2_500 },
+    )
     const unsubscribe = onWSEvent((event) => {
-			if (event.type !== 'metric') return
-			const key = `${event.payload.serviceName}/${event.payload.name}`
-			const previous = pendingUpdates.get(key)
-			pendingUpdates.set(key, { sequence: ++sequence, count: (previous?.count ?? 0) + 1, catalogOnly: (previous?.catalogOnly ?? true) && Boolean(event.payload.catalogOnly) })
-			refresh()
+      if (event.type !== 'metric') return
+      const key = `${event.payload.serviceName}/${event.payload.name}`
+      const previous = pendingUpdates.get(key)
+      pendingUpdates.set(key, {
+        sequence: ++sequence,
+        count: (previous?.count ?? 0) + 1,
+        catalogOnly: (previous?.catalogOnly ?? true) && Boolean(event.payload.catalogOnly),
+      })
+      refresh()
     })
     return () => {
       unsubscribe()
       refresh.cancel()
     }
   }, [queryClient])
-	return recentUpdates
+  return recentUpdates
 }
 
 // ── page ─────────────────────────────────────────────────────────────────────
@@ -411,41 +585,58 @@ export default function Metrics() {
   const [query, setQuery] = useState('')
   const [typeSel, setTypeSel] = useState<string | null>(null)
   const [range, setRange] = useState<TimeRange>('1h')
-	const [operation, setOperation] = useState('raw')
-	const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({})
+  const [operation, setOperation] = useState('raw')
+  const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({})
 
-  const { data: catalog = [], isLoading: loading, isError, error, refetch } = useQuery({
+  const {
+    data: catalog = [],
+    isLoading: loading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: qk.metrics(),
-    queryFn: () => api.metrics.list().then(r => r.data ?? []),
+    queryFn: () => api.metrics.list().then((r) => r.data ?? []),
   })
-	const { data: cardinality = [] } = useQuery({
-		queryKey: ['metric-cardinality'],
-		queryFn: () => api.metrics.cardinality().then(r => r.data ?? []),
-	})
+  const { data: cardinality = [] } = useQuery({
+    queryKey: ['metric-cardinality'],
+    queryFn: () => api.metrics.cardinality().then((r) => r.data ?? []),
+  })
 
   const selectedName = searchParams.get('metric')
   const selectedService = searchParams.get('service')
   const selected = useMemo(() => {
     if (!selectedName || !selectedService) return null
-    return catalog.find(metric => metric.name === selectedName && metric.service_name === selectedService) ?? null
+    return (
+      catalog.find(
+        (metric) => metric.name === selectedName && metric.service_name === selectedService,
+      ) ?? null
+    )
   }, [catalog, selectedName, selectedService])
-	const selectedCardinality = useMemo(() => cardinality.find(stream => stream.name === selected?.name && stream.service_name === selected?.service_name), [cardinality, selected?.name, selected?.service_name])
+  const selectedCardinality = useMemo(
+    () =>
+      cardinality.find(
+        (stream) =>
+          stream.name === selected?.name && stream.service_name === selected?.service_name,
+      ),
+    [cardinality, selected?.name, selected?.service_name],
+  )
 
   // A direct metric URL bypasses selectMetric(), so it must establish the
   // same useful default as a sidebar click. Histogram rows keep value=0 as a
   // transport placeholder; their real visual value is a bucket percentile.
   useEffect(() => {
     if (selected) {
-			setOperation(defaultMetricOperation(selected))
-			setDimensionFilters({})
-		}
+      setOperation(defaultMetricOperation(selected))
+      setDimensionFilters({})
+    }
   }, [selectedName, selectedService, selected?.type])
 
   useSelectedMetricLiveRefresh(selected, range, operation)
   const recentMetricUpdates = useMetricCatalogLiveRefresh()
 
   const selectMetric = (metric: MetricCatalogEntry, replace = false) => {
-		setOperation(defaultMetricOperation(metric))
+    setOperation(defaultMetricOperation(metric))
     const next = new URLSearchParams(searchParams)
     next.set('metric', metric.name)
     next.set('service', metric.service_name)
@@ -461,34 +652,60 @@ export default function Metrics() {
 
   // `range` (not the computed `from`) is the key input so we don't refetch on
   // every render; matching WebSocket metric events refresh this active series.
-  const { data: series = null, isLoading: seriesLoading, isError: seriesIsError, error: seriesError, refetch: refetchSeries } = useQuery({
-		queryKey: qk.metricSeries({ name: selected?.name, service: selected?.service_name, range, operation, dimensionFilters }),
-    queryFn: () => api.metrics
-		.series({ name: selected!.name, service: selected!.service_name, operation, withTraces: true, from: rangeFromNs(range), dimensionFilters })
-      .then(r => r.data),
+  const {
+    data: series = null,
+    isLoading: seriesLoading,
+    isError: seriesIsError,
+    error: seriesError,
+    refetch: refetchSeries,
+  } = useQuery({
+    queryKey: qk.metricSeries({
+      name: selected?.name,
+      service: selected?.service_name,
+      range,
+      operation,
+      dimensionFilters,
+    }),
+    queryFn: () =>
+      api.metrics
+        .series({
+          name: selected!.name,
+          service: selected!.service_name,
+          operation,
+          withTraces: true,
+          from: rangeFromNs(range),
+          dimensionFilters,
+        })
+        .then((r) => r.data),
     enabled: !!selected,
   })
 
   const filtered = useMemo(() => {
-		const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-		const serviceFilters = terms.filter(term => term.startsWith('service=')).map(term => term.slice('service='.length)).filter(Boolean)
-		const textTerms = terms.filter(term => !term.startsWith('service='))
-    return catalog.filter(m => {
-      if (typeSel && m.type !== typeSel) return false
-		if (serviceFilters.length > 0 && !serviceFilters.includes(m.service_name.toLowerCase())) return false
-		if (textTerms.length === 0) return true
-		// Service matching is explicit (`service=name`), so a common service name
-		// does not make ordinary metric-name search look like it has done nothing.
-		const searchable = (m.name + ' ' + (m.description || '')).toLowerCase()
-		return textTerms.every(term => searchable.includes(term))
-		}).sort((a, b) => {
-			const aUpdate = recentMetricUpdates[`${a.service_name}/${a.name}`]
-			const bUpdate = recentMetricUpdates[`${b.service_name}/${b.name}`]
-			if (aUpdate !== undefined || bUpdate !== undefined) return (bUpdate ?? -1) - (aUpdate ?? -1)
-			// The API uses insertion order to break equal scrape timestamps. Returning
-			// zero preserves that already-recency-ordered tie in the stable JS sort.
-			return b.last_timestamp_ns - a.last_timestamp_ns
-		})
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const serviceFilters = terms
+      .filter((term) => term.startsWith('service='))
+      .map((term) => term.slice('service='.length))
+      .filter(Boolean)
+    const textTerms = terms.filter((term) => !term.startsWith('service='))
+    return catalog
+      .filter((m) => {
+        if (typeSel && m.type !== typeSel) return false
+        if (serviceFilters.length > 0 && !serviceFilters.includes(m.service_name.toLowerCase()))
+          return false
+        if (textTerms.length === 0) return true
+        // Service matching is explicit (`service=name`), so a common service name
+        // does not make ordinary metric-name search look like it has done nothing.
+        const searchable = (m.name + ' ' + (m.description || '')).toLowerCase()
+        return textTerms.every((term) => searchable.includes(term))
+      })
+      .sort((a, b) => {
+        const aUpdate = recentMetricUpdates[`${a.service_name}/${a.name}`]
+        const bUpdate = recentMetricUpdates[`${b.service_name}/${b.name}`]
+        if (aUpdate !== undefined || bUpdate !== undefined) return (bUpdate ?? -1) - (aUpdate ?? -1)
+        // The API uses insertion order to break equal scrape timestamps. Returning
+        // zero preserves that already-recency-ordered tie in the stable JS sort.
+        return b.last_timestamp_ns - a.last_timestamp_ns
+      })
   }, [catalog, query, recentMetricUpdates, typeSel])
 
   const groups = useMemo(() => {
@@ -513,12 +730,44 @@ export default function Metrics() {
     return (
       <EmptyState
         title="No metrics yet"
-        hint={<>Point your OTLP exporter at <code>localhost:4318/v1/metrics</code> and spaniel will collect gauges, counters, and histograms here.</>}
+        hint={
+          <>
+            Point your OTLP exporter at <code>localhost:4318/v1/metrics</code> and spaniel will
+            collect gauges, counters, and histograms here.
+          </>
+        }
         glyph={
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <rect x="4" y="20" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-            <rect x="13" y="12" width="6" height="16" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.6" />
-            <rect x="22" y="6" width="6" height="22" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.7" />
+            <rect
+              x="4"
+              y="20"
+              width="6"
+              height="8"
+              rx="1"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              opacity="0.5"
+            />
+            <rect
+              x="13"
+              y="12"
+              width="6"
+              height="16"
+              rx="1"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              opacity="0.6"
+            />
+            <rect
+              x="22"
+              y="6"
+              width="6"
+              height="22"
+              rx="1"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              opacity="0.7"
+            />
           </svg>
         }
       />
@@ -533,14 +782,25 @@ export default function Metrics() {
           <span className="flex w-full min-w-0 items-center gap-[7px] bg-muted border border-border rounded-md px-2.5 h-7">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
               <circle cx="6" cy="6" r="4" stroke="var(--muted-foreground)" strokeWidth="1.4" />
-              <line x1="9.2" y1="9.2" x2="12" y2="12" stroke="var(--muted-foreground)" strokeWidth="1.4" strokeLinecap="round" />
+              <line
+                x1="9.2"
+                y1="9.2"
+                x2="12"
+                y2="12"
+                stroke="var(--muted-foreground)"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
             </svg>
-            <input value={query} onChange={e => setQuery(e.target.value)}
-							placeholder="search metrics…  service=name"
-							className="min-w-0 flex-1 border-none outline-none bg-transparent font-mono text-[11.5px] text-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="search metrics…  service=name"
+              className="min-w-0 flex-1 border-none outline-none bg-transparent font-mono text-[11.5px] text-foreground"
+            />
           </span>
           <div className="flex gap-1.5 flex-wrap">
-            {(['gauge', 'counter', 'sum', 'histogram'] as const).map(t => {
+            {(['gauge', 'counter', 'sum', 'histogram'] as const).map((t) => {
               const on = typeSel === t
               return (
                 <button
@@ -549,7 +809,8 @@ export default function Metrics() {
                   onClick={() => setTypeSel(on ? null : t)}
                   className={`cursor-pointer outline-none px-[9px] py-[3px] rounded-[5px] font-mono text-[10px] font-semibold tracking-[0.06em] uppercase border border-border inline-flex items-center gap-[5px] ${on ? 'bg-[var(--accent,var(--muted))] text-[var(--accent-foreground,var(--foreground))]' : 'bg-muted text-muted-foreground'}`}
                 >
-                  <MtIcon type={t} />{t}
+                  <MtIcon type={t} />
+                  {t}
                 </button>
               )
             })}
@@ -571,8 +832,9 @@ export default function Metrics() {
                   <span className="flex-1" />
                   <span className="text-foreground">{list.length}</span>
                 </div>
-                {list.map(m => {
-                  const isSel = selected?.name === m.name && selected?.service_name === m.service_name
+                {list.map((m) => {
+                  const isSel =
+                    selected?.name === m.name && selected?.service_name === m.service_name
                   return (
                     <button
                       key={m.service_name + '/' + m.name}
@@ -585,12 +847,16 @@ export default function Metrics() {
                       }}
                     >
                       <div className="min-w-0">
-                        <div className="font-mono text-[11px] font-semibold text-foreground overflow-hidden text-ellipsis whitespace-nowrap">{m.name}</div>
+                        <div className="font-mono text-[11px] font-semibold text-foreground overflow-hidden text-ellipsis whitespace-nowrap">
+                          {m.name}
+                        </div>
                         <div className="mt-[3px]">
                           <MetricKindTag type={m.type} />
                         </div>
                       </div>
-                      <span className="font-mono text-[10px] text-muted-foreground text-right">{m.sample_count} pts</span>
+                      <span className="font-mono text-[10px] text-muted-foreground text-right">
+                        {m.sample_count} pts
+                      </span>
                     </button>
                   )
                 })}
@@ -603,63 +869,109 @@ export default function Metrics() {
         <div className="px-3 py-2 border-t border-border bg-[var(--surface2)] font-mono text-[10px] text-muted-foreground flex gap-2.5 items-center shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_0_3px_color-mix(in_oklch,_#22c55e_30%,_transparent)]" />
           <span>otlp/metrics · last {range}</span>
-			{selectedCardinality && <span className="ml-auto" title="Only allowlisted labels can create indexed metric series">series {selectedCardinality.active_series} / {selectedCardinality.limit}</span>}
+          {selectedCardinality && (
+            <span
+              className="ml-auto"
+              title="Only allowlisted labels can create indexed metric series"
+            >
+              series {selectedCardinality.active_series} / {selectedCardinality.limit}
+            </span>
+          )}
         </div>
       </div>
 
       {/* main panel */}
       <div className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col bg-[var(--surface)]">
-		{series && selected ? <MainPanel series={series} range={range} onRangeChange={setRange} operation={operation} onOperationChange={setOperation} dimensionFilters={dimensionFilters} onDimensionFiltersChange={setDimensionFilters} /> : selected && seriesLoading ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Loading selected metric…</div>
+        {series && selected ? (
+          <MainPanel
+            series={series}
+            range={range}
+            onRangeChange={setRange}
+            operation={operation}
+            onOperationChange={setOperation}
+            dimensionFilters={dimensionFilters}
+            onDimensionFiltersChange={setDimensionFilters}
+          />
+        ) : selected && seriesLoading ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">
+            Loading selected metric…
+          </div>
         ) : selected && seriesIsError ? (
           <ErrorState what="selected metric" error={seriesError} onRetry={() => refetchSeries()} />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">Select a metric</div>
+          <div className="flex-1 flex items-center justify-center text-muted-foreground font-mono text-[13px]">
+            Select a metric
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-function MainPanel({ series, range, onRangeChange, operation, onOperationChange, dimensionFilters, onDimensionFiltersChange }: { series: MetricSeries; range: TimeRange; onRangeChange: (r: TimeRange) => void; operation: string; onOperationChange: (op: string) => void; dimensionFilters: Record<string, string>; onDimensionFiltersChange: (filters: Record<string, string>) => void }) {
-	// The server never merges attribute variants. Until a group is selected the
-	// chart shows a complete identity, never an accidental cross-series sum.
-	const [seriesIndex, setSeriesIndex] = useState(0)
-	const [labelsOpen, setLabelsOpen] = useState(false)
-	const [variantsOpen, setVariantsOpen] = useState(false)
-	// Prefer a series that has observations for the selected operation. HTTP
-	// response-body metrics include the WebSocket upgrade as their first complete
-	// attribute set, and its response has no body. Selecting it by default made a
-	// healthy metric look flat even though the ordinary HTTP response series had
-	// non-zero percentile values.
-	useEffect(() => {
-		let bestIndex = -1
-		let widestSpread = -1
-		let highestValue = -1
-		for (const [index, candidate] of (series.series ?? []).entries()) {
-			const values = candidate.points.map(point => point.value).filter(Number.isFinite)
-			if (values.length === 0 || Math.max(...values) === 0) continue
-			const spread = Math.max(...values) - Math.min(...values)
-			const high = Math.max(...values)
-			if (spread > widestSpread || (spread === widestSpread && high > highestValue)) {
-				bestIndex = index
-				widestSpread = spread
-				highestValue = high
-			}
-		}
-		setSeriesIndex(bestIndex >= 0 ? bestIndex : 0)
-	}, [series.name, series.service_name, operation, series.series])
-	const candidates = (series.series ?? []).filter(candidate => Object.entries(dimensionFilters).every(([key, value]) => String(candidate.attributes[key]) === value))
-	const selected = candidates[Math.min(seriesIndex, Math.max(0, candidates.length - 1))]
-	const display = selected ? { ...series, points: selected.points } : series
+function MainPanel({
+  series,
+  range,
+  onRangeChange,
+  operation,
+  onOperationChange,
+  dimensionFilters,
+  onDimensionFiltersChange,
+}: {
+  series: MetricSeries
+  range: TimeRange
+  onRangeChange: (r: TimeRange) => void
+  operation: string
+  onOperationChange: (op: string) => void
+  dimensionFilters: Record<string, string>
+  onDimensionFiltersChange: (filters: Record<string, string>) => void
+}) {
+  // The server never merges attribute variants. Until a group is selected the
+  // chart shows a complete identity, never an accidental cross-series sum.
+  const [seriesIndex, setSeriesIndex] = useState(0)
+  const [labelsOpen, setLabelsOpen] = useState(false)
+  const [variantsOpen, setVariantsOpen] = useState(false)
+  // Prefer a series that has observations for the selected operation. HTTP
+  // response-body metrics include the WebSocket upgrade as their first complete
+  // attribute set, and its response has no body. Selecting it by default made a
+  // healthy metric look flat even though the ordinary HTTP response series had
+  // non-zero percentile values.
+  useEffect(() => {
+    let bestIndex = -1
+    let widestSpread = -1
+    let highestValue = -1
+    for (const [index, candidate] of (series.series ?? []).entries()) {
+      const values = candidate.points.map((point) => point.value).filter(Number.isFinite)
+      if (values.length === 0 || Math.max(...values) === 0) continue
+      const spread = Math.max(...values) - Math.min(...values)
+      const high = Math.max(...values)
+      if (spread > widestSpread || (spread === widestSpread && high > highestValue)) {
+        bestIndex = index
+        widestSpread = spread
+        highestValue = high
+      }
+    }
+    setSeriesIndex(bestIndex >= 0 ? bestIndex : 0)
+  }, [series.name, series.service_name, operation, series.series])
+  const candidates = (series.series ?? []).filter((candidate) =>
+    Object.entries(dimensionFilters).every(
+      ([key, value]) => String(candidate.attributes[key]) === value,
+    ),
+  )
+  const selected = candidates[Math.min(seriesIndex, Math.max(0, candidates.length - 1))]
+  const display = selected ? { ...series, points: selected.points } : series
   const chartType = displayMetricType(series.type)
-	const chartSeries = useMemo(() => ({ ...display, type: chartType }), [display, chartType])
-	const bucketed = useMemo(() => bucketPoints(display.points, chartType), [display, chartType])
+  const chartSeries = useMemo(() => ({ ...display, type: chartType }), [display, chartType])
+  const bucketed = useMemo(() => bucketPoints(display.points, chartType), [display, chartType])
   const stats = useMemo(() => statsFor(chartSeries, bucketed), [chartSeries, bucketed])
-	// Histogram "raw" rows contain count/sum/buckets rather than a scalar
-	// value, so a raw line is always zero. The heatmap below remains the raw
-	// bucket view; chart modes use derived scalar summaries instead.
-	const operations = chartType === 'histogram' ? ['avg', 'p50', 'p90', 'p95', 'p99'] : chartType === 'counter' ? ['raw', 'delta', 'rate'] : ['raw', 'last', 'min', 'max', 'avg']
+  // Histogram "raw" rows contain count/sum/buckets rather than a scalar
+  // value, so a raw line is always zero. The heatmap below remains the raw
+  // bucket view; chart modes use derived scalar summaries instead.
+  const operations =
+    chartType === 'histogram'
+      ? ['avg', 'p50', 'p90', 'p95', 'p99']
+      : chartType === 'counter'
+        ? ['raw', 'delta', 'rate']
+        : ['raw', 'last', 'min', 'max', 'avg']
 
   return (
     <>
@@ -672,79 +984,212 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange,
                 color: svcColor(series.service_name).fg,
                 background: svcColor(series.service_name).bg,
               }}
-            >{series.service_name}</span>
+            >
+              {series.service_name}
+            </span>
             <MetricKindTag type={series.type} />
             {series.unit && (
-              <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">{displayUnit(series.unit)}</span>
+              <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">
+                {displayUnit(series.unit)}
+              </span>
             )}
-			{Object.keys(series.dimensions ?? {}).length > 0 && (
-				<div className="relative flex self-center">
-					<button type="button" onClick={() => setLabelsOpen(open => !open)} aria-expanded={labelsOpen} className="h-[21px] flex items-center px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold leading-none cursor-pointer hover:text-foreground">
-						{Object.keys(series.dimensions ?? {}).length} {Object.keys(series.dimensions ?? {}).length === 1 ? 'label' : 'labels'}<svg aria-hidden="true" viewBox="0 0 10 10" className={`ml-1 inline-block h-2.5 w-2.5 transition-transform ${labelsOpen ? '-rotate-90' : ''}`}><path d="m3 2.5 3 2.5-3 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-					</button>
-					{labelsOpen && <div className="absolute z-20 top-[calc(100%+6px)] left-0 min-w-[240px] max-w-[min(680px,calc(100vw-3rem))] rounded-lg border border-border bg-[var(--surface)] shadow-lg p-2.5">
-						<div className="font-mono text-[10px] text-muted-foreground mb-2">Each line represents one label combination.</div>
-						<div className="flex flex-col gap-1">
-							{Object.entries(series.dimensions ?? {}).map(([key, values]) => <div key={key} className="font-mono text-[10px] px-2 py-1.5 rounded border border-border bg-[var(--surface2)]"><span className="text-foreground font-semibold">{key}</span><span className="text-muted-foreground"> · {values.join(', ')}</span></div>)}
-						</div>
-					</div>}
-				</div>
-			)}
-			{(series.series?.length ?? 0) > 1 && (
-				<div className="relative flex self-center">
-					<button type="button" onClick={() => setVariantsOpen(open => !open)} aria-expanded={variantsOpen} className="h-[21px] flex items-center px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold leading-none cursor-pointer hover:text-foreground">
-						variants · {seriesIndex + 1} / {candidates.length}<svg aria-hidden="true" viewBox="0 0 10 10" className={`ml-1 inline-block h-2.5 w-2.5 transition-transform ${variantsOpen ? '-rotate-90' : ''}`}><path d="m3 2.5 3 2.5-3 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-					</button>
-					{variantsOpen && <div className="absolute z-20 top-[calc(100%+6px)] left-0 min-w-[360px] max-w-[min(680px,calc(100vw-3rem))] rounded-lg border border-border bg-[var(--surface)] shadow-lg p-2.5">
-						<div className="flex flex-wrap gap-2 pb-2.5 border-b border-border">
-							{Object.entries(series.dimensions ?? {}).map(([key, values]) => <label key={key} className="font-mono text-[10px] text-muted-foreground">{key}<select value={dimensionFilters[key] ?? ''} onChange={event => { const next = { ...dimensionFilters }; if (event.target.value) next[key] = event.target.value; else delete next[key]; onDimensionFiltersChange(next); setSeriesIndex(0) }} className="ml-1 bg-[var(--surface2)] border border-border rounded px-1 py-0.5 text-foreground"><option value="">all</option>{values.map(value => <option key={value} value={value}>{value}</option>)}</select></label>)}
-						</div>
-						<div className="mt-2 flex flex-col gap-1 max-h-64 overflow-y-auto">
-							{candidates.map((candidate, index) => {
-								const label = Object.entries(candidate.attributes).map(([k, v]) => `${k}=${String(v)}`).join(', ') || 'no indexed attributes'
-								return <button key={candidate.key} type="button" aria-pressed={index === seriesIndex} onClick={() => { setSeriesIndex(index); setVariantsOpen(false) }} className={`text-left font-mono text-[10px] px-2 py-1.5 rounded border cursor-pointer ${index === seriesIndex ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-[var(--surface2)] text-muted-foreground border-border hover:text-foreground'}`}>{label}</button>
-							})}
-						</div>
-					</div>}
-				</div>
-			)}
+            {Object.keys(series.dimensions ?? {}).length > 0 && (
+              <div className="relative flex self-center">
+                <button
+                  type="button"
+                  onClick={() => setLabelsOpen((open) => !open)}
+                  aria-expanded={labelsOpen}
+                  className="h-[21px] flex items-center px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold leading-none cursor-pointer hover:text-foreground"
+                >
+                  {Object.keys(series.dimensions ?? {}).length}{' '}
+                  {Object.keys(series.dimensions ?? {}).length === 1 ? 'label' : 'labels'}
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 10 10"
+                    className={`ml-1 inline-block h-2.5 w-2.5 transition-transform ${labelsOpen ? '-rotate-90' : ''}`}
+                  >
+                    <path
+                      d="m3 2.5 3 2.5-3 2.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                {labelsOpen && (
+                  <div className="absolute z-20 top-[calc(100%+6px)] left-0 min-w-[240px] max-w-[min(680px,calc(100vw-3rem))] rounded-lg border border-border bg-[var(--surface)] shadow-lg p-2.5">
+                    <div className="font-mono text-[10px] text-muted-foreground mb-2">
+                      Each line represents one label combination.
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {Object.entries(series.dimensions ?? {}).map(([key, values]) => (
+                        <div
+                          key={key}
+                          className="font-mono text-[10px] px-2 py-1.5 rounded border border-border bg-[var(--surface2)]"
+                        >
+                          <span className="text-foreground font-semibold">{key}</span>
+                          <span className="text-muted-foreground"> · {values.join(', ')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {(series.series?.length ?? 0) > 1 && (
+              <div className="relative flex self-center">
+                <button
+                  type="button"
+                  onClick={() => setVariantsOpen((open) => !open)}
+                  aria-expanded={variantsOpen}
+                  className="h-[21px] flex items-center px-[7px] rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold leading-none cursor-pointer hover:text-foreground"
+                >
+                  variants · {seriesIndex + 1} / {candidates.length}
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 10 10"
+                    className={`ml-1 inline-block h-2.5 w-2.5 transition-transform ${variantsOpen ? '-rotate-90' : ''}`}
+                  >
+                    <path
+                      d="m3 2.5 3 2.5-3 2.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                {variantsOpen && (
+                  <div className="absolute z-20 top-[calc(100%+6px)] left-0 min-w-[360px] max-w-[min(680px,calc(100vw-3rem))] rounded-lg border border-border bg-[var(--surface)] shadow-lg p-2.5">
+                    <div className="flex flex-wrap gap-2 pb-2.5 border-b border-border">
+                      {Object.entries(series.dimensions ?? {}).map(([key, values]) => (
+                        <label key={key} className="font-mono text-[10px] text-muted-foreground">
+                          {key}
+                          <select
+                            value={dimensionFilters[key] ?? ''}
+                            onChange={(event) => {
+                              const next = { ...dimensionFilters }
+                              if (event.target.value) next[key] = event.target.value
+                              else delete next[key]
+                              onDimensionFiltersChange(next)
+                              setSeriesIndex(0)
+                            }}
+                            className="ml-1 bg-[var(--surface2)] border border-border rounded px-1 py-0.5 text-foreground"
+                          >
+                            <option value="">all</option>
+                            {values.map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex flex-col gap-1 max-h-64 overflow-y-auto">
+                      {candidates.map((candidate, index) => {
+                        const label =
+                          Object.entries(candidate.attributes)
+                            .map(([k, v]) => `${k}=${String(v)}`)
+                            .join(', ') || 'no indexed attributes'
+                        return (
+                          <button
+                            key={candidate.key}
+                            type="button"
+                            aria-pressed={index === seriesIndex}
+                            onClick={() => {
+                              setSeriesIndex(index)
+                              setVariantsOpen(false)
+                            }}
+                            className={`text-left font-mono text-[10px] px-2 py-1.5 rounded border cursor-pointer ${index === seriesIndex ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-[var(--surface2)] text-muted-foreground border-border hover:text-foreground'}`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <h1 className="mx-0 mt-2 mb-1 font-mono text-xl font-bold tracking-[-0.01em] text-foreground break-all">{series.name}</h1>
+          <h1 className="mx-0 mt-2 mb-1 font-mono text-xl font-bold tracking-[-0.01em] text-foreground break-all">
+            {series.name}
+          </h1>
           {series.description && (
             <div
               className="italic text-[13px] text-muted-foreground max-w-[720px]"
               style={{ fontFamily: 'var(--font-serif, serif)' }}
-            >{series.description}</div>
+            >
+              {series.description}
+            </div>
           )}
         </div>
 
         {/* Range picker */}
-        <select aria-label="Time range" value={range} onChange={event => onRangeChange(event.target.value as TimeRange)} className="h-8 shrink-0 bg-[var(--surface2)] border border-border rounded-lg px-2.5 font-mono text-[11px] font-semibold text-foreground cursor-pointer outline-none" data-testid="range-picker">
-          {TIME_RANGES.map(r => <option key={r} value={r}>{r}</option>)}
+        <select
+          aria-label="Time range"
+          value={range}
+          onChange={(event) => onRangeChange(event.target.value as TimeRange)}
+          className="h-8 shrink-0 bg-[var(--surface2)] border border-border rounded-lg px-2.5 font-mono text-[11px] font-semibold text-foreground cursor-pointer outline-none"
+          data-testid="range-picker"
+        >
+          {TIME_RANGES.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
       </div>
 
       <div className="grid grid-cols-4 border-b border-border">
-        {stats.map((s, i) => <StatBox key={i} s={s} />)}
+        {stats.map((s, i) => (
+          <StatBox key={i} s={s} />
+        ))}
       </div>
-		<div className="px-6 py-2 border-b border-border flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-			<span className="uppercase tracking-[0.1em]">query</span>
-			{operations.map(op => <button key={op} type="button" onClick={() => onOperationChange(op)} className={`px-2 py-1 rounded border cursor-pointer ${operation === op ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'border-border bg-muted hover:text-foreground'}`}>{op}</button>)}
-		</div>
+      <div className="px-6 py-2 border-b border-border flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+        <span className="uppercase tracking-[0.1em]">query</span>
+        {operations.map((op) => (
+          <button
+            key={op}
+            type="button"
+            onClick={() => onOperationChange(op)}
+            className={`px-2 py-1 rounded border cursor-pointer ${operation === op ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'border-border bg-muted hover:text-foreground'}`}
+          >
+            {op}
+          </button>
+        ))}
+      </div>
 
       <div className="pt-[18px] px-4 pb-[22px]">
-		{display.points.length > 0 ? <Chart metric={chartSeries} bucketed={bucketed} traces={series.traces ?? []} operation={operation} /> : (
+        {display.points.length > 0 ? (
+          <Chart
+            metric={chartSeries}
+            bucketed={bucketed}
+            traces={series.traces ?? []}
+            operation={operation}
+          />
+        ) : (
           <div className="rounded-lg border border-dashed border-border bg-[var(--surface2)] px-6 py-12 text-center">
-            <p className="font-mono text-sm font-semibold text-foreground">No points in this time range</p>
-            <p className="mt-2 text-sm text-muted-foreground">Choose a wider range to view earlier samples for this metric.</p>
+            <p className="font-mono text-sm font-semibold text-foreground">
+              No points in this time range
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Choose a wider range to view earlier samples for this metric.
+            </p>
           </div>
         )}
-		{chartType === 'histogram' && display.points.length > 0 && <HistogramHeatmap points={display.points} />}
-		<MetricExemplars points={display.points} />
+        {chartType === 'histogram' && display.points.length > 0 && (
+          <HistogramHeatmap points={display.points} />
+        )}
+        <MetricExemplars points={display.points} />
       </div>
 
       <div className="pt-1 px-6 pb-[22px] font-mono text-[11px] text-muted-foreground">
-		{display.points.length} raw points · bucketed into 60 bins
+        {display.points.length} raw points · bucketed into 60 bins
       </div>
 
       <CorrelatedTracesPanel series={chartSeries} bucketed={bucketed} />
@@ -753,49 +1198,104 @@ function MainPanel({ series, range, onRangeChange, operation, onOperationChange,
 }
 
 function MetricExemplars({ points }: { points: MetricSeries['points'] }) {
-	const navigate = useNavigate()
-	const exemplars = points.flatMap(point => point.exemplars ?? [])
-	if (exemplars.length === 0) return null
-	return <div className="mt-5 border border-border rounded-lg p-3" data-testid="metric-exemplars">
-		<div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground mb-2">exemplars · linked traces</div>
-		<div className="flex flex-wrap gap-1.5">{exemplars.slice(0, 24).map((exemplar, index) => <button key={`${exemplar.trace_id}-${exemplar.span_id}-${index}`} type="button" onClick={() => navigate(`/traces/${exemplar.trace_id}`)} className="font-mono text-[10px] px-2 py-1 rounded border border-border text-[var(--accent)] hover:bg-muted cursor-pointer">{exemplar.trace_id.slice(0, 12)}… / {exemplar.span_id.slice(0, 8)}…</button>)}</div>
-	</div>
+  const navigate = useNavigate()
+  const exemplars = points.flatMap((point) => point.exemplars ?? [])
+  if (exemplars.length === 0) return null
+  return (
+    <div className="mt-5 border border-border rounded-lg p-3" data-testid="metric-exemplars">
+      <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground mb-2">
+        exemplars · linked traces
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {exemplars.slice(0, 24).map((exemplar, index) => (
+          <button
+            key={`${exemplar.trace_id}-${exemplar.span_id}-${index}`}
+            type="button"
+            onClick={() => navigate(`/traces/${exemplar.trace_id}`)}
+            className="font-mono text-[10px] px-2 py-1 rounded border border-border text-[var(--accent)] hover:bg-muted cursor-pointer"
+          >
+            {exemplar.trace_id.slice(0, 12)}… / {exemplar.span_id.slice(0, 8)}…
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function HistogramHeatmap({ points }: { points: MetricSeries['points'] }) {
-	const rows = useMemo(() => {
-		const out: { label: string; values: number[] }[] = []
-		for (const point of points) {
-			const buckets = point.buckets ?? []
-			const bounds = point.bounds ?? []
-			for (let i = 0; i < buckets.length; i++) {
-				if (!out[i]) out[i] = { label: i < bounds.length ? `≤ ${bounds[i]}` : `> ${bounds.length ? bounds[bounds.length - 1] : '∞'}`, values: [] }
-				out[i].values.push(buckets[i])
-			}
-		}
-		return out.reverse()
-	}, [points])
-	const peak = Math.max(1, ...rows.flatMap(row => row.values))
-	return <div className="mt-5 border border-border rounded-lg overflow-hidden" data-testid="histogram-heatmap">
-		<div className="px-3 py-2 border-b border-border font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">bucket heatmap · raw observations</div>
-		<div className="grid" style={{ gridTemplateColumns: `72px repeat(${Math.max(1, points.length)}, minmax(4px, 1fr))` }}>
-			{rows.map(row => <div key={row.label} className="contents"><span className="px-2 py-1 font-mono text-[9px] text-muted-foreground border-b border-border truncate">{row.label}</span>{points.map((_, index) => <span key={`${row.label}-${index}`} title={`${row.label}: ${row.values[index] ?? 0}`} className="min-h-5 border-b border-l border-border" style={{ background: `color-mix(in srgb, var(--accent) ${Math.round(((row.values[index] ?? 0) / peak) * 100)}%, transparent)` }} />)}</div>)}
-		</div>
-	</div>
+  const rows = useMemo(() => {
+    const out: { label: string; values: number[] }[] = []
+    for (const point of points) {
+      const buckets = point.buckets ?? []
+      const bounds = point.bounds ?? []
+      for (let i = 0; i < buckets.length; i++) {
+        if (!out[i])
+          out[i] = {
+            label:
+              i < bounds.length
+                ? `≤ ${bounds[i]}`
+                : `> ${bounds.length ? bounds[bounds.length - 1] : '∞'}`,
+            values: [],
+          }
+        out[i].values.push(buckets[i])
+      }
+    }
+    return out.reverse()
+  }, [points])
+  const peak = Math.max(1, ...rows.flatMap((row) => row.values))
+  return (
+    <div
+      className="mt-5 border border-border rounded-lg overflow-hidden"
+      data-testid="histogram-heatmap"
+    >
+      <div className="px-3 py-2 border-b border-border font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+        bucket heatmap · raw observations
+      </div>
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: `72px repeat(${Math.max(1, points.length)}, minmax(4px, 1fr))`,
+        }}
+      >
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <span className="px-2 py-1 font-mono text-[9px] text-muted-foreground border-b border-border truncate">
+              {row.label}
+            </span>
+            {points.map((_, index) => (
+              <span
+                key={`${row.label}-${index}`}
+                title={`${row.label}: ${row.values[index] ?? 0}`}
+                className="min-h-5 border-b border-l border-border"
+                style={{
+                  background: `color-mix(in srgb, var(--accent) ${Math.round(((row.values[index] ?? 0) / peak) * 100)}%, transparent)`,
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ── correlated-traces panel ──────────────────────────────────────────────────
 
-function CorrelatedTracesPanel({ series, bucketed }: { series: MetricSeries; bucketed: BucketedSeries }) {
+function CorrelatedTracesPanel({
+  series,
+  bucketed,
+}: {
+  series: MetricSeries
+  bucketed: BucketedSeries
+}) {
   const navigate = useNavigate()
   const traces = series.traces ?? []
   if (traces.length === 0) return null
 
   // For value-at-time, prefer the histogram p95 series when present; fall
   // back to the gauge/counter value series. Same source the chart line uses.
-  const valueSeries = series.type === 'histogram'
-    ? (bucketed.p95 ?? bucketed.values)
-    : bucketed.values
+  const valueSeries =
+    series.type === 'histogram' ? (bucketed.p95 ?? bucketed.values) : bucketed.values
   const bins = valueSeries.length
 
   return (
@@ -809,10 +1309,10 @@ function CorrelatedTracesPanel({ series, bucketed }: { series: MetricSeries; buc
         className="grid gap-y-1 font-mono text-[11px]"
         style={{ gridTemplateColumns: '14px 56px 1fr auto auto auto' }}
       >
-        {traces.map(t => {
-          const bin   = xPosForTrace(t, series.points, bins)
-          const v     = valueAtBin(valueSeries, bin)
-          const offs  = relativeOffset(t.start_ns, series.points)
+        {traces.map((t) => {
+          const bin = xPosForTrace(t, series.points, bins)
+          const v = valueAtBin(valueSeries, bin)
+          const offs = relativeOffset(t.start_ns, series.points)
           const isErr = t.status_code === 2
           const isSlow = t.duration_ns >= 250_000_000
           return (

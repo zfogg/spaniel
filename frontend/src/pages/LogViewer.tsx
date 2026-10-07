@@ -31,17 +31,17 @@ function sevBadgeStyle(n: number): React.CSSProperties {
     flexShrink: 0,
     display: 'inline-block',
   }
-  if (n >= 21) return { ...base, color: '#fff',         background: 'var(--danger)' }
+  if (n >= 21) return { ...base, color: '#fff', background: 'var(--danger)' }
   if (n >= 17) return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)' }
-  if (n >= 13) return { ...base, color: 'var(--warn)',   background: 'var(--warn-bg)' }
-  if (n >= 9)  return { ...base, color: 'var(--ink2)',   background: 'transparent' }
-  if (n >= 5)  return { ...base, color: 'var(--ink3)',   background: 'transparent' }
-  return       { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
+  if (n >= 13) return { ...base, color: 'var(--warn)', background: 'var(--warn-bg)' }
+  if (n >= 9) return { ...base, color: 'var(--ink2)', background: 'transparent' }
+  if (n >= 5) return { ...base, color: 'var(--ink3)', background: 'transparent' }
+  return { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
 }
 
 function sevBodyColor(n: number): string {
   if (n >= 13) return 'var(--ink)'
-  if (n >= 9)  return 'var(--ink2)'
+  if (n >= 9) return 'var(--ink2)'
   return 'var(--ink3)'
 }
 
@@ -70,13 +70,56 @@ function chipActiveStyle(chip: SevFilter): React.CSSProperties {
     background: 'transparent',
   }
   switch (chip) {
-    case 'FATAL': return { ...base, color: '#fff',         background: 'var(--danger)',    border: '1px solid var(--danger)' }
-    case 'ERROR': return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)' }
-    case 'WARN':  return { ...base, color: 'var(--warn)',   background: 'var(--warn-bg)',   border: '1px solid var(--warn)' }
-    case 'INFO':  return { ...base, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent)' }
-    case 'DEBUG': return { ...base, color: 'var(--ink3)',   background: 'var(--surface3)', border: '1px solid var(--line)' }
-    case 'TRACE': return { ...base, color: 'var(--ink3)',   background: 'var(--surface3)', border: '1px solid var(--line)', opacity: 0.85 }
-    default:      return { ...base, color: 'var(--ink)',    background: 'var(--surface2)', border: '1px solid var(--line)' }
+    case 'FATAL':
+      return {
+        ...base,
+        color: '#fff',
+        background: 'var(--danger)',
+        border: '1px solid var(--danger)',
+      }
+    case 'ERROR':
+      return {
+        ...base,
+        color: 'var(--danger)',
+        background: 'var(--danger-bg)',
+        border: '1px solid var(--danger)',
+      }
+    case 'WARN':
+      return {
+        ...base,
+        color: 'var(--warn)',
+        background: 'var(--warn-bg)',
+        border: '1px solid var(--warn)',
+      }
+    case 'INFO':
+      return {
+        ...base,
+        color: 'var(--accent)',
+        background: 'var(--accent-bg)',
+        border: '1px solid var(--accent)',
+      }
+    case 'DEBUG':
+      return {
+        ...base,
+        color: 'var(--ink3)',
+        background: 'var(--surface3)',
+        border: '1px solid var(--line)',
+      }
+    case 'TRACE':
+      return {
+        ...base,
+        color: 'var(--ink3)',
+        background: 'var(--surface3)',
+        border: '1px solid var(--line)',
+        opacity: 0.85,
+      }
+    default:
+      return {
+        ...base,
+        color: 'var(--ink)',
+        background: 'var(--surface2)',
+        border: '1px solid var(--line)',
+      }
   }
 }
 
@@ -97,12 +140,12 @@ function chipInactiveStyle(): React.CSSProperties {
 }
 
 export function matchesSevFilter(severity: number, filter: SevFilter): boolean {
-  if (filter === 'ALL')   return true
+  if (filter === 'ALL') return true
   if (filter === 'FATAL') return severity >= 21
   if (filter === 'ERROR') return severity >= 17 && severity < 21
-  if (filter === 'WARN')  return severity >= 13 && severity < 17
-  if (filter === 'INFO')  return severity >= 9  && severity < 13
-  if (filter === 'DEBUG') return severity >= 5  && severity < 9
+  if (filter === 'WARN') return severity >= 13 && severity < 17
+  if (filter === 'INFO') return severity >= 9 && severity < 13
+  if (filter === 'DEBUG') return severity >= 5 && severity < 9
   if (filter === 'TRACE') return severity < 5
   return true
 }
@@ -111,12 +154,21 @@ function logSource(log: Log): string {
   try {
     const source = JSON.parse(log.attributes || '{}')['spaniel.log.source']
     return typeof source === 'string' ? source : 'telemetry'
-  } catch { return 'telemetry' }
+  } catch {
+    return 'telemetry'
+  }
 }
 
 // ── LogRow ────────────────────────────────────────────────────────────────────
 
-function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
+function LogRow({
+  log,
+  i,
+  nowMs,
+  selected,
+  onSelect,
+  navigate,
+}: {
   log: Log
   i: number
   nowMs: number
@@ -131,7 +183,9 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
     ? `color-mix(in oklch, var(--accent) 14%, var(--surface))`
     : hovered
       ? 'var(--surface2)'
-      : i % 2 === 0 ? 'var(--surface)' : 'var(--bg)'
+      : i % 2 === 0
+        ? 'var(--surface)'
+        : 'var(--bg)'
 
   const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
 
@@ -141,7 +195,12 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
       tabIndex={0}
       aria-selected={selected}
       onClick={onSelect}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`grid items-center h-7 border-b border-line2 px-2 gap-1.5 cursor-pointer transition-[background] duration-[70ms] ${selected ? 'border-l-2 border-l-accent-d' : 'border-l-2 border-l-transparent'}`}
@@ -165,11 +224,11 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
 
       {/* service chip */}
       <div className="flex items-center gap-[5px] overflow-hidden min-w-0">
+        <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: c.fg }} />
         <span
-          className="w-[5px] h-[5px] rounded-full shrink-0"
-          style={{ background: c.fg }}
-        />
-        <span title={log.service_name} className="font-mono text-[10.5px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap">
+          title={log.service_name}
+          className="font-mono text-[10.5px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap"
+        >
           {log.service_name}
         </span>
       </div>
@@ -187,7 +246,7 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
         {hasTrace && (
           <button
             type="button"
-            onClick={e => {
+            onClick={(e) => {
               e.stopPropagation()
               const q = log.span_id && !/^0+$/.test(log.span_id) ? `?spanId=${log.span_id}` : ''
               navigate(`/traces/${log.trace_id}${q}`)
@@ -205,7 +264,11 @@ function LogRow({ log, i, nowMs, selected, onSelect, navigate }: {
 
 // ── LogInspector (right panel) ────────────────────────────────────────────────
 
-function LogInspector({ log, onClose, navigate }: {
+function LogInspector({
+  log,
+  onClose,
+  navigate,
+}: {
   log: Log
   onClose: () => void
   navigate: (path: string) => void
@@ -214,7 +277,11 @@ function LogInspector({ log, onClose, navigate }: {
   const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
 
   let attrs: Record<string, unknown> = {}
-  try { attrs = JSON.parse(log.attributes || '{}') } catch { /* empty */ }
+  try {
+    attrs = JSON.parse(log.attributes || '{}')
+  } catch {
+    /* empty */
+  }
   const attrEntries = Object.entries(attrs)
 
   function openTrace() {
@@ -230,9 +297,7 @@ function LogInspector({ log, onClose, navigate }: {
     >
       <header className="flex items-center gap-2 px-[14px] py-2.5 border-b border-line shrink-0">
         <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
-        <span className="font-mono text-[11px] text-ink2">
-          {fmtClock(log.timestamp_ns)}
-        </span>
+        <span className="font-mono text-[11px] text-ink2">{fmtClock(log.timestamp_ns)}</span>
         <div className="flex-1" />
         <button
           type="button"
@@ -248,9 +313,7 @@ function LogInspector({ log, onClose, navigate }: {
         {/* service chip */}
         <div className="flex items-center gap-1.5 mb-2.5">
           <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: c.fg }} />
-          <span className="font-mono text-[11px] text-ink2">
-            {log.service_name || '—'}
-          </span>
+          <span className="font-mono text-[11px] text-ink2">{log.service_name || '—'}</span>
         </div>
 
         {/* body (full, wrapped) */}
@@ -266,9 +329,7 @@ function LogInspector({ log, onClose, navigate }: {
           attributes
         </div>
         {attrEntries.length === 0 ? (
-          <div className="font-mono text-[11px] text-ink3">
-            none
-          </div>
+          <div className="font-mono text-[11px] text-ink3">none</div>
         ) : (
           <JsonView data={attrs} />
         )}
@@ -283,8 +344,18 @@ function LogInspector({ log, onClose, navigate }: {
               className="grid gap-y-[3px] gap-x-2.5 font-mono text-[11px]"
               style={{ gridTemplateColumns: 'auto 1fr' }}
             >
-              {hasTrace && (<><span className="text-ink3">trace</span><span className="text-ink2 break-all">{log.trace_id}</span></>)}
-              {log.span_id && !/^0+$/.test(log.span_id) && (<><span className="text-ink3">span</span><span className="text-ink2 break-all">{log.span_id}</span></>)}
+              {hasTrace && (
+                <>
+                  <span className="text-ink3">trace</span>
+                  <span className="text-ink2 break-all">{log.trace_id}</span>
+                </>
+              )}
+              {log.span_id && !/^0+$/.test(log.span_id) && (
+                <>
+                  <span className="text-ink3">span</span>
+                  <span className="text-ink2 break-all">{log.span_id}</span>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -305,17 +376,16 @@ function LogInspector({ log, onClose, navigate }: {
   )
 }
 
-
 // ── LogViewer ─────────────────────────────────────────────────────────────────
 
 export default function LogViewer() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [filterService, setFilterService] = useState('all')
   const [filterSource, setFilterSource] = useState('all')
-  const [filterSev, setFilterSev]     = useState<SevFilter>('ALL')
+  const [filterSev, setFilterSev] = useState<SevFilter>('ALL')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('1h')
-  const [search, setSearch]           = useState('')
-  const [nowMs, setNowMs]             = useState(() => Date.now())
+  const [search, setSearch] = useState('')
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const navigate = useNavigate()
@@ -325,15 +395,28 @@ export default function LogViewer() {
   // useLiveInvalidation() in App.tsx (throttled), replacing the old initial
   // load + 3s poll + WebSocket-push + client-side dedup machinery.
   const severity = filterSev === 'ALL' ? undefined : filterSev.toLowerCase()
-  const { data: logResponse, isLoading: loading, isError, error, refetch } = useQuery({
+  const {
+    data: logResponse,
+    isLoading: loading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: qk.logs({ severity, traceId, service: filterService, page }),
-    queryFn: () => api.logs.list({ severity, traceId, service: filterService === 'all' ? undefined : filterService, page, limit: PAGE_SIZE }),
+    queryFn: () =>
+      api.logs.list({
+        severity,
+        traceId,
+        service: filterService === 'all' ? undefined : filterService,
+        page,
+        limit: PAGE_SIZE,
+      }),
   })
   const logs = logResponse?.data ?? []
   const logTotal = logResponse?.meta.total ?? 0
   const { data: services = [] } = useQuery({
     queryKey: qk.services(),
-    queryFn: () => api.services.list().then(r => r.data ?? []),
+    queryFn: () => api.services.list().then((r) => r.data ?? []),
   })
 
   // tick relative timestamps every second
@@ -344,26 +427,39 @@ export default function LogViewer() {
 
   // Esc closes the inspector.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedKey(null) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedKey(null)
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const filtered = logs.filter(l => {
+  const filtered = logs.filter((l) => {
     if (filterService !== 'all' && l.service_name !== filterService) return false
     if (!matchesSevFilter(l.severity, filterSev)) return false
     if (filterSource !== 'all' && logSource(l) !== filterSource) return false
     const ageMs = Date.now() - l.timestamp_ns / 1_000_000
-    const limitMs = timeFilter === '15m' ? 900_000 : timeFilter === '1h' ? 3_600_000 : timeFilter === '24h' ? 86_400_000 : Infinity
+    const limitMs =
+      timeFilter === '15m'
+        ? 900_000
+        : timeFilter === '1h'
+          ? 3_600_000
+          : timeFilter === '24h'
+            ? 86_400_000
+            : Infinity
     if (ageMs > limitMs) return false
     if (search) {
       const q = search.toLowerCase()
-      if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q)) return false
+      if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q))
+        return false
     }
     return true
   })
 
-  useEffect(() => { setPage(1); setSelectedKey(null) }, [filterService, filterSource, filterSev, timeFilter, traceId])
+  useEffect(() => {
+    setPage(1)
+    setSelectedKey(null)
+  }, [filterService, filterSource, filterSev, timeFilter, traceId])
 
   const sources = Array.from(new Set(logs.map(logSource))).sort()
 
@@ -371,13 +467,21 @@ export default function LogViewer() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* filter bar */}
       <div className="flex items-center gap-2.5 px-[14px] py-2 bg-surface border-b border-line shrink-0 flex-wrap">
-        {traceId && <button type="button" onClick={() => setSearchParams({})} className="rounded border border-accent-d bg-accent-bg px-2 py-1 font-mono text-[10px] text-accent-ink hover:brightness-110">trace {traceId.slice(0, 8)} ×</button>}
+        {traceId && (
+          <button
+            type="button"
+            onClick={() => setSearchParams({})}
+            className="rounded border border-accent-d bg-accent-bg px-2 py-1 font-mono text-[10px] text-accent-ink hover:brightness-110"
+          >
+            trace {traceId.slice(0, 8)} ×
+          </button>
+        )}
         {/* search */}
         <input
           type="text"
           placeholder="search logs…"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           data-shortcut="search"
           className="w-[260px] h-7 bg-surface2 border border-line rounded-[5px] px-2.5 font-mono text-[11px] text-ink outline-none"
         />
@@ -385,26 +489,47 @@ export default function LogViewer() {
         {/* service filter */}
         <select
           value={filterService}
-          onChange={e => setFilterService(e.target.value)}
+          onChange={(e) => setFilterService(e.target.value)}
           className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none"
         >
           <option value="all">all services</option>
-          {services.map(s => <option key={s} value={s}>{s}</option>)}
+          {services.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
 
-        <select value={filterSource} onChange={e => setFilterSource(e.target.value)} aria-label="Log source" className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none">
+        <select
+          value={filterSource}
+          onChange={(e) => setFilterSource(e.target.value)}
+          aria-label="Log source"
+          className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none"
+        >
           <option value="all">all sources</option>
-          {sources.map(source => <option key={source} value={source}>{source}</option>)}
+          {sources.map((source) => (
+            <option key={source} value={source}>
+              {source}
+            </option>
+          ))}
         </select>
 
-        <select value={timeFilter} onChange={e => setTimeFilter(e.target.value as TimeFilter)} aria-label="Log time range" className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none">
-          <option value="15m">last 15m</option><option value="1h">last hour</option><option value="24h">last 24h</option><option value="all">all time</option>
+        <select
+          value={timeFilter}
+          onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
+          aria-label="Log time range"
+          className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none"
+        >
+          <option value="15m">last 15m</option>
+          <option value="1h">last hour</option>
+          <option value="24h">last 24h</option>
+          <option value="all">all time</option>
         </select>
 
         {/* Keep every severity available even when the newest page has no rows
             at that level; the API searches the full session before limiting. */}
         <div className="flex items-center gap-1">
-          {(['ALL', ...SEV_ORDER] as SevFilter[]).map(chip => (
+          {(['ALL', ...SEV_ORDER] as SevFilter[]).map((chip) => (
             <button
               key={chip}
               type="button"
@@ -423,7 +548,13 @@ export default function LogViewer() {
         <span className="font-mono text-[10px] text-ink3">
           {filtered.length} on this page · {logTotal.toLocaleString()} logs
         </span>
-        <PaginationControls page={page} pageSize={PAGE_SIZE} total={logTotal} itemLabel="logs" onPageChange={setPage} />
+        <PaginationControls
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={logTotal}
+          itemLabel="logs"
+          onPageChange={setPage}
+        />
       </div>
 
       {/* body (list + optional right inspector) */}
@@ -438,13 +569,51 @@ export default function LogViewer() {
           ) : filtered.length === 0 ? (
             <EmptyState
               title="No logs yet"
-              hint={<>Point your OTLP exporter at <code>localhost:4318/v1/logs</code> and logs will stream in here.</>}
+              hint={
+                <>
+                  Point your OTLP exporter at <code>localhost:4318/v1/logs</code> and logs will
+                  stream in here.
+                </>
+              }
               glyph={
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <rect x="6" y="6" width="20" height="20" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-                  <line x1="10" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-                  <line x1="10" y1="16" x2="20" y2="16" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
-                  <line x1="10" y1="20" x2="17" y2="20" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
+                  <rect
+                    x="6"
+                    y="6"
+                    width="20"
+                    height="20"
+                    rx="3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    opacity="0.5"
+                  />
+                  <line
+                    x1="10"
+                    y1="12"
+                    x2="22"
+                    y2="12"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    opacity="0.5"
+                  />
+                  <line
+                    x1="10"
+                    y1="16"
+                    x2="20"
+                    y2="16"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    opacity="0.4"
+                  />
+                  <line
+                    x1="10"
+                    y1="20"
+                    x2="17"
+                    y2="20"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    opacity="0.3"
+                  />
                 </svg>
               }
             />
@@ -456,7 +625,10 @@ export default function LogViewer() {
                 style={{ gridTemplateColumns: '90px 52px 130px 1fr 22px' }}
               >
                 {['time', 'level', 'service', 'body', ''].map((h, i) => (
-                  <div key={i} className="font-mono text-[9px] uppercase tracking-[0.12em] text-ink3">
+                  <div
+                    key={i}
+                    className="font-mono text-[9px] uppercase tracking-[0.12em] text-ink3"
+                  >
                     {h}
                   </div>
                 ))}
@@ -473,7 +645,7 @@ export default function LogViewer() {
                       i={i}
                       nowMs={nowMs}
                       selected={selectedKey === k}
-                      onSelect={() => setSelectedKey(prev => prev === k ? null : k)}
+                      onSelect={() => setSelectedKey((prev) => (prev === k ? null : k))}
                       navigate={navigate}
                     />
                   )
@@ -483,12 +655,13 @@ export default function LogViewer() {
           )}
         </div>
 
-        {selectedKey && (() => {
-          const sel = filtered.find(l => logKey(l) === selectedKey)
-          return sel ? (
-            <LogInspector log={sel} onClose={() => setSelectedKey(null)} navigate={navigate} />
-          ) : null
-        })()}
+        {selectedKey &&
+          (() => {
+            const sel = filtered.find((l) => logKey(l) === selectedKey)
+            return sel ? (
+              <LogInspector log={sel} onClose={() => setSelectedKey(null)} navigate={navigate} />
+            ) : null
+          })()}
       </div>
     </div>
   )

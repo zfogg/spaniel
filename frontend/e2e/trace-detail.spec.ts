@@ -83,91 +83,126 @@ interface Fixture {
   // Optional events keyed by span_id; the /api/spans/:id stub merges them in.
   spanEvents?: Record<string, Array<{ time_ns: number; name: string; attributes: string }>>
   // Optional outbound links keyed by span_id; the /api/spans/:id stub merges them in.
-  spanLinks?: Record<string, Array<{ linked_trace_id: string; linked_span_id: string; trace_state?: string; attributes?: string }>>
+  spanLinks?: Record<
+    string,
+    Array<{
+      linked_trace_id: string
+      linked_span_id: string
+      trace_state?: string
+      attributes?: string
+    }>
+  >
   // Optional reverse links keyed by trace_id; served from
   // GET /api/traces/:id/incoming-links.
-  incomingLinks?: Record<string, Array<{ span_id: string; trace_id: string; linked_trace_id: string; linked_span_id: string; trace_state?: string; attributes?: string }>>
+  incomingLinks?: Record<
+    string,
+    Array<{
+      span_id: string
+      trace_id: string
+      linked_trace_id: string
+      linked_span_id: string
+      trace_state?: string
+      attributes?: string
+    }>
+  >
 }
 
 async function stubBackend(page: Page, fx: Fixture) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
 
   // Single predicate handler for all API routes — avoids LIFO ordering races
   // that can occur when many glob patterns are registered in parallel workers.
-  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
-    const { pathname, searchParams } = new URL(r.request().url())
+  await page.route(
+    (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+    (r) => {
+      const { pathname, searchParams } = new URL(r.request().url())
 
-    if (pathname === '/api/stats')
-      return json(r, { span_count: fx.spans?.length ?? 0, trace_count: 1, log_count: fx.logs?.length ?? 0, db_size: 0, session_count: 1, oldest_session_at: 0 })
-    if (pathname === '/api/forwarders')
-      return json(r, [])
-    if (pathname === '/api/sessions/active')
-      return json(r, { id: 's1', label: 'live' })
-    if (pathname === '/api/sessions')
-      return json(r, [])
-    if (pathname === '/api/services')
-      return json(r, ['api'])
+      if (pathname === '/api/stats')
+        return json(r, {
+          span_count: fx.spans?.length ?? 0,
+          trace_count: 1,
+          log_count: fx.logs?.length ?? 0,
+          db_size: 0,
+          session_count: 1,
+          oldest_session_at: 0,
+        })
+      if (pathname === '/api/forwarders') return json(r, [])
+      if (pathname === '/api/sessions/active') return json(r, { id: 's1', label: 'live' })
+      if (pathname === '/api/sessions') return json(r, [])
+      if (pathname === '/api/services') return json(r, ['api'])
 
-    // Incoming-links reverse lookup — checked before the trace-detail catch.
-    const incomingMatch = pathname.match(/^\/api\/traces\/(.+)\/incoming-links$/)
-    if (incomingMatch) {
-      const tid = incomingMatch[1]
-      return json(r, fx.incomingLinks?.[tid] ?? [])
-    }
+      // Incoming-links reverse lookup — checked before the trace-detail catch.
+      const incomingMatch = pathname.match(/^\/api\/traces\/(.+)\/incoming-links$/)
+      if (incomingMatch) {
+        const tid = incomingMatch[1]
+        return json(r, fx.incomingLinks?.[tid] ?? [])
+      }
 
-    // Trace detail — must be checked before the list fallback.
-    // Merge spanLinks into the span objects so the waterfall badge works.
-    if (pathname === `/api/traces/${TRACE_ID}`) {
-      const spansWithLinks = (fx.spans ?? []).map(s => ({
-        ...s,
-        links: (fx.spanLinks?.[s.span_id] ?? []).map(l => ({
-          span_id: s.span_id, trace_id: s.trace_id, session_id: s.session_id,
-          trace_state: '', attributes: '{}', ...l,
-        })),
-      }))
-      return json(r, spansWithLinks)
-    }
-    if (pathname === '/api/traces')
-      return json(r, [])
+      // Trace detail — must be checked before the list fallback.
+      // Merge spanLinks into the span objects so the waterfall badge works.
+      if (pathname === `/api/traces/${TRACE_ID}`) {
+        const spansWithLinks = (fx.spans ?? []).map((s) => ({
+          ...s,
+          links: (fx.spanLinks?.[s.span_id] ?? []).map((l) => ({
+            span_id: s.span_id,
+            trace_id: s.trace_id,
+            session_id: s.session_id,
+            trace_state: '',
+            attributes: '{}',
+            ...l,
+          })),
+        }))
+        return json(r, spansWithLinks)
+      }
+      if (pathname === '/api/traces') return json(r, [])
 
-    // GET /api/spans/:id — used by the inspector to fetch span events + links.
-    if (pathname.startsWith('/api/spans/')) {
-      const id = pathname.slice('/api/spans/'.length)
-      const base = (fx.spans ?? []).find(s => s.span_id === id)
-      if (!base) return json(r, null)
-      const events = (fx.spanEvents?.[id] ?? []).map(e => ({
-        span_id: id, trace_id: base.trace_id, session_id: base.session_id, ...e,
-      }))
-      const links = (fx.spanLinks?.[id] ?? []).map(l => ({
-        span_id: id, trace_id: base.trace_id, session_id: base.session_id,
-        trace_state: '', attributes: '{}', ...l,
-      }))
-      return json(r, { ...base, events, links })
-    }
-    if (pathname.startsWith('/api/lint'))
-      return json(r, fx.warnings ?? [])
-    if (pathname.startsWith('/api/issues'))
-      return json(r, fx.issues ?? [])
-    if (pathname.startsWith('/api/logs')) {
-      const spanId = searchParams.get('spanId')
-      return json(r, (fx.logs ?? []).filter(l => !spanId || l.span_id === spanId))
-    }
+      // GET /api/spans/:id — used by the inspector to fetch span events + links.
+      if (pathname.startsWith('/api/spans/')) {
+        const id = pathname.slice('/api/spans/'.length)
+        const base = (fx.spans ?? []).find((s) => s.span_id === id)
+        if (!base) return json(r, null)
+        const events = (fx.spanEvents?.[id] ?? []).map((e) => ({
+          span_id: id,
+          trace_id: base.trace_id,
+          session_id: base.session_id,
+          ...e,
+        }))
+        const links = (fx.spanLinks?.[id] ?? []).map((l) => ({
+          span_id: id,
+          trace_id: base.trace_id,
+          session_id: base.session_id,
+          trace_state: '',
+          attributes: '{}',
+          ...l,
+        }))
+        return json(r, { ...base, events, links })
+      }
+      if (pathname.startsWith('/api/lint')) return json(r, fx.warnings ?? [])
+      if (pathname.startsWith('/api/issues')) return json(r, fx.issues ?? [])
+      if (pathname.startsWith('/api/logs')) {
+        const spanId = searchParams.get('spanId')
+        return json(
+          r,
+          (fx.logs ?? []).filter((l) => !spanId || l.span_id === spanId),
+        )
+      }
 
-    // Export endpoint — returns a minimal OTLP JSON attachment.
-    const exportMatch = pathname.match(/^\/api\/traces\/(.+)\/export$/)
-    if (exportMatch) {
-      return r.fulfill({
-        status: 200,
-        headers: {
-          'content-type': 'application/json',
-          'content-disposition': `attachment; filename="trace-${exportMatch[1].slice(0, 8)}.json"`,
-        },
-        body: JSON.stringify({ resourceSpans: [] }),
-      })
-    }
+      // Export endpoint — returns a minimal OTLP JSON attachment.
+      const exportMatch = pathname.match(/^\/api\/traces\/(.+)\/export$/)
+      if (exportMatch) {
+        return r.fulfill({
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'content-disposition': `attachment; filename="trace-${exportMatch[1].slice(0, 8)}.json"`,
+          },
+          body: JSON.stringify({ resourceSpans: [] }),
+        })
+      }
 
-    return r.continue()
-  })
+      return r.continue()
+    },
+  )
 }
 
 // ── shared fixture: 5-span trace, 100ms total ────────────────────────────────
@@ -175,18 +210,48 @@ async function stubBackend(page: Page, fx: Fixture) {
 function makeTrace(): Required<Pick<Fixture, 'spans'>> {
   return {
     spans: [
-      span({ span_id: 'root', name: 'GET /cart', service_name: 'api', start_ns: 0, duration_ns: 100_000_000,
-        attributes: { 'http.request.method': 'GET', 'http.route': '/cart' } }),
-      span({ span_id: 'auth', parent_span_id: 'root', name: 'authenticate', service_name: 'api',
-        start_ns: 5_000_000, duration_ns: 10_000_000 }),
-      span({ span_id: 'db1', parent_span_id: 'root', name: 'SELECT items', service_name: 'postgres',
-        start_ns: 20_000_000, duration_ns: 30_000_000,
-        attributes: { 'db.system': 'postgresql', 'db.statement': 'SELECT * FROM items' } }),
-      span({ span_id: 'db2', parent_span_id: 'root', name: 'SELECT promos', service_name: 'postgres',
-        start_ns: 55_000_000, duration_ns: 40_000_000,
-        attributes: { 'db.system': 'postgresql', 'db.statement': 'SELECT * FROM promos' } }),
-      span({ span_id: 'render', parent_span_id: 'root', name: 'render', service_name: 'api',
-        start_ns: 95_000_000, duration_ns: 4_000_000 }),
+      span({
+        span_id: 'root',
+        name: 'GET /cart',
+        service_name: 'api',
+        start_ns: 0,
+        duration_ns: 100_000_000,
+        attributes: { 'http.request.method': 'GET', 'http.route': '/cart' },
+      }),
+      span({
+        span_id: 'auth',
+        parent_span_id: 'root',
+        name: 'authenticate',
+        service_name: 'api',
+        start_ns: 5_000_000,
+        duration_ns: 10_000_000,
+      }),
+      span({
+        span_id: 'db1',
+        parent_span_id: 'root',
+        name: 'SELECT items',
+        service_name: 'postgres',
+        start_ns: 20_000_000,
+        duration_ns: 30_000_000,
+        attributes: { 'db.system': 'postgresql', 'db.statement': 'SELECT * FROM items' },
+      }),
+      span({
+        span_id: 'db2',
+        parent_span_id: 'root',
+        name: 'SELECT promos',
+        service_name: 'postgres',
+        start_ns: 55_000_000,
+        duration_ns: 40_000_000,
+        attributes: { 'db.system': 'postgresql', 'db.statement': 'SELECT * FROM promos' },
+      }),
+      span({
+        span_id: 'render',
+        parent_span_id: 'root',
+        name: 'render',
+        service_name: 'api',
+        start_ns: 95_000_000,
+        duration_ns: 4_000_000,
+      }),
     ],
   }
 }
@@ -241,11 +306,20 @@ test.describe('Trace detail page', () => {
     const { spans } = makeTrace()
     await stubBackend(page, {
       spans,
-      issues: [{
-        id: 'iss-1', trace_id: TRACE_ID, session_id: 's1', kind: 'n_plus_one',
-        fingerprint: 'SELECT * FROM items', count: 12, wasted_ns: 20_000_000,
-        parent_span_id: 'root', example_span_id: 'db1', created_at: 0,
-      }],
+      issues: [
+        {
+          id: 'iss-1',
+          trace_id: TRACE_ID,
+          session_id: 's1',
+          kind: 'n_plus_one',
+          fingerprint: 'SELECT * FROM items',
+          count: 12,
+          wasted_ns: 20_000_000,
+          parent_span_id: 'root',
+          example_span_id: 'db1',
+          created_at: 0,
+        },
+      ],
     })
     await page.goto(`/traces/${TRACE_ID}`)
     await expect(page.getByText('SELECT items', { exact: true })).toBeVisible()
@@ -254,16 +328,26 @@ test.describe('Trace detail page', () => {
     await expect(page.getByText('n+1', { exact: true }).first()).toBeVisible()
   })
 
-  test('inspector shows the N+1 SUSPECTED callout with fingerprint + wasted ns', async ({ page }) => {
+  test('inspector shows the N+1 SUSPECTED callout with fingerprint + wasted ns', async ({
+    page,
+  }) => {
     const { spans } = makeTrace()
     await stubBackend(page, {
       spans,
-      issues: [{
-        id: 'iss-1', trace_id: TRACE_ID, session_id: 's1', kind: 'n_plus_one',
-        fingerprint: 'SELECT * FROM items WHERE sku = ?',
-        count: 12, wasted_ns: 20_000_000,
-        parent_span_id: 'root', example_span_id: 'db1', created_at: 0,
-      }],
+      issues: [
+        {
+          id: 'iss-1',
+          trace_id: TRACE_ID,
+          session_id: 's1',
+          kind: 'n_plus_one',
+          fingerprint: 'SELECT * FROM items WHERE sku = ?',
+          count: 12,
+          wasted_ns: 20_000_000,
+          parent_span_id: 'root',
+          example_span_id: 'db1',
+          created_at: 0,
+        },
+      ],
     })
     await page.goto(`/traces/${TRACE_ID}`)
     await page.getByText('SELECT items', { exact: true }).click()
@@ -277,15 +361,26 @@ test.describe('Trace detail page', () => {
     await expect(callout.getByText('WHERE … IN (?)')).toBeVisible() // fix hint
   })
 
-  test('inspector hides the N+1 callout for non-DB spans even with sibling issues', async ({ page }) => {
+  test('inspector hides the N+1 callout for non-DB spans even with sibling issues', async ({
+    page,
+  }) => {
     const { spans } = makeTrace()
     await stubBackend(page, {
       spans,
-      issues: [{
-        id: 'iss-1', trace_id: TRACE_ID, session_id: 's1', kind: 'n_plus_one',
-        fingerprint: 'SELECT * FROM items', count: 12, wasted_ns: 20_000_000,
-        parent_span_id: 'root', example_span_id: 'db1', created_at: 0,
-      }],
+      issues: [
+        {
+          id: 'iss-1',
+          trace_id: TRACE_ID,
+          session_id: 's1',
+          kind: 'n_plus_one',
+          fingerprint: 'SELECT * FROM items',
+          count: 12,
+          wasted_ns: 20_000_000,
+          parent_span_id: 'root',
+          example_span_id: 'db1',
+          created_at: 0,
+        },
+      ],
     })
     await page.goto(`/traces/${TRACE_ID}`)
     // `authenticate` shares the root parent with the flagged db span but has
@@ -298,12 +393,17 @@ test.describe('Trace detail page', () => {
     const { spans } = makeTrace()
     await stubBackend(page, {
       spans,
-      warnings: [{
-        span_id: 'auth', trace_id: TRACE_ID, session_id: 's1',
-        rule_id: 'http.missing_status_code',
-        message: 'HTTP span is missing http.response.status_code',
-        severity: 'warn', created_at: 0,
-      }],
+      warnings: [
+        {
+          span_id: 'auth',
+          trace_id: TRACE_ID,
+          session_id: 's1',
+          rule_id: 'http.missing_status_code',
+          message: 'HTTP span is missing http.response.status_code',
+          severity: 'warn',
+          created_at: 0,
+        },
+      ],
     })
     await page.goto(`/traces/${TRACE_ID}`)
     await expect(page.getByText('authenticate', { exact: true })).toBeVisible()
@@ -332,12 +432,19 @@ test.describe('Trace detail page', () => {
     const { spans } = makeTrace()
     await stubBackend(page, {
       spans,
-      logs: [{
-        timestamp_ns: 25_000_000, trace_id: TRACE_ID, span_id: 'db1',
-        severity: 9, body: 'slow query: SELECT * FROM items',
-        attributes: '{}', service_name: 'postgres',
-        session_id: 's1', received_at: 0,
-      }],
+      logs: [
+        {
+          timestamp_ns: 25_000_000,
+          trace_id: TRACE_ID,
+          span_id: 'db1',
+          severity: 9,
+          body: 'slow query: SELECT * FROM items',
+          attributes: '{}',
+          service_name: 'postgres',
+          session_id: 's1',
+          received_at: 0,
+        },
+      ],
     })
     await page.goto(`/traces/${TRACE_ID}`)
     await expect(page.getByText('SELECT items', { exact: true })).toBeVisible()
@@ -348,7 +455,9 @@ test.describe('Trace detail page', () => {
     await expect(page.getByText('slow query: SELECT * FROM items')).toBeVisible()
   })
 
-  test('inspector renders span events with relative timestamps + exception stack', async ({ page }) => {
+  test('inspector renders span events with relative timestamps + exception stack', async ({
+    page,
+  }) => {
     const { spans } = makeTrace()
     // db1 starts at +20ms (20_000_000 ns) into the trace; events are offsets from that.
     const db1Start = 20_000_000
@@ -356,12 +465,14 @@ test.describe('Trace detail page', () => {
       spans,
       spanEvents: {
         db1: [
-          { time_ns: db1Start + 400_000,    name: 'pg.connection.acquired', attributes: '{}' },
-          { time_ns: db1Start + 6_100_000,  name: 'pg.row.fetched',         attributes: '{"rows":1}' },
-          { time_ns: db1Start + 7_800_000,  name: 'exception',
+          { time_ns: db1Start + 400_000, name: 'pg.connection.acquired', attributes: '{}' },
+          { time_ns: db1Start + 6_100_000, name: 'pg.row.fetched', attributes: '{"rows":1}' },
+          {
+            time_ns: db1Start + 7_800_000,
+            name: 'exception',
             attributes: JSON.stringify({
-              'exception.type':       'DBError',
-              'exception.message':    'deadlock detected',
+              'exception.type': 'DBError',
+              'exception.message': 'deadlock detected',
               'exception.stacktrace': 'at queryRow (db.go:42)\nat fetchItem (svc.go:17)',
             }),
           },
@@ -396,12 +507,14 @@ test.describe('Trace detail page', () => {
   test('selecting a span with links shows the inspector links section', async ({ page }) => {
     const fx = makeTrace() as Fixture
     fx.spanLinks = {
-      db1: [{
-        linked_trace_id: 'producer-trace-id',
-        linked_span_id:  'producer-span-id',
-        trace_state: '',
-        attributes: '{}',
-      }],
+      db1: [
+        {
+          linked_trace_id: 'producer-trace-id',
+          linked_span_id: 'producer-span-id',
+          trace_state: '',
+          attributes: '{}',
+        },
+      ],
     }
     await stubBackend(page, fx)
     await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
@@ -419,7 +532,14 @@ test.describe('Trace detail page', () => {
   test('clicking an inspector link navigates to the linked trace', async ({ page }) => {
     const fx = makeTrace() as Fixture
     fx.spanLinks = {
-      db1: [{ linked_trace_id: 'linked-trace-id', linked_span_id: 'linked-span-id', trace_state: '', attributes: '{}' }],
+      db1: [
+        {
+          linked_trace_id: 'linked-trace-id',
+          linked_span_id: 'linked-span-id',
+          trace_state: '',
+          attributes: '{}',
+        },
+      ],
     }
     await stubBackend(page, fx)
     await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
@@ -429,7 +549,7 @@ test.describe('Trace detail page', () => {
   })
 
   test('a span with no links does NOT render the links section', async ({ page }) => {
-    await stubBackend(page, makeTrace())  // no spanLinks fixture
+    await stubBackend(page, makeTrace()) // no spanLinks fixture
     await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
     // Wait for the inspector itself to mount via the events section call.
     await expect(page.getByText('db.statement').first()).toBeVisible()
@@ -439,10 +559,14 @@ test.describe('Trace detail page', () => {
   test('incoming links section appears when /incoming-links returns results', async ({ page }) => {
     const fx = makeTrace() as Fixture
     fx.incomingLinks = {
-      [TRACE_ID]: [{
-        span_id: 'caller-span', trace_id: 'caller-trace',
-        linked_trace_id: TRACE_ID, linked_span_id: 'db1',
-      }],
+      [TRACE_ID]: [
+        {
+          span_id: 'caller-span',
+          trace_id: 'caller-trace',
+          linked_trace_id: TRACE_ID,
+          linked_span_id: 'db1',
+        },
+      ],
     }
     await stubBackend(page, fx)
     await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
@@ -456,7 +580,14 @@ test.describe('Trace detail page', () => {
   test('a span with links shows the chain badge on its waterfall row', async ({ page }) => {
     const fx = makeTrace() as Fixture
     fx.spanLinks = {
-      db1: [{ linked_trace_id: 'producer-trace-id', linked_span_id: 'producer-span-id', trace_state: '', attributes: '{}' }],
+      db1: [
+        {
+          linked_trace_id: 'producer-trace-id',
+          linked_span_id: 'producer-span-id',
+          trace_state: '',
+          attributes: '{}',
+        },
+      ],
     }
     await stubBackend(page, fx)
     await page.goto(`/traces/${TRACE_ID}`)
@@ -485,9 +616,14 @@ test.describe('Trace detail page', () => {
 
     // Inject a clipboard spy before any interaction.
     await page.evaluate(() => {
-      (window as unknown as Record<string, unknown>).__clipboard = ''
+      ;(window as unknown as Record<string, unknown>).__clipboard = ''
       Object.defineProperty(navigator, 'clipboard', {
-        value: { writeText: (t: string) => { (window as unknown as Record<string, unknown>).__clipboard = t; return Promise.resolve() } },
+        value: {
+          writeText: (t: string) => {
+            ;(window as unknown as Record<string, unknown>).__clipboard = t
+            return Promise.resolve()
+          },
+        },
         configurable: true,
       })
     })
@@ -500,8 +636,8 @@ test.describe('Trace detail page', () => {
 
     await page.getByTestId('btn-share').click()
 
-    const clipText = await page.evaluate(() =>
-      (window as unknown as Record<string, unknown>).__clipboard as string
+    const clipText = await page.evaluate(
+      () => (window as unknown as Record<string, unknown>).__clipboard as string,
     )
     expect(clipText).toContain('span=auth')
     expect(clipText).toContain('view=')
@@ -528,7 +664,10 @@ test.describe('Trace detail page', () => {
     await page.goto(`/traces/${TRACE_ID}?span=db1&view=flame`)
 
     // Flame view should be active (the toggle pill shows "Flame" as selected).
-    await expect(page.getByRole('button', { name: /Flame/i })).toHaveAttribute('class', /bg-background/)
+    await expect(page.getByRole('button', { name: /Flame/i })).toHaveAttribute(
+      'class',
+      /bg-background/,
+    )
 
     // The inspector for db1 (SELECT items) should be pre-loaded.
     await expect(page.getByText('postgres').first()).toBeVisible()

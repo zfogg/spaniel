@@ -2,7 +2,11 @@ import { test, expect, type Route, type Page } from '@playwright/test'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 0, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -21,35 +25,52 @@ interface MetricFixture {
     last_timestamp_ns?: number
   }>
   // keyed by "<service>/<name>"
-  series: Record<string, {
-    name: string
-    service_name: string
-    type: 'gauge' | 'counter' | 'histogram'
-    unit: string
-    description: string
-    points: Array<{ timestamp_ns: number; value: number; percentile?: 'p50' | 'p95' | 'p99' }>
-    traces?: Array<{ trace_id: string; op: string; service: string; status_code: number; start_ns: number; end_ns: number; duration_ns: number }>
-  }>
+  series: Record<
+    string,
+    {
+      name: string
+      service_name: string
+      type: 'gauge' | 'counter' | 'histogram'
+      unit: string
+      description: string
+      points: Array<{ timestamp_ns: number; value: number; percentile?: 'p50' | 'p95' | 'p99' }>
+      traces?: Array<{
+        trace_id: string
+        op: string
+        service: string
+        status_code: number
+        start_ns: number
+        end_ns: number
+        duration_ns: number
+      }>
+    }
+  >
 }
 
 async function stubMetrics(page: Page, fx: MetricFixture) {
   // Block websocket and the chrome periphery so the Metrics page is the only thing exercised.
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route('**/api/stats*', r => jsonResponse(r, {
-    span_count: 0, trace_count: 0, log_count: 0, db_size: 0,
-    session_count: 0, oldest_session_at: 0,
-  }))
-  await page.route('**/api/forwarders', r => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', r => jsonResponse(r, { id: '', label: '' }))
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route('**/api/stats*', (r) =>
+    jsonResponse(r, {
+      span_count: 0,
+      trace_count: 0,
+      log_count: 0,
+      db_size: 0,
+      session_count: 0,
+      oldest_session_at: 0,
+    }),
+  )
+  await page.route('**/api/forwarders', (r) => jsonResponse(r, []))
+  await page.route('**/api/sessions/active', (r) => jsonResponse(r, { id: '', label: '' }))
 
   // Predicate matcher — globs interpret `?` as a wildcard, so we use a
   // function to disambiguate /api/metrics from /api/metrics/series cleanly.
   await page.route(
-    url => {
+    (url) => {
       const path = new URL(url.toString()).pathname
       return path === '/api/metrics' || path === '/api/metrics/series'
     },
-    r => {
+    (r) => {
       const url = new URL(r.request().url())
       if (url.pathname === '/api/metrics/series') {
         const name = url.searchParams.get('name') || ''
@@ -58,10 +79,24 @@ async function stubMetrics(page: Page, fx: MetricFixture) {
         // Always include the `traces` field (the server contract guarantees [] when none).
         const filled = series
           ? { ...series, traces: series.traces ?? [] }
-          : { name, service_name: service, type: 'gauge', unit: '', description: '', points: [], traces: [] }
+          : {
+              name,
+              service_name: service,
+              type: 'gauge',
+              unit: '',
+              description: '',
+              points: [],
+              traces: [],
+            }
         return jsonResponse(r, filled)
       }
-      return jsonResponse(r, fx.catalog.map((metric, index) => ({ ...metric, last_timestamp_ns: metric.last_timestamp_ns ?? index })))
+      return jsonResponse(
+        r,
+        fx.catalog.map((metric, index) => ({
+          ...metric,
+          last_timestamp_ns: metric.last_timestamp_ns ?? index,
+        })),
+      )
     },
   )
 }
@@ -80,13 +115,37 @@ test.describe('Metrics page', () => {
   test('renders the catalog grouped by service with kind tags', async ({ page }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'http.requests', service_name: 'api',      type: 'counter',   unit: 'req',  description: 'inbound HTTP requests', sample_count: 12 },
-        { name: 'http.dur',      service_name: 'api',      type: 'histogram', unit: 'ms',   description: 'request duration',      sample_count: 30 },
-        { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',     unit: 'conn', description: 'live connections',      sample_count: 8  },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'inbound HTTP requests',
+          sample_count: 12,
+        },
+        {
+          name: 'http.dur',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'ms',
+          description: 'request duration',
+          sample_count: 30,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: 'live connections',
+          sample_count: 8,
+        },
       ],
       series: {
         'api/http.requests': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
           description: 'inbound HTTP requests',
           points: [
             { timestamp_ns: 1, value: 5 },
@@ -121,12 +180,30 @@ test.describe('Metrics page', () => {
   test('filters the catalog by search query', async ({ page }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'http.requests', service_name: 'api',      type: 'counter', unit: 'req',  description: '', sample_count: 1 },
-        { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',   unit: 'conn', description: '', sample_count: 1 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 1,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          sample_count: 1,
+        },
       ],
       series: {
         'api/http.requests': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
           points: [{ timestamp_ns: 1, value: 1 }],
         },
       },
@@ -146,12 +223,30 @@ test.describe('Metrics page', () => {
   test('filters the catalog by the gauge type chip', async ({ page }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'http.requests', service_name: 'api',      type: 'counter', unit: 'req',  description: '', sample_count: 1 },
-        { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',   unit: 'conn', description: '', sample_count: 1 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
+          sample_count: 1,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          sample_count: 1,
+        },
       ],
       series: {
         'api/http.requests': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: '',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: '',
           points: [{ timestamp_ns: 1, value: 1 }],
         },
       },
@@ -171,11 +266,21 @@ test.describe('Metrics page', () => {
   test('auto-selects the first metric and renders its chart + counter stats', async ({ page }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'request count', sample_count: 2 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'request count',
+          sample_count: 2,
+        },
       ],
       series: {
         'api/http.requests': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
           description: 'request count',
           points: [
             { timestamp_ns: 1_000_000_000, value: 5 },
@@ -204,18 +309,28 @@ test.describe('Metrics page', () => {
   test('histogram view shows p50 / p95 / p99 legend and stats', async ({ page }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'http.dur', service_name: 'api', type: 'histogram', unit: 'ms', description: 'request duration', sample_count: 9 },
+        {
+          name: 'http.dur',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'ms',
+          description: 'request duration',
+          sample_count: 9,
+        },
       ],
       series: {
         'api/http.dur': {
-          name: 'http.dur', service_name: 'api', type: 'histogram', unit: 'ms',
+          name: 'http.dur',
+          service_name: 'api',
+          type: 'histogram',
+          unit: 'ms',
           description: 'request duration',
           points: [
-            { timestamp_ns: 1_000_000_000, value: 10,  percentile: 'p50' },
-            { timestamp_ns: 1_000_000_000, value: 80,  percentile: 'p95' },
+            { timestamp_ns: 1_000_000_000, value: 10, percentile: 'p50' },
+            { timestamp_ns: 1_000_000_000, value: 80, percentile: 'p95' },
             { timestamp_ns: 1_000_000_000, value: 140, percentile: 'p99' },
-            { timestamp_ns: 2_000_000_000, value: 12,  percentile: 'p50' },
-            { timestamp_ns: 2_000_000_000, value: 90,  percentile: 'p95' },
+            { timestamp_ns: 2_000_000_000, value: 12, percentile: 'p50' },
+            { timestamp_ns: 2_000_000_000, value: 90, percentile: 'p95' },
             { timestamp_ns: 2_000_000_000, value: 160, percentile: 'p99' },
           ],
         },
@@ -235,17 +350,42 @@ test.describe('Metrics page', () => {
   test('selecting a different metric in the sidebar swaps the chart', async ({ page }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'http.requests', service_name: 'api',      type: 'counter', unit: 'req',  description: 'A',  sample_count: 1 },
-        { name: 'pool.in_use',   service_name: 'postgres', type: 'gauge',   unit: 'conn', description: 'B',  sample_count: 1 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'A',
+          sample_count: 1,
+        },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: 'B',
+          sample_count: 1,
+        },
       ],
       series: {
         'api/http.requests': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'A',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'A',
           points: [{ timestamp_ns: 1, value: 1 }],
         },
         'postgres/pool.in_use': {
-          name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: 'B',
-          points: [{ timestamp_ns: 1, value: 4 }, { timestamp_ns: 2, value: 7 }],
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: 'B',
+          points: [
+            { timestamp_ns: 1, value: 4 },
+            { timestamp_ns: 2, value: 7 },
+          ],
         },
       },
     })
@@ -264,14 +404,27 @@ test.describe('Metrics page', () => {
 })
 
 test.describe('Metrics — trace overlay + correlated panel', () => {
-  test('renders dotted markers + correlated-traces table, "open" navigates to /traces/:id', async ({ page }) => {
+  test('renders dotted markers + correlated-traces table, "open" navigates to /traces/:id', async ({
+    page,
+  }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'inbound', sample_count: 4 },
+        {
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'inbound',
+          sample_count: 4,
+        },
       ],
       series: {
         'api/http.requests': {
-          name: 'http.requests', service_name: 'api', type: 'counter', unit: 'req', description: 'inbound',
+          name: 'http.requests',
+          service_name: 'api',
+          type: 'counter',
+          unit: 'req',
+          description: 'inbound',
           points: [
             { timestamp_ns: 1_000_000_000, value: 1 },
             { timestamp_ns: 2_000_000_000, value: 4 },
@@ -279,8 +432,24 @@ test.describe('Metrics — trace overlay + correlated panel', () => {
             { timestamp_ns: 4_000_000_000, value: 9 },
           ],
           traces: [
-            { trace_id: 'abc1230000000000', op: 'GET /cart',     service: 'api', status_code: 1, start_ns: 1_500_000_000, end_ns: 1_600_000_000, duration_ns: 100_000_000 },
-            { trace_id: 'def4560000000000', op: 'POST /checkout', service: 'api', status_code: 2, start_ns: 3_500_000_000, end_ns: 3_600_000_000, duration_ns: 100_000_000 },
+            {
+              trace_id: 'abc1230000000000',
+              op: 'GET /cart',
+              service: 'api',
+              status_code: 1,
+              start_ns: 1_500_000_000,
+              end_ns: 1_600_000_000,
+              duration_ns: 100_000_000,
+            },
+            {
+              trace_id: 'def4560000000000',
+              op: 'POST /checkout',
+              service: 'api',
+              status_code: 2,
+              start_ns: 3_500_000_000,
+              end_ns: 3_600_000_000,
+              duration_ns: 100_000_000,
+            },
           ],
         },
       },
@@ -307,11 +476,22 @@ test.describe('Metrics — trace overlay + correlated panel', () => {
   test('hides the correlated panel when no traces fell in the window', async ({ page }) => {
     await stubMetrics(page, {
       catalog: [
-        { name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '', sample_count: 2 },
+        {
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
+          sample_count: 2,
+        },
       ],
       series: {
         'postgres/pool.in_use': {
-          name: 'pool.in_use', service_name: 'postgres', type: 'gauge', unit: 'conn', description: '',
+          name: 'pool.in_use',
+          service_name: 'postgres',
+          type: 'gauge',
+          unit: 'conn',
+          description: '',
           points: [
             { timestamp_ns: 1, value: 3 },
             { timestamp_ns: 2, value: 5 },

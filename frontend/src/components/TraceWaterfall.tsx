@@ -3,8 +3,24 @@ import { Link } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, X } from 'lucide-react'
 import { Span, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
-import { SPAN_PALETTE as PALETTE, SPAN_ACCENT as ACCENT, svcColor, flatten, fmtNs, KIND_LABELS, buildTagMap, hasLinks, FlatSpan, httpDisplayName } from '@/lib/span-utils'
-import { computeLayout, detectN1SpanIds, n1BannerEntries, n1IssueForSpan } from '@/components/trace-waterfall-utils'
+import {
+  SPAN_PALETTE as PALETTE,
+  SPAN_ACCENT as ACCENT,
+  svcColor,
+  flatten,
+  fmtNs,
+  KIND_LABELS,
+  buildTagMap,
+  hasLinks,
+  FlatSpan,
+  httpDisplayName,
+} from '@/lib/span-utils'
+import {
+  computeLayout,
+  detectN1SpanIds,
+  n1BannerEntries,
+  n1IssueForSpan,
+} from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
 import TraceGraph from '@/components/TraceGraph'
 import JsonView from '@/components/JsonView'
@@ -58,14 +74,19 @@ function Ruler({ traceDurNs, spanCount }: { traceDurNs: number; spanCount: numbe
 
 // ── MiniTimeline ──────────────────────────────────────────────────────────────
 
-function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
+function MiniTimeline({
+  flatSpans,
+  traceStartNs,
+  traceDurNs,
+  zoom,
+}: {
   flatSpans: FlatSpan[]
   traceStartNs: number
   traceDurNs: number
   zoom: [number, number]
 }) {
   const [zStart, zEnd] = zoom
-  const zLeft  = ((zStart - traceStartNs) / traceDurNs) * 100
+  const zLeft = ((zStart - traceStartNs) / traceDurNs) * 100
   const zWidth = ((zEnd - zStart) / traceDurNs) * 100
 
   return (
@@ -74,28 +95,34 @@ function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
         {flatSpans.map(({ span, depth }) => {
           const c = svcColor(span.service_name)
           return (
-            <div key={span.span_id} style={{
-              position: 'absolute' as const,
-              left: `${((span.start_ns - traceStartNs) / traceDurNs) * 100}%`,
-              width: `${Math.max(0.3, (span.duration_ns / traceDurNs) * 100)}%`,
-              top: depth * 9,
-              height: 10,
-              background: c.fg,
-              opacity: 0.55,
-            }} />
+            <div
+              key={span.span_id}
+              style={{
+                position: 'absolute' as const,
+                left: `${((span.start_ns - traceStartNs) / traceDurNs) * 100}%`,
+                width: `${Math.max(0.3, (span.duration_ns / traceDurNs) * 100)}%`,
+                top: depth * 9,
+                height: 10,
+                background: c.fg,
+                opacity: 0.55,
+              }}
+            />
           )
         })}
-        <div style={{
-          position: 'absolute' as const,
-          left: `${zLeft}%`,
-          width: `${Math.max(1, zWidth)}%`,
-          top: 0, bottom: 0,
-          border: `1px solid ${ACCENT}`,
-          borderRadius: 3,
-          boxShadow: `0 0 0 3px ${ACCENT}30`,
-          background: `${ACCENT}10`,
-          pointerEvents: 'none' as const,
-        }} />
+        <div
+          style={{
+            position: 'absolute' as const,
+            left: `${zLeft}%`,
+            width: `${Math.max(1, zWidth)}%`,
+            top: 0,
+            bottom: 0,
+            border: `1px solid ${ACCENT}`,
+            borderRadius: 3,
+            boxShadow: `0 0 0 3px ${ACCENT}30`,
+            background: `${ACCENT}10`,
+            pointerEvents: 'none' as const,
+          }}
+        />
       </div>
     </div>
   )
@@ -103,7 +130,18 @@ function MiniTimeline({ flatSpans, traceStartNs, traceDurNs, zoom }: {
 
 // ── SpanRow ───────────────────────────────────────────────────────────────────
 
-function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1, linked, onSelect, onHover }: {
+function SpanRow({
+  flat,
+  traceStartNs,
+  traceDurNs,
+  selected,
+  hovered,
+  tag,
+  isN1,
+  linked,
+  onSelect,
+  onHover,
+}: {
   flat: FlatSpan
   traceStartNs: number
   traceDurNs: number
@@ -131,9 +169,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
       style={{
         gridTemplateColumns: `${NAME_W}px 1fr ${DUR_W}px`,
         height: ROW_H,
-        background: selected
-          ? `${ACCENT}1a`
-          : hovered ? `${ACCENT}0d` : 'transparent',
+        background: selected ? `${ACCENT}1a` : hovered ? `${ACCENT}0d` : 'transparent',
         borderLeft: selected ? `2px solid ${ACCENT}` : '2px solid transparent',
       }}
       title={`${httpDisplayName(span)}\n${span.service_name}\n${fmtNs(span.duration_ns)}`}
@@ -143,9 +179,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
         className="flex items-center gap-[7px] min-w-0 overflow-hidden"
         style={{ paddingLeft: 14 + depth * 16 }}
       >
-        {depth > 0 && (
-          <span className="w-2 h-px bg-border shrink-0 -ml-[7px]" />
-        )}
+        {depth > 0 && <span className="w-2 h-px bg-border shrink-0 -ml-[7px]" />}
         {orphan && <AlertTriangle size={10} color="var(--warn)" className="shrink-0" />}
         <span
           className="w-[9px] h-[9px] rounded-sm opacity-85 shrink-0"
@@ -173,7 +207,10 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
         {!isN1 && tag && (
           <span
             className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] shrink-0 px-1 py-px rounded-[3px]"
-            style={{ color: tagColor, background: `color-mix(in oklch, ${tagColor} 13%, transparent)` }}
+            style={{
+              color: tagColor,
+              background: `color-mix(in oklch, ${tagColor} 13%, transparent)`,
+            }}
           >
             {tag}
           </span>
@@ -193,7 +230,7 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
       <div className="relative h-[18px] mx-2">
         {/* dashed grid lines */}
         <div className="absolute inset-0 flex">
-          {[0, 1, 2, 3].map(i => (
+          {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
               className={`flex-1 ${i === 0 ? '' : 'border-l border-dashed border-border'}`}
@@ -201,29 +238,35 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
           ))}
         </div>
         {/* span bar */}
-        <div style={{
-          position: 'absolute',
-          top: 4, height: 10,
-          left: `${left}%`,
-          width: `${width}%`,
-          background: isError ? 'var(--danger-bg)' : c.bg,
-          borderRadius: 3,
-          boxShadow: isError
-            ? `inset 0 0 0 1px color-mix(in oklch, var(--danger) 38%, transparent), inset 2px 0 0 var(--danger)`
-            : `inset 0 0 0 1px ${c.fg}30, inset 2px 0 0 ${c.fg}`,
-        }} />
-        {/* warning outline for n+1 */}
-        {(isN1 || tag === 'n+1') && (
-          <div style={{
+        <div
+          style={{
             position: 'absolute',
-            top: 1, height: 16,
+            top: 4,
+            height: 10,
             left: `${left}%`,
             width: `${width}%`,
+            background: isError ? 'var(--danger-bg)' : c.bg,
             borderRadius: 3,
-            border: isN1 ? '1px solid var(--warn)' : '1px solid var(--danger)',
-            boxShadow: isN1 ? '0 0 0 2px var(--warn-bg)' : '0 0 0 2px var(--danger-bg)',
-            pointerEvents: 'none',
-          }} />
+            boxShadow: isError
+              ? `inset 0 0 0 1px color-mix(in oklch, var(--danger) 38%, transparent), inset 2px 0 0 var(--danger)`
+              : `inset 0 0 0 1px ${c.fg}30, inset 2px 0 0 ${c.fg}`,
+          }}
+        />
+        {/* warning outline for n+1 */}
+        {(isN1 || tag === 'n+1') && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 1,
+              height: 16,
+              left: `${left}%`,
+              width: `${width}%`,
+              borderRadius: 3,
+              border: isN1 ? '1px solid var(--warn)' : '1px solid var(--danger)',
+              boxShadow: isN1 ? '0 0 0 2px var(--warn-bg)' : '0 0 0 2px var(--danger-bg)',
+              pointerEvents: 'none',
+            }}
+          />
         )}
       </div>
 
@@ -237,7 +280,18 @@ function SpanRow({ flat, traceStartNs, traceDurNs, selected, hovered, tag, isN1,
 
 // ── FlameView ─────────────────────────────────────────────────────────────────
 
-function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hoveredId, onSelect, onHover, zoom, onZoom }: {
+function FlameView({
+  flatSpans,
+  traceStartNs,
+  traceDurNs,
+  tags,
+  selectedId,
+  hoveredId,
+  onSelect,
+  onHover,
+  zoom,
+  onZoom,
+}: {
   flatSpans: FlatSpan[]
   traceStartNs: number
   traceDurNs: number
@@ -253,7 +307,8 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
   const zDur = zEnd - zStart
   const zDurMs = zDur / 1_000_000
 
-  const tickStepMs = zDurMs > 400 ? 100 : zDurMs > 200 ? 50 : zDurMs > 80 ? 20 : zDurMs > 20 ? 10 : 5
+  const tickStepMs =
+    zDurMs > 400 ? 100 : zDurMs > 200 ? 50 : zDurMs > 80 ? 20 : zDurMs > 20 ? 10 : 5
   const tickStepNs = tickStepMs * 1_000_000
   const tickStart = Math.ceil(zStart / tickStepNs) * tickStepNs
   const ticks: number[] = []
@@ -263,17 +318,17 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
   const FLAME_ROW = 26
   const totalH = (maxDepth + 1) * FLAME_ROW
 
-  const visible = flatSpans.filter(({ span }) =>
-    span.start_ns + span.duration_ns >= zStart && span.start_ns <= zEnd,
+  const visible = flatSpans.filter(
+    ({ span }) => span.start_ns + span.duration_ns >= zStart && span.start_ns <= zEnd,
   )
 
-  const hovFlat = hoveredId ? flatSpans.find(f => f.span.span_id === hoveredId) : null
+  const hovFlat = hoveredId ? flatSpans.find((f) => f.span.span_id === hoveredId) : null
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* tick ruler */}
       <div className="relative h-6 border-b border-border bg-muted shrink-0">
-        {ticks.map(t => (
+        {ticks.map((t) => (
           <span
             key={t}
             className="absolute top-0 bottom-0 border-l border-border font-mono text-[9px] text-muted-foreground py-[7px] px-1 whitespace-nowrap -translate-x-px"
@@ -293,22 +348,22 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
         {visible.map(({ span, depth }) => {
           const c = svcColor(span.service_name)
           const tag = tags.get(span.span_id)
-          const isSel  = span.span_id === selectedId
-          const isHov  = span.span_id === hoveredId
+          const isSel = span.span_id === selectedId
+          const isHov = span.span_id === hoveredId
           const isError = span.status_code === 2
           const hot = tag === 'n+1'
 
           const clipStart = Math.max(span.start_ns, zStart)
-          const clipEnd   = Math.min(span.end_ns, zEnd)
-          const left  = ((clipStart - zStart) / zDur) * 100
+          const clipEnd = Math.min(span.end_ns, zEnd)
+          const left = ((clipStart - zStart) / zDur) * 100
           const width = Math.max(0.2, ((clipEnd - clipStart) / zDur) * 100)
-          const top   = 6 + depth * FLAME_ROW
+          const top = 6 + depth * FLAME_ROW
 
           return (
             <button
               key={span.span_id}
               type="button"
-              onClick={e => {
+              onClick={(e) => {
                 e.stopPropagation()
                 onSelect(span.span_id)
                 onZoom([span.start_ns, span.end_ns])
@@ -316,13 +371,22 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
               onMouseEnter={() => onHover(span.span_id)}
               className="absolute rounded-[3px] px-[5px] font-mono text-[10px] font-semibold text-left cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap transition-[background] duration-[80ms] outline-none"
               style={{
-                left: `${left}%`, width: `${width}%`,
-                top, height: FLAME_ROW - 4,
-                background: isSel || isHov
-                  ? `color-mix(in oklch, ${c.fg} 35%, ${c.bg})`
-                  : isError ? 'var(--danger-bg)' : c.bg,
+                left: `${left}%`,
+                width: `${width}%`,
+                top,
+                height: FLAME_ROW - 4,
+                background:
+                  isSel || isHov
+                    ? `color-mix(in oklch, ${c.fg} 35%, ${c.bg})`
+                    : isError
+                      ? 'var(--danger-bg)'
+                      : c.bg,
                 color: c.fg,
-                border: hot ? '1px solid var(--danger)' : isSel ? `1px solid ${c.fg}` : '1px solid transparent',
+                border: hot
+                  ? '1px solid var(--danger)'
+                  : isSel
+                    ? `1px solid ${c.fg}`
+                    : '1px solid transparent',
                 boxShadow: isSel ? `inset 0 0 0 1px ${c.fg}` : 'none',
                 transform: isHov ? 'translateY(-1px)' : 'none',
                 zIndex: isHov || isSel ? 2 : 1,
@@ -331,7 +395,9 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
             >
               {width > 5 ? (
                 <>
-                  <span className="opacity-[0.65]">{span.service_name.replace(/-service$/, '')}</span>
+                  <span className="opacity-[0.65]">
+                    {span.service_name.replace(/-service$/, '')}
+                  </span>
                   {' · '}
                   <span>{httpDisplayName(span)}</span>
                 </>
@@ -341,41 +407,46 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
         })}
 
         {/* hover tooltip */}
-        {hovFlat && (() => {
-          const { span, depth } = hovFlat
-          const c   = svcColor(span.service_name)
-          const tag = tags.get(span.span_id)
-          const leftPct = ((span.start_ns - zStart) / zDur) * 100
-          const top = 6 + depth * FLAME_ROW + (FLAME_ROW - 4) + 6
-          return (
-            <div
-              className="absolute z-[5] bg-foreground text-background font-mono text-[11px] px-2.5 py-2 rounded-md min-w-[220px] max-w-[280px] pointer-events-none"
-              style={{
-                left: `clamp(8px, ${leftPct}%, calc(100% - 248px))`,
-                top,
-              }}
-            >
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.fg }} />
-                <span className="text-[9px] uppercase tracking-[0.14em] opacity-[0.65]">
-                  {span.service_name}
-                </span>
-                {tag && (
-                  <span className="ml-auto text-[9px] font-bold text-danger uppercase">
-                    {tag}
+        {hovFlat &&
+          (() => {
+            const { span, depth } = hovFlat
+            const c = svcColor(span.service_name)
+            const tag = tags.get(span.span_id)
+            const leftPct = ((span.start_ns - zStart) / zDur) * 100
+            const top = 6 + depth * FLAME_ROW + (FLAME_ROW - 4) + 6
+            return (
+              <div
+                className="absolute z-[5] bg-foreground text-background font-mono text-[11px] px-2.5 py-2 rounded-md min-w-[220px] max-w-[280px] pointer-events-none"
+                style={{
+                  left: `clamp(8px, ${leftPct}%, calc(100% - 248px))`,
+                  top,
+                }}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.fg }} />
+                  <span className="text-[9px] uppercase tracking-[0.14em] opacity-[0.65]">
+                    {span.service_name}
                   </span>
-                )}
+                  {tag && (
+                    <span className="ml-auto text-[9px] font-bold text-danger uppercase">
+                      {tag}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap">
+                  {httpDisplayName(span)}
+                </div>
+                <div className="flex gap-2.5 opacity-80">
+                  <span>
+                    dur <strong>{fmtNs(span.duration_ns)}</strong>
+                  </span>
+                  <span>
+                    at <strong>+{fmtNs(span.start_ns - traceStartNs)}</strong>
+                  </span>
+                </div>
               </div>
-              <div className="text-xs mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap">
-                {httpDisplayName(span)}
-              </div>
-              <div className="flex gap-2.5 opacity-80">
-                <span>dur <strong>{fmtNs(span.duration_ns)}</strong></span>
-                <span>at <strong>+{fmtNs(span.start_ns - traceStartNs)}</strong></span>
-              </div>
-            </div>
-          )
-        })()}
+            )
+          })()}
       </div>
 
       {/* footer hint */}
@@ -384,7 +455,8 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
         <span>esc → reset zoom</span>
         <span className="flex-1" />
         <span>
-          {fmtNs(zStart - traceStartNs)}–{fmtNs(zEnd - traceStartNs)} · {visible.length}/{flatSpans.length} spans
+          {fmtNs(zStart - traceStartNs)}–{fmtNs(zEnd - traceStartNs)} · {visible.length}/
+          {flatSpans.length} spans
         </span>
       </div>
     </div>
@@ -396,7 +468,7 @@ function FlameView({ flatSpans, traceStartNs, traceDurNs, tags, selectedId, hove
 function inspSevColor(n: number): string {
   if (n >= 17) return 'var(--danger)'
   if (n >= 13) return 'var(--warn)'
-  if (n >= 9)  return 'var(--accent)'
+  if (n >= 9) return 'var(--accent)'
   return 'var(--ink3)'
 }
 
@@ -416,38 +488,36 @@ function inspFmtRelative(ns: number): string {
 // ── SpanLogs ──────────────────────────────────────────────────────────────────
 
 function SpanLogs({ spanId }: { spanId: string }) {
-  const [logs, setLogs]       = useState<Log[]>([])
+  const [logs, setLogs] = useState<Log[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
     setLogs([])
-    api.logs.list({ spanId }).then(r => {
-      setLogs(r.data ?? [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    api.logs
+      .list({ spanId })
+      .then((r) => {
+        setLogs(r.data ?? [])
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
   }, [spanId])
 
   if (loading) {
-    return (
-      <div className="px-4 py-3.5 font-mono text-[11px] text-ink3">
-        …
-      </div>
-    )
+    return <div className="px-4 py-3.5 font-mono text-[11px] text-ink3">…</div>
   }
 
   if (logs.length === 0) {
-    return (
-      <div className="px-4 py-3.5 font-mono text-[11px] text-ink3">
-        no logs for this span
-      </div>
-    )
+    return <div className="px-4 py-3.5 font-mono text-[11px] text-ink3">no logs for this span</div>
   }
 
   return (
     <div className="flex-1 overflow-auto">
       {logs.map((log, i) => (
-        <div key={i} className="px-2.5 py-1 flex items-start gap-[7px] border-b border-[var(--line2)]">
+        <div
+          key={i}
+          className="px-2.5 py-1 flex items-start gap-[7px] border-b border-[var(--line2)]"
+        >
           {/* severity dot */}
           <span
             className="w-[5px] h-[5px] rounded-full shrink-0 mt-1"
@@ -479,10 +549,13 @@ function SpanEventsList({ spanId, spanStartNs }: { spanId: string; spanStartNs: 
   useEffect(() => {
     setLoading(true)
     setEvents([])
-    api.spans.get(spanId).then(r => {
-      setEvents(r.data?.events ?? [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    api.spans
+      .get(spanId)
+      .then((r) => {
+        setEvents(r.data?.events ?? [])
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
   }, [spanId])
 
   if (loading) {
@@ -499,21 +572,43 @@ function SpanEventsList({ spanId, spanStartNs }: { spanId: string; spanStartNs: 
       </div>
       <div className="px-3.5 pb-3" data-testid="span-events">
         {events.map((e, i) => (
-          <SpanEventRow key={i} event={e} spanStartNs={spanStartNs} last={i === events.length - 1} />
+          <SpanEventRow
+            key={i}
+            event={e}
+            spanStartNs={spanStartNs}
+            last={i === events.length - 1}
+          />
         ))}
       </div>
     </>
   )
 }
 
-function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStartNs: number; last: boolean }) {
+function SpanEventRow({
+  event,
+  spanStartNs,
+  last,
+}: {
+  event: SpanEvent
+  spanStartNs: number
+  last: boolean
+}) {
   let attrs: Record<string, unknown> = {}
-  try { attrs = JSON.parse(event.attributes || '{}') } catch { /* empty */ }
+  try {
+    attrs = JSON.parse(event.attributes || '{}')
+  } catch {
+    /* empty */
+  }
 
   const isException = event.name === 'exception'
-  const excType  = typeof attrs['exception.type']       === 'string' ? attrs['exception.type']       as string : ''
-  const excMsg   = typeof attrs['exception.message']    === 'string' ? attrs['exception.message']    as string : ''
-  const excStack = typeof attrs['exception.stacktrace'] === 'string' ? attrs['exception.stacktrace'] as string : ''
+  const excType =
+    typeof attrs['exception.type'] === 'string' ? (attrs['exception.type'] as string) : ''
+  const excMsg =
+    typeof attrs['exception.message'] === 'string' ? (attrs['exception.message'] as string) : ''
+  const excStack =
+    typeof attrs['exception.stacktrace'] === 'string'
+      ? (attrs['exception.stacktrace'] as string)
+      : ''
 
   const inlineAttrs = Object.entries(attrs)
     .filter(([k]) => !k.startsWith('exception.'))
@@ -523,16 +618,24 @@ function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStar
   return (
     <div className={`py-1 ${last ? '' : 'border-b border-[var(--line2)]'}`}>
       <div className="flex items-baseline gap-2.5">
-        <span className={`w-[60px] shrink-0 font-mono text-[10px] ${isException ? 'text-danger' : 'text-[var(--accent)]'}`}>
+        <span
+          className={`w-[60px] shrink-0 font-mono text-[10px] ${isException ? 'text-danger' : 'text-[var(--accent)]'}`}
+        >
           {fmtRelMs(event.time_ns, spanStartNs)}
         </span>
-        <span className={`min-w-0 flex-1 break-words font-mono text-[11px] ${isException ? 'text-danger' : 'text-[var(--ink)]'}`}>
+        <span
+          className={`min-w-0 flex-1 break-words font-mono text-[11px] ${isException ? 'text-danger' : 'text-[var(--ink)]'}`}
+        >
           {isException && (
             <span className="mr-1.5 inline-block size-1.5 rounded-full bg-danger align-middle" />
           )}
           {event.name}
           {isException && excType && (
-            <span className="text-[var(--ink2)]">{' · '}{excType}{excMsg ? `: ${excMsg}` : ''}</span>
+            <span className="text-[var(--ink2)]">
+              {' · '}
+              {excType}
+              {excMsg ? `: ${excMsg}` : ''}
+            </span>
           )}
         </span>
         {!isException && inlineAttrs && (
@@ -540,7 +643,9 @@ function SpanEventRow({ event, spanStartNs, last }: { event: SpanEvent; spanStar
         )}
       </div>
       {isException && excStack && (
-        <pre className="mx-0 mb-0.5 mt-1.5 max-h-[220px] overflow-auto whitespace-pre-wrap break-words rounded-[5px] border border-[color-mix(in_oklch,var(--danger)_25%,var(--background))] bg-[color-mix(in_oklch,var(--danger)_8%,var(--background))] px-2.5 py-1.5 font-mono text-[10px] text-[var(--ink)]">{excStack}</pre>
+        <pre className="mx-0 mb-0.5 mt-1.5 max-h-[220px] overflow-auto whitespace-pre-wrap break-words rounded-[5px] border border-[color-mix(in_oklch,var(--danger)_25%,var(--background))] bg-[color-mix(in_oklch,var(--danger)_8%,var(--background))] px-2.5 py-1.5 font-mono text-[10px] text-[var(--ink)]">
+          {excStack}
+        </pre>
       )}
     </div>
   )
@@ -558,16 +663,29 @@ function SpanLinksList({ spanId, traceId }: { spanId: string; traceId: string })
     setLoading(true)
     setOutbound([])
     setIncoming([])
-    api.spans.get(spanId)
-      .then(r => { if (!cancel) setOutbound(r.data?.links ?? []) })
-      .catch(() => { /* leave empty */ })
-      .finally(() => { if (!cancel) setLoading(false) })
+    api.spans
+      .get(spanId)
+      .then((r) => {
+        if (!cancel) setOutbound(r.data?.links ?? [])
+      })
+      .catch(() => {
+        /* leave empty */
+      })
+      .finally(() => {
+        if (!cancel) setLoading(false)
+      })
     // Reverse lookup: who else links into this trace?
     fetch(`/api/traces/${encodeURIComponent(traceId)}/incoming-links`)
-      .then(r => r.ok ? r.json() : { data: [] })
-      .then(j => { if (!cancel) setIncoming((j?.data as import('@/lib/api').SpanLink[]) ?? []) })
-      .catch(() => { /* leave empty */ })
-    return () => { cancel = true }
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j) => {
+        if (!cancel) setIncoming((j?.data as import('@/lib/api').SpanLink[]) ?? [])
+      })
+      .catch(() => {
+        /* leave empty */
+      })
+    return () => {
+      cancel = true
+    }
   }, [spanId, traceId])
 
   if (loading) {
@@ -609,16 +727,19 @@ function SpanLinksList({ spanId, traceId }: { spanId: string; traceId: string })
   )
 }
 
-function SpanLinkRow({ link, last, incoming }: {
+function SpanLinkRow({
+  link,
+  last,
+  incoming,
+}: {
   link: import('@/lib/api').SpanLink
   last: boolean
   incoming?: boolean
 }) {
   const targetTrace = incoming ? link.trace_id : link.linked_trace_id
-  const targetSpan  = incoming ? link.span_id  : link.linked_span_id
-  const short = targetTrace.length > 12
-    ? `${targetTrace.slice(0, 4)}…${targetTrace.slice(-5)}`
-    : targetTrace
+  const targetSpan = incoming ? link.span_id : link.linked_span_id
+  const short =
+    targetTrace.length > 12 ? `${targetTrace.slice(0, 4)}…${targetTrace.slice(-5)}` : targetTrace
   return (
     <Link
       to={`/traces/${encodeURIComponent(targetTrace)}`}
@@ -628,7 +749,10 @@ function SpanLinkRow({ link, last, incoming }: {
       <span className="font-mono text-[10px] text-[var(--accent)]">{incoming ? '←' : '→'}</span>
       <span className="font-mono text-[11px] text-[var(--foreground)]">{short}</span>
       <span className="font-mono text-[10px] text-[var(--muted-foreground)]">·</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--muted-foreground)]" title={targetSpan}>
+      <span
+        className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--muted-foreground)]"
+        title={targetSpan}
+      >
         span {targetSpan.length > 10 ? `${targetSpan.slice(0, 6)}…` : targetSpan}
       </span>
     </Link>
@@ -638,14 +762,14 @@ function SpanLinkRow({ link, last, incoming }: {
 // ── Inspector ─────────────────────────────────────────────────────────────────
 
 const ISSUE_KIND_LABELS: Record<string, string> = {
-  slow_db:         'slow DB query',
-  chatty_http:     'chatty HTTP',
-  large_payload:   'large payload',
-  cache_miss_storm:'cache miss storm',
-  tracing_gap:     'tracing gap',
-  error_chain:     'error chain',
-  serial_promise:  'serial promises',
-  synchronous_io:  'synchronous I/O',
+  slow_db: 'slow DB query',
+  chatty_http: 'chatty HTTP',
+  large_payload: 'large payload',
+  cache_miss_storm: 'cache miss storm',
+  tracing_gap: 'tracing gap',
+  error_chain: 'error chain',
+  serial_promise: 'serial promises',
+  synchronous_io: 'synchronous I/O',
 }
 
 function IssueCallout({ issue }: { issue: import('@/lib/api').TraceIssue }) {
@@ -667,17 +791,34 @@ function IssueCallout({ issue }: { issue: import('@/lib/api').TraceIssue }) {
         </span>
       </div>
       <div className="text-[11.5px] leading-snug text-[var(--ink)]">
-        {issue.count > 1 && <><strong>{issue.count}×</strong>{' '}</>}
-        <code className="rounded-[3px] bg-[var(--surface)] px-1 font-mono">{issue.fingerprint}</code>
+        {issue.count > 1 && (
+          <>
+            <strong>{issue.count}×</strong>{' '}
+          </>
+        )}
+        <code className="rounded-[3px] bg-[var(--surface)] px-1 font-mono">
+          {issue.fingerprint}
+        </code>
         {issue.wasted_ns > 0 && (
-          <> — <strong>{fmtNs(issue.wasted_ns)}</strong> wasted</>
+          <>
+            {' '}
+            — <strong>{fmtNs(issue.wasted_ns)}</strong> wasted
+          </>
         )}
       </div>
     </div>
   )
 }
 
-function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClose }: {
+function Inspector({
+  span,
+  traceStartNs,
+  warnings,
+  issues,
+  isN1,
+  n1Count,
+  onClose,
+}: {
   span: Span
   traceStartNs: number
   warnings: LintWarning[]
@@ -689,20 +830,30 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
   const c = svcColor(span.service_name)
   const isError = span.status_code === 2
   const kind = KIND_LABELS[span.kind] ?? 'unknown'
-  const spanWarnings = warnings.filter(w => w.span_id === span.span_id)
+  const spanWarnings = warnings.filter((w) => w.span_id === span.span_id)
 
   const [activeTab, setActiveTab] = useState<'attrs' | 'logs'>('attrs')
 
   // Reset to attrs tab when span changes
-  useEffect(() => { setActiveTab('attrs') }, [span.span_id])
+  useEffect(() => {
+    setActiveTab('attrs')
+  }, [span.span_id])
 
   let attrs: Record<string, unknown> = {}
   let resource: Record<string, unknown> = {}
-  try { attrs = JSON.parse(span.attributes) } catch { /* empty */ }
-  try { resource = JSON.parse(span.resource) } catch { /* empty */ }
+  try {
+    attrs = JSON.parse(span.attributes)
+  } catch {
+    /* empty */
+  }
+  try {
+    resource = JSON.parse(span.resource)
+  } catch {
+    /* empty */
+  }
 
   const attrEntries = Object.entries(attrs)
-  const resEntries  = Object.entries(resource).filter(([k]) => k !== 'service.name')
+  const resEntries = Object.entries(resource).filter(([k]) => k !== 'service.name')
 
   function tabStyle(tab: 'attrs' | 'logs'): React.CSSProperties {
     const active = activeTab === tab
@@ -774,7 +925,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
           N+1 keeps its specific messaging; all others get a generic card. */}
       {(() => {
         const spanIssues = issues.filter(
-          i => i.example_span_id === span.span_id || i.parent_span_id === span.span_id
+          (i) => i.example_span_id === span.span_id || i.parent_span_id === span.span_id,
         )
         const n1Issue = n1IssueForSpan(span, issues)
         // Include legacy isN1 signal even without a persisted issue.
@@ -800,18 +951,30 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
                 <div className="text-[11.5px] leading-snug text-[var(--ink)]">
                   <strong>{n1Issue?.count ?? n1Count}</strong> sibling spans share fingerprint
                   {n1Issue?.fingerprint && (
-                    <> <code className="rounded-[3px] bg-[var(--surface)] px-1 py-0 font-mono">{n1Issue.fingerprint}</code></>
+                    <>
+                      {' '}
+                      <code className="rounded-[3px] bg-[var(--surface)] px-1 py-0 font-mono">
+                        {n1Issue.fingerprint}
+                      </code>
+                    </>
                   )}
                   {n1Issue?.wasted_ns && n1Issue.wasted_ns > 0 ? (
-                    <> totalling <strong>{fmtNs(n1Issue.wasted_ns)}</strong> of wasted time.</>
-                  ) : '.'}
-                  {' '}Batch with <code className="font-mono">WHERE … IN (?)</code>.
+                    <>
+                      {' '}
+                      totalling <strong>{fmtNs(n1Issue.wasted_ns)}</strong> of wasted time.
+                    </>
+                  ) : (
+                    '.'
+                  )}{' '}
+                  Batch with <code className="font-mono">WHERE … IN (?)</code>.
                 </div>
               </div>
             )}
-            {spanIssues.filter(i => i.kind !== 'n_plus_one').map(issue => (
-              <IssueCallout key={issue.id} issue={issue} />
-            ))}
+            {spanIssues
+              .filter((i) => i.kind !== 'n_plus_one')
+              .map((issue) => (
+                <IssueCallout key={issue.id} issue={issue} />
+              ))}
           </>
         )
       })()}
@@ -831,9 +994,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
                   {w.rule_id}
                 </span>
               </div>
-              <div className="text-[11px] text-foreground leading-[1.45]">
-                {w.message}
-              </div>
+              <div className="text-[11px] text-foreground leading-[1.45]">{w.message}</div>
             </div>
           ))}
         </div>
@@ -841,8 +1002,12 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
 
       {/* tab bar */}
       <div className="flex items-center border-b border-line px-3.5 font-mono text-[11px] shrink-0">
-        <button type="button" onClick={() => setActiveTab('attrs')} style={tabStyle('attrs')}>attrs</button>
-        <button type="button" onClick={() => setActiveTab('logs')}  style={tabStyle('logs')}>logs</button>
+        <button type="button" onClick={() => setActiveTab('attrs')} style={tabStyle('attrs')}>
+          attrs
+        </button>
+        <button type="button" onClick={() => setActiveTab('logs')} style={tabStyle('logs')}>
+          logs
+        </button>
       </div>
 
       {/* attrs tab */}
@@ -877,9 +1042,7 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
       )}
 
       {/* logs tab */}
-      {activeTab === 'logs' && (
-        <SpanLogs spanId={span.span_id} />
-      )}
+      {activeTab === 'logs' && <SpanLogs spanId={span.span_id} />}
     </aside>
   )
 }
@@ -888,33 +1051,36 @@ function Inspector({ span, traceStartNs, warnings, issues, isN1, n1Count, onClos
 
 function LogsView({ logs }: { logs: Log[] }) {
   const [search, setSearch] = useState('')
-  const [filterSev, setFilterSev] = useState<'ALL' | 'FATAL' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'TRACE'>('ALL')
+  const [filterSev, setFilterSev] = useState<
+    'ALL' | 'FATAL' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'TRACE'
+  >('ALL')
 
   const sevLabel = (n: number) => {
     if (n >= 21) return 'FATAL'
     if (n >= 17) return 'ERROR'
     if (n >= 13) return 'WARN'
-    if (n >= 9)  return 'INFO'
-    if (n >= 5)  return 'DEBUG'
+    if (n >= 9) return 'INFO'
+    if (n >= 5) return 'DEBUG'
     return 'TRACE'
   }
 
   const matchesSevFilter = (severity: number, filter: typeof filterSev) => {
-    if (filter === 'ALL')   return true
+    if (filter === 'ALL') return true
     if (filter === 'FATAL') return severity >= 21
     if (filter === 'ERROR') return severity >= 17 && severity < 21
-    if (filter === 'WARN')  return severity >= 13 && severity < 17
-    if (filter === 'INFO')  return severity >= 9  && severity < 13
-    if (filter === 'DEBUG') return severity >= 5  && severity < 9
+    if (filter === 'WARN') return severity >= 13 && severity < 17
+    if (filter === 'INFO') return severity >= 9 && severity < 13
+    if (filter === 'DEBUG') return severity >= 5 && severity < 9
     if (filter === 'TRACE') return severity < 5
     return true
   }
 
-  const filtered = logs.filter(l => {
+  const filtered = logs.filter((l) => {
     if (!matchesSevFilter(l.severity, filterSev)) return false
     if (search) {
       const q = search.toLowerCase()
-      if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q)) return false
+      if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q))
+        return false
     }
     return true
   })
@@ -931,17 +1097,17 @@ function LogsView({ logs }: { logs: Log[] }) {
       flexShrink: 0,
       display: 'inline-block',
     }
-    if (n >= 21) return { ...base, color: '#fff',         background: 'var(--danger)' }
+    if (n >= 21) return { ...base, color: '#fff', background: 'var(--danger)' }
     if (n >= 17) return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)' }
-    if (n >= 13) return { ...base, color: 'var(--warn)',   background: 'var(--warn-bg)' }
-    if (n >= 9)  return { ...base, color: 'var(--ink2)',   background: 'transparent' }
-    if (n >= 5)  return { ...base, color: 'var(--ink3)',   background: 'transparent' }
-    return       { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
+    if (n >= 13) return { ...base, color: 'var(--warn)', background: 'var(--warn-bg)' }
+    if (n >= 9) return { ...base, color: 'var(--ink2)', background: 'transparent' }
+    if (n >= 5) return { ...base, color: 'var(--ink3)', background: 'transparent' }
+    return { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
   }
 
   const sevBodyColor = (n: number): string => {
     if (n >= 13) return 'var(--ink)'
-    if (n >= 9)  return 'var(--ink2)'
+    if (n >= 9) return 'var(--ink2)'
     return 'var(--ink3)'
   }
 
@@ -953,11 +1119,11 @@ function LogsView({ logs }: { logs: Log[] }) {
           type="text"
           placeholder="search logs…"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           className="w-[220px] h-7 bg-background border border-border rounded-[5px] px-2.5 font-mono text-[11px] text-foreground outline-none"
         />
         <div className="flex items-center gap-1">
-          {(['ALL', 'TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] as const).map(chip => (
+          {(['ALL', 'TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] as const).map((chip) => (
             <button
               key={chip}
               type="button"
@@ -982,9 +1148,7 @@ function LogsView({ logs }: { logs: Log[] }) {
           ))}
         </div>
         <div className="flex-1" />
-        <span className="font-mono text-[10px] text-muted-foreground">
-          {filtered.length} logs
-        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">{filtered.length} logs</span>
       </div>
 
       {/* logs list */}
@@ -1021,7 +1185,10 @@ function LogsView({ logs }: { logs: Log[] }) {
                     className="w-[5px] h-[5px] rounded-full shrink-0"
                     style={{ background: c.fg }}
                   />
-                  <span title={log.service_name} className="font-mono text-[10.5px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
+                  <span
+                    title={log.service_name}
+                    className="font-mono text-[10.5px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                  >
                     {log.service_name}
                   </span>
                 </div>
@@ -1044,7 +1211,21 @@ function LogsView({ logs }: { logs: Log[] }) {
 
 // ── TraceMeta ─────────────────────────────────────────────────────────────────
 
-function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, errorCount, lintCount, view, onView, zoom, traceStartNs, traceEndNs, onResetZoom }: {
+function TraceMeta({
+  rootName,
+  traceId,
+  traceDurNs,
+  spanCount,
+  serviceCount,
+  errorCount,
+  lintCount,
+  view,
+  onView,
+  zoom,
+  traceStartNs,
+  traceEndNs,
+  onResetZoom,
+}: {
   rootName: string
   traceId: string
   traceDurNs: number
@@ -1079,19 +1260,17 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
             </span>
           )}
         </div>
-        <div className="font-mono text-[10px] text-muted-foreground">
-          {traceId}
-        </div>
+        <div className="font-mono text-[10px] text-muted-foreground">{traceId}</div>
       </div>
 
       {/* stats */}
-      <StatBox label="total"  value={fmtNs(traceDurNs)} />
-      <StatBox label="spans"  value={String(spanCount)} />
-      <StatBox label="svcs"   value={String(serviceCount)} />
+      <StatBox label="total" value={fmtNs(traceDurNs)} />
+      <StatBox label="spans" value={String(spanCount)} />
+      <StatBox label="svcs" value={String(serviceCount)} />
 
       {/* view toggle pill */}
       <div className="flex items-center bg-muted rounded-lg p-[3px] border border-border gap-0.5">
-        {(['waterfall', 'flame', 'graph', 'logs'] as const).map(v => {
+        {(['waterfall', 'flame', 'graph', 'logs'] as const).map((v) => {
           const active = view === v
           return (
             <button
@@ -1100,7 +1279,15 @@ function TraceMeta({ rootName, traceId, traceDurNs, spanCount, serviceCount, err
               onClick={() => onView(v)}
               className={`inline-flex items-center gap-[5px] px-2.5 py-1 rounded-md font-sans text-xs font-medium cursor-pointer outline-none whitespace-nowrap border ${active ? 'bg-background text-foreground border-border' : 'bg-transparent text-muted-foreground border-transparent'}`}
             >
-              {v === 'waterfall' ? <WaterfallIcon /> : v === 'flame' ? <FlameIcon /> : v === 'graph' ? <GraphIcon /> : <LogsIcon />}
+              {v === 'waterfall' ? (
+                <WaterfallIcon />
+              ) : v === 'flame' ? (
+                <FlameIcon />
+              ) : v === 'graph' ? (
+                <GraphIcon />
+              ) : (
+                <LogsIcon />
+              )}
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
           )
@@ -1142,9 +1329,9 @@ function StatBox({ label, value }: { label: string; value: string }) {
 function WaterfallIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <rect x="1"   y="1.5" width="9" height="1.6" fill="currentColor" opacity="0.85" />
+      <rect x="1" y="1.5" width="9" height="1.6" fill="currentColor" opacity="0.85" />
       <rect x="2.5" y="4.5" width="6" height="1.6" fill="currentColor" opacity="0.85" />
-      <rect x="4"   y="7.5" width="4" height="1.6" fill="currentColor" opacity="0.85" />
+      <rect x="4" y="7.5" width="4" height="1.6" fill="currentColor" opacity="0.85" />
     </svg>
   )
 }
@@ -1152,9 +1339,9 @@ function WaterfallIcon() {
 function GraphIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <circle cx="6"   cy="2"  r="1.4" fill="currentColor" opacity="0.85" />
-      <circle cx="2.5" cy="9"  r="1.4" fill="currentColor" opacity="0.85" />
-      <circle cx="9.5" cy="9"  r="1.4" fill="currentColor" opacity="0.85" />
+      <circle cx="6" cy="2" r="1.4" fill="currentColor" opacity="0.85" />
+      <circle cx="2.5" cy="9" r="1.4" fill="currentColor" opacity="0.85" />
+      <circle cx="9.5" cy="9" r="1.4" fill="currentColor" opacity="0.85" />
       <line x1="6" y1="3.4" x2="2.7" y2="7.8" stroke="currentColor" strokeWidth="1" opacity="0.6" />
       <line x1="6" y1="3.4" x2="9.3" y2="7.8" stroke="currentColor" strokeWidth="1" opacity="0.6" />
     </svg>
@@ -1164,10 +1351,10 @@ function GraphIcon() {
 function FlameIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <rect x="1"   y="1"   width="10" height="2.6" fill="currentColor" opacity="0.45" />
-      <rect x="1"   y="4.2" width="5"  height="2.6" fill="currentColor" opacity="0.7" />
-      <rect x="6.5" y="4.2" width="4"  height="2.6" fill="currentColor" opacity="0.7" />
-      <rect x="1.5" y="7.4" width="3"  height="2.6" fill="currentColor" opacity="0.9" />
+      <rect x="1" y="1" width="10" height="2.6" fill="currentColor" opacity="0.45" />
+      <rect x="1" y="4.2" width="5" height="2.6" fill="currentColor" opacity="0.7" />
+      <rect x="6.5" y="4.2" width="4" height="2.6" fill="currentColor" opacity="0.7" />
+      <rect x="1.5" y="7.4" width="3" height="2.6" fill="currentColor" opacity="0.9" />
     </svg>
   )
 }
@@ -1185,7 +1372,11 @@ function LogsIcon() {
 
 // ── N+1 Issue Banner ──────────────────────────────────────────────────────────
 
-function N1Banner({ issues }: { issues: { fingerprint: string; count: number; wastedNs: number }[] }) {
+function N1Banner({
+  issues,
+}: {
+  issues: { fingerprint: string; count: number; wastedNs: number }[]
+}) {
   if (issues.length === 0) return null
   const top = issues[0]
   const fp = top.fingerprint.length > 60 ? top.fingerprint.slice(0, 57) + '…' : top.fingerprint
@@ -1201,9 +1392,7 @@ function N1Banner({ issues }: { issues: { fingerprint: string; count: number; wa
         {' — '}
         <strong>{fmtNs(top.wastedNs)}</strong>
         {' wasted'}
-        {issues.length > 1 && (
-          <span className="ml-2 opacity-70">+{issues.length - 1} more</span>
-        )}
+        {issues.length > 1 && <span className="ml-2 opacity-70">+{issues.length - 1} more</span>}
       </span>
     </div>
   )
@@ -1219,22 +1408,31 @@ interface Props {
   traceId?: string
 }
 
-export default function TraceWaterfall({ spans, warnings = [], issues = [], logs = [], traceId = '' }: Props) {
+export default function TraceWaterfall({
+  spans,
+  warnings = [],
+  issues = [],
+  logs = [],
+  traceId = '',
+}: Props) {
   const traceStartNs = spans.reduce((m, s) => Math.min(m, s.start_ns), Infinity)
-  const traceEndNs   = spans.reduce((m, s) => Math.max(m, s.end_ns), 0)
-  const traceDurNs   = traceEndNs - traceStartNs
+  const traceEndNs = spans.reduce((m, s) => Math.max(m, s.end_ns), 0)
+  const traceDurNs = traceEndNs - traceStartNs
 
   // Deep-link: ?span=X (or legacy ?spanId=X) pre-selects a span; ?view= seeds the view.
-  const urlParams = typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search) : new URLSearchParams()
+  const urlParams =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams()
   const initialSelected = urlParams.get('span') ?? urlParams.get('spanId')
-  const initialView = (['waterfall', 'flame', 'graph', 'logs'] as const)
-    .find(v => v === urlParams.get('view')) ?? 'waterfall'
+  const initialView =
+    (['waterfall', 'flame', 'graph', 'logs'] as const).find((v) => v === urlParams.get('view')) ??
+    'waterfall'
 
-  const [view,       setView]       = useState<'waterfall' | 'flame' | 'graph' | 'logs'>(initialView)
+  const [view, setView] = useState<'waterfall' | 'flame' | 'graph' | 'logs'>(initialView)
   const [selectedId, setSelectedId] = useState<string | null>(initialSelected)
-  const [hoveredId,  setHoveredId]  = useState<string | null>(null)
-  const [zoom,       setZoom]       = useState<[number, number]>([traceStartNs, traceEndNs])
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [zoom, setZoom] = useState<[number, number]>([traceStartNs, traceEndNs])
 
   useEffect(() => {
     if (Number.isFinite(traceStartNs)) setZoom([traceStartNs, traceEndNs])
@@ -1245,30 +1443,36 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], logs
   }, [traceStartNs, traceEndNs])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') resetZoom() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') resetZoom()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [resetZoom])
 
-  const flatSpans    = flatten(spans)
-  const tags         = buildTagMap(warnings)
+  const flatSpans = flatten(spans)
+  const tags = buildTagMap(warnings)
 
   const n1SpanIds = useMemo(() => detectN1SpanIds(flatSpans, issues), [flatSpans, issues])
-  const n1Banner  = useMemo(() => n1BannerEntries(flatSpans, issues), [flatSpans, issues])
+  const n1Banner = useMemo(() => n1BannerEntries(flatSpans, issues), [flatSpans, issues])
 
-  const rootSpan     = spans.find(s => !s.parent_span_id || s.parent_span_id === ZERO_ID)
-  const serviceCount = new Set(spans.map(s => s.service_name)).size
-  const errorCount   = spans.filter(s => s.status_code === 2).length
-  const selectedSpan = selectedId ? (spans.find(s => s.span_id === selectedId) ?? null) : null
+  const rootSpan = spans.find((s) => !s.parent_span_id || s.parent_span_id === ZERO_ID)
+  const serviceCount = new Set(spans.map((s) => s.service_name)).size
+  const errorCount = spans.filter((s) => s.status_code === 2).length
+  const selectedSpan = selectedId ? (spans.find((s) => s.span_id === selectedId) ?? null) : null
 
   const handleSelect = useCallback((spanId: string) => {
-    setSelectedId(prev => prev === spanId ? null : spanId)
+    setSelectedId((prev) => (prev === spanId ? null : spanId))
   }, [])
 
   // Keep ?span= and ?view= in sync so the back button is not polluted.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (selectedId) { params.set('span', selectedId) } else { params.delete('span') }
+    if (selectedId) {
+      params.set('span', selectedId)
+    } else {
+      params.delete('span')
+    }
     params.set('view', view)
     const newSearch = params.toString()
     if (newSearch !== window.location.search.replace(/^\?/, '')) {
@@ -1287,7 +1491,7 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], logs
   // After mount, scroll the deep-linked span into view (?spanId=X).
   useEffect(() => {
     if (!initialSelected || flatSpans.length === 0) return
-    const idx = flatSpans.findIndex(f => f.span.span_id === initialSelected)
+    const idx = flatSpans.findIndex((f) => f.span.span_id === initialSelected)
     if (idx >= 0) virtualizer.scrollToIndex(idx, { align: 'center' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSelected, flatSpans.length])
@@ -1333,7 +1537,7 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], logs
               <Ruler traceDurNs={traceDurNs} spanCount={spans.length} />
               <div ref={parentRef} className="flex-1 overflow-y-auto overflow-x-hidden">
                 <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
-                  {virtualizer.getVirtualItems().map(vRow => {
+                  {virtualizer.getVirtualItems().map((vRow) => {
                     const flat = flatSpans[vRow.index]
                     return (
                       <div
@@ -1373,45 +1577,51 @@ export default function TraceWaterfall({ spans, warnings = [], issues = [], logs
               onZoom={setZoom}
             />
           ) : view === 'graph' ? (
-            <TraceGraph
-              spans={spans}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-            />
+            <TraceGraph spans={spans} selectedId={selectedId} onSelect={handleSelect} />
           ) : (
             <LogsView logs={logs} />
           )}
         </div>
 
         {/* right: inspector — hidden for logs view */}
-        {view !== 'logs' && selectedSpan && (() => {
-          const selIsN1 = n1SpanIds.has(selectedSpan.span_id)
-          // Compute count for the selected span's db.statement
-          let selN1Count = 0
-          if (selIsN1) {
-            let attrs: Record<string, unknown> = {}
-            try { attrs = JSON.parse(selectedSpan.attributes ?? '{}') } catch { /* empty */ }
-            const stmt = attrs['db.statement']
-            if (typeof stmt === 'string') {
-              for (const flat of flatSpans) {
-                let a: Record<string, unknown> = {}
-                try { a = JSON.parse(flat.span.attributes ?? '{}') } catch { /* empty */ }
-                if (a['db.statement'] === stmt) selN1Count++
+        {view !== 'logs' &&
+          selectedSpan &&
+          (() => {
+            const selIsN1 = n1SpanIds.has(selectedSpan.span_id)
+            // Compute count for the selected span's db.statement
+            let selN1Count = 0
+            if (selIsN1) {
+              let attrs: Record<string, unknown> = {}
+              try {
+                attrs = JSON.parse(selectedSpan.attributes ?? '{}')
+              } catch {
+                /* empty */
+              }
+              const stmt = attrs['db.statement']
+              if (typeof stmt === 'string') {
+                for (const flat of flatSpans) {
+                  let a: Record<string, unknown> = {}
+                  try {
+                    a = JSON.parse(flat.span.attributes ?? '{}')
+                  } catch {
+                    /* empty */
+                  }
+                  if (a['db.statement'] === stmt) selN1Count++
+                }
               }
             }
-          }
-          return (
-            <Inspector
-              span={selectedSpan}
-              traceStartNs={traceStartNs}
-              warnings={warnings}
-              issues={issues}
-              isN1={selIsN1}
-              n1Count={selN1Count}
-              onClose={() => setSelectedId(null)}
-            />
-          )
-        })()}
+            return (
+              <Inspector
+                span={selectedSpan}
+                traceStartNs={traceStartNs}
+                warnings={warnings}
+                issues={issues}
+                isN1={selIsN1}
+                n1Count={selN1Count}
+                onClose={() => setSelectedId(null)}
+              />
+            )
+          })()}
       </div>
     </div>
   )

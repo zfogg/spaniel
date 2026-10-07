@@ -11,8 +11,12 @@ function fmtRate(n: number): string {
 function fmtBytes(n: number): string {
   if (!n) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB']
-  let i = 0, v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  let i = 0,
+    v = n
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024
+    i++
+  }
   return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
 }
 
@@ -31,20 +35,28 @@ export default function SourcesPanel({ onClose }: Props) {
   useEffect(() => {
     let cancel = false
     function refresh() {
-      api.sources.list()
-        .then(r => { if (!cancel) setSources(r.data) })
+      api.sources
+        .list()
+        .then((r) => {
+          if (!cancel) setSources(r.data)
+        })
         .catch(() => {})
     }
     refresh()
     const t = setInterval(refresh, 2000)
-    return () => { cancel = true; clearInterval(t) }
+    return () => {
+      cancel = true
+      clearInterval(t)
+    }
   }, [])
 
-  const sorted = [...sources].sort((a, b) => {
-    const av = a[sortKey] as number
-    const bv = b[sortKey] as number
-    return bv - av
-  }).slice(0, 10)
+  const sorted = [...sources]
+    .sort((a, b) => {
+      const av = a[sortKey] as number
+      const bv = b[sortKey] as number
+      return bv - av
+    })
+    .slice(0, 10)
 
   function Col({ label, k }: { label: string; k: keyof SourceStats }) {
     return (
@@ -84,10 +96,13 @@ export default function SourcesPanel({ onClose }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map(s => {
+            {sorted.map((s) => {
               const rateLimited = s.rejected_per_sec > 0
               return (
-                <tr key={s.service} className="border-b border-border/50 hover:bg-surface-raised/40">
+                <tr
+                  key={s.service}
+                  className="border-b border-border/50 hover:bg-surface-raised/40"
+                >
                   <td className="px-2 py-[3px] text-ink flex items-center gap-1">
                     {rateLimited && (
                       <span
@@ -98,14 +113,22 @@ export default function SourcesPanel({ onClose }: Props) {
                     )}
                     <span className="truncate max-w-[180px]">{s.service}</span>
                   </td>
-                  <td className="px-2 py-[3px] text-right text-ok">{fmtRate(s.accepted_per_sec)}</td>
-                  <td className={`px-2 py-[3px] text-right ${rateLimited ? 'text-danger' : 'text-ink3'}`}>
+                  <td className="px-2 py-[3px] text-right text-ok">
+                    {fmtRate(s.accepted_per_sec)}
+                  </td>
+                  <td
+                    className={`px-2 py-[3px] text-right ${rateLimited ? 'text-danger' : 'text-ink3'}`}
+                  >
                     {fmtRate(s.rejected_per_sec)}
                   </td>
-                  <td className={`px-2 py-[3px] text-right ${s.error_rate > 0.05 ? 'text-warning' : 'text-ink3'}`}>
+                  <td
+                    className={`px-2 py-[3px] text-right ${s.error_rate > 0.05 ? 'text-warning' : 'text-ink3'}`}
+                  >
                     {fmtPct(s.error_rate)}
                   </td>
-                  <td className="px-2 py-[3px] text-right text-ink2">{fmtBytes(s.bytes_per_sec)}</td>
+                  <td className="px-2 py-[3px] text-right text-ink2">
+                    {fmtBytes(s.bytes_per_sec)}
+                  </td>
                 </tr>
               )
             })}

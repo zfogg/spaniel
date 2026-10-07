@@ -8,13 +8,17 @@ import { SettingsSchema, type Settings } from './api'
 // backend rejection — e.g. a port clash — still surfaces).
 
 const isUrl = (v: string): boolean => {
-  try { new URL(v); return true } catch { return false }
+  try {
+    new URL(v)
+    return true
+  } catch {
+    return false
+  }
 }
 // Lenient host checks — empty disables the family; otherwise a plausible shape.
 const isV4 = (v: string): boolean =>
-  v === '' || (/^(\d{1,3})(\.\d{1,3}){3}$/.test(v) && v.split('.').every(o => Number(o) <= 255))
-const isV6 = (v: string): boolean =>
-  v === '' || (v.includes(':') && /^[0-9a-fA-F:]+$/.test(v))
+  v === '' || (/^(\d{1,3})(\.\d{1,3}){3}$/.test(v) && v.split('.').every((o) => Number(o) <= 255))
+const isV6 = (v: string): boolean => v === '' || (v.includes(':') && /^[0-9a-fA-F:]+$/.test(v))
 
 export const SettingsFormSchema = SettingsSchema.pick({
   port: true,

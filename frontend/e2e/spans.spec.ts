@@ -2,7 +2,11 @@ import { test, expect, type Route, type Page } from '@playwright/test'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 0, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -19,7 +23,7 @@ function makeSpan(overrides: Record<string, unknown> = {}) {
     name: 'GET /api/users',
     kind: 2, // server
     start_ns: 1_700_000_000_000_000_000,
-    end_ns:   1_700_000_000_100_000_000,
+    end_ns: 1_700_000_000_100_000_000,
     duration_ns: 100_000_000, // 100ms
     status_code: 0,
     status_message: '',
@@ -34,16 +38,27 @@ function makeSpan(overrides: Record<string, unknown> = {}) {
 }
 
 async function stubBackend(page: Page, spans: unknown[] = []) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
-    const pathname = new URL(r.request().url()).pathname
-    if (pathname === '/api/stats')
-      return jsonResponse(r, { span_count: spans.length, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
-    if (pathname === '/api/forwarders') return jsonResponse(r, [])
-    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
-    if (pathname.startsWith('/api/spans')) return jsonResponse(r, spans, { total: spans.length, page: 1 })
-    return r.continue()
-  })
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route(
+    (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+    (r) => {
+      const pathname = new URL(r.request().url()).pathname
+      if (pathname === '/api/stats')
+        return jsonResponse(r, {
+          span_count: spans.length,
+          trace_count: 0,
+          log_count: 0,
+          db_size: 0,
+          session_count: 0,
+          oldest_session_at: 0,
+        })
+      if (pathname === '/api/forwarders') return jsonResponse(r, [])
+      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+      if (pathname.startsWith('/api/spans'))
+        return jsonResponse(r, spans, { total: spans.length, page: 1 })
+      return r.continue()
+    },
+  )
 }
 
 // ── navigation ────────────────────────────────────────────────────────────────
@@ -145,7 +160,10 @@ test.describe('Spans page', () => {
     await page.goto('/spans')
 
     // click in sidebar (not row button)
-    await page.getByTestId('spans-sidebar').getByRole('button', { name: /auth-service/ }).click()
+    await page
+      .getByTestId('spans-sidebar')
+      .getByRole('button', { name: /auth-service/ })
+      .click()
     await expect(page.getByText('login')).toBeVisible()
     await expect(page.getByText('GET /api/users')).not.toBeVisible()
 
@@ -155,13 +173,16 @@ test.describe('Spans page', () => {
 
   test('kind facet filters visible rows', async ({ page }) => {
     const spans = [
-      makeSpan({ span_id: 'sp-1', kind: 2, name: 'server-span' }),  // server
-      makeSpan({ span_id: 'sp-2', kind: 3, name: 'client-span' }),  // client
+      makeSpan({ span_id: 'sp-1', kind: 2, name: 'server-span' }), // server
+      makeSpan({ span_id: 'sp-2', kind: 3, name: 'client-span' }), // client
     ]
     await stubBackend(page, spans)
     await page.goto('/spans')
 
-    await page.getByTestId('spans-sidebar').getByRole('button', { name: /^client/ }).click()
+    await page
+      .getByTestId('spans-sidebar')
+      .getByRole('button', { name: /^client/ })
+      .click()
     await expect(page.getByText('client-span')).toBeVisible()
     await expect(page.getByText('server-span')).not.toBeVisible()
   })
@@ -217,7 +238,7 @@ test.describe('Spans page', () => {
   test('open waterfall navigates to trace detail', async ({ page }) => {
     const span = makeSpan({ trace_id: 'trace-xyz' })
     await stubBackend(page, [span])
-    await page.route('**/api/traces/trace-xyz', r => jsonResponse(r, []))
+    await page.route('**/api/traces/trace-xyz', (r) => jsonResponse(r, []))
     await page.goto('/spans')
 
     await page.getByTestId('span-row-span-1').click()

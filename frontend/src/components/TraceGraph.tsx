@@ -33,12 +33,14 @@ function SpanNode({ data }: NodeProps<SpanNodeData>) {
   const isError = span.status_code === 2
   const svc = svcColor(span.service_name)
 
-  const borderColor =
-    onCritical ? CRITICAL
-    : isError ? 'var(--danger)'
-    : selected ? 'var(--accent)'
-    : 'var(--border)'
-  const borderWidth = (onCritical || isError || selected) ? 2 : 1
+  const borderColor = onCritical
+    ? CRITICAL
+    : isError
+      ? 'var(--danger)'
+      : selected
+        ? 'var(--accent)'
+        : 'var(--border)'
+  const borderWidth = onCritical || isError || selected ? 2 : 1
 
   return (
     <div
@@ -94,9 +96,12 @@ function widthFor(durNs: number, maxDurNs: number): number {
 export default function TraceGraph({ spans, selectedId, onSelect }: Props) {
   const { nodes, edges } = useMemo(() => layout(spans, selectedId), [spans, selectedId])
 
-  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    onSelect(node.id)
-  }, [onSelect])
+  const onNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      onSelect(node.id)
+    },
+    [onSelect],
+  )
 
   if (spans.length === 0) {
     return (
@@ -197,7 +202,8 @@ function layout(spans: Span[], selectedId: string | null): { nodes: Node[]; edge
         target: c,
         label: showGap ? (gap >= 0 ? `+${fmtNs(gap)}` : fmtNs(gap)) : undefined,
         labelStyle: {
-          fontFamily: 'var(--font-mono)', fontSize: 9,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9,
           fill: 'var(--muted-foreground)',
         },
         labelBgStyle: { fill: 'var(--surface)' },
@@ -211,7 +217,8 @@ function layout(spans: Span[], selectedId: string | null): { nodes: Node[]; edge
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: onCrit ? CRITICAL : 'var(--muted-foreground)',
-          width: 16, height: 16,
+          width: 16,
+          height: 16,
         },
         animated: false,
       })

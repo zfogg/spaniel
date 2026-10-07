@@ -47,7 +47,8 @@ export default function LintPanel({ warnings, onSelectSpan }: Props) {
                 className="text-left text-xs text-muted-foreground hover:text-foreground bg-muted/20 hover:bg-muted/40 rounded px-3 py-2 font-mono transition-colors"
               >
                 <span className="text-foreground/60">{w.span_id.slice(0, 8)}…</span>
-                {'  '}{w.message}
+                {'  '}
+                {w.message}
               </button>
             ))}
           </div>

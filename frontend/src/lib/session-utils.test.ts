@@ -47,7 +47,7 @@ describe('fmtP95', () => {
   })
 
   it('formats microseconds', () => {
-    expect(fmtP95(500)).toBe('1µs')   // 0.5µs rounds to 1 with toFixed(0)
+    expect(fmtP95(500)).toBe('1µs') // 0.5µs rounds to 1 with toFixed(0)
     expect(fmtP95(50_000)).toBe('50µs')
   })
 

@@ -2,7 +2,11 @@ import { test, expect, type Route, type Page } from '@playwright/test'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function jsonResponse(route: Route, data: unknown, meta: Record<string, unknown> = { total: 0, page: 1 }) {
+function jsonResponse(
+  route: Route,
+  data: unknown,
+  meta: Record<string, unknown> = { total: 0, page: 1 },
+) {
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -28,22 +32,50 @@ interface ServiceMapFixture {
 }
 
 const DEFAULT_SESSIONS = [
-  { id: 'sess-1', label: 'session-1', created_at: 1, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
-  { id: 'sess-2', label: 'session-2', created_at: 2, is_baseline: false, is_imported: false, span_count: 0, trace_count: 0, services: '[]' },
+  {
+    id: 'sess-1',
+    label: 'session-1',
+    created_at: 1,
+    is_baseline: false,
+    is_imported: false,
+    span_count: 0,
+    trace_count: 0,
+    services: '[]',
+  },
+  {
+    id: 'sess-2',
+    label: 'session-2',
+    created_at: 2,
+    is_baseline: false,
+    is_imported: false,
+    span_count: 0,
+    trace_count: 0,
+    services: '[]',
+  },
 ]
 
 async function stubServiceMap(page: Page, fx: ServiceMapFixture) {
-  await page.routeWebSocket('**/ws', ws => ws.close())
-  await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
-    const pathname = new URL(r.request().url()).pathname
-    if (pathname === '/api/stats')
-      return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
-    if (pathname === '/api/forwarders') return jsonResponse(r, [])
-    if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
-    if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
-    if (pathname.startsWith('/api/service-map')) return jsonResponse(r, fx)
-    return r.continue()
-  })
+  await page.routeWebSocket('**/ws', (ws) => ws.close())
+  await page.route(
+    (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+    (r) => {
+      const pathname = new URL(r.request().url()).pathname
+      if (pathname === '/api/stats')
+        return jsonResponse(r, {
+          span_count: 0,
+          trace_count: 0,
+          log_count: 0,
+          db_size: 0,
+          session_count: 0,
+          oldest_session_at: 0,
+        })
+      if (pathname === '/api/forwarders') return jsonResponse(r, [])
+      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+      if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
+      if (pathname.startsWith('/api/service-map')) return jsonResponse(r, fx)
+      return r.continue()
+    },
+  )
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────
@@ -66,21 +98,36 @@ test.describe('ServiceMap page', () => {
     // The node id is rendered as SVG <text> inside SvgNode.
     // SVG <text> elements aren't matched by Playwright's locator('text') shorthand —
     // use a CSS selector with the svg| namespace prefix instead.
-    await expect(page.locator('svg text').filter({ hasText: /^api-gateway$/ }).first()).toBeVisible()
+    await expect(
+      page
+        .locator('svg text')
+        .filter({ hasText: /^api-gateway$/ })
+        .first(),
+    ).toBeVisible()
   })
 
   test('renders two nodes with an edge between them', async ({ page }) => {
     await stubServiceMap(page, {
       nodes: [
-        { id: 'frontend', span_count: 5,  error_count: 0 },
-        { id: 'backend',  span_count: 15, error_count: 0 },
+        { id: 'frontend', span_count: 5, error_count: 0 },
+        { id: 'backend', span_count: 15, error_count: 0 },
       ],
       edges: [{ from: 'frontend', to: 'backend', call_count: 3, avg_duration_ns: 50_000_000 }],
     })
     await page.goto('/services')
 
-    await expect(page.locator('svg text').filter({ hasText: /^frontend$/ }).first()).toBeVisible()
-    await expect(page.locator('svg text').filter({ hasText: /^backend$/ }).first()).toBeVisible()
+    await expect(
+      page
+        .locator('svg text')
+        .filter({ hasText: /^frontend$/ })
+        .first(),
+    ).toBeVisible()
+    await expect(
+      page
+        .locator('svg text')
+        .filter({ hasText: /^backend$/ })
+        .first(),
+    ).toBeVisible()
     // Footer shows services · edges summary
     await expect(page.getByText(/2 services/)).toBeVisible()
     await expect(page.getByText(/1 edges/)).toBeVisible()
@@ -94,24 +141,32 @@ test.describe('ServiceMap page', () => {
     await page.goto('/services')
 
     // Click on the SVG <text> element that renders the service name
-    await page.locator('svg text').filter({ hasText: /^my-service$/ }).first().click()
+    await page
+      .locator('svg text')
+      .filter({ hasText: /^my-service$/ })
+      .first()
+      .click()
 
     // After clicking, the header "View traces for X →" button appears
     await expect(page.getByText(/View traces for my-service/)).toBeVisible()
   })
 
-  test('clicking a node opens the inspector panel with stats + top operations', async ({ page }) => {
+  test('clicking a node opens the inspector panel with stats + top operations', async ({
+    page,
+  }) => {
     await stubServiceMap(page, {
-      nodes: [{
-        id: 'pricing',
-        span_count: 24,
-        error_count: 3,
-        p95_ns: 80_000_000,
-        top_operations: [
-          { name: 'pricing.Quote',  count: 18, p95_ns: 78_000_000 },
-          { name: 'pricing.Bulk',   count: 6,  p95_ns: 140_000_000 },
-        ],
-      }],
+      nodes: [
+        {
+          id: 'pricing',
+          span_count: 24,
+          error_count: 3,
+          p95_ns: 80_000_000,
+          top_operations: [
+            { name: 'pricing.Quote', count: 18, p95_ns: 78_000_000 },
+            { name: 'pricing.Bulk', count: 6, p95_ns: 140_000_000 },
+          ],
+        },
+      ],
       edges: [],
     })
     await page.goto('/services')
@@ -121,10 +176,10 @@ test.describe('ServiceMap page', () => {
     const inspector = page.getByTestId('node-inspector')
     await expect(inspector).toBeVisible()
     await expect(inspector.getByText('spans')).toBeVisible()
-    await expect(inspector.getByText('24')).toBeVisible()           // span count
-    await expect(inspector.getByText('80.0ms')).toBeVisible()       // p95
-    await expect(inspector.getByText('3', { exact: true })).toBeVisible()  // errors stat
-    await expect(inspector.getByText('12.5%')).toBeVisible()        // err rate 3/24
+    await expect(inspector.getByText('24')).toBeVisible() // span count
+    await expect(inspector.getByText('80.0ms')).toBeVisible() // p95
+    await expect(inspector.getByText('3', { exact: true })).toBeVisible() // errors stat
+    await expect(inspector.getByText('12.5%')).toBeVisible() // err rate 3/24
     await expect(inspector.getByText('pricing.Quote')).toBeVisible()
     await expect(inspector.getByText(/18× · 78\.0ms p95/)).toBeVisible()
   })
@@ -146,22 +201,28 @@ test.describe('ServiceMap page', () => {
     await stubServiceMap(page, {
       nodes: [
         { id: 'api', span_count: 5, error_count: 0, p95_ns: 0, top_operations: [] },
-        { id: 'db',  span_count: 5, error_count: 0, p95_ns: 0, top_operations: [] },
+        { id: 'db', span_count: 5, error_count: 0, p95_ns: 0, top_operations: [] },
       ],
-      edges: [{ from: 'api', to: 'db', call_count: 142, avg_duration_ns: 38_000_000, error_count: 0 }],
+      edges: [
+        { from: 'api', to: 'db', call_count: 142, avg_duration_ns: 38_000_000, error_count: 0 },
+      ],
     })
     await page.goto('/services')
     // Edge label format from the issue: "142 calls · 38ms avg".
-    await expect(page.locator('svg text').filter({ hasText: /142 calls · 38\.0ms avg/ })).toBeVisible()
+    await expect(
+      page.locator('svg text').filter({ hasText: /142 calls · 38\.0ms avg/ }),
+    ).toBeVisible()
   })
 
   test('edge carrying errors gets a danger stroke + " · X err" label suffix', async ({ page }) => {
     await stubServiceMap(page, {
       nodes: [
         { id: 'api', span_count: 5, error_count: 0, p95_ns: 0, top_operations: [] },
-        { id: 'db',  span_count: 5, error_count: 2, p95_ns: 0, top_operations: [] },
+        { id: 'db', span_count: 5, error_count: 2, p95_ns: 0, top_operations: [] },
       ],
-      edges: [{ from: 'api', to: 'db', call_count: 4, avg_duration_ns: 20_000_000, error_count: 2 }],
+      edges: [
+        { from: 'api', to: 'db', call_count: 4, avg_duration_ns: 20_000_000, error_count: 2 },
+      ],
     })
     await page.goto('/services')
     await expect(page.locator('svg text').filter({ hasText: /· 2 err/ })).toBeVisible()
@@ -171,7 +232,7 @@ test.describe('ServiceMap page', () => {
     await stubServiceMap(page, {
       nodes: [
         { id: 'happy', span_count: 5, error_count: 0, p95_ns: 0, top_operations: [] },
-        { id: 'sad',   span_count: 5, error_count: 1, p95_ns: 0, top_operations: [] },
+        { id: 'sad', span_count: 5, error_count: 1, p95_ns: 0, top_operations: [] },
       ],
       edges: [],
     })
@@ -180,22 +241,34 @@ test.describe('ServiceMap page', () => {
     await expect(page.getByTestId('node-sad')).toHaveAttribute('data-error', 'true')
   })
 
-  test('session filter dropdown lists available sessions and refetches with sessionId', async ({ page }) => {
+  test('session filter dropdown lists available sessions and refetches with sessionId', async ({
+    page,
+  }) => {
     let lastUrl = ''
-    await page.routeWebSocket('**/ws', ws => ws.close())
-    await page.route(url => new URL(url.toString()).pathname.startsWith('/api/'), r => {
-      const pathname = new URL(r.request().url()).pathname
-      if (pathname === '/api/stats')
-        return jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 0, oldest_session_at: 0 })
-      if (pathname === '/api/forwarders') return jsonResponse(r, [])
-      if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
-      if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
-      if (pathname.startsWith('/api/service-map')) {
-        lastUrl = r.request().url()
-        return jsonResponse(r, { nodes: [], edges: [] })
-      }
-      return r.continue()
-    })
+    await page.routeWebSocket('**/ws', (ws) => ws.close())
+    await page.route(
+      (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+      (r) => {
+        const pathname = new URL(r.request().url()).pathname
+        if (pathname === '/api/stats')
+          return jsonResponse(r, {
+            span_count: 0,
+            trace_count: 0,
+            log_count: 0,
+            db_size: 0,
+            session_count: 0,
+            oldest_session_at: 0,
+          })
+        if (pathname === '/api/forwarders') return jsonResponse(r, [])
+        if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
+        if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
+        if (pathname.startsWith('/api/service-map')) {
+          lastUrl = r.request().url()
+          return jsonResponse(r, { nodes: [], edges: [] })
+        }
+        return r.continue()
+      },
+    )
 
     await page.goto('/services')
     await page.getByTestId('session-filter').selectOption('sess-2')

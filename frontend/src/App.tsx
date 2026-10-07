@@ -35,12 +35,41 @@ import { api } from './lib/api'
 function SpanielLogo({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" className="block shrink-0">
-      <ellipse cx="8"  cy="13" rx="6" ry="9" fill="var(--accent)" opacity="0.78" transform="rotate(-12 8 13)" />
-      <ellipse cx="20" cy="13" rx="6" ry="9" fill="var(--accent)" opacity="0.50" transform="rotate(12 20 13)" />
-      <circle cx="14" cy="14" r="5.4" fill="var(--background)" stroke="var(--foreground)" strokeWidth="1.2" />
+      <ellipse
+        cx="8"
+        cy="13"
+        rx="6"
+        ry="9"
+        fill="var(--accent)"
+        opacity="0.78"
+        transform="rotate(-12 8 13)"
+      />
+      <ellipse
+        cx="20"
+        cy="13"
+        rx="6"
+        ry="9"
+        fill="var(--accent)"
+        opacity="0.50"
+        transform="rotate(12 20 13)"
+      />
+      <circle
+        cx="14"
+        cy="14"
+        r="5.4"
+        fill="var(--background)"
+        stroke="var(--foreground)"
+        strokeWidth="1.2"
+      />
       <circle cx="12.2" cy="13.5" r="0.9" fill="var(--foreground)" />
       <circle cx="15.8" cy="13.5" r="0.9" fill="var(--foreground)" />
-      <path d="M12.6 16.6 Q14 17.6 15.4 16.6" stroke="var(--foreground)" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+      <path
+        d="M12.6 16.6 Q14 17.6 15.4 16.6"
+        stroke="var(--foreground)"
+        strokeWidth="1.1"
+        fill="none"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -87,8 +116,12 @@ function ThemeToggle() {
 function fmtBytes(n: number): string {
   if (!n) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB']
-  let i = 0, v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  let i = 0,
+    v = n
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024
+    i++
+  }
   return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
 }
 
@@ -97,7 +130,7 @@ function fmtBytes(n: number): string {
 function ForwardingPills() {
   const { data: statuses = [] } = useQuery({
     queryKey: qk.forwarders(),
-    queryFn: () => api.forwarders.list().then(r => r.data),
+    queryFn: () => api.forwarders.list().then((r) => r.data),
     refetchInterval: 5000,
   })
 
@@ -107,12 +140,16 @@ function ForwardingPills() {
     <>
       <div className="w-px h-[18px] bg-border shrink-0" />
       <div className="flex gap-1 items-center">
-        {statuses.map(s => {
+        {statuses.map((s) => {
           const hasError = s.errors > 0
           const hasDropped = (s.dropped_spool ?? 0) > 0
           const pendingBytes = s.pending_bytes ?? 0
           const label = new URL(s.url).host
-          const tone = hasDropped ? 'text-white bg-warn' : hasError ? 'text-white bg-destructive' : 'text-muted-foreground bg-muted'
+          const tone = hasDropped
+            ? 'text-white bg-warn'
+            : hasError
+              ? 'text-white bg-destructive'
+              : 'text-muted-foreground bg-muted'
           const titleParts = [`→ ${s.url}`, `sent: ${s.sent}`]
           if (hasError) titleParts.push(`errors: ${s.errors} — last: ${s.last_error}`)
           if (pendingBytes > 0) titleParts.push(`queued: ${fmtBytes(pendingBytes)}`)
@@ -128,12 +165,13 @@ function ForwardingPills() {
               {pendingBytes > 0 && (
                 <span className="opacity-85">{fmtBytes(pendingBytes)} queued</span>
               )}
-              {hasDropped
-                ? <span className="opacity-85">⚠</span>
-                : hasError
-                  ? <span className="opacity-85">✗</span>
-                  : <span className="opacity-55">✓</span>
-              }
+              {hasDropped ? (
+                <span className="opacity-85">⚠</span>
+              ) : hasError ? (
+                <span className="opacity-85">✗</span>
+              ) : (
+                <span className="opacity-55">✓</span>
+              )}
             </span>
           )
         })}
@@ -153,9 +191,7 @@ function Chrome() {
         <span className="font-sans text-[15px] font-semibold text-foreground tracking-[-0.01em] leading-none">
           spaniel
         </span>
-        <span className="font-mono text-[9px] text-muted-foreground tracking-[0.06em]">
-          v0.1
-        </span>
+        <span className="font-mono text-[9px] text-muted-foreground tracking-[0.06em]">v0.1</span>
       </div>
 
       {/* divider */}
@@ -163,17 +199,17 @@ function Chrome() {
 
       {/* nav */}
       <nav className="flex gap-0.5 shrink-0 whitespace-nowrap" aria-label="Primary navigation">
-        <NavPill to="/"         end   label="Traces"   />
-        <NavPill to="/spans"          label="Spans"    />
-        <NavPill to="/logs"           label="Logs"     />
-        <NavPill to="/metrics"        label="Metrics"  />
-		<NavPill to="/dashboards"     label="Dashboards" />
-		<NavPill to="/alerts"         label="Alerts" />
-        <NavPill to="/services"       label="Services" />
-        <NavPill to="/coverage"       label="Coverage" />
-        <NavPill to="/lint"           label="Lint"     />
-        <NavPill to="/sessions"       label="Sessions" />
-        <NavPill to="/settings"       label="Settings" />
+        <NavPill to="/" end label="Traces" />
+        <NavPill to="/spans" label="Spans" />
+        <NavPill to="/logs" label="Logs" />
+        <NavPill to="/metrics" label="Metrics" />
+        <NavPill to="/dashboards" label="Dashboards" />
+        <NavPill to="/alerts" label="Alerts" />
+        <NavPill to="/services" label="Services" />
+        <NavPill to="/coverage" label="Coverage" />
+        <NavPill to="/lint" label="Lint" />
+        <NavPill to="/sessions" label="Sessions" />
+        <NavPill to="/settings" label="Settings" />
       </nav>
 
       <div className="flex-1 min-w-4" />
@@ -190,7 +226,9 @@ function Chrome() {
       >
         <Search size={12} />
         <span className="hidden sm:inline">Search</span>
-        <kbd className="hidden rounded border border-border px-1 py-px font-mono text-[9px] sm:inline-block">⌘K</kbd>
+        <kbd className="hidden rounded border border-border px-1 py-px font-mono text-[9px] sm:inline-block">
+          ⌘K
+        </kbd>
       </button>
 
       {/* theme toggle */}
@@ -211,11 +249,16 @@ function AppShell() {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('token')
     if (!token) return
-    api.health.seed(token).then(() => {
-      params.delete('token')
-      const qs = params.toString()
-      window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''))
-    }).catch(() => { /* server will reject API calls with 401 until token is correct */ })
+    api.health
+      .seed(token)
+      .then(() => {
+        params.delete('token')
+        const qs = params.toString()
+        window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''))
+      })
+      .catch(() => {
+        /* server will reject API calls with 401 until token is correct */
+      })
   }, [])
 
   useEffect(() => {
@@ -230,28 +273,28 @@ function AppShell() {
       <StorageFullBanner />
       <main className="flex-1 overflow-hidden flex flex-col">
         <RouteErrorBoundary>
-        <Routes>
-          <Route path="/"                  element={<TraceList />}   />
-          <Route path="/spans"             element={<Spans />}       />
-          <Route path="/traces/:traceId"   element={<TraceDetail />} />
-          <Route path="/logs"              element={<LogViewer />}   />
-          <Route path="/metrics"           element={<Metrics />}     />
-		  <Route path="/dashboards"        element={<Dashboards />}  />
-		  <Route path="/dashboards/new"    element={<DashboardEditor />}  />
-		  <Route path="/dashboards/:dashboardId" element={<DashboardEditor />}  />
-		  <Route path="/alerts"            element={<Alerts />}      />
-          <Route path="/coverage"          element={<Coverage />}    />
-          <Route path="/settings"          element={<Settings />}    />
-          <Route path="/services"          element={<ServiceMap />}  />
-          <Route path="/lint"              element={<LintPage />}    />
-          <Route path="/sessions"          element={<Sessions />}    />
-          <Route path="/diff"              element={<DiffPage />}    />
-        </Routes>
+          <Routes>
+            <Route path="/" element={<TraceList />} />
+            <Route path="/spans" element={<Spans />} />
+            <Route path="/traces/:traceId" element={<TraceDetail />} />
+            <Route path="/logs" element={<LogViewer />} />
+            <Route path="/metrics" element={<Metrics />} />
+            <Route path="/dashboards" element={<Dashboards />} />
+            <Route path="/dashboards/new" element={<DashboardEditor />} />
+            <Route path="/dashboards/:dashboardId" element={<DashboardEditor />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/coverage" element={<Coverage />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/services" element={<ServiceMap />} />
+            <Route path="/lint" element={<LintPage />} />
+            <Route path="/sessions" element={<Sessions />} />
+            <Route path="/diff" element={<DiffPage />} />
+          </Routes>
         </RouteErrorBoundary>
       </main>
       <BottomBar />
       <IssueToast />
-	  <AlertToast />
+      <AlertToast />
       <Toaster position="bottom-right" offset={44} visibleToasts={3} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>

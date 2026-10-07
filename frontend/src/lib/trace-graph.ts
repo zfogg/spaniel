@@ -10,7 +10,7 @@ export interface GraphNode {
 
 export function buildGraph(spans: Span[]): { roots: string[]; nodes: Map<string, GraphNode> } {
   const nodes = new Map<string, GraphNode>()
-  const byId = new Map(spans.map(s => [s.span_id, s]))
+  const byId = new Map(spans.map((s) => [s.span_id, s]))
   for (const s of spans) nodes.set(s.span_id, { span: s, depth: 0, childIds: [] })
   const roots: string[] = []
   for (const s of spans) {
@@ -56,7 +56,10 @@ export function criticalPath(spans: Span[]): Set<string> {
   let bestEnd = rootEnd(bestRoot)
   for (const r of roots.slice(1)) {
     const e = rootEnd(r)
-    if (e > bestEnd) { bestEnd = e; bestRoot = r }
+    if (e > bestEnd) {
+      bestEnd = e
+      bestRoot = r
+    }
   }
 
   const path = new Set<string>()
@@ -70,7 +73,10 @@ export function criticalPath(spans: Span[]): Set<string> {
     let nextEnd = nodes.get(next)!.span.end_ns
     for (const c of n.childIds.slice(1)) {
       const ce = nodes.get(c)!.span.end_ns
-      if (ce > nextEnd) { nextEnd = ce; next = c }
+      if (ce > nextEnd) {
+        nextEnd = ce
+        next = c
+      }
     }
     cur = next
   }

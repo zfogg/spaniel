@@ -11,11 +11,27 @@ import { fmtDateTime, fmtDuration } from '@/lib/fmt-relative'
 function ShareIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="13" cy="3"  r="2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="13" cy="3" r="2" stroke="currentColor" strokeWidth="1.5" />
       <circle cx="13" cy="13" r="2" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="3"  cy="8"  r="2" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="11.1" y1="4.2"  x2="4.9" y2="6.8"  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="4.9"  y1="9.2"  x2="11.1" y2="11.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="3" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <line
+        x1="11.1"
+        y1="4.2"
+        x2="4.9"
+        y2="6.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <line
+        x1="4.9"
+        y1="9.2"
+        x2="11.1"
+        y2="11.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -23,13 +39,24 @@ function ShareIcon() {
 function DownloadIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M8 2 L8 10 M5 7 L8 10 L11 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M8 2 L8 10 M5 7 L8 10 L11 7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <path d="M3 13 L13 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }
 
-function HeaderButton({ onClick, title, children, testid }: {
+function HeaderButton({
+  onClick,
+  title,
+  children,
+  testid,
+}: {
   onClick: () => void
   title: string
   children: React.ReactNode
@@ -51,32 +78,43 @@ function HeaderButton({ onClick, title, children, testid }: {
 export default function TraceDetail() {
   const { traceId } = useParams<{ traceId: string }>()
   const navigate = useNavigate()
-  const [copied, setCopied]     = useState(false)
-  const copiedTimer             = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [copied, setCopied] = useState(false)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { data: spans = [], isLoading: loading, isError, error, refetch } = useQuery({
+  const {
+    data: spans = [],
+    isLoading: loading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: qk.trace(traceId ?? ''),
-    queryFn: () => api.traces.get(traceId!).then(r => r.data ?? []),
+    queryFn: () => api.traces.get(traceId!).then((r) => r.data ?? []),
     enabled: !!traceId,
   })
   const { data: warnings = [] } = useQuery({
     queryKey: qk.lint(),
-    queryFn: () => api.lint.list().then(r => r.data ?? []),
+    queryFn: () => api.lint.list().then((r) => r.data ?? []),
     enabled: !!traceId,
-    select: rows => rows.filter(w => w.trace_id === traceId),
+    select: (rows) => rows.filter((w) => w.trace_id === traceId),
   })
   const { data: issues = [] } = useQuery({
     queryKey: qk.issues(traceId ?? ''),
-    queryFn: () => api.issues.get(traceId!).then(r => r.data ?? []),
+    queryFn: () => api.issues.get(traceId!).then((r) => r.data ?? []),
     enabled: !!traceId,
   })
   const { data: logs = [] } = useQuery({
     queryKey: qk.logs({ traceId: traceId ?? '' }),
-    queryFn: () => api.logs.list({ traceId: traceId! }).then(r => r.data ?? []),
+    queryFn: () => api.logs.list({ traceId: traceId! }).then((r) => r.data ?? []),
     enabled: !!traceId,
   })
 
-  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current)
+    },
+    [],
+  )
 
   function handleShare() {
     navigator.clipboard.writeText(window.location.href).then(() => {
