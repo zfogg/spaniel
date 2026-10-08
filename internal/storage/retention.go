@@ -157,11 +157,26 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 			break
 		}
 		deleted += n
-		if err := d.checkpointWithRetry(); err != nil {
+		if err := d.reclaimRetentionSpace(); err != nil {
 			return deleted, err
 		}
 	}
 	return deleted, nil
+}
+
+// reclaimRetentionSpace makes the size measurement authoritative after a
+// deletion. DuckDB keeps freed blocks in the database allocation until VACUUM;
+// checkpointing alone therefore leaves UsedSize unchanged and makes the
+// storage guard believe pruning failed. Run this while maintenance has closed
+// all appenders, and re-check the cap before deleting another batch.
+func (d *DB) reclaimRetentionSpace() error {
+	if err := d.checkpointWithRetry(); err != nil {
+		return err
+	}
+	if err := d.gorm.Exec("VACUUM").Error; err != nil {
+		return fmt.Errorf("vacuum retention: %w", err)
+	}
+	return d.checkpointWithRetry()
 }
 
 // deleteOldestTelemetryBatch removes coherent oldest trace groups first, then
