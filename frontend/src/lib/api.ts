@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const BASE = ''
+import { openapiClient } from './openapi'
 
 interface Meta {
   total: number
@@ -29,9 +29,9 @@ async function get<S extends z.ZodTypeAny>(
   schema: S,
   signal?: AbortSignal,
 ): Promise<Envelope<z.infer<S>>> {
-  const res = await fetch(BASE + path, { signal })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  const json = await res.json()
+  const { data, error, response } = await openapiClient.GET(path as never, { signal } as never)
+  if (error || !response.ok) throw new Error(`${response.status} ${response.statusText}`)
+  const json = data as Envelope<unknown>
   return { data: parse(schema, json.data, `GET ${path}`), meta: json.meta }
 }
 
@@ -40,25 +40,21 @@ async function post<S extends z.ZodTypeAny>(
   body: unknown,
   schema: S,
 ): Promise<Envelope<z.infer<S>>> {
-  const res = await fetch(BASE + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const detail = await res.json().catch(() => null)
+  const { data, error, response } = await openapiClient.POST(path as never, { body } as never)
+  if (error || !response.ok) {
+    const detail = error as { error?: unknown } | undefined
     throw new Error(
-      typeof detail?.error === 'string' ? detail.error : `${res.status} ${res.statusText}`,
+      typeof detail?.error === 'string' ? detail.error : `${response.status} ${response.statusText}`,
     )
   }
-  const json = await res.json()
+  const json = data as Envelope<unknown>
   return { data: parse(schema, json.data, `POST ${path}`), meta: json.meta }
 }
 
 async function del<S extends z.ZodTypeAny>(path: string, schema: S): Promise<Envelope<z.infer<S>>> {
-  const res = await fetch(BASE + path, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  const json = await res.json()
+  const { data, error, response } = await openapiClient.DELETE(path as never)
+  if (error || !response.ok) throw new Error(`${response.status} ${response.statusText}`)
+  const json = data as Envelope<unknown>
   return { data: parse(schema, json.data, `DELETE ${path}`), meta: json.meta }
 }
 
@@ -67,13 +63,9 @@ async function patch<S extends z.ZodTypeAny>(
   body: unknown,
   schema: S,
 ): Promise<Envelope<z.infer<S>>> {
-  const res = await fetch(BASE + path, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  const json = await res.json()
+  const { data, error, response } = await openapiClient.PATCH(path as never, { body } as never)
+  if (error || !response.ok) throw new Error(`${response.status} ${response.statusText}`)
+  const json = data as Envelope<unknown>
   return { data: parse(schema, json.data, `PATCH ${path}`), meta: json.meta }
 }
 
@@ -554,6 +546,37 @@ export const QueryPreviewSchema = z.object({
       pattern: z.string().optional(),
     })
     .optional(),
+})
+export const DatabaseSchemaCatalogSchema = z.object({
+  version: z.string(),
+  fingerprint: z.string(),
+  views: z.array(
+    z.object({
+      name: z.string(),
+      purpose: z.string(),
+      columns: z.array(
+        z.object({
+          name: z.string(),
+          type: z.string(),
+          description: z.string(),
+          use_it_for: z.string(),
+          sensitivity: z.string().optional(),
+        }),
+      ),
+      samples: z
+        .array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            display_type: z.string(),
+            sql: z.string(),
+            explanation: z.string(),
+          }),
+        )
+        .default([]),
+    }),
+  ),
+  parameters: z.array(z.string()).default([]),
 })
 export const QueryCatalogEntrySchema = z.object({
   signal: z.string(),
