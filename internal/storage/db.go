@@ -86,11 +86,18 @@ func (d *DB) CreateCoverageSpec(spec *CoverageSpec) error {
 
 func (d *DB) UpdateCoverageSpec(spec *CoverageSpec) error {
 	q := d.query.CoverageSpec
-	_, err := q.Where(q.ID.Eq(spec.ID)).Updates(map[string]any{
-		"name": spec.Name, "service_name": spec.ServiceName, "format": spec.Format,
-		"source_url": spec.SourceURL, "content": spec.Content, "digest": spec.Digest,
-		"route_count": spec.RouteCount, "enabled": spec.Enabled, "updated_at": spec.UpdatedAt,
-	})
+	// DuckDB cannot rewrite indexed columns as part of a generated model-wide
+	// update. A coverage-spec refresh keeps its ID and telemetry service, so
+	// update only the mutable document metadata and body.
+	_, err := q.Where(q.ID.Eq(spec.ID)).UpdateSimple(
+		q.Name.Value(spec.Name),
+		q.Format.Value(spec.Format),
+		q.SourceURL.Value(spec.SourceURL),
+		q.Content.Value(spec.Content),
+		q.Digest.Value(spec.Digest),
+		q.RouteCount.Value(spec.RouteCount),
+		q.Enabled.Value(spec.Enabled),
+	)
 	return err
 }
 
@@ -797,6 +804,25 @@ func (d *DB) ListSessions() ([]*Session, error) {
 			SizeBytes: r.SizeBytes, N1Count: r.N1Count, ErrorCount: r.ErrorCount,
 		}
 	}
+	// DuckDB packs values from several sessions into the same compressed blocks,
+	// so it has no intrinsic "file bytes owned by session" value. Allocate the
+	// real database footprint across the sessions by their complete telemetry
+	// payload (spans, logs, metrics, events, links, and telemetry findings).
+	// This deliberately leaves alerts and dashboards out of the allocation.
+	var payloadTotal int64
+	for _, s := range result {
+		payloadTotal += s.SizeBytes
+	}
+	if dbBytes := d.FileSize(); dbBytes > 0 && payloadTotal > 0 {
+		var allocated int64
+		for _, s := range result {
+			s.SizeBytes = s.SizeBytes * dbBytes / payloadTotal
+			allocated += s.SizeBytes
+		}
+		// Keep the allocations exact in aggregate despite integer division. The
+		// newest session is the stable recipient of the rounding remainder.
+		result[0].SizeBytes += dbBytes - allocated
+	}
 	return result, nil
 }
 
@@ -1238,7 +1264,8 @@ type TableStat struct {
 type SessionSize = model.SessionSize
 
 // GetStorageBreakdown returns per-table sizes via duckdb_tables() and a
-// per-session estimate based on the serialised span attribute lengths.
+// complete, session-scoped telemetry payload estimate. DuckDB does not expose
+// ownership for compressed blocks shared by multiple sessions.
 func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	out := &StorageBreakdown{}
 
@@ -1283,7 +1310,8 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 		})
 	}
 
-	// Per-session: proxy size via span attribute payload length.
+	// Per-session: include every session-scoped telemetry table. Their compact
+	// payloads are the deterministic basis for allocating shared DuckDB blocks.
 	sessSizes, _ := d.query.Span.TopSessionSizes()
 	out.Sessions = sessSizes
 

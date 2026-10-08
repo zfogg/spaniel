@@ -993,11 +993,15 @@ func TestListSessions_IncludesP95AndActivity(t *testing.T) {
 	if sb.P95Ns <= 0 {
 		t.Errorf("session B p95_ns = %d, want > 0", sb.P95Ns)
 	}
-	// sessB has one span with start_ns = now-10ms; last_activity should reflect the computed MAX.
-	// The stored column is 0; the computed value from the query is in P95Ns.
-	// Verify span count is correct.
-	if sb.SpanCount != 0 {
-		// span_count is maintained by the ingest pipeline, not set in tests; it may be 0.
+	// ListSessions must calculate counts from spans rather than expose the stale
+	// denormalized sessions.span_count field.
+	if sa.SpanCount != 2 {
+		t.Errorf("session A span_count = %d, want 2", sa.SpanCount)
 	}
-	_ = sb
+	if sb.SpanCount != 1 {
+		t.Errorf("session B span_count = %d, want 1", sb.SpanCount)
+	}
+	if sa.SizeBytes <= 0 || sb.SizeBytes <= 0 {
+		t.Errorf("session allocations must include telemetry payloads: A=%d B=%d", sa.SizeBytes, sb.SizeBytes)
+	}
 }

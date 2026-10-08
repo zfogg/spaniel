@@ -471,7 +471,7 @@ function SessionRow({
     <div
       className="grid gap-2.5 items-center px-3.5 py-3 border-b border-[var(--line2)]"
       style={{
-        gridTemplateColumns: '34px minmax(0,1fr) 96px 64px 64px 64px 96px 152px',
+        gridTemplateColumns: '34px minmax(280px,1fr) 112px 72px 72px 72px 96px 168px',
         background: isBaseline
           ? 'color-mix(in oklch, var(--warn) 8%, var(--surface))'
           : isCompare
@@ -497,17 +497,19 @@ function SessionRow({
 
       {/* kind glyph + name + note + pills */}
       <div className="min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1.5 min-w-0">
           {isBranchLabel(s.label) ? <BranchGlyph /> : <ScratchGlyph />}
           <span className="font-mono text-[13px] font-semibold text-ink overflow-hidden text-ellipsis whitespace-nowrap">
             {s.label || s.id.slice(0, 8)}
           </span>
-          {isActive && <DotPill tone="ok">● active</DotPill>}
-          {isBaseline && <DotPill tone="warn">★ baseline</DotPill>}
-          {s.n1_count > 0 && <DotPill tone="danger">{s.n1_count} n+1</DotPill>}
-          {s.error_count > 0 && s.n1_count === 0 && (
-            <DotPill tone="danger">{s.error_count} err</DotPill>
-          )}
+          <span className="flex items-center gap-1 shrink-0">
+            {isActive && <DotPill tone="ok">● active</DotPill>}
+            {isBaseline && <DotPill tone="warn">★ baseline</DotPill>}
+            {s.n1_count > 0 && <DotPill tone="danger">{s.n1_count} n+1</DotPill>}
+            {s.error_count > 0 && s.n1_count === 0 && (
+              <DotPill tone="danger">{s.error_count} err</DotPill>
+            )}
+          </span>
         </div>
         <NoteCell s={s} onSaved={(note) => onNoteChange(s.id, note)} />
       </div>
@@ -528,8 +530,13 @@ function SessionRow({
 
       {/* size */}
       <div>
-        <div className="font-mono text-[11px] text-ink">{fmtSessionSize(s.size_bytes)}</div>
-        <div className="font-mono text-[10px] text-ink3">duckdb</div>
+        <div
+          className="font-mono text-[11px] text-ink"
+          title="Allocated share of the on-disk DuckDB database, based on all session telemetry: spans, logs, metrics, events, links, and findings."
+        >
+          {fmtSessionSize(s.size_bytes)}
+        </div>
+        <div className="font-mono text-[10px] text-ink3">db allocation</div>
       </div>
 
       {/* actions */}
@@ -907,95 +914,99 @@ export default function Sessions() {
           </div>
 
           {/* sessions table */}
-          <div className="px-6 py-1">
-            {/* column header */}
-            <div
-              className="grid gap-2.5 px-3.5 py-2 font-mono text-[9px] text-ink3 uppercase tracking-[0.14em] bg-surface2 rounded-t-[10px] border border-line"
-              style={{
-                gridTemplateColumns: '34px minmax(0,1fr) 96px 64px 64px 64px 96px 152px',
-              }}
-            >
-              <div title="Mark baseline">★</div>
-              <div>session · note</div>
-              <div>activity</div>
-              <div>traces</div>
-              <div>spans</div>
-              <div>p95</div>
-              <div>size</div>
-              <div className="text-right">actions</div>
-            </div>
-
-            {loading ? (
-              <div className="px-4 py-6 font-mono text-xs text-ink3 bg-surface border border-line border-t-0 rounded-b-[10px]">
-                loading…
-              </div>
-            ) : isError ? (
-              <div className="bg-surface border border-line border-t-0 rounded-b-[10px]">
-                <ErrorState what="sessions" error={error} onRetry={() => refetch()} />
-              </div>
-            ) : filteredSessions.length === 0 ? (
-              sessions.length === 0 ? (
-                <EmptyState
-                  title="No sessions yet"
-                  hint={
-                    <>
-                      Run <code>spaniel session new &lt;label&gt;</code> or call{' '}
-                      <code>POST /api/sessions</code> to create one.
-                    </>
-                  }
-                  glyph={
-                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                      <rect
-                        x="5"
-                        y="8"
-                        width="22"
-                        height="16"
-                        rx="3"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        opacity="0.5"
-                      />
-                      <line
-                        x1="5"
-                        y1="13"
-                        x2="27"
-                        y2="13"
-                        stroke="currentColor"
-                        strokeWidth="1"
-                        opacity="0.3"
-                      />
-                      <circle cx="9" cy="10.5" r="1" fill="currentColor" opacity="0.5" />
-                      <circle cx="12.5" cy="10.5" r="1" fill="currentColor" opacity="0.4" />
-                      <circle cx="16" cy="10.5" r="1" fill="currentColor" opacity="0.3" />
-                    </svg>
-                  }
-                />
-              ) : (
-                <div className="px-4 py-8 text-center font-mono text-xs text-ink3 bg-surface border border-line border-t-0 rounded-b-[10px]">
-                  no sessions match this filter
+          <div className="px-6 py-1 min-w-0">
+            <div className="overflow-x-auto pb-2 [scrollbar-gutter:stable]">
+              <div className="min-w-[970px]">
+                {/* column header */}
+                <div
+                  className="grid gap-2.5 px-3.5 py-2 font-mono text-[9px] text-ink3 uppercase tracking-[0.14em] bg-surface2 rounded-t-[10px] border border-line"
+                  style={{
+                    gridTemplateColumns: '34px minmax(280px,1fr) 112px 72px 72px 72px 96px 168px',
+                  }}
+                >
+                  <div title="Mark baseline">★</div>
+                  <div>session · note</div>
+                  <div>activity</div>
+                  <div>traces</div>
+                  <div>spans</div>
+                  <div>p95</div>
+                  <div>size</div>
+                  <div className="text-right">actions</div>
                 </div>
-              )
-            ) : (
-              <div
-                data-testid="sessions-table-body"
-                className="bg-surface border border-line border-t-0 rounded-b-[10px] overflow-hidden"
-              >
-                {filteredSessions.map((s) => (
-                  <SessionRow
-                    key={s.id}
-                    s={s}
-                    isActive={s.id === activeId}
-                    isBaseline={s.id === baselineId}
-                    isCompare={s.id === compareId}
-                    onBaseline={handleBaseline}
-                    onCompare={handleCompare}
-                    onActivate={handleActivate}
-                    onDelete={handleDelete}
-                    onNoteChange={handleNoteChange}
-                  />
-                ))}
+
+                {loading ? (
+                  <div className="px-4 py-6 font-mono text-xs text-ink3 bg-surface border border-line border-t-0 rounded-b-[10px]">
+                    loading…
+                  </div>
+                ) : isError ? (
+                  <div className="bg-surface border border-line border-t-0 rounded-b-[10px]">
+                    <ErrorState what="sessions" error={error} onRetry={() => refetch()} />
+                  </div>
+                ) : filteredSessions.length === 0 ? (
+                  sessions.length === 0 ? (
+                    <EmptyState
+                      title="No sessions yet"
+                      hint={
+                        <>
+                          Run <code>spaniel session new &lt;label&gt;</code> or call{' '}
+                          <code>POST /api/sessions</code> to create one.
+                        </>
+                      }
+                      glyph={
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                          <rect
+                            x="5"
+                            y="8"
+                            width="22"
+                            height="16"
+                            rx="3"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            opacity="0.5"
+                          />
+                          <line
+                            x1="5"
+                            y1="13"
+                            x2="27"
+                            y2="13"
+                            stroke="currentColor"
+                            strokeWidth="1"
+                            opacity="0.3"
+                          />
+                          <circle cx="9" cy="10.5" r="1" fill="currentColor" opacity="0.5" />
+                          <circle cx="12.5" cy="10.5" r="1" fill="currentColor" opacity="0.4" />
+                          <circle cx="16" cy="10.5" r="1" fill="currentColor" opacity="0.3" />
+                        </svg>
+                      }
+                    />
+                  ) : (
+                    <div className="px-4 py-8 text-center font-mono text-xs text-ink3 bg-surface border border-line border-t-0 rounded-b-[10px]">
+                      no sessions match this filter
+                    </div>
+                  )
+                ) : (
+                  <div
+                    data-testid="sessions-table-body"
+                    className="bg-surface border border-line border-t-0 rounded-b-[10px] overflow-hidden"
+                  >
+                    {filteredSessions.map((s) => (
+                      <SessionRow
+                        key={s.id}
+                        s={s}
+                        isActive={s.id === activeId}
+                        isBaseline={s.id === baselineId}
+                        isCompare={s.id === compareId}
+                        onBaseline={handleBaseline}
+                        onCompare={handleCompare}
+                        onActivate={handleActivate}
+                        onDelete={handleDelete}
+                        onNoteChange={handleNoteChange}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* recent diffs */}
