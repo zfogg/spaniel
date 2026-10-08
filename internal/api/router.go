@@ -89,6 +89,10 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	})
 	// otelhttp records bytes read from Request.Body. Drain anything a handler
 	// intentionally ignores after it returns so request-body telemetry reflects
+	// Chi only knows the final route template after the handler returns. Run
+	// inside otelhttp so the completed server span records that stable template
+	// rather than a cardinality-heavy URL or the outer /api/ mount.
+	mux.Use(routeTemplateTelemetryMiddleware)
 	// the received payload, including rejected requests, without changing what
 	// handlers are allowed to read while they execute.
 	mux.Use(drainRequestBodyMiddleware)
