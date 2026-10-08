@@ -19,6 +19,7 @@ func main() {
 	}
 	applyFrontendSchemas(doc)
 	applyRequestContracts(doc)
+	applyNotificationContracts(doc)
 	doc["tags"] = []any{map[string]any{"name": "Traces", "description": "Trace, span, log, service, and investigation APIs."}, map[string]any{"name": "Sessions", "description": "Capture session lifecycle and comparison APIs."}, map[string]any{"name": "Metrics", "description": "Metric catalog, cardinality, and time-series APIs."}, map[string]any{"name": "Dashboards", "description": "Dashboard definitions, panels, and variables."}, map[string]any{"name": "Alerts", "description": "Alert rules, instances, events, and silences."}, map[string]any{"name": "Administration", "description": "Settings, storage, coverage, schema, and source metadata."}}
 	for path, item := range doc["paths"].(map[string]any) {
 		for method, raw := range item.(map[string]any) {
@@ -84,10 +85,6 @@ func applyFrontendSchemas(doc map[string]any) {
 
 func applyResponseSchema(op map[string]any) {
 	operationID, _ := op["operationId"].(string)
-	name, ok := responseSchemas[operationID]
-	if !ok {
-		return
-	}
 	responses := op["responses"].(map[string]any)
 	response, _ := responses["200"].(map[string]any)
 	content, _ := response["content"].(map[string]any)
@@ -95,17 +92,35 @@ func applyResponseSchema(op map[string]any) {
 	if jsonContent == nil {
 		return
 	}
-	dataSchema := map[string]any{"$ref": "#/components/schemas/" + name}
-	if strings.HasPrefix(name, "[]") {
-		dataSchema = map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/" + strings.TrimPrefix(name, "[]")}}
+	dataSchema := map[string]any{"$ref": "#/components/schemas/JSONValue"}
+	if name, ok := responseSchemas[operationID]; ok {
+		dataSchema = map[string]any{"$ref": "#/components/schemas/" + name}
+		if strings.HasPrefix(name, "[]") {
+			dataSchema = map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/" + strings.TrimPrefix(name, "[]")}}
+		}
 	}
-	jsonContent["schema"] = map[string]any{"type": "object", "required": []any{"data", "meta"}, "properties": map[string]any{"data": dataSchema, "meta": map[string]any{"$ref": "#/components/schemas/Meta"}}}
+	properties := map[string]any{"data": dataSchema}
+	required := []any{"data"}
+	if paginationOperations[operationID] {
+		properties["meta"] = map[string]any{"$ref": "#/components/schemas/Meta"}
+		required = append(required, "meta")
+	}
+	jsonContent["schema"] = map[string]any{"type": "object", "required": required, "properties": properties}
+}
+
+// Only these handlers accept page and limit and report a cross-page total.
+// Other endpoints return a data envelope without pretending that their result
+// count is pagination metadata.
+var paginationOperations = map[string]bool{
+	"listAlerts": true, "listAlertEvents": true, "listAlertHistory": true,
+	"listLogs": true, "listNotifications": true, "listSpans": true, "listTraces": true,
 }
 
 var responseSchemas = map[string]string{
 	"listAlerts": "AlertList", "createAlert": "AlertRule", "listAlertHistory": "[]AlertEvent", "importAlertConfig": "AlertRule", "previewAlertDraft": "QueryPreview", "reloadAlertDefinitions": "Ok", "deleteAlert": "Ok", "getAlert": "AlertRule", "patchAlert": "AlertRule", "acknowledgeAlert": "Ok", "duplicateAlert": "AlertRule", "listAlertEvents": "[]AlertEvent", "acknowledgeAlertInstance": "AlertInstance", "unacknowledgeAlertInstance": "AlertInstance", "previewAlert": "QueryPreview", "listAlertSilences": "[]AlertSilence", "createAlertSilence": "AlertSilence", "deleteAlertSilence": "Ok", "patchAlertSilence": "AlertSilence", "testAlertNotification": "AlertTestNotification",
 	"getCoverage": "CoverageReport", "listDashboards": "[]Dashboard", "createDashboard": "Dashboard", "importDashboardConfig": "Dashboard", "reorderDashboards": "Ok", "deleteDashboard": "Ok", "getDashboard": "Dashboard", "patchDashboard": "Dashboard", "createDashboardPanel": "DashboardPanel", "deleteDashboardPanel": "Ok", "patchDashboardPanel": "DashboardPanel", "moveDashboardPanel": "Ok", "previewDashboardQuery": "QueryPreview", "createDashboardVariable": "DashboardVariable", "deleteDashboardVariable": "Ok",
 	"getDatabaseSchema": "DatabaseSchemaCatalog", "getDiff": "DiffResult", "listForwarders": "[]ForwarderStatus", "getHealth": "Ok", "listIssues": "[]TraceIssue", "listLint": "[]LintWarning", "listLogs": "[]Log", "listMetrics": "[]MetricCatalogEntry", "getMetricCardinality": "[]MetricCardinalityStream", "getMetricSeries": "MetricSeries", "listQueryCatalog": "[]QueryCatalogEntry", "searchTelemetry": "[]SearchResult", "getServiceMap": "ServiceMapData", "listServices": "[]String", "listSessions": "[]Session", "createSession": "Session", "getActiveSession": "ActiveSession", "importSession": "ImportResult", "deleteSession": "Ok", "getSession": "Session", "patchSession": "Session", "activateSession": "Session", "setSessionBaseline": "Ok", "getSettings": "SettingsResponse", "putSettings": "Settings", "checkUpdates": "UpdateCheckResult", "compactStorage": "CompactResult", "dropAllData": "Ok", "pruneStorage": "PruneResult", "listSources": "[]SourceStats", "listSpans": "[]SpanRow", "getSpan": "Span", "getStats": "Stats", "getStorageBreakdown": "StorageBreakdown", "listTraces": "[]TraceRow", "getTrace": "[]Span", "listIncomingLinks": "[]Span",
+	"listNotifications": "[]NotificationRecord", "readNotification": "Ok", "acknowledgeNotification": "Ok",
 }
 
 func addExample(op map[string]any, doc map[string]any) {

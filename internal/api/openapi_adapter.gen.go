@@ -35,9 +35,11 @@ func (r *Router) DeleteSession(w http.ResponseWriter, req *http.Request, session
 
 func (r *Router) DropAllData(w http.ResponseWriter, req *http.Request) { r.dropAllData(w, req) }
 
-func (r *Router) ListAlerts(w http.ResponseWriter, req *http.Request) { r.listAlerts(w, req) }
+func (r *Router) ListAlerts(w http.ResponseWriter, req *http.Request, _ apigen.ListAlertsParams) {
+	r.listAlerts(w, req)
+}
 
-func (r *Router) ListAlertHistory(w http.ResponseWriter, req *http.Request) {
+func (r *Router) ListAlertHistory(w http.ResponseWriter, req *http.Request, _ apigen.ListAlertHistoryParams) {
 	r.listAlertHistory(w, req)
 }
 
@@ -47,7 +49,7 @@ func (r *Router) ExportAlertConfig(w http.ResponseWriter, req *http.Request, id 
 	r.exportAlertConfig(w, req)
 }
 
-func (r *Router) ListAlertEvents(w http.ResponseWriter, req *http.Request, id string) {
+func (r *Router) ListAlertEvents(w http.ResponseWriter, req *http.Request, id string, _ apigen.ListAlertEventsParams) {
 	r.listAlertEvents(w, req)
 }
 
@@ -55,7 +57,9 @@ func (r *Router) ListAlertSilences(w http.ResponseWriter, req *http.Request, id 
 	r.listAlertSilences(w, req)
 }
 
-func (r *Router) GetCoverage(w http.ResponseWriter, req *http.Request) { r.getCoverage(w, req) }
+func (r *Router) GetCoverage(w http.ResponseWriter, req *http.Request, _ apigen.GetCoverageParams) {
+	r.getCoverage(w, req)
+}
 
 func (r *Router) ListDashboards(w http.ResponseWriter, req *http.Request) { r.listDashboards(w, req) }
 
@@ -71,33 +75,55 @@ func (r *Router) GetDatabaseSchema(w http.ResponseWriter, req *http.Request) {
 	r.databaseSchema(w, req)
 }
 
-func (r *Router) GetDiff(w http.ResponseWriter, req *http.Request) { r.getDiff(w, req) }
+func (r *Router) GetDiff(w http.ResponseWriter, req *http.Request, _ apigen.GetDiffParams) {
+	r.getDiff(w, req)
+}
 
 func (r *Router) ListForwarders(w http.ResponseWriter, req *http.Request) { r.listForwarders(w, req) }
 
 func (r *Router) GetHealth(w http.ResponseWriter, req *http.Request) { r.health(w, req) }
 
-func (r *Router) ListIssues(w http.ResponseWriter, req *http.Request) { r.getIssues(w, req) }
+func (r *Router) ListIssues(w http.ResponseWriter, req *http.Request, _ apigen.ListIssuesParams) {
+	r.getIssues(w, req)
+}
 
-func (r *Router) ListLint(w http.ResponseWriter, req *http.Request) { r.listLint(w, req) }
+func (r *Router) ListLint(w http.ResponseWriter, req *http.Request, _ apigen.ListLintParams) {
+	r.listLint(w, req)
+}
 
-func (r *Router) ListLogs(w http.ResponseWriter, req *http.Request) { r.listLogs(w, req) }
+func (r *Router) ListLogs(w http.ResponseWriter, req *http.Request, _ apigen.ListLogsParams) {
+	r.listLogs(w, req)
+}
 
-func (r *Router) ListMetrics(w http.ResponseWriter, req *http.Request) { r.listMetrics(w, req) }
+func (r *Router) ListMetrics(w http.ResponseWriter, req *http.Request, _ apigen.ListMetricsParams) {
+	r.listMetrics(w, req)
+}
 
-func (r *Router) GetMetricCardinality(w http.ResponseWriter, req *http.Request) {
+func (r *Router) GetMetricCardinality(w http.ResponseWriter, req *http.Request, _ apigen.GetMetricCardinalityParams) {
 	r.getMetricCardinality(w, req)
 }
 
-func (r *Router) GetMetricSeries(w http.ResponseWriter, req *http.Request) { r.getMetricSeries(w, req) }
+func (r *Router) GetMetricSeries(w http.ResponseWriter, req *http.Request, _ apigen.GetMetricSeriesParams) {
+	r.getMetricSeries(w, req)
+}
+
+func (r *Router) ListNotifications(w http.ResponseWriter, req *http.Request, _ apigen.ListNotificationsParams) {
+	r.listNotifications(w, req)
+}
 
 func (r *Router) GetOpenAPISpec(w http.ResponseWriter, req *http.Request) { r.openAPI(w, req) }
 
-func (r *Router) ListQueryCatalog(w http.ResponseWriter, req *http.Request) { r.queryCatalog(w, req) }
+func (r *Router) ListQueryCatalog(w http.ResponseWriter, req *http.Request, _ apigen.ListQueryCatalogParams) {
+	r.queryCatalog(w, req)
+}
 
-func (r *Router) SearchTelemetry(w http.ResponseWriter, req *http.Request) { r.search(w, req) }
+func (r *Router) SearchTelemetry(w http.ResponseWriter, req *http.Request, _ apigen.SearchTelemetryParams) {
+	r.search(w, req)
+}
 
-func (r *Router) GetServiceMap(w http.ResponseWriter, req *http.Request) { r.getServiceMap(w, req) }
+func (r *Router) GetServiceMap(w http.ResponseWriter, req *http.Request, _ apigen.GetServiceMapParams) {
+	r.getServiceMap(w, req)
+}
 
 func (r *Router) ListServices(w http.ResponseWriter, req *http.Request) { r.listServices(w, req) }
 
@@ -117,19 +143,27 @@ func (r *Router) ExportSessionBaseline(w http.ResponseWriter, req *http.Request,
 
 func (r *Router) GetSettings(w http.ResponseWriter, req *http.Request) { r.getSettings(w, req) }
 
-func (r *Router) ListSources(w http.ResponseWriter, req *http.Request) { r.listSources(w, req) }
+func (r *Router) ListSources(w http.ResponseWriter, req *http.Request, _ apigen.ListSourcesParams) {
+	r.listSources(w, req)
+}
 
-func (r *Router) ListSpans(w http.ResponseWriter, req *http.Request) { r.listSpans(w, req) }
+func (r *Router) ListSpans(w http.ResponseWriter, req *http.Request, _ apigen.ListSpansParams) {
+	r.listSpans(w, req)
+}
 
 func (r *Router) GetSpan(w http.ResponseWriter, req *http.Request, spanId string) { r.getSpan(w, req) }
 
-func (r *Router) GetStats(w http.ResponseWriter, req *http.Request) { r.getStats(w, req) }
+func (r *Router) GetStats(w http.ResponseWriter, req *http.Request, _ apigen.GetStatsParams) {
+	r.getStats(w, req)
+}
 
 func (r *Router) GetStorageBreakdown(w http.ResponseWriter, req *http.Request) {
 	r.getStorageBreakdown(w, req)
 }
 
-func (r *Router) ListTraces(w http.ResponseWriter, req *http.Request) { r.listTraces(w, req) }
+func (r *Router) ListTraces(w http.ResponseWriter, req *http.Request, _ apigen.ListTracesParams) {
+	r.listTraces(w, req)
+}
 
 func (r *Router) GetTrace(w http.ResponseWriter, req *http.Request, traceId string) {
 	r.getTrace(w, req)
@@ -231,9 +265,19 @@ func (r *Router) CreateDashboardVariable(w http.ResponseWriter, req *http.Reques
 	r.saveVariable(w, req)
 }
 
+func (r *Router) AcknowledgeNotification(w http.ResponseWriter, req *http.Request, id string) {
+	r.acknowledgeNotification(w, req)
+}
+
+func (r *Router) ReadNotification(w http.ResponseWriter, req *http.Request, id string) {
+	r.readNotification(w, req)
+}
+
 func (r *Router) CreateSession(w http.ResponseWriter, req *http.Request) { r.createSession(w, req) }
 
-func (r *Router) ImportSession(w http.ResponseWriter, req *http.Request) { r.importSession(w, req) }
+func (r *Router) ImportSession(w http.ResponseWriter, req *http.Request, _ apigen.ImportSessionParams) {
+	r.importSession(w, req)
+}
 
 func (r *Router) ActivateSession(w http.ResponseWriter, req *http.Request, sessionId string) {
 	r.activateSession(w, req)

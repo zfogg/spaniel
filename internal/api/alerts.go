@@ -251,7 +251,7 @@ func (r *Router) listAlerts(w http.ResponseWriter, q *http.Request) {
 	if end > len(filtered) {
 		end = len(filtered)
 	}
-	respond(w, alertListResponse{Items: filtered[start:end], Summary: summary}, len(filtered), page)
+	respondPage(w, alertListResponse{Items: filtered[start:end], Summary: summary}, len(filtered), page)
 }
 func (r *Router) getAlert(w http.ResponseWriter, q *http.Request) {
 	x, e := r.store.WithContext(q.Context()).GetAlertRule(chi.URLParam(q, "id"))
@@ -571,7 +571,7 @@ func (r *Router) listAlertEvents(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 500, err.Error())
 		return
 	}
-	respond(w, x, total, page)
+	respondPage(w, x, total, page)
 }
 func (r *Router) listAlertHistory(w http.ResponseWriter, q *http.Request) {
 	rules, _ := r.store.WithContext(q.Context()).ListAlertRules()
@@ -619,7 +619,7 @@ func (r *Router) listAlertHistory(w http.ResponseWriter, q *http.Request) {
 	for _, event := range x {
 		out = append(out, map[string]any{"id": event.ID, "rule_id": event.RuleID, "rule_name": names[event.RuleID], "group_key": event.GroupKey, "kind": event.Kind, "state": event.State, "value": event.Value, "detail": event.Detail, "created_at": event.CreatedAt})
 	}
-	respond(w, out, total, page)
+	respondPage(w, out, total, page)
 }
 
 func positiveQueryInt(q *http.Request, name string, fallback int) int {

@@ -308,6 +308,97 @@ func (d *DB) migrate() error {
 	if err := m.Migrate(); err != nil {
 		return err
 	}
+	// The inbox was introduced after alert delivery history already existed.
+	// Browser and Pushover each create an audit event for one delivery, while
+	// the inbox deliberately has one operator-facing summary per delivery.
+	if err := d.gorm.Exec(`
+		DELETE FROM notification_records
+		WHERE id IN (
+		  SELECT id FROM (
+		    SELECT n.id,
+		      ROW_NUMBER() OVER (
+		        PARTITION BY e.rule_id, e.group_key, e.state, e.value,
+		          FLOOR(e.created_at / 1000000000)
+		        ORDER BY CASE e.kind
+		          WHEN 'notification_browser' THEN 0
+		          WHEN 'notification' THEN 1
+		          WHEN 'notification_pushover' THEN 2
+		          ELSE 3
+		        END, e.created_at
+		      ) AS row_number
+		    FROM notification_records n
+		    JOIN alert_events e ON n.id = 'alert-event:' || e.id
+		    WHERE n.id LIKE 'alert-event:%'
+		      AND e.kind IN ('notification', 'notification_browser', 'notification_pushover', 'notification_browser_test')
+		  ) duplicate_events
+		  WHERE row_number > 1
+		)
+	`).Error; err != nil {
+		return fmt.Errorf("deduplicate alert notification inbox: %w", err)
+	}
+	// A delivery that happened after the inbox rollout already has its durable
+	// summary. Do not retain a second, backfilled audit-event summary beside it.
+	if err := d.gorm.Exec(`
+		DELETE FROM notification_records historical
+		WHERE historical.id LIKE 'alert-event:%'
+		  AND EXISTS (
+		    SELECT 1
+		    FROM notification_records durable
+		    WHERE durable.id NOT LIKE 'alert-event:%'
+		      AND durable.source = 'alert'
+		      AND durable.source_id = historical.source_id
+		      AND ABS(durable.created_at - historical.created_at) < 1000000000
+		  )
+	`).Error; err != nil {
+		return fmt.Errorf("remove superseded alert notification backfill: %w", err)
+	}
+	// Preserve prior successful deliveries as concise alert inbox records rather
+	// than presenting existing operators with an apparently empty inbox.
+	if err := d.gorm.Exec(`
+		WITH delivery_events AS (
+		  SELECT e.*,
+		    ROW_NUMBER() OVER (
+		      PARTITION BY e.rule_id, e.group_key, e.state, e.value,
+		        FLOOR(e.created_at / 1000000000)
+		      ORDER BY CASE e.kind
+		        WHEN 'notification_browser' THEN 0
+		        WHEN 'notification' THEN 1
+		        WHEN 'notification_pushover' THEN 2
+		        ELSE 3
+		      END, e.created_at
+		    ) AS row_number
+		  FROM alert_events e
+		  WHERE e.kind IN ('notification', 'notification_browser', 'notification_pushover', 'notification_browser_test')
+		)
+		INSERT INTO notification_records
+		  (id, source, source_id, severity, title, body, link, dedupe_key, created_at)
+		SELECT
+		  'alert-event:' || e.id,
+		  'alert',
+		  e.rule_id,
+		  COALESCE(NULLIF(r.severity, ''), 'warning'),
+		  'Alert delivery: ' || COALESCE(NULLIF(r.name, ''), e.rule_id),
+		  e.detail,
+		  '/alerts?id=' || e.rule_id,
+		  'alert-event:' || e.id,
+		  e.created_at
+		FROM delivery_events e
+		LEFT JOIN alert_rules r ON r.id = e.rule_id
+		WHERE e.row_number = 1
+		  AND NOT EXISTS (
+		    SELECT 1 FROM notification_records n WHERE n.id = 'alert-event:' || e.id
+		  )
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM notification_records durable
+		    WHERE durable.id NOT LIKE 'alert-event:%'
+		      AND durable.source = 'alert'
+		      AND durable.source_id = e.rule_id
+		      AND ABS(durable.created_at - e.created_at) < 1000000000
+		  )
+	`).Error; err != nil {
+		return fmt.Errorf("backfill alert notification inbox: %w", err)
+	}
 	// gormigrate's InitSchema marks every numbered migration as applied. A
 	// pre-gormigrate database therefore may retain the old generated duration
 	// column while 0008 is already stamped. Inspect the effective schema and

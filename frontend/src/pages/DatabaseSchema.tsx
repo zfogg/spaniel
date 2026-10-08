@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Copy, Database, Search } from 'lucide-react'
-import { api } from '@/lib/api'
+import { Check, ChevronDown, ChevronRight, Copy, Database, Search } from 'lucide-react'
+import { api, type QueryPreview } from '@/lib/api'
 import { SqlCode } from '@/components/ui/HighlightedCode'
 
 function Tip({ title, children }: { title: string; children: ReactNode }) {
@@ -51,6 +51,12 @@ function AttributeGuide({ viewName }: { viewName: string }) {
 export default function DatabaseSchema() {
   const [search, setSearch] = useState('')
   const [selectedName, setSelectedName] = useState('telemetry_spans')
+  const [previewSampleID, setPreviewSampleID] = useState<string | null>(null)
+  const [previewingSampleID, setPreviewingSampleID] = useState<string | null>(null)
+  const [preview, setPreview] = useState<QueryPreview | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(true)
+  const [copiedSampleID, setCopiedSampleID] = useState<string | null>(null)
   const catalog = useQuery({
     queryKey: ['database-schema'],
     queryFn: () => api.databaseSchema.get().then((r) => r.data),
@@ -80,7 +86,36 @@ export default function DatabaseSchema() {
     return (
       <main className="p-6 text-sm text-muted-foreground">No schema views match that search.</main>
     )
-  const copy = (text: string) => void navigator.clipboard.writeText(text)
+  const copy = async (sampleID: string, text: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopiedSampleID(sampleID)
+    window.setTimeout(() => {
+      setCopiedSampleID((current) => (current === sampleID ? null : current))
+    }, 2_000)
+  }
+  const previewSample = async (sample: { id: string; sql: string; display_type: string }) => {
+    setPreviewSampleID(sample.id)
+    setPreviewingSampleID(sample.id)
+    setPreviewOpen(true)
+    setPreview(null)
+    setPreviewError(null)
+    try {
+      const dashboards = await api.dashboards.list()
+      const dashboard = dashboards.data[0]
+      if (!dashboard) throw new Error('Create a dashboard before previewing sample SQL.')
+      const result = await api.dashboards.preview(dashboard.id, {
+        query_sql: sample.sql,
+        name: sample.id,
+        display_type: sample.display_type,
+      })
+      setPreview(result.data)
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setPreviewingSampleID(null)
+    }
+  }
+  const previewRows = preview?.rows.slice(0, 128) ?? []
   return (
     <main className="flex-1 overflow-y-auto bg-[#f1f6f9] text-[#263b4c] dark:bg-background dark:text-foreground">
       <header className="border-b border-[#cbdde8] bg-[#edf5fa] px-5 py-5 sm:px-7 dark:border-border dark:bg-surface">
@@ -192,19 +227,103 @@ export default function DatabaseSchema() {
                 </div>
                 <div className="flex gap-2 px-3 pb-3">
                   <button
-                    onClick={() => copy(sample.sql)}
-                    className="inline-flex items-center gap-1 rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] font-medium text-[#315d7e] hover:bg-[#e8f3fa] dark:border-[#3d6482] dark:bg-[#183652] dark:text-[#b8e2ff] dark:hover:bg-[#214766]"
+                    type="button"
+                    onClick={() => void copy(sample.id, sample.sql)}
+                    className={`inline-flex items-center gap-1 rounded border px-2.5 py-1.5 text-[10px] font-medium transition-all duration-200 motion-reduce:transition-none ${copiedSampleID === sample.id ? 'scale-[0.98] border-[#7cae91] bg-[#e9f7ed] text-[#27603d] dark:border-[#4b8a63] dark:bg-[#153b26] dark:text-[#b9efcb]' : 'border-[#b7cddd] bg-white text-[#315d7e] hover:bg-[#e8f3fa] dark:border-[#3d6482] dark:bg-[#183652] dark:text-[#b8e2ff] dark:hover:bg-[#214766]'}`}
                   >
-                    <Copy size={11} />
-                    Copy to clipboard
+                    {copiedSampleID === sample.id ? <Check size={11} /> : <Copy size={11} />}
+                    <span aria-live="polite">
+                      {copiedSampleID === sample.id ? 'Copied!' : 'Copy to clipboard'}
+                    </span>
                   </button>
                   <button
-                    title="Use the dashboard or alert SQL editor to preview this sample in authoring context."
+                    type="button"
+                    onClick={() => void previewSample(sample)}
+                    disabled={previewingSampleID === sample.id}
+                    title="Run this sample through the same read-only query preview used by dashboard authors."
                     className="rounded border border-[#b7cddd] bg-white px-2.5 py-1.5 text-[10px] font-medium text-[#315d7e] hover:bg-[#e8f3fa] dark:border-[#3d6482] dark:bg-[#183652] dark:text-[#b8e2ff] dark:hover:bg-[#214766]"
                   >
-                    Preview sample · 30 rows
+                    {previewingSampleID === sample.id
+                      ? 'Running preview…'
+                      : 'Preview sample · 128 rows'}
                   </button>
                 </div>
+                {previewSampleID === sample.id && (
+                  <div className="border-t border-[#d5e5ef] px-3 py-3 dark:border-[#314a61]">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOpen((open) => !open)}
+                      aria-expanded={previewOpen}
+                      className="flex w-full items-center gap-1.5 font-mono text-[9px] text-[#627789] hover:text-[#315d7e] dark:text-muted-foreground dark:hover:text-[#9bd2ff]"
+                    >
+                      {previewOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      <span className="font-semibold text-[#315d7e] dark:text-[#9bd2ff]">
+                        Sample preview
+                      </span>
+                      <span>·</span>
+                      <span>runs the same read-only preview path</span>
+                    </button>
+                    {previewOpen &&
+                      (previewError ? (
+                        <p role="alert" className="mt-2 text-[10px] text-danger">
+                          Preview failed: {previewError}
+                        </p>
+                      ) : preview ? (
+                        <div className="mt-2 overflow-hidden rounded border border-[#cbdce8] dark:border-[#314a61]">
+                          <div className="border-b border-[#d5e5ef] bg-[#edf5fa] px-2 py-1.5 font-mono text-[9px] text-[#627789] dark:border-[#314a61] dark:bg-[#172d43] dark:text-muted-foreground">
+                            <b className="text-[#315d7e] dark:text-[#9bd2ff]">
+                              {previewRows.length} rows
+                            </b>{' '}
+                            shown · 128-row server limit · $session_id bound
+                            {preview.truncated || preview.rows.length > previewRows.length
+                              ? ' · more rows available'
+                              : ''}
+                          </div>
+                          <div className="max-h-[609px] overflow-auto">
+                            <table className="w-full text-left font-mono text-[9px]">
+                              <thead className="bg-[#f8fbfd] text-[#426b8c] dark:bg-[#102033] dark:text-[#9bd2ff]">
+                                <tr>
+                                  {preview.columns.map((column) => (
+                                    <th
+                                      key={column}
+                                      className="sticky top-0 whitespace-nowrap bg-[#f8fbfd] px-2 py-1.5 font-semibold dark:bg-[#102033]"
+                                    >
+                                      {column}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {previewRows.map((row, index) => (
+                                  <tr
+                                    key={index}
+                                    className="border-t border-[#e2e9ee] dark:border-[#314a61]"
+                                  >
+                                    {preview.columns.map((column) => (
+                                      <td
+                                        key={column}
+                                        className="max-w-72 truncate px-2 py-1.5 text-[#546d7f] dark:text-muted-foreground"
+                                        title={String(row[column] ?? '')}
+                                      >
+                                        {String(row[column] ?? '')}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <p
+                          role="status"
+                          className="mt-2 text-[10px] text-[#627789] dark:text-muted-foreground"
+                        >
+                          Running read-only query…
+                        </p>
+                      ))}
+                  </div>
+                )}
               </section>
             ))}
           </div>

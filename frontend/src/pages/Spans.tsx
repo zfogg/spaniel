@@ -380,7 +380,7 @@ export default function Spans() {
     placeholderData: keepPreviousData,
   })
   const spans = useMemo(() => spanResponse?.data ?? [], [spanResponse])
-  const spanTotal = spanResponse?.meta.total ?? 0
+  const spanTotal = spanResponse?.meta?.total ?? 0
   const { data: selectedSpan } = useQuery({
     queryKey: ['span', selectedId],
     queryFn: () => api.spans.get(selectedId!),
@@ -401,7 +401,7 @@ export default function Spans() {
     placeholderData: keepPreviousData,
   })
   const groups = groupResponse?.data ?? []
-  const groupTotal = groupResponse?.meta.total ?? 0
+  const groupTotal = groupResponse?.meta?.total ?? 0
 
   // facet counts computed from the full dataset
   const svcFacets = useMemo(() => {

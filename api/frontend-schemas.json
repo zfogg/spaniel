@@ -1900,6 +1900,65 @@
     ],
     "additionalProperties": false
   },
+  "NotificationRecord": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      },
+      "source_id": {
+        "type": "string"
+      },
+      "severity": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "link": {
+        "type": "string"
+      },
+      "dedupe_key": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "number"
+      },
+      "read_at": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "acknowledged_at": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "source_id",
+      "severity",
+      "title",
+      "body",
+      "link",
+      "dedupe_key",
+      "created_at",
+      "read_at",
+      "acknowledged_at"
+    ],
+    "additionalProperties": false
+  },
   "PruneResult": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -1983,6 +2042,12 @@
           },
           "additionalProperties": {}
         }
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "query_version": {
+        "type": "number"
       },
       "warnings": {
         "default": [],
@@ -3356,7 +3421,12 @@
           "additionalProperties": false
         }
       },
-      "sessions": {},
+      "sessions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SessionSize"
+        }
+      },
       "wal_bytes": {
         "type": "number"
       },

@@ -8,12 +8,12 @@ import (
 
 func (r *Router) listNotifications(w http.ResponseWriter, q *http.Request) {
 	page, limit := positiveQueryInt(q, "page", 1), positiveQueryInt(q, "limit", 30)
-	items, total, err := r.store.WithContext(q.Context()).ListNotifications(page, limit)
+	items, total, err := r.store.WithContext(q.Context()).ListNotifications(q.URL.Query().Get("source"), page, limit)
 	if err != nil {
 		respondErr(w, q, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, items, int(total), page)
+	respondPage(w, items, int(total), page)
 }
 
 func (r *Router) readNotification(w http.ResponseWriter, q *http.Request) {

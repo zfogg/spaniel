@@ -412,19 +412,22 @@ func (d *DB) RecordNotification(n *NotificationRecord) error {
 	return d.namedQuery("storage.RecordNotification").NotificationRecord.Create(n)
 }
 
-func (d *DB) ListNotifications(page, limit int) ([]*NotificationRecord, int64, error) {
+func (d *DB) ListNotifications(source string, page, limit int) ([]*NotificationRecord, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
 		limit = 30
 	}
-	q := d.query.NotificationRecord
+	q := d.query.NotificationRecord.Where()
+	if source != "" {
+		q = q.Where(d.query.NotificationRecord.Source.Eq(source))
+	}
 	total, err := q.Count()
 	if err != nil {
 		return nil, 0, err
 	}
-	items, err := q.Order(q.CreatedAt.Desc()).Offset((page - 1) * limit).Limit(limit).Find()
+	items, err := q.Order(d.query.NotificationRecord.CreatedAt.Desc()).Offset((page - 1) * limit).Limit(limit).Find()
 	return items, total, err
 }
 

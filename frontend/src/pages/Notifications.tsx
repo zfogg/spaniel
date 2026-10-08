@@ -1,37 +1,37 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { formatDistanceToNow } from "date-fns";
-import PaginationControls from "@/components/PaginationControls";
-import { api } from "@/lib/api";
-import { qk } from "@/lib/query";
-import { useState } from "react";
-import { useWS } from "@/lib/ws";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { formatDistanceToNow } from 'date-fns'
+import PaginationControls from '@/components/PaginationControls'
+import { api } from '@/lib/api'
+import { qk } from '@/lib/query'
+import { useState } from 'react'
+import { useWS } from '@/lib/ws'
 
 const tone: Record<string, string> = {
-  critical: "bg-danger-bg text-danger-ink",
-  error: "bg-danger-bg text-danger-ink",
-  warning: "bg-warn-bg text-warn-ink",
-  info: "bg-accent-bg text-accent-ink",
-};
+  critical: 'bg-danger-bg text-danger-ink',
+  error: 'bg-danger-bg text-danger-ink',
+  warning: 'bg-warn-bg text-warn-ink',
+  info: 'bg-accent-bg text-accent-ink',
+}
 
 export default function Notifications() {
-  const [page, setPage] = useState(1);
-  const qc = useQueryClient();
+  const [page, setPage] = useState(1)
+  const qc = useQueryClient()
   const list = useQuery({
     queryKey: [qk.notifications(), page],
     queryFn: () => api.notifications.list({ page }),
-  });
+  })
   useWS((event) => {
-    if (event.type === "alert" || event.type === "issue") {
-      qc.invalidateQueries({ queryKey: qk.notifications() });
+    if (event.type === 'alert' || event.type === 'issue') {
+      qc.invalidateQueries({ queryKey: qk.notifications() })
     }
-  });
+  })
   const mutate = useMutation({
     mutationFn: ({ id, acknowledged }: { id: string; acknowledged?: boolean }) =>
       acknowledged ? api.notifications.acknowledge(id) : api.notifications.read(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications() }),
-  });
-  const rows = list.data?.data ?? [];
+  })
+  const rows = list.data?.data ?? []
   return (
     <section className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden p-6">
       <header className="mb-4">
@@ -45,11 +45,11 @@ export default function Notifications() {
         {rows.map((n) => (
           <article
             key={n.id}
-            className={`border-b border-border p-4 ${n.read_at ? "opacity-70" : ""}`}
+            className={`border-b border-border p-4 ${n.read_at ? 'opacity-70' : ''}`}
           >
             <div className="flex items-start gap-3">
               <span
-                className={`rounded px-2 py-0.5 font-mono text-xs ${tone[n.severity] ?? "bg-muted"}`}
+                className={`rounded px-2 py-0.5 font-mono text-xs ${tone[n.severity] ?? 'bg-muted'}`}
               >
                 {n.severity}
               </span>
@@ -60,7 +60,7 @@ export default function Notifications() {
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{n.body}</p>
                 <p className="mt-1 font-mono text-xs text-muted-foreground">
-                  {new Date(n.created_at / 1e6).toLocaleString()} ·{" "}
+                  {new Date(n.created_at / 1e6).toLocaleString()} ·{' '}
                   {formatDistanceToNow(n.created_at / 1e6, { addSuffix: true })}
                 </p>
               </div>
@@ -97,10 +97,10 @@ export default function Notifications() {
       <PaginationControls
         page={page}
         pageSize={30}
-        total={list.data?.meta.total ?? 0}
+        total={list.data?.meta?.total ?? 0}
         itemLabel="notifications"
         onPageChange={setPage}
       />
     </section>
-  );
+  )
 }

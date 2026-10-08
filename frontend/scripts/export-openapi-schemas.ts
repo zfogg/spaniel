@@ -23,6 +23,7 @@ import {
   MetricCatalogEntrySchema,
   MetricSeriesExemplarSchema,
   MetricSeriesPointSchema,
+  NotificationRecordSchema,
   MetricSeriesSchema,
   PruneResultSchema,
   QueryCatalogEntrySchema,
@@ -75,6 +76,7 @@ const schemas = {
   MetricSeries: MetricSeriesSchema,
   MetricSeriesExemplar: MetricSeriesExemplarSchema,
   MetricSeriesPoint: MetricSeriesPointSchema,
+  NotificationRecord: NotificationRecordSchema,
   PruneResult: PruneResultSchema,
   QueryCatalogEntry: QueryCatalogEntrySchema,
   QueryPreview: QueryPreviewSchema,
@@ -124,10 +126,17 @@ const schemas = {
       spans_removed: z.number(),
       db_call_delta: z.number(),
     }),
-    spans: z.array(z.object({
-      name: z.string(), service_name: z.string(), status: z.string(),
-      baseline_duration_ns: z.number(), compare_duration_ns: z.number(), delta_pct: z.number(), depth: z.number(),
-    })),
+    spans: z.array(
+      z.object({
+        name: z.string(),
+        service_name: z.string(),
+        status: z.string(),
+        baseline_duration_ns: z.number(),
+        compare_duration_ns: z.number(),
+        delta_pct: z.number(),
+        depth: z.number(),
+      }),
+    ),
     baseline_spans: z.array(SpanSchema),
     compare_spans: z.array(SpanSchema),
   }),
@@ -139,5 +148,16 @@ const jsonSchemas = Object.fromEntries(
     z.toJSONSchema(schema, { unrepresentable: 'any' }),
   ]),
 )
+
+// Zod emits an unconstrained schema for transformed values. The UI normalizes
+// a nullable session list to an array, so publish its post-transform shape to
+// OpenAPI instead of losing it as `unknown` in generated TypeScript.
+const storageBreakdown = jsonSchemas.StorageBreakdown as {
+  properties: Record<string, unknown>
+}
+storageBreakdown.properties.sessions = {
+  type: 'array',
+  items: { $ref: '#/components/schemas/SessionSize' },
+}
 
 writeFileSync('../api/frontend-schemas.json', `${JSON.stringify(jsonSchemas, null, 2)}\n`)

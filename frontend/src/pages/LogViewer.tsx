@@ -397,7 +397,7 @@ export default function LogViewer() {
       }),
   })
   const logs = logResponse?.data ?? []
-  const logTotal = logResponse?.meta.total ?? 0
+  const logTotal = logResponse?.meta?.total ?? 0
   const { data: services = [] } = useQuery({
     queryKey: qk.services(),
     queryFn: () => api.services.list().then((r) => r.data ?? []),

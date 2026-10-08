@@ -12,7 +12,12 @@ import (
 )
 
 type operation struct {
-	OperationID string `json:"operationId"`
+	OperationID string      `json:"operationId"`
+	Parameters  []parameter `json:"parameters"`
+}
+
+type parameter struct {
+	In string `json:"in"`
 }
 
 type document struct {
@@ -85,11 +90,23 @@ func main() {
 			handler = "r.movePanel(w, req)"
 		case "createDashboardVariable":
 			handler = "r.saveVariable(w, req)"
+		case "listNotifications":
+			handler = "r.listNotifications(w, req)"
+		case "readNotification":
+			handler = "r.readNotification(w, req)"
+		case "acknowledgeNotification":
+			handler = "r.acknowledgeNotification(w, req)"
 		}
 		name := strings.ToUpper(op.OperationID[:1]) + op.OperationID[1:]
 		params := ""
 		for _, parameter := range regexp.MustCompile(`\{([^}]+)\}`).FindAllStringSubmatch(parts[1], -1) {
 			params += ", " + parameter[1] + " string"
+		}
+		for _, parameter := range op.Parameters {
+			if parameter.In == "query" {
+				params += ", _ apigen." + name + "Params"
+				break
+			}
 		}
 		fmt.Fprintf(&b, "func (r *Router) %s(w http.ResponseWriter, req *http.Request%s) { %s }\n\n", name, params, handler)
 	}

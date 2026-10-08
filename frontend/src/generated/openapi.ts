@@ -659,6 +659,57 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/notifications': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** list Notifications */
+    get: operations['listNotifications']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/notifications/{id}/acknowledge': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** acknowledge Notification */
+    post: operations['acknowledgeNotification']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/notifications/{id}/read': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** read Notification */
+    post: operations['readNotification']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/openapi.json': {
     parameters: {
       query?: never
@@ -1733,6 +1784,19 @@ export interface components {
       timestamp_ns: number
       value: number
     }
+    NotificationRecord: {
+      acknowledged_at: number | null
+      body: string
+      created_at: number
+      dedupe_key: string
+      id: string
+      link: string
+      read_at: number | null
+      severity: string
+      source: string
+      source_id: string
+      title: string
+    }
     Ok: {
       ok: boolean
     }
@@ -1766,9 +1830,11 @@ export interface components {
         reason?: string
         status: string
       }[]
+      query_version?: number
       rows: {
         [key: string]: unknown
       }[]
+      truncated?: boolean
       /** @default [] */
       warnings: string[]
     }
@@ -2083,7 +2149,7 @@ export interface components {
     StorageBreakdown: {
       last_checkpoint_at: number
       main_bytes: number
-      sessions: unknown
+      sessions: components['schemas']['SessionSize'][]
       tables: {
         approx_bytes: number
         name: string
@@ -2223,7 +2289,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertRule']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2290,7 +2355,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertRule']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2321,7 +2385,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['QueryPreview']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2352,7 +2415,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2379,7 +2441,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertRule']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2406,7 +2467,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2439,7 +2499,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertRule']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2472,7 +2531,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2529,7 +2587,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertRule']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2594,7 +2651,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertInstance']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2627,7 +2683,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertInstance']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2660,7 +2715,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['QueryPreview']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2687,7 +2741,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertSilence'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2723,7 +2776,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertSilence']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2751,7 +2803,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2788,7 +2839,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertSilence']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2822,7 +2872,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['AlertTestNotification']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2849,7 +2898,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['CoverageReport']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2874,7 +2922,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Dashboard'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2905,7 +2952,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Dashboard']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2936,7 +2982,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Dashboard']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2967,7 +3012,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -2994,7 +3038,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Dashboard']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3021,7 +3064,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3054,7 +3096,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Dashboard']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3111,7 +3152,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['DashboardPanel']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3139,7 +3179,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3173,7 +3212,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['DashboardPanel']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3208,7 +3246,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3241,7 +3278,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['QueryPreview']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3274,7 +3310,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['DashboardVariable']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3302,7 +3337,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3327,7 +3361,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['DatabaseSchemaCatalog']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3355,7 +3388,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['DiffResult']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3380,7 +3412,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['ForwarderStatus'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3405,7 +3436,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3433,7 +3463,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['TraceIssue'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3460,7 +3489,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['LintWarning'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3520,7 +3548,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['MetricCatalogEntry'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3547,7 +3574,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['MetricCardinalityStream'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3580,7 +3606,87 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['MetricSeries']
+          }
+        }
+      }
+      400: components['responses']['BadRequest']
+      404: components['responses']['NotFound']
+    }
+  }
+  listNotifications: {
+    parameters: {
+      query?: {
+        page?: number
+        limit?: number
+        source?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['NotificationRecord'][]
             meta: components['schemas']['Meta']
+          }
+        }
+      }
+      400: components['responses']['BadRequest']
+      404: components['responses']['NotFound']
+    }
+  }
+  acknowledgeNotification: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['Ok']
+          }
+        }
+      }
+      400: components['responses']['BadRequest']
+      404: components['responses']['NotFound']
+    }
+  }
+  readNotification: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['Ok']
           }
         }
       }
@@ -3630,7 +3736,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['QueryCatalogEntry'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3659,7 +3764,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['SearchResult'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3686,7 +3790,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['ServiceMapData']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3711,7 +3814,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['String'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3736,7 +3838,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Session'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3767,7 +3868,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Session']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3792,7 +3892,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['ActiveSession']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3826,7 +3925,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['ImportResult']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3853,7 +3951,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Session']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3880,7 +3977,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3914,7 +4010,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Session']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3947,7 +4042,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Session']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -3980,7 +4074,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4029,7 +4122,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['SettingsResponse']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4060,7 +4152,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Settings']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4091,7 +4182,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['UpdateCheckResult']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4122,7 +4212,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['CompactResult']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4147,7 +4236,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Ok']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4178,7 +4266,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['PruneResult']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4205,7 +4292,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['SourceStats'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4266,7 +4352,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Span']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4293,7 +4378,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Stats']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4318,7 +4402,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['StorageBreakdown']
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4375,7 +4458,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Span'][]
-            meta: components['schemas']['Meta']
           }
         }
       }
@@ -4426,7 +4508,6 @@ export interface operations {
         content: {
           'application/json': {
             data: components['schemas']['Span'][]
-            meta: components['schemas']['Meta']
           }
         }
       }

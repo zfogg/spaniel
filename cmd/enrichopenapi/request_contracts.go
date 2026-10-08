@@ -13,10 +13,14 @@ func applyRequestContracts(doc map[string]any) {
 			id, _ := op["operationId"].(string)
 			if params, ok := queryParameters[id]; ok {
 				existing, _ := op["parameters"].([]any)
-				for _, param := range params {
-					existing = append(existing, param)
+				filtered := existing[:0]
+				for _, parameter := range existing {
+					value, _ := parameter.(map[string]any)
+					if value["in"] != "query" {
+						filtered = append(filtered, parameter)
+					}
 				}
-				op["parameters"] = existing
+				op["parameters"] = append(filtered, params...)
 			}
 			body, _ := op["requestBody"].(map[string]any)
 			content, _ := body["content"].(map[string]any)

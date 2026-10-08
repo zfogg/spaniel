@@ -1,14 +1,13 @@
 import { z } from 'zod'
 
 import { openapiClient } from './openapi'
+import type { components } from './openapi'
 
-interface Meta {
-  total: number
-  page?: number
-}
+type APIModels = components['schemas']
+type Meta = APIModels['Meta'] & { total: number; page?: number }
 interface Envelope<T> {
   data: T
-  meta: Meta
+  meta?: Meta
 }
 
 // Validate a response payload against its schema at the network boundary.
@@ -39,12 +38,18 @@ async function post<S extends z.ZodTypeAny>(
   path: string,
   body: unknown,
   schema: S,
+  signal?: AbortSignal,
 ): Promise<Envelope<z.infer<S>>> {
-  const { data, error, response } = await openapiClient.POST(path as never, { body } as never)
+  const { data, error, response } = await openapiClient.POST(
+    path as never,
+    { body, signal } as never,
+  )
   if (error || !response.ok) {
     const detail = error as { error?: unknown } | undefined
     throw new Error(
-      typeof detail?.error === 'string' ? detail.error : `${response.status} ${response.statusText}`,
+      typeof detail?.error === 'string'
+        ? detail.error
+        : `${response.status} ${response.statusText}`,
     )
   }
   const json = data as Envelope<unknown>
@@ -528,6 +533,8 @@ export const QueryPreviewSchema = z.object({
   display_type: z.string().optional(),
   columns: z.array(z.string()),
   rows: z.array(z.record(z.string(), z.unknown())),
+  truncated: z.boolean().optional(),
+  query_version: z.number().optional(),
   warnings: z.array(z.string()).default([]),
   notification_preview: z
     .array(
@@ -677,50 +684,50 @@ const ActiveSessionSchema = z.object({ id: z.string(), label: z.string() })
 
 // ── inferred types (same names callers already import) ────────────────────────
 
-export type TraceRow = z.infer<typeof TraceRowSchema>
-export type TraceIssue = z.infer<typeof TraceIssueSchema>
-export type SpanEvent = z.infer<typeof SpanEventSchema>
-export type SpanLink = z.infer<typeof SpanLinkSchema>
-export type Span = z.infer<typeof SpanSchema>
-export type SpanRow = z.infer<typeof SpanRowSchema>
-export type SpanGroup = z.infer<typeof SpanGroupSchema>
-export type Log = z.infer<typeof LogSchema>
-export type Session = z.infer<typeof SessionSchema>
-export type ImportResult = z.infer<typeof ImportResultSchema>
-export type SearchResult = z.infer<typeof SearchResultSchema>
-export type MetricCatalogEntry = z.infer<typeof MetricCatalogEntrySchema>
-export type MetricSeriesExemplar = z.infer<typeof MetricSeriesExemplarSchema>
-export type MetricSeriesPoint = z.infer<typeof MetricSeriesPointSchema>
-export type TraceOverlay = z.infer<typeof TraceOverlaySchema>
-export type MetricSeries = z.infer<typeof MetricSeriesSchema>
-export type MetricCardinalityStream = z.infer<typeof MetricCardinalityStreamSchema>
-export type CoverageRoute = z.infer<typeof CoverageRouteSchema>
-export type ServiceCoverage = z.infer<typeof ServiceCoverageSchema>
-export type CoverageReport = z.infer<typeof CoverageReportSchema>
-export type SettingsRuntime = z.infer<typeof SettingsRuntimeSchema>
-export type UpdateCheckResult = z.infer<typeof UpdateCheckResultSchema>
-export type Settings = z.infer<typeof SettingsSchema>
-export type SourceStats = z.infer<typeof SourceStatsSchema>
-export type ForwarderStatus = z.infer<typeof ForwarderStatusSchema>
-export type LintWarning = z.infer<typeof LintWarningSchema>
-export type Stats = z.infer<typeof StatsSchema>
-export type ServiceMapOpStat = z.infer<typeof ServiceMapOpStatSchema>
-export type ServiceMapNode = z.infer<typeof ServiceMapNodeSchema>
-export type ServiceMapEdge = z.infer<typeof ServiceMapEdgeSchema>
-export type ServiceMapData = z.infer<typeof ServiceMapDataSchema>
-export type TableStat = z.infer<typeof TableStatSchema>
-export type SessionSize = z.infer<typeof SessionSizeSchema>
-export type StorageBreakdown = z.infer<typeof StorageBreakdownSchema>
-export type CompactResult = z.infer<typeof CompactResultSchema>
-export type PruneResult = z.infer<typeof PruneResultSchema>
-export type Dashboard = z.infer<typeof DashboardSchema>
-export type DashboardPanel = z.infer<typeof DashboardPanelSchema>
-export type DashboardVariable = z.infer<typeof DashboardVariableSchema>
-export type QueryPreview = z.infer<typeof QueryPreviewSchema>
-export type QueryCatalogEntry = z.infer<typeof QueryCatalogEntrySchema>
-export type AlertRule = z.infer<typeof AlertRuleSchema>
-export type AlertEvent = z.infer<typeof AlertEventSchema>
-export type AlertSilence = z.infer<typeof AlertSilenceSchema>
+export type TraceRow = APIModels['TraceRow']
+export type TraceIssue = APIModels['TraceIssue']
+export type SpanEvent = APIModels['SpanEvent']
+export type SpanLink = APIModels['SpanLink']
+export type Span = APIModels['Span']
+export type SpanRow = APIModels['SpanRow']
+export type SpanGroup = APIModels['SpanGroup']
+export type Log = APIModels['Log']
+export type Session = APIModels['Session']
+export type ImportResult = APIModels['ImportResult']
+export type SearchResult = APIModels['SearchResult']
+export type MetricCatalogEntry = APIModels['MetricCatalogEntry']
+export type MetricSeriesExemplar = APIModels['MetricSeriesExemplar']
+export type MetricSeriesPoint = APIModels['MetricSeriesPoint']
+export type TraceOverlay = APIModels['TraceOverlay']
+export type MetricSeries = APIModels['MetricSeries']
+export type MetricCardinalityStream = APIModels['MetricCardinalityStream']
+export type CoverageRoute = APIModels['CoverageRoute']
+export type ServiceCoverage = APIModels['ServiceCoverage']
+export type CoverageReport = APIModels['CoverageReport']
+export type SettingsRuntime = APIModels['SettingsRuntime']
+export type UpdateCheckResult = APIModels['UpdateCheckResult']
+export type Settings = APIModels['Settings']
+export type SourceStats = APIModels['SourceStats']
+export type ForwarderStatus = APIModels['ForwarderStatus']
+export type LintWarning = APIModels['LintWarning']
+export type Stats = APIModels['Stats']
+export type ServiceMapOpStat = APIModels['ServiceMapOpStat']
+export type ServiceMapNode = APIModels['ServiceMapNode']
+export type ServiceMapEdge = APIModels['ServiceMapEdge']
+export type ServiceMapData = APIModels['ServiceMapData']
+export type TableStat = APIModels['TableStat']
+export type SessionSize = APIModels['SessionSize']
+export type StorageBreakdown = APIModels['StorageBreakdown']
+export type CompactResult = APIModels['CompactResult']
+export type PruneResult = APIModels['PruneResult']
+export type Dashboard = APIModels['Dashboard']
+export type DashboardPanel = APIModels['DashboardPanel']
+export type DashboardVariable = APIModels['DashboardVariable']
+export type QueryPreview = APIModels['QueryPreview']
+export type QueryCatalogEntry = APIModels['QueryCatalogEntry']
+export type AlertRule = APIModels['AlertRule']
+export type AlertEvent = APIModels['AlertEvent']
+export type AlertSilence = APIModels['AlertSilence']
 export const NotificationRecordSchema = z.object({
   id: z.string(),
   source: z.string(),
@@ -734,7 +741,7 @@ export const NotificationRecordSchema = z.object({
   read_at: z.number().nullable(),
   acknowledged_at: z.number().nullable(),
 })
-export type NotificationRecord = z.infer<typeof NotificationRecordSchema>
+export type NotificationRecord = APIModels['NotificationRecord']
 export const AlertListSchema = z.object({
   items: z.array(AlertRuleSchema),
   summary: z.object({
@@ -742,7 +749,7 @@ export const AlertListSchema = z.object({
     instance_counts: z.record(z.string(), z.number()),
   }),
 })
-export type AlertList = z.infer<typeof AlertListSchema>
+export type AlertList = APIModels['AlertList']
 
 // Request payload — not a response, so no runtime validation needed.
 export interface SettingsUpdate {
@@ -750,6 +757,7 @@ export interface SettingsUpdate {
   db_path?: string
   alerts_dir?: string
   retention_days?: number
+  advance_session_on_start?: boolean
   max_sessions?: number
   max_db_size_mb?: number
   auto_prune?: boolean
@@ -770,6 +778,9 @@ export interface SettingsUpdate {
 }
 
 export const api = {
+  databaseSchema: {
+    get: () => get('/api/database-schema', DatabaseSchemaCatalogSchema),
+  },
   dashboards: {
     list: () => get('/api/dashboards', z.array(DashboardSchema)),
     get: (id: string) => get(`/api/dashboards/${id}`, DashboardSchema),
@@ -793,7 +804,7 @@ export const api = {
         body: yaml,
       })
       if (!response.ok) throw new Error(await response.text())
-      return response.json() as Promise<{ data: Dashboard }>
+      return response.json() as Promise<Envelope<Dashboard>>
     },
     preview: (
       id: string,
@@ -803,7 +814,8 @@ export const api = {
         display_type?: string
         variables?: Record<string, string>
       },
-    ) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema),
+      signal?: AbortSignal,
+    ) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema, signal),
     catalog: (signal?: string, search?: string, abortSignal?: AbortSignal) => {
       const query = new URLSearchParams()
       if (signal) query.set('signal', signal)
@@ -839,6 +851,8 @@ export const api = {
     ) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
     removePanel: (id: string, panelId: string) =>
       del(`/api/dashboards/${id}/panels/${panelId}`, OkSchema),
+    movePanel: (id: string, panelId: string, direction: -1 | 1) =>
+      post(`/api/dashboards/${id}/panels/${panelId}/move`, { direction }, OkSchema),
     variable: (
       id: string,
       body: {
@@ -849,6 +863,9 @@ export const api = {
         default_value?: string
       },
     ) => post(`/api/dashboards/${id}/variables`, body, DashboardVariableSchema),
+    deleteVariable: (id: string, name: string) =>
+      del(`/api/dashboards/${id}/variables/${encodeURIComponent(name)}`, OkSchema),
+    reorder: (ids: string[]) => post('/api/dashboards/reorder', { ids }, OkSchema),
   },
   alerts: {
     list: ({
@@ -947,8 +964,15 @@ export const api = {
       del(`/api/alerts/${id}/silences/${silenceID}`, OkSchema),
   },
   notifications: {
-    list: ({ page = 1, limit = 30 }: { page?: number; limit?: number } = {}) =>
-      get(`/api/notifications?page=${page}&limit=${limit}`, z.array(NotificationRecordSchema)),
+    list: ({
+      page = 1,
+      limit = 30,
+      source,
+    }: { page?: number; limit?: number; source?: string } = {}) =>
+      get(
+        `/api/notifications?page=${page}&limit=${limit}${source ? `&source=${encodeURIComponent(source)}` : ''}`,
+        z.array(NotificationRecordSchema),
+      ),
     read: (id: string) => post(`/api/notifications/${id}/read`, {}, OkSchema),
     acknowledge: (id: string) => post(`/api/notifications/${id}/acknowledge`, {}, OkSchema),
   },

@@ -425,7 +425,7 @@ export default function TraceList() {
       }),
   })
   const traces = traceResponse?.data ?? []
-  const traceTotal = traceResponse?.meta.total ?? 0
+  const traceTotal = traceResponse?.meta?.total ?? 0
   const { data: sessions = [] } = useQuery({
     queryKey: qk.sessions(),
     queryFn: () => api.sessions.list().then((r) => r.data ?? []),

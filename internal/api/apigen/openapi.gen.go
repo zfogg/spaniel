@@ -66,16 +66,16 @@ func (e AlertRuleSeverity) Valid() bool {
 
 // Defines values for AlertTestNotificationDestination.
 const (
-	Browser  AlertTestNotificationDestination = "browser"
-	Pushover AlertTestNotificationDestination = "pushover"
+	AlertTestNotificationDestinationBrowser  AlertTestNotificationDestination = "browser"
+	AlertTestNotificationDestinationPushover AlertTestNotificationDestination = "pushover"
 )
 
 // Valid indicates whether the value is a known member of the AlertTestNotificationDestination enum.
 func (e AlertTestNotificationDestination) Valid() bool {
 	switch e {
-	case Browser:
+	case AlertTestNotificationDestinationBrowser:
 		return true
-	case Pushover:
+	case AlertTestNotificationDestinationPushover:
 		return true
 	default:
 		return false
@@ -355,6 +355,42 @@ func (e SearchResultKind) Valid() bool {
 	case SearchResultKindSpan:
 		return true
 	case SearchResultKindTrace:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TestAlertNotificationJSONBodyDestination.
+const (
+	TestAlertNotificationJSONBodyDestinationBrowser  TestAlertNotificationJSONBodyDestination = "browser"
+	TestAlertNotificationJSONBodyDestinationPushover TestAlertNotificationJSONBodyDestination = "pushover"
+)
+
+// Valid indicates whether the value is a known member of the TestAlertNotificationJSONBodyDestination enum.
+func (e TestAlertNotificationJSONBodyDestination) Valid() bool {
+	switch e {
+	case TestAlertNotificationJSONBodyDestinationBrowser:
+		return true
+	case TestAlertNotificationJSONBodyDestinationPushover:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MoveDashboardPanelJSONBodyDirection.
+const (
+	Minus1 MoveDashboardPanelJSONBodyDirection = -1
+	N1     MoveDashboardPanelJSONBodyDirection = 1
+)
+
+// Valid indicates whether the value is a known member of the MoveDashboardPanelJSONBodyDirection enum.
+func (e MoveDashboardPanelJSONBodyDirection) Valid() bool {
+	switch e {
+	case Minus1:
+		return true
+	case N1:
 		return true
 	default:
 		return false
@@ -796,9 +832,6 @@ type ImportResult struct {
 	TraceCount float32 `json:"trace_count"`
 }
 
-// JSONValue defines model for JSONValue.
-type JSONValue = interface{}
-
 // LintWarning defines model for LintWarning.
 type LintWarning struct {
 	CreatedAt float32 `json:"created_at"`
@@ -942,6 +975,21 @@ type MetricSeriesPointsPercentile string
 // MetricSeriesSeriesPointsPercentile defines model for MetricSeries.Series.Points.Percentile.
 type MetricSeriesSeriesPointsPercentile string
 
+// NotificationRecord defines model for NotificationRecord.
+type NotificationRecord struct {
+	AcknowledgedAt *float32 `json:"acknowledged_at"`
+	Body           string   `json:"body"`
+	CreatedAt      float32  `json:"created_at"`
+	DedupeKey      string   `json:"dedupe_key"`
+	Id             string   `json:"id"`
+	Link           string   `json:"link"`
+	ReadAt         *float32 `json:"read_at"`
+	Severity       string   `json:"severity"`
+	Source         string   `json:"source"`
+	SourceId       string   `json:"source_id"`
+	Title          string   `json:"title"`
+}
+
 // Ok defines model for Ok.
 type Ok struct {
 	Ok bool `json:"ok"`
@@ -980,8 +1028,10 @@ type QueryPreview struct {
 		Reason      *string `json:"reason,omitempty"`
 		Status      string  `json:"status"`
 	} `json:"notification_preview,omitempty"`
-	Rows     []map[string]interface{} `json:"rows"`
-	Warnings []string                 `json:"warnings"`
+	QueryVersion *float32                 `json:"query_version,omitempty"`
+	Rows         []map[string]interface{} `json:"rows"`
+	Truncated    *bool                    `json:"truncated,omitempty"`
+	Warnings     []string                 `json:"warnings"`
 }
 
 // SearchResult defines model for SearchResult.
@@ -1035,6 +1085,14 @@ type Session struct {
 	SizeBytes      float32 `json:"size_bytes"`
 	SpanCount      float32 `json:"span_count"`
 	TraceCount     float32 `json:"trace_count"`
+}
+
+// SessionSize defines model for SessionSize.
+type SessionSize struct {
+	ApproxBytes float32 `json:"approx_bytes"`
+	Id          string  `json:"id"`
+	Label       string  `json:"label"`
+	SpanCount   float32 `json:"span_count"`
 }
 
 // Settings defines model for Settings.
@@ -1223,9 +1281,9 @@ type Stats struct {
 
 // StorageBreakdown defines model for StorageBreakdown.
 type StorageBreakdown struct {
-	LastCheckpointAt float32     `json:"last_checkpoint_at"`
-	MainBytes        float32     `json:"main_bytes"`
-	Sessions         interface{} `json:"sessions"`
+	LastCheckpointAt float32       `json:"last_checkpoint_at"`
+	MainBytes        float32       `json:"main_bytes"`
+	Sessions         []SessionSize `json:"sessions"`
 	Tables           []struct {
 		ApproxBytes float32 `json:"approx_bytes"`
 		Name        string  `json:"name"`
@@ -1285,98 +1343,369 @@ type BadRequest = Error
 // NotFound defines model for NotFound.
 type NotFound = Error
 
+// ListAlertsParams defines parameters for ListAlerts.
+type ListAlertsParams struct {
+	Page   *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	State  *string `form:"state,omitempty" json:"state,omitempty"`
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+}
+
+// CreateAlertJSONBody defines parameters for CreateAlert.
+type CreateAlertJSONBody map[string]interface{}
+
+// ListAlertHistoryParams defines parameters for ListAlertHistory.
+type ListAlertHistoryParams struct {
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	RuleId   *string `form:"rule_id,omitempty" json:"rule_id,omitempty"`
+	State    *string `form:"state,omitempty" json:"state,omitempty"`
+	Kind     *string `form:"kind,omitempty" json:"kind,omitempty"`
+	Severity *string `form:"severity,omitempty" json:"severity,omitempty"`
+	GroupKey *string `form:"group_key,omitempty" json:"group_key,omitempty"`
+	Search   *string `form:"search,omitempty" json:"search,omitempty"`
+	From     *int    `form:"from,omitempty" json:"from,omitempty"`
+	To       *int    `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// ImportAlertConfigJSONBody defines parameters for ImportAlertConfig.
+type ImportAlertConfigJSONBody map[string]interface{}
+
+// PreviewAlertDraftJSONBody defines parameters for PreviewAlertDraft.
+type PreviewAlertDraftJSONBody map[string]interface{}
+
+// ReloadAlertDefinitionsJSONBody defines parameters for ReloadAlertDefinitions.
+type ReloadAlertDefinitionsJSONBody map[string]interface{}
+
+// PatchAlertJSONBody defines parameters for PatchAlert.
+type PatchAlertJSONBody map[string]interface{}
+
+// AcknowledgeAlertJSONBody defines parameters for AcknowledgeAlert.
+type AcknowledgeAlertJSONBody map[string]interface{}
+
+// DuplicateAlertJSONBody defines parameters for DuplicateAlert.
+type DuplicateAlertJSONBody map[string]interface{}
+
+// ListAlertEventsParams defines parameters for ListAlertEvents.
+type ListAlertEventsParams struct {
+	GroupKey *string `form:"group_key,omitempty" json:"group_key,omitempty"`
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// AcknowledgeAlertInstanceJSONBody defines parameters for AcknowledgeAlertInstance.
+type AcknowledgeAlertInstanceJSONBody struct {
+	GroupKey string  `json:"group_key"`
+	Note     *string `json:"note,omitempty"`
+}
+
+// UnacknowledgeAlertInstanceJSONBody defines parameters for UnacknowledgeAlertInstance.
+type UnacknowledgeAlertInstanceJSONBody struct {
+	GroupKey string `json:"group_key"`
+}
+
+// PreviewAlertJSONBody defines parameters for PreviewAlert.
+type PreviewAlertJSONBody map[string]interface{}
+
+// CreateAlertSilenceJSONBody defines parameters for CreateAlertSilence.
+type CreateAlertSilenceJSONBody struct {
+	Comment  string  `json:"comment"`
+	EndsAt   int     `json:"ends_at"`
+	GroupKey *string `json:"group_key,omitempty"`
+	StartsAt *int    `json:"starts_at,omitempty"`
+}
+
+// PatchAlertSilenceJSONBody defines parameters for PatchAlertSilence.
+type PatchAlertSilenceJSONBody struct {
+	Comment  string  `json:"comment"`
+	EndsAt   int     `json:"ends_at"`
+	GroupKey *string `json:"group_key,omitempty"`
+	StartsAt int     `json:"starts_at"`
+}
+
+// TestAlertNotificationJSONBody defines parameters for TestAlertNotification.
+type TestAlertNotificationJSONBody struct {
+	Destination TestAlertNotificationJSONBodyDestination `json:"destination"`
+}
+
+// TestAlertNotificationJSONBodyDestination defines parameters for TestAlertNotification.
+type TestAlertNotificationJSONBodyDestination string
+
+// GetCoverageParams defines parameters for GetCoverage.
+type GetCoverageParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// CreateDashboardJSONBody defines parameters for CreateDashboard.
+type CreateDashboardJSONBody map[string]interface{}
+
+// ImportDashboardConfigJSONBody defines parameters for ImportDashboardConfig.
+type ImportDashboardConfigJSONBody map[string]interface{}
+
+// ReorderDashboardsJSONBody defines parameters for ReorderDashboards.
+type ReorderDashboardsJSONBody struct {
+	Ids []string `json:"ids"`
+}
+
+// PatchDashboardJSONBody defines parameters for PatchDashboard.
+type PatchDashboardJSONBody map[string]interface{}
+
+// CreateDashboardPanelJSONBody defines parameters for CreateDashboardPanel.
+type CreateDashboardPanelJSONBody map[string]interface{}
+
+// PatchDashboardPanelJSONBody defines parameters for PatchDashboardPanel.
+type PatchDashboardPanelJSONBody map[string]interface{}
+
+// MoveDashboardPanelJSONBody defines parameters for MoveDashboardPanel.
+type MoveDashboardPanelJSONBody struct {
+	Direction MoveDashboardPanelJSONBodyDirection `json:"direction"`
+}
+
+// MoveDashboardPanelJSONBodyDirection defines parameters for MoveDashboardPanel.
+type MoveDashboardPanelJSONBodyDirection int
+
+// PreviewDashboardQueryJSONBody defines parameters for PreviewDashboardQuery.
+type PreviewDashboardQueryJSONBody map[string]interface{}
+
+// CreateDashboardVariableJSONBody defines parameters for CreateDashboardVariable.
+type CreateDashboardVariableJSONBody map[string]interface{}
+
+// GetDiffParams defines parameters for GetDiff.
+type GetDiffParams struct {
+	Baseline string `form:"baseline" json:"baseline"`
+	Compare  string `form:"compare" json:"compare"`
+}
+
+// ListIssuesParams defines parameters for ListIssues.
+type ListIssuesParams struct {
+	TraceId   *string `form:"traceId,omitempty" json:"traceId,omitempty"`
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// ListLintParams defines parameters for ListLint.
+type ListLintParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// ListLogsParams defines parameters for ListLogs.
+type ListLogsParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+	TraceId   *string `form:"traceId,omitempty" json:"traceId,omitempty"`
+	SpanId    *string `form:"spanId,omitempty" json:"spanId,omitempty"`
+	Severity  *string `form:"severity,omitempty" json:"severity,omitempty"`
+	Service   *string `form:"service,omitempty" json:"service,omitempty"`
+	Page      *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit     *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListMetricsParams defines parameters for ListMetrics.
+type ListMetricsParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// GetMetricCardinalityParams defines parameters for GetMetricCardinality.
+type GetMetricCardinalityParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// GetMetricSeriesParams defines parameters for GetMetricSeries.
+type GetMetricSeriesParams struct {
+	Name       string  `form:"name" json:"name"`
+	Service    *string `form:"service,omitempty" json:"service,omitempty"`
+	SessionId  *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+	From       *int    `form:"from,omitempty" json:"from,omitempty"`
+	To         *int    `form:"to,omitempty" json:"to,omitempty"`
+	Operation  *string `form:"operation,omitempty" json:"operation,omitempty"`
+	WithTraces *bool   `form:"with_traces,omitempty" json:"with_traces,omitempty"`
+}
+
+// ListNotificationsParams defines parameters for ListNotifications.
+type ListNotificationsParams struct {
+	Page   *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Source *string `form:"source,omitempty" json:"source,omitempty"`
+}
+
+// ListQueryCatalogParams defines parameters for ListQueryCatalog.
+type ListQueryCatalogParams struct {
+	Signal *string `form:"signal,omitempty" json:"signal,omitempty"`
+	Q      *string `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// SearchTelemetryParams defines parameters for SearchTelemetry.
+type SearchTelemetryParams struct {
+	Q         string  `form:"q" json:"q"`
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+	Limit     *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetServiceMapParams defines parameters for GetServiceMap.
+type GetServiceMapParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// CreateSessionJSONBody defines parameters for CreateSession.
+type CreateSessionJSONBody struct {
+	Label *string `json:"label,omitempty"`
+}
+
+// ImportSessionJSONBody defines parameters for ImportSession.
+type ImportSessionJSONBody map[string]interface{}
+
+// ImportSessionParams defines parameters for ImportSession.
+type ImportSessionParams struct {
+	Label  string `form:"label" json:"label"`
+	Format string `form:"format" json:"format"`
+}
+
+// PatchSessionJSONBody defines parameters for PatchSession.
+type PatchSessionJSONBody struct {
+	Label *string `json:"label,omitempty"`
+	Note  *string `json:"note,omitempty"`
+}
+
+// ActivateSessionJSONBody defines parameters for ActivateSession.
+type ActivateSessionJSONBody map[string]interface{}
+
+// SetSessionBaselineJSONBody defines parameters for SetSessionBaseline.
+type SetSessionBaselineJSONBody struct {
+	IsBaseline bool `json:"is_baseline"`
+}
+
+// PutSettingsJSONBody defines parameters for PutSettings.
+type PutSettingsJSONBody map[string]interface{}
+
+// CheckUpdatesJSONBody defines parameters for CheckUpdates.
+type CheckUpdatesJSONBody map[string]interface{}
+
+// CompactStorageJSONBody defines parameters for CompactStorage.
+type CompactStorageJSONBody map[string]interface{}
+
+// PruneStorageJSONBody defines parameters for PruneStorage.
+type PruneStorageJSONBody map[string]interface{}
+
+// ListSourcesParams defines parameters for ListSources.
+type ListSourcesParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// ListSpansParams defines parameters for ListSpans.
+type ListSpansParams struct {
+	View      *string `form:"view,omitempty" json:"view,omitempty"`
+	Sort      *string `form:"sort,omitempty" json:"sort,omitempty"`
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+	Limit     *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Page      *int    `form:"page,omitempty" json:"page,omitempty"`
+	Service   *string `form:"service,omitempty" json:"service,omitempty"`
+	Name      *string `form:"name,omitempty" json:"name,omitempty"`
+	Kind      *int    `form:"kind,omitempty" json:"kind,omitempty"`
+}
+
+// GetStatsParams defines parameters for GetStats.
+type GetStatsParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+}
+
+// ListTracesParams defines parameters for ListTraces.
+type ListTracesParams struct {
+	SessionId *string `form:"sessionId,omitempty" json:"sessionId,omitempty"`
+	Service   *string `form:"service,omitempty" json:"service,omitempty"`
+	Page      *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit     *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // CreateAlertJSONRequestBody defines body for CreateAlert for application/json ContentType.
-type CreateAlertJSONRequestBody = JSONValue
+type CreateAlertJSONRequestBody CreateAlertJSONBody
 
 // ImportAlertConfigJSONRequestBody defines body for ImportAlertConfig for application/json ContentType.
-type ImportAlertConfigJSONRequestBody = JSONValue
+type ImportAlertConfigJSONRequestBody ImportAlertConfigJSONBody
 
 // PreviewAlertDraftJSONRequestBody defines body for PreviewAlertDraft for application/json ContentType.
-type PreviewAlertDraftJSONRequestBody = JSONValue
+type PreviewAlertDraftJSONRequestBody PreviewAlertDraftJSONBody
 
 // ReloadAlertDefinitionsJSONRequestBody defines body for ReloadAlertDefinitions for application/json ContentType.
-type ReloadAlertDefinitionsJSONRequestBody = JSONValue
+type ReloadAlertDefinitionsJSONRequestBody ReloadAlertDefinitionsJSONBody
 
 // PatchAlertJSONRequestBody defines body for PatchAlert for application/json ContentType.
-type PatchAlertJSONRequestBody = JSONValue
+type PatchAlertJSONRequestBody PatchAlertJSONBody
 
 // AcknowledgeAlertJSONRequestBody defines body for AcknowledgeAlert for application/json ContentType.
-type AcknowledgeAlertJSONRequestBody = JSONValue
+type AcknowledgeAlertJSONRequestBody AcknowledgeAlertJSONBody
 
 // DuplicateAlertJSONRequestBody defines body for DuplicateAlert for application/json ContentType.
-type DuplicateAlertJSONRequestBody = JSONValue
+type DuplicateAlertJSONRequestBody DuplicateAlertJSONBody
 
 // AcknowledgeAlertInstanceJSONRequestBody defines body for AcknowledgeAlertInstance for application/json ContentType.
-type AcknowledgeAlertInstanceJSONRequestBody = JSONValue
+type AcknowledgeAlertInstanceJSONRequestBody AcknowledgeAlertInstanceJSONBody
 
 // UnacknowledgeAlertInstanceJSONRequestBody defines body for UnacknowledgeAlertInstance for application/json ContentType.
-type UnacknowledgeAlertInstanceJSONRequestBody = JSONValue
+type UnacknowledgeAlertInstanceJSONRequestBody UnacknowledgeAlertInstanceJSONBody
 
 // PreviewAlertJSONRequestBody defines body for PreviewAlert for application/json ContentType.
-type PreviewAlertJSONRequestBody = JSONValue
+type PreviewAlertJSONRequestBody PreviewAlertJSONBody
 
 // CreateAlertSilenceJSONRequestBody defines body for CreateAlertSilence for application/json ContentType.
-type CreateAlertSilenceJSONRequestBody = JSONValue
+type CreateAlertSilenceJSONRequestBody CreateAlertSilenceJSONBody
 
 // PatchAlertSilenceJSONRequestBody defines body for PatchAlertSilence for application/json ContentType.
-type PatchAlertSilenceJSONRequestBody = JSONValue
+type PatchAlertSilenceJSONRequestBody PatchAlertSilenceJSONBody
 
 // TestAlertNotificationJSONRequestBody defines body for TestAlertNotification for application/json ContentType.
-type TestAlertNotificationJSONRequestBody = JSONValue
+type TestAlertNotificationJSONRequestBody TestAlertNotificationJSONBody
 
 // CreateDashboardJSONRequestBody defines body for CreateDashboard for application/json ContentType.
-type CreateDashboardJSONRequestBody = JSONValue
+type CreateDashboardJSONRequestBody CreateDashboardJSONBody
 
 // ImportDashboardConfigJSONRequestBody defines body for ImportDashboardConfig for application/json ContentType.
-type ImportDashboardConfigJSONRequestBody = JSONValue
+type ImportDashboardConfigJSONRequestBody ImportDashboardConfigJSONBody
 
 // ReorderDashboardsJSONRequestBody defines body for ReorderDashboards for application/json ContentType.
-type ReorderDashboardsJSONRequestBody = JSONValue
+type ReorderDashboardsJSONRequestBody ReorderDashboardsJSONBody
 
 // PatchDashboardJSONRequestBody defines body for PatchDashboard for application/json ContentType.
-type PatchDashboardJSONRequestBody = JSONValue
+type PatchDashboardJSONRequestBody PatchDashboardJSONBody
 
 // CreateDashboardPanelJSONRequestBody defines body for CreateDashboardPanel for application/json ContentType.
-type CreateDashboardPanelJSONRequestBody = JSONValue
+type CreateDashboardPanelJSONRequestBody CreateDashboardPanelJSONBody
 
 // PatchDashboardPanelJSONRequestBody defines body for PatchDashboardPanel for application/json ContentType.
-type PatchDashboardPanelJSONRequestBody = JSONValue
+type PatchDashboardPanelJSONRequestBody PatchDashboardPanelJSONBody
 
 // MoveDashboardPanelJSONRequestBody defines body for MoveDashboardPanel for application/json ContentType.
-type MoveDashboardPanelJSONRequestBody = JSONValue
+type MoveDashboardPanelJSONRequestBody MoveDashboardPanelJSONBody
 
 // PreviewDashboardQueryJSONRequestBody defines body for PreviewDashboardQuery for application/json ContentType.
-type PreviewDashboardQueryJSONRequestBody = JSONValue
+type PreviewDashboardQueryJSONRequestBody PreviewDashboardQueryJSONBody
 
 // CreateDashboardVariableJSONRequestBody defines body for CreateDashboardVariable for application/json ContentType.
-type CreateDashboardVariableJSONRequestBody = JSONValue
+type CreateDashboardVariableJSONRequestBody CreateDashboardVariableJSONBody
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
-type CreateSessionJSONRequestBody = JSONValue
+type CreateSessionJSONRequestBody CreateSessionJSONBody
 
 // ImportSessionJSONRequestBody defines body for ImportSession for application/json ContentType.
-type ImportSessionJSONRequestBody = JSONValue
+type ImportSessionJSONRequestBody ImportSessionJSONBody
 
 // PatchSessionJSONRequestBody defines body for PatchSession for application/json ContentType.
-type PatchSessionJSONRequestBody = JSONValue
+type PatchSessionJSONRequestBody PatchSessionJSONBody
 
 // ActivateSessionJSONRequestBody defines body for ActivateSession for application/json ContentType.
-type ActivateSessionJSONRequestBody = JSONValue
+type ActivateSessionJSONRequestBody ActivateSessionJSONBody
 
 // SetSessionBaselineJSONRequestBody defines body for SetSessionBaseline for application/json ContentType.
-type SetSessionBaselineJSONRequestBody = JSONValue
+type SetSessionBaselineJSONRequestBody SetSessionBaselineJSONBody
 
 // PutSettingsJSONRequestBody defines body for PutSettings for application/json ContentType.
-type PutSettingsJSONRequestBody = JSONValue
+type PutSettingsJSONRequestBody PutSettingsJSONBody
 
 // CheckUpdatesJSONRequestBody defines body for CheckUpdates for application/json ContentType.
-type CheckUpdatesJSONRequestBody = JSONValue
+type CheckUpdatesJSONRequestBody CheckUpdatesJSONBody
 
 // CompactStorageJSONRequestBody defines body for CompactStorage for application/json ContentType.
-type CompactStorageJSONRequestBody = JSONValue
+type CompactStorageJSONRequestBody CompactStorageJSONBody
 
 // PruneStorageJSONRequestBody defines body for PruneStorage for application/json ContentType.
-type PruneStorageJSONRequestBody = JSONValue
+type PruneStorageJSONRequestBody PruneStorageJSONBody
 
 // Getter for additional properties for Meta. Returns the specified
 // element and whether it was found
@@ -1465,13 +1794,13 @@ func (a Meta) MarshalJSON() ([]byte, error) {
 type ServerInterface interface {
 	// ListAlerts list Alerts
 	// (GET /api/alerts)
-	ListAlerts(w http.ResponseWriter, r *http.Request)
+	ListAlerts(w http.ResponseWriter, r *http.Request, params ListAlertsParams)
 	// CreateAlert create Alert
 	// (POST /api/alerts)
 	CreateAlert(w http.ResponseWriter, r *http.Request)
 	// ListAlertHistory list Alert History
 	// (GET /api/alerts/history)
-	ListAlertHistory(w http.ResponseWriter, r *http.Request)
+	ListAlertHistory(w http.ResponseWriter, r *http.Request, params ListAlertHistoryParams)
 	// ImportAlertConfig import Alert Config
 	// (POST /api/alerts/import)
 	ImportAlertConfig(w http.ResponseWriter, r *http.Request)
@@ -1501,7 +1830,7 @@ type ServerInterface interface {
 	DuplicateAlert(w http.ResponseWriter, r *http.Request, id string)
 	// ListAlertEvents list Alert Events
 	// (GET /api/alerts/{id}/events)
-	ListAlertEvents(w http.ResponseWriter, r *http.Request, id string)
+	ListAlertEvents(w http.ResponseWriter, r *http.Request, id string, params ListAlertEventsParams)
 	// AcknowledgeAlertInstance acknowledge Alert Instance
 	// (POST /api/alerts/{id}/instances/acknowledge)
 	AcknowledgeAlertInstance(w http.ResponseWriter, r *http.Request, id string)
@@ -1528,7 +1857,7 @@ type ServerInterface interface {
 	TestAlertNotification(w http.ResponseWriter, r *http.Request, id string)
 	// GetCoverage get Coverage
 	// (GET /api/coverage)
-	GetCoverage(w http.ResponseWriter, r *http.Request)
+	GetCoverage(w http.ResponseWriter, r *http.Request, params GetCoverageParams)
 	// ListDashboards list Dashboards
 	// (GET /api/dashboards)
 	ListDashboards(w http.ResponseWriter, r *http.Request)
@@ -1579,7 +1908,7 @@ type ServerInterface interface {
 	GetDatabaseSchema(w http.ResponseWriter, r *http.Request)
 	// GetDiff get Diff
 	// (GET /api/diff)
-	GetDiff(w http.ResponseWriter, r *http.Request)
+	GetDiff(w http.ResponseWriter, r *http.Request, params GetDiffParams)
 	// ListForwarders list Forwarders
 	// (GET /api/forwarders)
 	ListForwarders(w http.ResponseWriter, r *http.Request)
@@ -1588,34 +1917,43 @@ type ServerInterface interface {
 	GetHealth(w http.ResponseWriter, r *http.Request)
 	// ListIssues list Issues
 	// (GET /api/issues)
-	ListIssues(w http.ResponseWriter, r *http.Request)
+	ListIssues(w http.ResponseWriter, r *http.Request, params ListIssuesParams)
 	// ListLint list Lint
 	// (GET /api/lint)
-	ListLint(w http.ResponseWriter, r *http.Request)
+	ListLint(w http.ResponseWriter, r *http.Request, params ListLintParams)
 	// ListLogs list Logs
 	// (GET /api/logs)
-	ListLogs(w http.ResponseWriter, r *http.Request)
+	ListLogs(w http.ResponseWriter, r *http.Request, params ListLogsParams)
 	// ListMetrics list Metrics
 	// (GET /api/metrics)
-	ListMetrics(w http.ResponseWriter, r *http.Request)
+	ListMetrics(w http.ResponseWriter, r *http.Request, params ListMetricsParams)
 	// GetMetricCardinality get Metric Cardinality
 	// (GET /api/metrics/cardinality)
-	GetMetricCardinality(w http.ResponseWriter, r *http.Request)
+	GetMetricCardinality(w http.ResponseWriter, r *http.Request, params GetMetricCardinalityParams)
 	// GetMetricSeries get Metric Series
 	// (GET /api/metrics/series)
-	GetMetricSeries(w http.ResponseWriter, r *http.Request)
+	GetMetricSeries(w http.ResponseWriter, r *http.Request, params GetMetricSeriesParams)
+	// ListNotifications list Notifications
+	// (GET /api/notifications)
+	ListNotifications(w http.ResponseWriter, r *http.Request, params ListNotificationsParams)
+	// AcknowledgeNotification acknowledge Notification
+	// (POST /api/notifications/{id}/acknowledge)
+	AcknowledgeNotification(w http.ResponseWriter, r *http.Request, id string)
+	// ReadNotification read Notification
+	// (POST /api/notifications/{id}/read)
+	ReadNotification(w http.ResponseWriter, r *http.Request, id string)
 	// GetOpenAPISpec get Open A P I Spec
 	// (GET /api/openapi.json)
 	GetOpenAPISpec(w http.ResponseWriter, r *http.Request)
 	// ListQueryCatalog list Query Catalog
 	// (GET /api/query-catalog)
-	ListQueryCatalog(w http.ResponseWriter, r *http.Request)
+	ListQueryCatalog(w http.ResponseWriter, r *http.Request, params ListQueryCatalogParams)
 	// SearchTelemetry search Telemetry
 	// (GET /api/search)
-	SearchTelemetry(w http.ResponseWriter, r *http.Request)
+	SearchTelemetry(w http.ResponseWriter, r *http.Request, params SearchTelemetryParams)
 	// GetServiceMap get Service Map
 	// (GET /api/service-map)
-	GetServiceMap(w http.ResponseWriter, r *http.Request)
+	GetServiceMap(w http.ResponseWriter, r *http.Request, params GetServiceMapParams)
 	// ListServices list Services
 	// (GET /api/services)
 	ListServices(w http.ResponseWriter, r *http.Request)
@@ -1630,7 +1968,7 @@ type ServerInterface interface {
 	GetActiveSession(w http.ResponseWriter, r *http.Request)
 	// ImportSession import Session
 	// (POST /api/sessions/import)
-	ImportSession(w http.ResponseWriter, r *http.Request)
+	ImportSession(w http.ResponseWriter, r *http.Request, params ImportSessionParams)
 	// DeleteSession delete Session
 	// (DELETE /api/sessions/{sessionId})
 	DeleteSession(w http.ResponseWriter, r *http.Request, sessionId string)
@@ -1669,22 +2007,22 @@ type ServerInterface interface {
 	PruneStorage(w http.ResponseWriter, r *http.Request)
 	// ListSources list Sources
 	// (GET /api/sources)
-	ListSources(w http.ResponseWriter, r *http.Request)
+	ListSources(w http.ResponseWriter, r *http.Request, params ListSourcesParams)
 	// ListSpans list Spans
 	// (GET /api/spans)
-	ListSpans(w http.ResponseWriter, r *http.Request)
+	ListSpans(w http.ResponseWriter, r *http.Request, params ListSpansParams)
 	// GetSpan get Span
 	// (GET /api/spans/{spanId})
 	GetSpan(w http.ResponseWriter, r *http.Request, spanId string)
 	// GetStats get Stats
 	// (GET /api/stats)
-	GetStats(w http.ResponseWriter, r *http.Request)
+	GetStats(w http.ResponseWriter, r *http.Request, params GetStatsParams)
 	// GetStorageBreakdown get Storage Breakdown
 	// (GET /api/storage)
 	GetStorageBreakdown(w http.ResponseWriter, r *http.Request)
 	// ListTraces list Traces
 	// (GET /api/traces)
-	ListTraces(w http.ResponseWriter, r *http.Request)
+	ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams)
 	// GetTrace get Trace
 	// (GET /api/traces/{traceId})
 	GetTrace(w http.ResponseWriter, r *http.Request, traceId string)
@@ -1702,7 +2040,7 @@ type Unimplemented struct{}
 
 // ListAlerts list Alerts
 // (GET /api/alerts)
-func (_ Unimplemented) ListAlerts(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListAlerts(w http.ResponseWriter, r *http.Request, params ListAlertsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1714,7 +2052,7 @@ func (_ Unimplemented) CreateAlert(w http.ResponseWriter, r *http.Request) {
 
 // ListAlertHistory list Alert History
 // (GET /api/alerts/history)
-func (_ Unimplemented) ListAlertHistory(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListAlertHistory(w http.ResponseWriter, r *http.Request, params ListAlertHistoryParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1774,7 +2112,7 @@ func (_ Unimplemented) DuplicateAlert(w http.ResponseWriter, r *http.Request, id
 
 // ListAlertEvents list Alert Events
 // (GET /api/alerts/{id}/events)
-func (_ Unimplemented) ListAlertEvents(w http.ResponseWriter, r *http.Request, id string) {
+func (_ Unimplemented) ListAlertEvents(w http.ResponseWriter, r *http.Request, id string, params ListAlertEventsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1828,7 +2166,7 @@ func (_ Unimplemented) TestAlertNotification(w http.ResponseWriter, r *http.Requ
 
 // GetCoverage get Coverage
 // (GET /api/coverage)
-func (_ Unimplemented) GetCoverage(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetCoverage(w http.ResponseWriter, r *http.Request, params GetCoverageParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1930,7 +2268,7 @@ func (_ Unimplemented) GetDatabaseSchema(w http.ResponseWriter, r *http.Request)
 
 // GetDiff get Diff
 // (GET /api/diff)
-func (_ Unimplemented) GetDiff(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetDiff(w http.ResponseWriter, r *http.Request, params GetDiffParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1948,37 +2286,55 @@ func (_ Unimplemented) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 // ListIssues list Issues
 // (GET /api/issues)
-func (_ Unimplemented) ListIssues(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListIssues(w http.ResponseWriter, r *http.Request, params ListIssuesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // ListLint list Lint
 // (GET /api/lint)
-func (_ Unimplemented) ListLint(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListLint(w http.ResponseWriter, r *http.Request, params ListLintParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // ListLogs list Logs
 // (GET /api/logs)
-func (_ Unimplemented) ListLogs(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListLogs(w http.ResponseWriter, r *http.Request, params ListLogsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // ListMetrics list Metrics
 // (GET /api/metrics)
-func (_ Unimplemented) ListMetrics(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListMetrics(w http.ResponseWriter, r *http.Request, params ListMetricsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // GetMetricCardinality get Metric Cardinality
 // (GET /api/metrics/cardinality)
-func (_ Unimplemented) GetMetricCardinality(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetMetricCardinality(w http.ResponseWriter, r *http.Request, params GetMetricCardinalityParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // GetMetricSeries get Metric Series
 // (GET /api/metrics/series)
-func (_ Unimplemented) GetMetricSeries(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetMetricSeries(w http.ResponseWriter, r *http.Request, params GetMetricSeriesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNotifications list Notifications
+// (GET /api/notifications)
+func (_ Unimplemented) ListNotifications(w http.ResponseWriter, r *http.Request, params ListNotificationsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AcknowledgeNotification acknowledge Notification
+// (POST /api/notifications/{id}/acknowledge)
+func (_ Unimplemented) AcknowledgeNotification(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ReadNotification read Notification
+// (POST /api/notifications/{id}/read)
+func (_ Unimplemented) ReadNotification(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1990,19 +2346,19 @@ func (_ Unimplemented) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 
 // ListQueryCatalog list Query Catalog
 // (GET /api/query-catalog)
-func (_ Unimplemented) ListQueryCatalog(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListQueryCatalog(w http.ResponseWriter, r *http.Request, params ListQueryCatalogParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // SearchTelemetry search Telemetry
 // (GET /api/search)
-func (_ Unimplemented) SearchTelemetry(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) SearchTelemetry(w http.ResponseWriter, r *http.Request, params SearchTelemetryParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // GetServiceMap get Service Map
 // (GET /api/service-map)
-func (_ Unimplemented) GetServiceMap(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetServiceMap(w http.ResponseWriter, r *http.Request, params GetServiceMapParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2032,7 +2388,7 @@ func (_ Unimplemented) GetActiveSession(w http.ResponseWriter, r *http.Request) 
 
 // ImportSession import Session
 // (POST /api/sessions/import)
-func (_ Unimplemented) ImportSession(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ImportSession(w http.ResponseWriter, r *http.Request, params ImportSessionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2110,13 +2466,13 @@ func (_ Unimplemented) PruneStorage(w http.ResponseWriter, r *http.Request) {
 
 // ListSources list Sources
 // (GET /api/sources)
-func (_ Unimplemented) ListSources(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListSources(w http.ResponseWriter, r *http.Request, params ListSourcesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // ListSpans list Spans
 // (GET /api/spans)
-func (_ Unimplemented) ListSpans(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListSpans(w http.ResponseWriter, r *http.Request, params ListSpansParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2128,7 +2484,7 @@ func (_ Unimplemented) GetSpan(w http.ResponseWriter, r *http.Request, spanId st
 
 // GetStats get Stats
 // (GET /api/stats)
-func (_ Unimplemented) GetStats(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetStats(w http.ResponseWriter, r *http.Request, params GetStatsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2140,7 +2496,7 @@ func (_ Unimplemented) GetStorageBreakdown(w http.ResponseWriter, r *http.Reques
 
 // ListTraces list Traces
 // (GET /api/traces)
-func (_ Unimplemented) ListTraces(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2174,8 +2530,66 @@ type MiddlewareFunc func(http.Handler) http.Handler
 // ListAlerts operation middleware
 func (siw *ServerInterfaceWrapper) ListAlerts(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAlertsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListAlerts(w, r)
+		siw.Handler.ListAlerts(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2202,8 +2616,144 @@ func (siw *ServerInterfaceWrapper) CreateAlert(w http.ResponseWriter, r *http.Re
 // ListAlertHistory operation middleware
 func (siw *ServerInterfaceWrapper) ListAlertHistory(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAlertHistoryParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "rule_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "rule_id", r.URL.Query(), &params.RuleId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "rule_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "rule_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "severity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "severity", r.URL.Query(), &params.Severity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "severity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "severity", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "group_key" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "group_key", r.URL.Query(), &params.GroupKey, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "group_key"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_key", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListAlertHistory(w, r)
+		siw.Handler.ListAlertHistory(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2426,8 +2976,50 @@ func (siw *ServerInterfaceWrapper) ListAlertEvents(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAlertEventsParams
+
+	// ------------- Optional query parameter "group_key" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "group_key", r.URL.Query(), &params.GroupKey, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "group_key"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_key", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListAlertEvents(w, r, id)
+		siw.Handler.ListAlertEvents(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2666,8 +3258,27 @@ func (siw *ServerInterfaceWrapper) TestAlertNotification(w http.ResponseWriter, 
 // GetCoverage operation middleware
 func (siw *ServerInterfaceWrapper) GetCoverage(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCoverageParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetCoverage(w, r)
+		siw.Handler.GetCoverage(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3072,8 +3683,40 @@ func (siw *ServerInterfaceWrapper) GetDatabaseSchema(w http.ResponseWriter, r *h
 // GetDiff operation middleware
 func (siw *ServerInterfaceWrapper) GetDiff(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDiffParams
+
+	// ------------- Required query parameter "baseline" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "baseline", r.URL.Query(), &params.Baseline, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "baseline"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "baseline", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "compare" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "compare", r.URL.Query(), &params.Compare, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "compare"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "compare", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetDiff(w, r)
+		siw.Handler.GetDiff(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3114,8 +3757,40 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 // ListIssues operation middleware
 func (siw *ServerInterfaceWrapper) ListIssues(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListIssuesParams
+
+	// ------------- Optional query parameter "traceId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "traceId", r.URL.Query(), &params.TraceId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "traceId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "traceId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListIssues(w, r)
+		siw.Handler.ListIssues(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3128,8 +3803,27 @@ func (siw *ServerInterfaceWrapper) ListIssues(w http.ResponseWriter, r *http.Req
 // ListLint operation middleware
 func (siw *ServerInterfaceWrapper) ListLint(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListLintParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListLint(w, r)
+		siw.Handler.ListLint(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3142,8 +3836,105 @@ func (siw *ServerInterfaceWrapper) ListLint(w http.ResponseWriter, r *http.Reque
 // ListLogs operation middleware
 func (siw *ServerInterfaceWrapper) ListLogs(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListLogsParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "traceId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "traceId", r.URL.Query(), &params.TraceId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "traceId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "traceId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "spanId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "spanId", r.URL.Query(), &params.SpanId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "spanId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spanId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "severity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "severity", r.URL.Query(), &params.Severity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "severity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "severity", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "service" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "service", r.URL.Query(), &params.Service, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "service"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "service", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListLogs(w, r)
+		siw.Handler.ListLogs(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3156,8 +3947,27 @@ func (siw *ServerInterfaceWrapper) ListLogs(w http.ResponseWriter, r *http.Reque
 // ListMetrics operation middleware
 func (siw *ServerInterfaceWrapper) ListMetrics(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMetricsParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListMetrics(w, r)
+		siw.Handler.ListMetrics(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3170,8 +3980,27 @@ func (siw *ServerInterfaceWrapper) ListMetrics(w http.ResponseWriter, r *http.Re
 // GetMetricCardinality operation middleware
 func (siw *ServerInterfaceWrapper) GetMetricCardinality(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricCardinalityParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetMetricCardinality(w, r)
+		siw.Handler.GetMetricCardinality(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3184,8 +4013,216 @@ func (siw *ServerInterfaceWrapper) GetMetricCardinality(w http.ResponseWriter, r
 // GetMetricSeries operation middleware
 func (siw *ServerInterfaceWrapper) GetMetricSeries(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricSeriesParams
+
+	// ------------- Required query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "service" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "service", r.URL.Query(), &params.Service, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "service"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "service", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "operation" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "operation", r.URL.Query(), &params.Operation, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "operation"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "operation", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "with_traces" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "with_traces", r.URL.Query(), &params.WithTraces, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "with_traces"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "with_traces", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetMetricSeries(w, r)
+		siw.Handler.GetMetricSeries(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListNotifications operation middleware
+func (siw *ServerInterfaceWrapper) ListNotifications(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListNotificationsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "source"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNotifications(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AcknowledgeNotification operation middleware
+func (siw *ServerInterfaceWrapper) AcknowledgeNotification(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AcknowledgeNotification(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReadNotification operation middleware
+func (siw *ServerInterfaceWrapper) ReadNotification(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReadNotification(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3212,8 +4249,40 @@ func (siw *ServerInterfaceWrapper) GetOpenAPISpec(w http.ResponseWriter, r *http
 // ListQueryCatalog operation middleware
 func (siw *ServerInterfaceWrapper) ListQueryCatalog(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListQueryCatalogParams
+
+	// ------------- Optional query parameter "signal" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "signal", r.URL.Query(), &params.Signal, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "signal"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "signal", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListQueryCatalog(w, r)
+		siw.Handler.ListQueryCatalog(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3226,8 +4295,53 @@ func (siw *ServerInterfaceWrapper) ListQueryCatalog(w http.ResponseWriter, r *ht
 // SearchTelemetry operation middleware
 func (siw *ServerInterfaceWrapper) SearchTelemetry(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchTelemetryParams
+
+	// ------------- Required query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.SearchTelemetry(w, r)
+		siw.Handler.SearchTelemetry(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3240,8 +4354,27 @@ func (siw *ServerInterfaceWrapper) SearchTelemetry(w http.ResponseWriter, r *htt
 // GetServiceMap operation middleware
 func (siw *ServerInterfaceWrapper) GetServiceMap(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServiceMapParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetServiceMap(w, r)
+		siw.Handler.GetServiceMap(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3310,8 +4443,40 @@ func (siw *ServerInterfaceWrapper) GetActiveSession(w http.ResponseWriter, r *ht
 // ImportSession operation middleware
 func (siw *ServerInterfaceWrapper) ImportSession(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ImportSessionParams
+
+	// ------------- Required query parameter "label" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "label", r.URL.Query(), &params.Label, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "format" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "format", r.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "format"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "format", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ImportSession(w, r)
+		siw.Handler.ImportSession(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3564,8 +4729,27 @@ func (siw *ServerInterfaceWrapper) PruneStorage(w http.ResponseWriter, r *http.R
 // ListSources operation middleware
 func (siw *ServerInterfaceWrapper) ListSources(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSourcesParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListSources(w, r)
+		siw.Handler.ListSources(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3578,8 +4762,118 @@ func (siw *ServerInterfaceWrapper) ListSources(w http.ResponseWriter, r *http.Re
 // ListSpans operation middleware
 func (siw *ServerInterfaceWrapper) ListSpans(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSpansParams
+
+	// ------------- Optional query parameter "view" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "view", r.URL.Query(), &params.View, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "view"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "view", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "service" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "service", r.URL.Query(), &params.Service, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "service"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "service", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListSpans(w, r)
+		siw.Handler.ListSpans(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3618,8 +4912,27 @@ func (siw *ServerInterfaceWrapper) GetSpan(w http.ResponseWriter, r *http.Reques
 // GetStats operation middleware
 func (siw *ServerInterfaceWrapper) GetStats(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetStatsParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetStats(w, r)
+		siw.Handler.GetStats(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3646,8 +4959,66 @@ func (siw *ServerInterfaceWrapper) GetStorageBreakdown(w http.ResponseWriter, r 
 // ListTraces operation middleware
 func (siw *ServerInterfaceWrapper) ListTraces(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTracesParams
+
+	// ------------- Optional query parameter "sessionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sessionId", r.URL.Query(), &params.SessionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sessionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "service" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "service", r.URL.Query(), &params.Service, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "service"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "service", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListTraces(w, r)
+		siw.Handler.ListTraces(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3990,6 +5361,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/metrics/series", wrapper.GetMetricSeries)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/notifications", wrapper.ListNotifications)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/notifications/{id}/acknowledge", wrapper.AcknowledgeNotification)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/notifications/{id}/read", wrapper.ReadNotification)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/openapi.json", wrapper.GetOpenAPISpec)
 	})
 	r.Group(func(r chi.Router) {
@@ -4088,6 +5468,7 @@ type BadRequestJSONResponse Error
 type NotFoundJSONResponse Error
 
 type ListAlertsRequestObject struct {
+	Params ListAlertsParams
 }
 
 type ListAlertsResponseObject interface {
@@ -4149,7 +5530,6 @@ type CreateAlertResponseObject interface {
 
 type CreateAlert200JSONResponse struct {
 	Data AlertRule `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response CreateAlert200JSONResponse) VisitCreateAlertResponse(w http.ResponseWriter) error {
@@ -4193,6 +5573,7 @@ func (response CreateAlert404JSONResponse) VisitCreateAlertResponse(w http.Respo
 }
 
 type ListAlertHistoryRequestObject struct {
+	Params ListAlertHistoryParams
 }
 
 type ListAlertHistoryResponseObject interface {
@@ -4254,7 +5635,6 @@ type ImportAlertConfigResponseObject interface {
 
 type ImportAlertConfig200JSONResponse struct {
 	Data AlertRule `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response ImportAlertConfig200JSONResponse) VisitImportAlertConfigResponse(w http.ResponseWriter) error {
@@ -4307,7 +5687,6 @@ type PreviewAlertDraftResponseObject interface {
 
 type PreviewAlertDraft200JSONResponse struct {
 	Data QueryPreview `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response PreviewAlertDraft200JSONResponse) VisitPreviewAlertDraftResponse(w http.ResponseWriter) error {
@@ -4359,8 +5738,7 @@ type ReloadAlertDefinitionsResponseObject interface {
 }
 
 type ReloadAlertDefinitions200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response ReloadAlertDefinitions200JSONResponse) VisitReloadAlertDefinitionsResponse(w http.ResponseWriter) error {
@@ -4412,8 +5790,7 @@ type DeleteAlertResponseObject interface {
 }
 
 type DeleteAlert200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response DeleteAlert200JSONResponse) VisitDeleteAlertResponse(w http.ResponseWriter) error {
@@ -4466,7 +5843,6 @@ type GetAlertResponseObject interface {
 
 type GetAlert200JSONResponse struct {
 	Data AlertRule `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response GetAlert200JSONResponse) VisitGetAlertResponse(w http.ResponseWriter) error {
@@ -4520,7 +5896,6 @@ type PatchAlertResponseObject interface {
 
 type PatchAlert200JSONResponse struct {
 	Data AlertRule `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response PatchAlert200JSONResponse) VisitPatchAlertResponse(w http.ResponseWriter) error {
@@ -4573,8 +5948,7 @@ type AcknowledgeAlertResponseObject interface {
 }
 
 type AcknowledgeAlert200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response AcknowledgeAlert200JSONResponse) VisitAcknowledgeAlertResponse(w http.ResponseWriter) error {
@@ -4684,7 +6058,6 @@ type DuplicateAlertResponseObject interface {
 
 type DuplicateAlert200JSONResponse struct {
 	Data AlertRule `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response DuplicateAlert200JSONResponse) VisitDuplicateAlertResponse(w http.ResponseWriter) error {
@@ -4728,7 +6101,8 @@ func (response DuplicateAlert404JSONResponse) VisitDuplicateAlertResponse(w http
 }
 
 type ListAlertEventsRequestObject struct {
-	Id string `json:"id"`
+	Id     string `json:"id"`
+	Params ListAlertEventsParams
 }
 
 type ListAlertEventsResponseObject interface {
@@ -4791,7 +6165,6 @@ type AcknowledgeAlertInstanceResponseObject interface {
 
 type AcknowledgeAlertInstance200JSONResponse struct {
 	Data AlertInstance `json:"data"`
-	Meta Meta          `json:"meta"`
 }
 
 func (response AcknowledgeAlertInstance200JSONResponse) VisitAcknowledgeAlertInstanceResponse(w http.ResponseWriter) error {
@@ -4845,7 +6218,6 @@ type UnacknowledgeAlertInstanceResponseObject interface {
 
 type UnacknowledgeAlertInstance200JSONResponse struct {
 	Data AlertInstance `json:"data"`
-	Meta Meta          `json:"meta"`
 }
 
 func (response UnacknowledgeAlertInstance200JSONResponse) VisitUnacknowledgeAlertInstanceResponse(w http.ResponseWriter) error {
@@ -4899,7 +6271,6 @@ type PreviewAlertResponseObject interface {
 
 type PreviewAlert200JSONResponse struct {
 	Data QueryPreview `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response PreviewAlert200JSONResponse) VisitPreviewAlertResponse(w http.ResponseWriter) error {
@@ -4952,7 +6323,6 @@ type ListAlertSilencesResponseObject interface {
 
 type ListAlertSilences200JSONResponse struct {
 	Data []AlertSilence `json:"data"`
-	Meta Meta           `json:"meta"`
 }
 
 func (response ListAlertSilences200JSONResponse) VisitListAlertSilencesResponse(w http.ResponseWriter) error {
@@ -5006,7 +6376,6 @@ type CreateAlertSilenceResponseObject interface {
 
 type CreateAlertSilence200JSONResponse struct {
 	Data AlertSilence `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response CreateAlertSilence200JSONResponse) VisitCreateAlertSilenceResponse(w http.ResponseWriter) error {
@@ -5059,8 +6428,7 @@ type DeleteAlertSilenceResponseObject interface {
 }
 
 type DeleteAlertSilence200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response DeleteAlertSilence200JSONResponse) VisitDeleteAlertSilenceResponse(w http.ResponseWriter) error {
@@ -5115,7 +6483,6 @@ type PatchAlertSilenceResponseObject interface {
 
 type PatchAlertSilence200JSONResponse struct {
 	Data AlertSilence `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response PatchAlertSilence200JSONResponse) VisitPatchAlertSilenceResponse(w http.ResponseWriter) error {
@@ -5169,7 +6536,6 @@ type TestAlertNotificationResponseObject interface {
 
 type TestAlertNotification200JSONResponse struct {
 	Data AlertTestNotification `json:"data"`
-	Meta Meta                  `json:"meta"`
 }
 
 func (response TestAlertNotification200JSONResponse) VisitTestAlertNotificationResponse(w http.ResponseWriter) error {
@@ -5213,6 +6579,7 @@ func (response TestAlertNotification404JSONResponse) VisitTestAlertNotificationR
 }
 
 type GetCoverageRequestObject struct {
+	Params GetCoverageParams
 }
 
 type GetCoverageResponseObject interface {
@@ -5221,7 +6588,6 @@ type GetCoverageResponseObject interface {
 
 type GetCoverage200JSONResponse struct {
 	Data CoverageReport `json:"data"`
-	Meta Meta           `json:"meta"`
 }
 
 func (response GetCoverage200JSONResponse) VisitGetCoverageResponse(w http.ResponseWriter) error {
@@ -5273,7 +6639,6 @@ type ListDashboardsResponseObject interface {
 
 type ListDashboards200JSONResponse struct {
 	Data []Dashboard `json:"data"`
-	Meta Meta        `json:"meta"`
 }
 
 func (response ListDashboards200JSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
@@ -5326,7 +6691,6 @@ type CreateDashboardResponseObject interface {
 
 type CreateDashboard200JSONResponse struct {
 	Data Dashboard `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response CreateDashboard200JSONResponse) VisitCreateDashboardResponse(w http.ResponseWriter) error {
@@ -5379,7 +6743,6 @@ type ImportDashboardConfigResponseObject interface {
 
 type ImportDashboardConfig200JSONResponse struct {
 	Data Dashboard `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response ImportDashboardConfig200JSONResponse) VisitImportDashboardConfigResponse(w http.ResponseWriter) error {
@@ -5431,8 +6794,7 @@ type ReorderDashboardsResponseObject interface {
 }
 
 type ReorderDashboards200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response ReorderDashboards200JSONResponse) VisitReorderDashboardsResponse(w http.ResponseWriter) error {
@@ -5484,8 +6846,7 @@ type DeleteDashboardResponseObject interface {
 }
 
 type DeleteDashboard200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response DeleteDashboard200JSONResponse) VisitDeleteDashboardResponse(w http.ResponseWriter) error {
@@ -5538,7 +6899,6 @@ type GetDashboardResponseObject interface {
 
 type GetDashboard200JSONResponse struct {
 	Data Dashboard `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response GetDashboard200JSONResponse) VisitGetDashboardResponse(w http.ResponseWriter) error {
@@ -5592,7 +6952,6 @@ type PatchDashboardResponseObject interface {
 
 type PatchDashboard200JSONResponse struct {
 	Data Dashboard `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response PatchDashboard200JSONResponse) VisitPatchDashboardResponse(w http.ResponseWriter) error {
@@ -5702,7 +7061,6 @@ type CreateDashboardPanelResponseObject interface {
 
 type CreateDashboardPanel200JSONResponse struct {
 	Data DashboardPanel `json:"data"`
-	Meta Meta           `json:"meta"`
 }
 
 func (response CreateDashboardPanel200JSONResponse) VisitCreateDashboardPanelResponse(w http.ResponseWriter) error {
@@ -5755,8 +7113,7 @@ type DeleteDashboardPanelResponseObject interface {
 }
 
 type DeleteDashboardPanel200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response DeleteDashboardPanel200JSONResponse) VisitDeleteDashboardPanelResponse(w http.ResponseWriter) error {
@@ -5811,7 +7168,6 @@ type PatchDashboardPanelResponseObject interface {
 
 type PatchDashboardPanel200JSONResponse struct {
 	Data DashboardPanel `json:"data"`
-	Meta Meta           `json:"meta"`
 }
 
 func (response PatchDashboardPanel200JSONResponse) VisitPatchDashboardPanelResponse(w http.ResponseWriter) error {
@@ -5865,8 +7221,7 @@ type MoveDashboardPanelResponseObject interface {
 }
 
 type MoveDashboardPanel200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response MoveDashboardPanel200JSONResponse) VisitMoveDashboardPanelResponse(w http.ResponseWriter) error {
@@ -5920,7 +7275,6 @@ type PreviewDashboardQueryResponseObject interface {
 
 type PreviewDashboardQuery200JSONResponse struct {
 	Data QueryPreview `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response PreviewDashboardQuery200JSONResponse) VisitPreviewDashboardQueryResponse(w http.ResponseWriter) error {
@@ -5974,7 +7328,6 @@ type CreateDashboardVariableResponseObject interface {
 
 type CreateDashboardVariable200JSONResponse struct {
 	Data DashboardVariable `json:"data"`
-	Meta Meta              `json:"meta"`
 }
 
 func (response CreateDashboardVariable200JSONResponse) VisitCreateDashboardVariableResponse(w http.ResponseWriter) error {
@@ -6027,8 +7380,7 @@ type DeleteDashboardVariableResponseObject interface {
 }
 
 type DeleteDashboardVariable200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response DeleteDashboardVariable200JSONResponse) VisitDeleteDashboardVariableResponse(w http.ResponseWriter) error {
@@ -6080,7 +7432,6 @@ type GetDatabaseSchemaResponseObject interface {
 
 type GetDatabaseSchema200JSONResponse struct {
 	Data DatabaseSchemaCatalog `json:"data"`
-	Meta Meta                  `json:"meta"`
 }
 
 func (response GetDatabaseSchema200JSONResponse) VisitGetDatabaseSchemaResponse(w http.ResponseWriter) error {
@@ -6124,6 +7475,7 @@ func (response GetDatabaseSchema404JSONResponse) VisitGetDatabaseSchemaResponse(
 }
 
 type GetDiffRequestObject struct {
+	Params GetDiffParams
 }
 
 type GetDiffResponseObject interface {
@@ -6132,7 +7484,6 @@ type GetDiffResponseObject interface {
 
 type GetDiff200JSONResponse struct {
 	Data DiffResult `json:"data"`
-	Meta Meta       `json:"meta"`
 }
 
 func (response GetDiff200JSONResponse) VisitGetDiffResponse(w http.ResponseWriter) error {
@@ -6184,7 +7535,6 @@ type ListForwardersResponseObject interface {
 
 type ListForwarders200JSONResponse struct {
 	Data []ForwarderStatus `json:"data"`
-	Meta Meta              `json:"meta"`
 }
 
 func (response ListForwarders200JSONResponse) VisitListForwardersResponse(w http.ResponseWriter) error {
@@ -6235,8 +7585,7 @@ type GetHealthResponseObject interface {
 }
 
 type GetHealth200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseWriter) error {
@@ -6280,6 +7629,7 @@ func (response GetHealth404JSONResponse) VisitGetHealthResponse(w http.ResponseW
 }
 
 type ListIssuesRequestObject struct {
+	Params ListIssuesParams
 }
 
 type ListIssuesResponseObject interface {
@@ -6288,7 +7638,6 @@ type ListIssuesResponseObject interface {
 
 type ListIssues200JSONResponse struct {
 	Data []TraceIssue `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response ListIssues200JSONResponse) VisitListIssuesResponse(w http.ResponseWriter) error {
@@ -6332,6 +7681,7 @@ func (response ListIssues404JSONResponse) VisitListIssuesResponse(w http.Respons
 }
 
 type ListLintRequestObject struct {
+	Params ListLintParams
 }
 
 type ListLintResponseObject interface {
@@ -6340,7 +7690,6 @@ type ListLintResponseObject interface {
 
 type ListLint200JSONResponse struct {
 	Data []LintWarning `json:"data"`
-	Meta Meta          `json:"meta"`
 }
 
 func (response ListLint200JSONResponse) VisitListLintResponse(w http.ResponseWriter) error {
@@ -6384,6 +7733,7 @@ func (response ListLint404JSONResponse) VisitListLintResponse(w http.ResponseWri
 }
 
 type ListLogsRequestObject struct {
+	Params ListLogsParams
 }
 
 type ListLogsResponseObject interface {
@@ -6436,6 +7786,7 @@ func (response ListLogs404JSONResponse) VisitListLogsResponse(w http.ResponseWri
 }
 
 type ListMetricsRequestObject struct {
+	Params ListMetricsParams
 }
 
 type ListMetricsResponseObject interface {
@@ -6444,7 +7795,6 @@ type ListMetricsResponseObject interface {
 
 type ListMetrics200JSONResponse struct {
 	Data []MetricCatalogEntry `json:"data"`
-	Meta Meta                 `json:"meta"`
 }
 
 func (response ListMetrics200JSONResponse) VisitListMetricsResponse(w http.ResponseWriter) error {
@@ -6488,6 +7838,7 @@ func (response ListMetrics404JSONResponse) VisitListMetricsResponse(w http.Respo
 }
 
 type GetMetricCardinalityRequestObject struct {
+	Params GetMetricCardinalityParams
 }
 
 type GetMetricCardinalityResponseObject interface {
@@ -6496,7 +7847,6 @@ type GetMetricCardinalityResponseObject interface {
 
 type GetMetricCardinality200JSONResponse struct {
 	Data []MetricCardinalityStream `json:"data"`
-	Meta Meta                      `json:"meta"`
 }
 
 func (response GetMetricCardinality200JSONResponse) VisitGetMetricCardinalityResponse(w http.ResponseWriter) error {
@@ -6540,6 +7890,7 @@ func (response GetMetricCardinality404JSONResponse) VisitGetMetricCardinalityRes
 }
 
 type GetMetricSeriesRequestObject struct {
+	Params GetMetricSeriesParams
 }
 
 type GetMetricSeriesResponseObject interface {
@@ -6548,7 +7899,6 @@ type GetMetricSeriesResponseObject interface {
 
 type GetMetricSeries200JSONResponse struct {
 	Data MetricSeries `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response GetMetricSeries200JSONResponse) VisitGetMetricSeriesResponse(w http.ResponseWriter) error {
@@ -6580,6 +7930,163 @@ func (response GetMetricSeries400JSONResponse) VisitGetMetricSeriesResponse(w ht
 type GetMetricSeries404JSONResponse struct{ NotFoundJSONResponse }
 
 func (response GetMetricSeries404JSONResponse) VisitGetMetricSeriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationsRequestObject struct {
+	Params ListNotificationsParams
+}
+
+type ListNotificationsResponseObject interface {
+	VisitListNotificationsResponse(w http.ResponseWriter) error
+}
+
+type ListNotifications200JSONResponse struct {
+	Data []NotificationRecord `json:"data"`
+	Meta Meta                 `json:"meta"`
+}
+
+func (response ListNotifications200JSONResponse) VisitListNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotifications400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListNotifications400JSONResponse) VisitListNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotifications404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListNotifications404JSONResponse) VisitListNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcknowledgeNotificationRequestObject struct {
+	Id string `json:"id"`
+}
+
+type AcknowledgeNotificationResponseObject interface {
+	VisitAcknowledgeNotificationResponse(w http.ResponseWriter) error
+}
+
+type AcknowledgeNotification200JSONResponse struct {
+	Data Ok `json:"data"`
+}
+
+func (response AcknowledgeNotification200JSONResponse) VisitAcknowledgeNotificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcknowledgeNotification400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AcknowledgeNotification400JSONResponse) VisitAcknowledgeNotificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcknowledgeNotification404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AcknowledgeNotification404JSONResponse) VisitAcknowledgeNotificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadNotificationRequestObject struct {
+	Id string `json:"id"`
+}
+
+type ReadNotificationResponseObject interface {
+	VisitReadNotificationResponse(w http.ResponseWriter) error
+}
+
+type ReadNotification200JSONResponse struct {
+	Data Ok `json:"data"`
+}
+
+func (response ReadNotification200JSONResponse) VisitReadNotificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadNotification400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ReadNotification400JSONResponse) VisitReadNotificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadNotification404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReadNotification404JSONResponse) VisitReadNotificationResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6641,6 +8148,7 @@ func (response GetOpenAPISpec404JSONResponse) VisitGetOpenAPISpecResponse(w http
 }
 
 type ListQueryCatalogRequestObject struct {
+	Params ListQueryCatalogParams
 }
 
 type ListQueryCatalogResponseObject interface {
@@ -6649,7 +8157,6 @@ type ListQueryCatalogResponseObject interface {
 
 type ListQueryCatalog200JSONResponse struct {
 	Data []QueryCatalogEntry `json:"data"`
-	Meta Meta                `json:"meta"`
 }
 
 func (response ListQueryCatalog200JSONResponse) VisitListQueryCatalogResponse(w http.ResponseWriter) error {
@@ -6693,6 +8200,7 @@ func (response ListQueryCatalog404JSONResponse) VisitListQueryCatalogResponse(w 
 }
 
 type SearchTelemetryRequestObject struct {
+	Params SearchTelemetryParams
 }
 
 type SearchTelemetryResponseObject interface {
@@ -6701,7 +8209,6 @@ type SearchTelemetryResponseObject interface {
 
 type SearchTelemetry200JSONResponse struct {
 	Data []SearchResult `json:"data"`
-	Meta Meta           `json:"meta"`
 }
 
 func (response SearchTelemetry200JSONResponse) VisitSearchTelemetryResponse(w http.ResponseWriter) error {
@@ -6745,6 +8252,7 @@ func (response SearchTelemetry404JSONResponse) VisitSearchTelemetryResponse(w ht
 }
 
 type GetServiceMapRequestObject struct {
+	Params GetServiceMapParams
 }
 
 type GetServiceMapResponseObject interface {
@@ -6753,7 +8261,6 @@ type GetServiceMapResponseObject interface {
 
 type GetServiceMap200JSONResponse struct {
 	Data ServiceMapData `json:"data"`
-	Meta Meta           `json:"meta"`
 }
 
 func (response GetServiceMap200JSONResponse) VisitGetServiceMapResponse(w http.ResponseWriter) error {
@@ -6805,7 +8312,6 @@ type ListServicesResponseObject interface {
 
 type ListServices200JSONResponse struct {
 	Data []String `json:"data"`
-	Meta Meta     `json:"meta"`
 }
 
 func (response ListServices200JSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
@@ -6857,7 +8363,6 @@ type ListSessionsResponseObject interface {
 
 type ListSessions200JSONResponse struct {
 	Data []Session `json:"data"`
-	Meta Meta      `json:"meta"`
 }
 
 func (response ListSessions200JSONResponse) VisitListSessionsResponse(w http.ResponseWriter) error {
@@ -6910,7 +8415,6 @@ type CreateSessionResponseObject interface {
 
 type CreateSession200JSONResponse struct {
 	Data Session `json:"data"`
-	Meta Meta    `json:"meta"`
 }
 
 func (response CreateSession200JSONResponse) VisitCreateSessionResponse(w http.ResponseWriter) error {
@@ -6962,7 +8466,6 @@ type GetActiveSessionResponseObject interface {
 
 type GetActiveSession200JSONResponse struct {
 	Data ActiveSession `json:"data"`
-	Meta Meta          `json:"meta"`
 }
 
 func (response GetActiveSession200JSONResponse) VisitGetActiveSessionResponse(w http.ResponseWriter) error {
@@ -7006,7 +8509,8 @@ func (response GetActiveSession404JSONResponse) VisitGetActiveSessionResponse(w 
 }
 
 type ImportSessionRequestObject struct {
-	Body *ImportSessionJSONRequestBody
+	Params ImportSessionParams
+	Body   *ImportSessionJSONRequestBody
 }
 
 type ImportSessionResponseObject interface {
@@ -7015,7 +8519,6 @@ type ImportSessionResponseObject interface {
 
 type ImportSession200JSONResponse struct {
 	Data ImportResult `json:"data"`
-	Meta Meta         `json:"meta"`
 }
 
 func (response ImportSession200JSONResponse) VisitImportSessionResponse(w http.ResponseWriter) error {
@@ -7067,8 +8570,7 @@ type DeleteSessionResponseObject interface {
 }
 
 type DeleteSession200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response DeleteSession200JSONResponse) VisitDeleteSessionResponse(w http.ResponseWriter) error {
@@ -7121,7 +8623,6 @@ type GetSessionResponseObject interface {
 
 type GetSession200JSONResponse struct {
 	Data Session `json:"data"`
-	Meta Meta    `json:"meta"`
 }
 
 func (response GetSession200JSONResponse) VisitGetSessionResponse(w http.ResponseWriter) error {
@@ -7175,7 +8676,6 @@ type PatchSessionResponseObject interface {
 
 type PatchSession200JSONResponse struct {
 	Data Session `json:"data"`
-	Meta Meta    `json:"meta"`
 }
 
 func (response PatchSession200JSONResponse) VisitPatchSessionResponse(w http.ResponseWriter) error {
@@ -7229,7 +8729,6 @@ type ActivateSessionResponseObject interface {
 
 type ActivateSession200JSONResponse struct {
 	Data Session `json:"data"`
-	Meta Meta    `json:"meta"`
 }
 
 func (response ActivateSession200JSONResponse) VisitActivateSessionResponse(w http.ResponseWriter) error {
@@ -7282,8 +8781,7 @@ type SetSessionBaselineResponseObject interface {
 }
 
 type SetSessionBaseline200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response SetSessionBaseline200JSONResponse) VisitSetSessionBaselineResponse(w http.ResponseWriter) error {
@@ -7385,7 +8883,6 @@ type GetSettingsResponseObject interface {
 
 type GetSettings200JSONResponse struct {
 	Data SettingsResponse `json:"data"`
-	Meta Meta             `json:"meta"`
 }
 
 func (response GetSettings200JSONResponse) VisitGetSettingsResponse(w http.ResponseWriter) error {
@@ -7438,7 +8935,6 @@ type PutSettingsResponseObject interface {
 
 type PutSettings200JSONResponse struct {
 	Data Settings `json:"data"`
-	Meta Meta     `json:"meta"`
 }
 
 func (response PutSettings200JSONResponse) VisitPutSettingsResponse(w http.ResponseWriter) error {
@@ -7491,7 +8987,6 @@ type CheckUpdatesResponseObject interface {
 
 type CheckUpdates200JSONResponse struct {
 	Data UpdateCheckResult `json:"data"`
-	Meta Meta              `json:"meta"`
 }
 
 func (response CheckUpdates200JSONResponse) VisitCheckUpdatesResponse(w http.ResponseWriter) error {
@@ -7544,7 +9039,6 @@ type CompactStorageResponseObject interface {
 
 type CompactStorage200JSONResponse struct {
 	Data CompactResult `json:"data"`
-	Meta Meta          `json:"meta"`
 }
 
 func (response CompactStorage200JSONResponse) VisitCompactStorageResponse(w http.ResponseWriter) error {
@@ -7595,8 +9089,7 @@ type DropAllDataResponseObject interface {
 }
 
 type DropAllData200JSONResponse struct {
-	Data Ok   `json:"data"`
-	Meta Meta `json:"meta"`
+	Data Ok `json:"data"`
 }
 
 func (response DropAllData200JSONResponse) VisitDropAllDataResponse(w http.ResponseWriter) error {
@@ -7649,7 +9142,6 @@ type PruneStorageResponseObject interface {
 
 type PruneStorage200JSONResponse struct {
 	Data PruneResult `json:"data"`
-	Meta Meta        `json:"meta"`
 }
 
 func (response PruneStorage200JSONResponse) VisitPruneStorageResponse(w http.ResponseWriter) error {
@@ -7693,6 +9185,7 @@ func (response PruneStorage404JSONResponse) VisitPruneStorageResponse(w http.Res
 }
 
 type ListSourcesRequestObject struct {
+	Params ListSourcesParams
 }
 
 type ListSourcesResponseObject interface {
@@ -7701,7 +9194,6 @@ type ListSourcesResponseObject interface {
 
 type ListSources200JSONResponse struct {
 	Data []SourceStats `json:"data"`
-	Meta Meta          `json:"meta"`
 }
 
 func (response ListSources200JSONResponse) VisitListSourcesResponse(w http.ResponseWriter) error {
@@ -7745,6 +9237,7 @@ func (response ListSources404JSONResponse) VisitListSourcesResponse(w http.Respo
 }
 
 type ListSpansRequestObject struct {
+	Params ListSpansParams
 }
 
 type ListSpansResponseObject interface {
@@ -7806,7 +9299,6 @@ type GetSpanResponseObject interface {
 
 type GetSpan200JSONResponse struct {
 	Data Span `json:"data"`
-	Meta Meta `json:"meta"`
 }
 
 func (response GetSpan200JSONResponse) VisitGetSpanResponse(w http.ResponseWriter) error {
@@ -7850,6 +9342,7 @@ func (response GetSpan404JSONResponse) VisitGetSpanResponse(w http.ResponseWrite
 }
 
 type GetStatsRequestObject struct {
+	Params GetStatsParams
 }
 
 type GetStatsResponseObject interface {
@@ -7858,7 +9351,6 @@ type GetStatsResponseObject interface {
 
 type GetStats200JSONResponse struct {
 	Data Stats `json:"data"`
-	Meta Meta  `json:"meta"`
 }
 
 func (response GetStats200JSONResponse) VisitGetStatsResponse(w http.ResponseWriter) error {
@@ -7910,7 +9402,6 @@ type GetStorageBreakdownResponseObject interface {
 
 type GetStorageBreakdown200JSONResponse struct {
 	Data StorageBreakdown `json:"data"`
-	Meta Meta             `json:"meta"`
 }
 
 func (response GetStorageBreakdown200JSONResponse) VisitGetStorageBreakdownResponse(w http.ResponseWriter) error {
@@ -7954,6 +9445,7 @@ func (response GetStorageBreakdown404JSONResponse) VisitGetStorageBreakdownRespo
 }
 
 type ListTracesRequestObject struct {
+	Params ListTracesParams
 }
 
 type ListTracesResponseObject interface {
@@ -8015,7 +9507,6 @@ type GetTraceResponseObject interface {
 
 type GetTrace200JSONResponse struct {
 	Data []Span `json:"data"`
-	Meta Meta   `json:"meta"`
 }
 
 func (response GetTrace200JSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
@@ -8118,7 +9609,6 @@ type ListIncomingLinksResponseObject interface {
 
 type ListIncomingLinks200JSONResponse struct {
 	Data []Span `json:"data"`
-	Meta Meta   `json:"meta"`
 }
 
 func (response ListIncomingLinks200JSONResponse) VisitListIncomingLinksResponse(w http.ResponseWriter) error {
@@ -8304,6 +9794,15 @@ type StrictServerInterface interface {
 	// GetMetricSeries get Metric Series
 	// (GET /api/metrics/series)
 	GetMetricSeries(ctx context.Context, request GetMetricSeriesRequestObject) (GetMetricSeriesResponseObject, error)
+	// ListNotifications list Notifications
+	// (GET /api/notifications)
+	ListNotifications(ctx context.Context, request ListNotificationsRequestObject) (ListNotificationsResponseObject, error)
+	// AcknowledgeNotification acknowledge Notification
+	// (POST /api/notifications/{id}/acknowledge)
+	AcknowledgeNotification(ctx context.Context, request AcknowledgeNotificationRequestObject) (AcknowledgeNotificationResponseObject, error)
+	// ReadNotification read Notification
+	// (POST /api/notifications/{id}/read)
+	ReadNotification(ctx context.Context, request ReadNotificationRequestObject) (ReadNotificationResponseObject, error)
 	// GetOpenAPISpec get Open A P I Spec
 	// (GET /api/openapi.json)
 	GetOpenAPISpec(ctx context.Context, request GetOpenAPISpecRequestObject) (GetOpenAPISpecResponseObject, error)
@@ -8436,8 +9935,10 @@ type strictHandler struct {
 }
 
 // ListAlerts operation middleware
-func (sh *strictHandler) ListAlerts(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListAlerts(w http.ResponseWriter, r *http.Request, params ListAlertsParams) {
 	var request ListAlertsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListAlerts(ctx, request.(ListAlertsRequestObject))
@@ -8494,8 +9995,10 @@ func (sh *strictHandler) CreateAlert(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListAlertHistory operation middleware
-func (sh *strictHandler) ListAlertHistory(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListAlertHistory(w http.ResponseWriter, r *http.Request, params ListAlertHistoryParams) {
 	var request ListAlertHistoryRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListAlertHistory(ctx, request.(ListAlertHistoryRequestObject))
@@ -8806,10 +10309,11 @@ func (sh *strictHandler) DuplicateAlert(w http.ResponseWriter, r *http.Request, 
 }
 
 // ListAlertEvents operation middleware
-func (sh *strictHandler) ListAlertEvents(w http.ResponseWriter, r *http.Request, id string) {
+func (sh *strictHandler) ListAlertEvents(w http.ResponseWriter, r *http.Request, id string, params ListAlertEventsParams) {
 	var request ListAlertEventsRequestObject
 
 	request.Id = id
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListAlertEvents(ctx, request.(ListAlertEventsRequestObject))
@@ -9102,8 +10606,10 @@ func (sh *strictHandler) TestAlertNotification(w http.ResponseWriter, r *http.Re
 }
 
 // GetCoverage operation middleware
-func (sh *strictHandler) GetCoverage(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetCoverage(w http.ResponseWriter, r *http.Request, params GetCoverageParams) {
 	var request GetCoverageRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetCoverage(ctx, request.(GetCoverageRequestObject))
@@ -9626,8 +11132,10 @@ func (sh *strictHandler) GetDatabaseSchema(w http.ResponseWriter, r *http.Reques
 }
 
 // GetDiff operation middleware
-func (sh *strictHandler) GetDiff(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetDiff(w http.ResponseWriter, r *http.Request, params GetDiffParams) {
 	var request GetDiffRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetDiff(ctx, request.(GetDiffRequestObject))
@@ -9698,8 +11206,10 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListIssues operation middleware
-func (sh *strictHandler) ListIssues(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListIssues(w http.ResponseWriter, r *http.Request, params ListIssuesParams) {
 	var request ListIssuesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListIssues(ctx, request.(ListIssuesRequestObject))
@@ -9722,8 +11232,10 @@ func (sh *strictHandler) ListIssues(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListLint operation middleware
-func (sh *strictHandler) ListLint(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListLint(w http.ResponseWriter, r *http.Request, params ListLintParams) {
 	var request ListLintRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListLint(ctx, request.(ListLintRequestObject))
@@ -9746,8 +11258,10 @@ func (sh *strictHandler) ListLint(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListLogs operation middleware
-func (sh *strictHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListLogs(w http.ResponseWriter, r *http.Request, params ListLogsParams) {
 	var request ListLogsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListLogs(ctx, request.(ListLogsRequestObject))
@@ -9770,8 +11284,10 @@ func (sh *strictHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListMetrics operation middleware
-func (sh *strictHandler) ListMetrics(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListMetrics(w http.ResponseWriter, r *http.Request, params ListMetricsParams) {
 	var request ListMetricsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListMetrics(ctx, request.(ListMetricsRequestObject))
@@ -9794,8 +11310,10 @@ func (sh *strictHandler) ListMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetMetricCardinality operation middleware
-func (sh *strictHandler) GetMetricCardinality(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetMetricCardinality(w http.ResponseWriter, r *http.Request, params GetMetricCardinalityParams) {
 	var request GetMetricCardinalityRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetMetricCardinality(ctx, request.(GetMetricCardinalityRequestObject))
@@ -9818,8 +11336,10 @@ func (sh *strictHandler) GetMetricCardinality(w http.ResponseWriter, r *http.Req
 }
 
 // GetMetricSeries operation middleware
-func (sh *strictHandler) GetMetricSeries(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetMetricSeries(w http.ResponseWriter, r *http.Request, params GetMetricSeriesParams) {
 	var request GetMetricSeriesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetMetricSeries(ctx, request.(GetMetricSeriesRequestObject))
@@ -9834,6 +11354,84 @@ func (sh *strictHandler) GetMetricSeries(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetricSeriesResponseObject); ok {
 		if err := validResponse.VisitGetMetricSeriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNotifications operation middleware
+func (sh *strictHandler) ListNotifications(w http.ResponseWriter, r *http.Request, params ListNotificationsParams) {
+	var request ListNotificationsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNotifications(ctx, request.(ListNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNotificationsResponseObject); ok {
+		if err := validResponse.VisitListNotificationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AcknowledgeNotification operation middleware
+func (sh *strictHandler) AcknowledgeNotification(w http.ResponseWriter, r *http.Request, id string) {
+	var request AcknowledgeNotificationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AcknowledgeNotification(ctx, request.(AcknowledgeNotificationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AcknowledgeNotification")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AcknowledgeNotificationResponseObject); ok {
+		if err := validResponse.VisitAcknowledgeNotificationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReadNotification operation middleware
+func (sh *strictHandler) ReadNotification(w http.ResponseWriter, r *http.Request, id string) {
+	var request ReadNotificationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReadNotification(ctx, request.(ReadNotificationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReadNotification")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReadNotificationResponseObject); ok {
+		if err := validResponse.VisitReadNotificationResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9866,8 +11464,10 @@ func (sh *strictHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) 
 }
 
 // ListQueryCatalog operation middleware
-func (sh *strictHandler) ListQueryCatalog(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListQueryCatalog(w http.ResponseWriter, r *http.Request, params ListQueryCatalogParams) {
 	var request ListQueryCatalogRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListQueryCatalog(ctx, request.(ListQueryCatalogRequestObject))
@@ -9890,8 +11490,10 @@ func (sh *strictHandler) ListQueryCatalog(w http.ResponseWriter, r *http.Request
 }
 
 // SearchTelemetry operation middleware
-func (sh *strictHandler) SearchTelemetry(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) SearchTelemetry(w http.ResponseWriter, r *http.Request, params SearchTelemetryParams) {
 	var request SearchTelemetryRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.SearchTelemetry(ctx, request.(SearchTelemetryRequestObject))
@@ -9914,8 +11516,10 @@ func (sh *strictHandler) SearchTelemetry(w http.ResponseWriter, r *http.Request)
 }
 
 // GetServiceMap operation middleware
-func (sh *strictHandler) GetServiceMap(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetServiceMap(w http.ResponseWriter, r *http.Request, params GetServiceMapParams) {
 	var request GetServiceMapRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetServiceMap(ctx, request.(GetServiceMapRequestObject))
@@ -10044,8 +11648,10 @@ func (sh *strictHandler) GetActiveSession(w http.ResponseWriter, r *http.Request
 }
 
 // ImportSession operation middleware
-func (sh *strictHandler) ImportSession(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ImportSession(w http.ResponseWriter, r *http.Request, params ImportSessionParams) {
 	var request ImportSessionRequestObject
+
+	request.Params = params
 
 	var body ImportSessionJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -10448,8 +12054,10 @@ func (sh *strictHandler) PruneStorage(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListSources operation middleware
-func (sh *strictHandler) ListSources(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListSources(w http.ResponseWriter, r *http.Request, params ListSourcesParams) {
 	var request ListSourcesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListSources(ctx, request.(ListSourcesRequestObject))
@@ -10472,8 +12080,10 @@ func (sh *strictHandler) ListSources(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListSpans operation middleware
-func (sh *strictHandler) ListSpans(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListSpans(w http.ResponseWriter, r *http.Request, params ListSpansParams) {
 	var request ListSpansRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListSpans(ctx, request.(ListSpansRequestObject))
@@ -10522,8 +12132,10 @@ func (sh *strictHandler) GetSpan(w http.ResponseWriter, r *http.Request, spanId 
 }
 
 // GetStats operation middleware
-func (sh *strictHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetStats(w http.ResponseWriter, r *http.Request, params GetStatsParams) {
 	var request GetStatsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetStats(ctx, request.(GetStatsRequestObject))
@@ -10570,8 +12182,10 @@ func (sh *strictHandler) GetStorageBreakdown(w http.ResponseWriter, r *http.Requ
 }
 
 // ListTraces operation middleware
-func (sh *strictHandler) ListTraces(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListTraces(w http.ResponseWriter, r *http.Request, params ListTracesParams) {
 	var request ListTracesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListTraces(ctx, request.(ListTracesRequestObject))
@@ -10676,124 +12290,155 @@ func (sh *strictHandler) ListIncomingLinks(w http.ResponseWriter, r *http.Reques
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
