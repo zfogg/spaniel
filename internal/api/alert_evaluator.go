@@ -168,7 +168,7 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 	}
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
-	columns, values, _, err := store.ReadOnlyQuery(ctx, rule.QuerySQL, 1000)
+	columns, values, _, err := store.ReadOnlyQueryArgs(ctx, rule.QuerySQL, alertQueryArgs(store, rule.QuerySQL), 1000)
 	if err != nil {
 		return fmt.Errorf("execute alert query: %w", err)
 	}
@@ -298,7 +298,7 @@ func discoverAlertInstanceTargets(ctx context.Context, store *storage.DB, rule *
 		staleAfter = int64((24 * time.Hour).Nanoseconds())
 	}
 	if rule.InstanceDiscoveryLastRunAt == 0 || rule.InstanceDiscoveryIntervalNs <= 0 || now.UnixNano()-rule.InstanceDiscoveryLastRunAt >= rule.InstanceDiscoveryIntervalNs {
-		columns, values, _, err := store.ReadOnlyQuery(ctx, rule.InstanceDiscoverySQL, 1000)
+		columns, values, _, err := store.ReadOnlyQueryArgs(ctx, rule.InstanceDiscoverySQL, alertQueryArgs(store, rule.InstanceDiscoverySQL), 1000)
 		if err != nil {
 			return nil, fmt.Errorf("execute instance discovery query: %w", err)
 		}
@@ -555,7 +555,11 @@ func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInst
 	}
 	inbox := func(severity, title, body, dedupe string) {
 		if d.RecordNotification != nil {
-			d.RecordNotification(&storage.NotificationRecord{Source: "alert", SourceID: rule.ID, Severity: severity, Title: title, Body: body, Link: "/alerts?id=" + rule.ID, DedupeKey: dedupe})
+			notification := &storage.NotificationRecord{Source: "alert", SourceID: rule.ID, Severity: severity, Title: title, Body: body, Link: "/alerts?id=" + rule.ID, DedupeKey: dedupe}
+			d.RecordNotification(notification)
+			if hub != nil {
+				hub.Broadcast(&ws.Event{Type: "notification", Timestamp: now.UnixNano(), Payload: map[string]string{"id": notification.ID, "source": notification.Source, "sourceId": notification.SourceID}})
+			}
 		}
 	}
 	// The websocket hub is only the browser transport. Pushover remains usable
