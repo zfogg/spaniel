@@ -9,6 +9,7 @@ export interface SpanPayload {
   statusCode: number
   sessionId: string
 }
+export type SelfTracePayload = import('./api').TraceRow
 export interface LogPayload {
   traceId: string
   spanId: string
@@ -43,6 +44,14 @@ export interface ThroughputPayload {
   spansPerSec: number
   logsPerSec: number
 }
+export interface LiveStatePayload {
+  stats: import('./api').Stats
+  sources: import('./api').SourceStats[]
+}
+export interface ActiveSessionPayload {
+  id: string
+  label: string
+}
 export interface AlertPayload {
   ruleId: string
   ruleName: string
@@ -70,11 +79,14 @@ export interface NotificationPayload {
 
 export type WsEvent =
   | { type: 'span'; timestamp_ns: number; payload: SpanPayload }
+  | { type: 'self_trace'; timestamp_ns: number; payload: SelfTracePayload }
   | { type: 'log'; timestamp_ns: number; payload: LogPayload }
   | { type: 'metric'; timestamp_ns: number; payload: MetricPayload }
   | { type: 'issue'; timestamp_ns: number; payload: IssuePayload }
   | { type: 'forwarder'; timestamp_ns: number; payload: ForwarderPayload }
   | { type: 'throughput'; timestamp_ns: number; payload: ThroughputPayload }
+  | { type: 'live_state'; timestamp_ns: number; payload: LiveStatePayload }
+  | { type: 'active_session'; timestamp_ns: number; payload: ActiveSessionPayload }
   | { type: 'alert'; timestamp_ns: number; payload: AlertPayload }
   | { type: 'alert_sync'; timestamp_ns: number; payload: AlertSyncPayload }
   | { type: 'notification'; timestamp_ns: number; payload: NotificationPayload }

@@ -10,7 +10,6 @@ import {
 } from '@tanstack/react-table'
 import { qk } from '@/lib/query'
 import { api, Session } from '@/lib/api'
-import { useSharedPollingQuery } from '@/lib/shared-polling-query'
 import { type DiffHistoryEntry, pushDiffHistory, readDiffHistory } from '@/lib/diff-history'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -722,10 +721,9 @@ export default function Sessions() {
   })
   // Keep this on the same cache key as BottomBar. A deletion refetches this
   // exact key immediately; the footer and this page update from one response.
-  const { data: stats = null } = useSharedPollingQuery({
+  const { data: stats = null } = useQuery({
     queryKey: qk.stats(),
     queryFn: () => api.stats.get().then((r) => r.data),
-    intervalMs: 4000,
   })
   const { data: settings = null } = useQuery({
     queryKey: qk.settings(),

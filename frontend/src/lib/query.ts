@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
-import type { ForwarderStatus } from './api'
+import type { ForwarderStatus, SourceStats, Stats, TraceRow } from './api'
 import { onWSEvent } from './ws'
 
 // Single shared client. This is a local dev tool talking to localhost, so we
@@ -58,7 +58,6 @@ const INVALIDATIONS: Record<string, string[]> = {
     'spans',
     'span',
     'service-map',
-    'stats',
     'lint',
     'coverage',
     'sessions',
@@ -68,6 +67,21 @@ const INVALIDATIONS: Record<string, string[]> = {
   metric: ['metrics', 'metric-series', 'dashboard-panel'],
   issue: ['issues', 'traces', 'trace'],
   alert: ['alerts', 'notifications'],
+}
+
+type TraceListData = { data: TraceRow[]; meta?: { page?: number; total?: number } }
+
+export function patchSelfTrace(
+  old: TraceListData | undefined,
+  trace: TraceRow,
+): TraceListData | undefined {
+  if (!old) return old
+  if (old.data.some((item) => item.trace_id === trace.trace_id)) return old
+  return {
+    ...old,
+    data: [trace, ...old.data].slice(0, Math.max(old.data.length, 100)),
+    meta: old.meta ? { ...old.meta, total: (old.meta.total ?? 0) + 1 } : old.meta,
+  }
 }
 
 // Opens a single WebSocket and turns live events into throttled query
@@ -90,6 +104,40 @@ export function useLiveInvalidation() {
     }
 
     const unsub = onWSEvent((ev) => {
+      if (ev.type === 'self_trace') {
+        // This is a cache patch, deliberately not an invalidation. Refetching
+        // /api/traces would itself be captured as self telemetry and loop.
+        qc.setQueriesData<TraceListData>(
+          {
+            predicate: (query) => {
+              const [prefix, params] = query.queryKey
+              if (prefix !== 'traces' || !params || typeof params !== 'object') return false
+              const { page, service, sessionId } = params as Record<string, unknown>
+              return (
+                (page === 1 || page === undefined) &&
+                (service === 'all' || service === undefined) &&
+                (sessionId === undefined ||
+                  sessionId === null ||
+                  sessionId === ev.payload.session_id)
+              )
+            },
+          },
+          (old) => patchSelfTrace(old, ev.payload),
+        )
+        return
+      }
+      // Footer resources are bootstrapped over HTTP once, then replaced by a
+      // server-produced snapshot after durable ingest. Do not invalidate these
+      // keys: that would turn a push event back into a client-side poll.
+      if (ev.type === 'live_state') {
+        qc.setQueryData<Stats>(qk.stats(), ev.payload.stats)
+        qc.setQueryData<SourceStats[]>(qk.sources(), ev.payload.sources)
+        return
+      }
+      if (ev.type === 'active_session') {
+        qc.setQueryData(qk.activeSession(), ev.payload)
+        return
+      }
       if (ev.type === 'forwarder') {
         const status: ForwarderStatus = {
           url: ev.payload.url,

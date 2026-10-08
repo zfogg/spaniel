@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { api, SourceStats } from '@/lib/api'
+import { qk } from '@/lib/query'
 
 function fmtRate(n: number): string {
   if (n <= 0) return '0'
@@ -29,26 +31,11 @@ interface Props {
 }
 
 export default function SourcesPanel({ onClose }: Props) {
-  const [sources, setSources] = useState<SourceStats[]>([])
+  const { data: sources = [] } = useQuery({
+    queryKey: qk.sources(),
+    queryFn: () => api.sources.list().then((r) => r.data),
+  })
   const [sortKey, setSortKey] = useState<keyof SourceStats>('accepted_per_sec')
-
-  useEffect(() => {
-    let cancel = false
-    function refresh() {
-      api.sources
-        .list()
-        .then((r) => {
-          if (!cancel) setSources(r.data)
-        })
-        .catch(() => {})
-    }
-    refresh()
-    const t = setInterval(refresh, 2000)
-    return () => {
-      cancel = true
-      clearInterval(t)
-    }
-  }, [])
 
   const sorted = [...sources]
     .sort((a, b) => {

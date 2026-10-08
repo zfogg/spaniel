@@ -1,9 +1,9 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { NavLink } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { qk } from '@/lib/query'
-import { useSharedPollingQuery } from '@/lib/shared-polling-query'
 
 // StorageFullBanner shows a persistent alert across all pages whenever the
 // backend reports storage_full (DB at its size cap / disk out of space). While
@@ -13,10 +13,9 @@ export default function StorageFullBanner() {
   const qc = useQueryClient()
   const [pruning, setPruning] = useState(false)
 
-  const { data: stats } = useSharedPollingQuery({
+  const { data: stats } = useQuery({
     queryKey: qk.stats(),
     queryFn: () => api.stats.get().then((r) => r.data),
-    intervalMs: 5000,
   })
 
   if (!stats?.storage_full) return null

@@ -14,7 +14,7 @@ vi.mock('./ws', () => ({
   },
 }))
 
-import { useLiveInvalidation } from './query'
+import { patchSelfTrace, useLiveInvalidation } from './query'
 
 describe('useLiveInvalidation', () => {
   beforeEach(() => {
@@ -98,5 +98,63 @@ describe('useLiveInvalidation', () => {
     captured!({ type: 'throughput', timestamp_ns: 0, payload: {} })
     vi.advanceTimersByTime(1_000)
     expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('patches a self trace into the list cache without invalidating it', () => {
+    const qc = new QueryClient()
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children)
+    const existing = {
+      trace_id: 'existing',
+      service_name: 'spaniel',
+      name: 'existing',
+      attributes: '{}',
+      status_code: 0,
+      start_ns: 1,
+      end_ns: 2,
+      duration_ns: 1,
+      session_id: 'session',
+      session_label: 'session',
+      has_n1: false,
+      span_count: 1,
+    }
+    const incoming = { ...existing, trace_id: 'incoming', name: 'storage.AppendSpan', start_ns: 3 }
+    qc.setQueryData(['traces', { sessionId: null, service: 'all', page: 1 }], {
+      data: [existing],
+      meta: { page: 1, total: 1 },
+    })
+
+    renderHook(() => useLiveInvalidation(), { wrapper })
+    captured!({ type: 'self_trace', timestamp_ns: 0, payload: incoming })
+
+    expect(
+      qc.getQueryData<{ data: (typeof existing)[]; meta: { total: number } }>([
+        'traces',
+        { sessionId: null, service: 'all', page: 1 },
+      ]),
+    ).toEqual({ data: [incoming, existing], meta: { page: 1, total: 2 } })
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('keeps an empty trace page capable of receiving its first self trace', () => {
+    const trace = {
+      trace_id: 'first',
+      service_name: 'spaniel',
+      name: 'first',
+      attributes: '{}',
+      status_code: 0,
+      start_ns: 1,
+      end_ns: 2,
+      duration_ns: 1,
+      session_id: 'session',
+      session_label: 'session',
+      has_n1: false,
+      span_count: 1,
+    }
+    expect(patchSelfTrace({ data: [], meta: { page: 1, total: 0 } }, trace)).toEqual({
+      data: [trace],
+      meta: { page: 1, total: 1 },
+    })
   })
 })

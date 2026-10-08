@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useWSStatus } from '@/lib/ws'
 import { qk } from '@/lib/query'
-import { useSharedPollingQuery } from '@/lib/shared-polling-query'
 import SourcesPanel from './SourcesPanel'
 import { fmtRate } from './bottom-bar-format'
 
@@ -38,21 +38,18 @@ function fmtDuration(ms: number): string {
   return `${h}h ${m % 60}m`
 }
 
-interface ActiveSession {
-  id: string
-  label: string
-}
-
 export default function BottomBar() {
-  const [active, setActive] = useState<ActiveSession | null>(null)
   const [showSources, setShowSources] = useState(false)
   const footerRef = useRef<HTMLElement>(null)
   const { connected, since } = useWSStatus()
   const [now, setNow] = useState(() => Date.now())
-  const { data: stats = null } = useSharedPollingQuery({
+  const { data: stats = null } = useQuery({
     queryKey: qk.stats(),
     queryFn: () => api.stats.get().then((r) => r.data),
-    intervalMs: 4000,
+  })
+  const { data: active = null } = useQuery({
+    queryKey: qk.activeSession(),
+    queryFn: () => api.sessions.getActive().then((r) => r.data),
   })
 
   // Tick once a second so the "connected for <duration>" readout stays live.
@@ -72,26 +69,6 @@ export default function BottomBar() {
     document.addEventListener('pointerdown', onPointerDown)
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [showSources])
-
-  useEffect(() => {
-    let cancel = false
-    function refresh() {
-      api.sessions
-        .getActive()
-        .then((r) => {
-          if (!cancel) setActive(r.data)
-        })
-        .catch(() => {
-          if (!cancel) setActive(null)
-        })
-    }
-    refresh()
-    const t = setInterval(refresh, 4000)
-    return () => {
-      cancel = true
-      clearInterval(t)
-    }
-  }, [])
 
   const spansPerSec = stats?.spans_per_sec ?? 0
   const live = spansPerSec > 0
