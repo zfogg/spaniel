@@ -3140,34 +3140,47 @@ paths:
                                 annotations:
                                     additionalProperties:
                                         type: string
+                                    description: Adds key/value metadata to the alert for routing, ownership, and investigation context.
                                     type: object
                                 browser_enabled:
+                                    description: Enables or disables browser notifications when this alert fires.
                                     type: boolean
                                 condition:
                                     additionalProperties: true
+                                    description: Defines the threshold or expression that determines when the alert is firing.
                                     type: object
                                 cooldown_ns:
+                                    description: Sets the minimum nanoseconds to wait before the same alert can fire again.
                                     type: integer
                                 enabled:
+                                    description: Controls whether Spaniel evaluates this alert.
                                     type: boolean
                                 group_by:
+                                    description: Lists result fields used to group matching telemetry into separate alert instances.
                                     items:
                                         type: string
                                     type: array
                                 instance_discovery:
                                     additionalProperties: true
+                                    description: Configures how Spaniel discovers and maintains alert instances from query results.
                                     type: object
                                 name:
+                                    description: Sets the human-readable name shown in the Spaniel interface.
                                     type: string
                                 pending_for_ns:
+                                    description: Requires the condition to remain true for this many nanoseconds before firing.
                                     type: integer
                                 pushover_enabled:
+                                    description: Enables or disables Pushover delivery when this alert fires.
                                     type: boolean
                                 query_sql:
+                                    description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                     type: string
                                 repeat_interval_ns:
+                                    description: Sets how often a still-firing alert may notify again, in nanoseconds.
                                     type: integer
                                 severity:
+                                    description: Assigns the alert severity used to prioritize and route notifications.
                                     enum:
                                         - info
                                         - warning
@@ -3223,7 +3236,8 @@ paths:
         delete:
             operationId: deleteAlert
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3270,7 +3284,8 @@ paths:
         get:
             operationId: getAlert
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3312,7 +3327,8 @@ paths:
         patch:
             operationId: patchAlert
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3326,34 +3342,47 @@ paths:
                                 annotations:
                                     additionalProperties:
                                         type: string
+                                    description: Adds key/value metadata to the alert for routing, ownership, and investigation context.
                                     type: object
                                 browser_enabled:
+                                    description: Enables or disables browser notifications when this alert fires.
                                     type: boolean
                                 condition:
                                     additionalProperties: true
+                                    description: Defines the threshold or expression that determines when the alert is firing.
                                     type: object
                                 cooldown_ns:
+                                    description: Sets the minimum nanoseconds to wait before the same alert can fire again.
                                     type: integer
                                 enabled:
+                                    description: Controls whether Spaniel evaluates this alert.
                                     type: boolean
                                 group_by:
+                                    description: Lists result fields used to group matching telemetry into separate alert instances.
                                     items:
                                         type: string
                                     type: array
                                 instance_discovery:
                                     additionalProperties: true
+                                    description: Configures how Spaniel discovers and maintains alert instances from query results.
                                     type: object
                                 name:
+                                    description: Sets the human-readable name shown in the Spaniel interface.
                                     type: string
                                 pending_for_ns:
+                                    description: Requires the condition to remain true for this many nanoseconds before firing.
                                     type: integer
                                 pushover_enabled:
+                                    description: Enables or disables Pushover delivery when this alert fires.
                                     type: boolean
                                 query_sql:
+                                    description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                     type: string
                                 repeat_interval_ns:
+                                    description: Sets how often a still-firing alert may notify again, in nanoseconds.
                                     type: integer
                                 severity:
+                                    description: Assigns the alert severity used to prioritize and route notifications.
                                     enum:
                                         - info
                                         - warning
@@ -3421,7 +3450,8 @@ paths:
         post:
             operationId: acknowledgeAlert
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3465,7 +3495,8 @@ paths:
         get:
             operationId: exportAlertConfig
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3496,7 +3527,8 @@ paths:
         post:
             operationId: duplicateAlert
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3547,7 +3579,8 @@ paths:
         get:
             operationId: listAlertEvents
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3598,9 +3631,15 @@ paths:
                                         type: array
                                     meta:
                                         $ref: '#/components/schemas/Meta'
+                                    silences:
+                                        description: Current silences for this rule, included with the timeline so the inspector needs one request.
+                                        items:
+                                            $ref: '#/components/schemas/AlertSilence'
+                                        type: array
                                 required:
                                     - data
                                     - meta
+                                    - silences
                                 type: object
                     description: Successful response
                 "500":
@@ -3616,7 +3655,8 @@ paths:
         post:
             operationId: acknowledgeAlertInstance
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3627,8 +3667,10 @@ paths:
                         schema:
                             properties:
                                 group_key:
+                                    description: Targets one alert instance group; omit it when the action applies to every instance.
                                     type: string
                                 note:
+                                    description: Adds an optional note explaining the session update or acknowledgement.
                                     type: string
                             required:
                                 - group_key
@@ -3672,7 +3714,8 @@ paths:
         post:
             operationId: unacknowledgeAlertInstance
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3683,6 +3726,7 @@ paths:
                         schema:
                             properties:
                                 group_key:
+                                    description: Targets one alert instance group; omit it when the action applies to every instance.
                                     type: string
                             required:
                                 - group_key
@@ -3726,7 +3770,8 @@ paths:
         post:
             operationId: previewAlert
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3799,7 +3844,8 @@ paths:
         get:
             operationId: listAlertSilences
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3842,7 +3888,8 @@ paths:
         post:
             operationId: createAlertSilence
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3853,12 +3900,16 @@ paths:
                         schema:
                             properties:
                                 comment:
+                                    description: Records the reason for this silence so future readers understand the suppression.
                                     type: string
                                 ends_at:
+                                    description: Sets when this silence ends as a Unix timestamp in nanoseconds.
                                     type: integer
                                 group_key:
+                                    description: Targets one alert instance group; omit it when the action applies to every instance.
                                     type: string
                                 starts_at:
+                                    description: Sets when this silence begins as a Unix timestamp in nanoseconds.
                                     type: integer
                             required:
                                 - ends_at
@@ -3908,12 +3959,14 @@ paths:
         delete:
             operationId: deleteAlertSilence
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Selects the alert silence record to update or remove.
+                  in: path
                   name: silenceID
                   required: true
                   schema:
@@ -3948,12 +4001,14 @@ paths:
         patch:
             operationId: patchAlertSilence
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Selects the alert silence record to update or remove.
+                  in: path
                   name: silenceID
                   required: true
                   schema:
@@ -3964,12 +4019,16 @@ paths:
                         schema:
                             properties:
                                 comment:
+                                    description: Records the reason for this silence so future readers understand the suppression.
                                     type: string
                                 ends_at:
+                                    description: Sets when this silence ends as a Unix timestamp in nanoseconds.
                                     type: integer
                                 group_key:
+                                    description: Targets one alert instance group; omit it when the action applies to every instance.
                                     type: string
                                 starts_at:
+                                    description: Sets when this silence begins as a Unix timestamp in nanoseconds.
                                     type: integer
                             required:
                                 - ends_at
@@ -4020,7 +4079,8 @@ paths:
         post:
             operationId: testAlertNotification
             parameters:
-                - in: path
+                - description: Selects the alert rule that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -4031,6 +4091,7 @@ paths:
                         schema:
                             properties:
                                 destination:
+                                    description: Chooses where the test notification is delivered, such as the browser or Pushover.
                                     enum:
                                         - browser
                                         - pushover
@@ -4196,6 +4257,7 @@ paths:
                             additionalProperties: false
                             properties:
                                 yaml:
+                                    description: Provides the YAML document to import into Spaniel.
                                     type: string
                             required:
                                 - yaml
@@ -4259,34 +4321,47 @@ paths:
                                 annotations:
                                     additionalProperties:
                                         type: string
+                                    description: Adds key/value metadata to the alert for routing, ownership, and investigation context.
                                     type: object
                                 browser_enabled:
+                                    description: Enables or disables browser notifications when this alert fires.
                                     type: boolean
                                 condition:
                                     additionalProperties: true
+                                    description: Defines the threshold or expression that determines when the alert is firing.
                                     type: object
                                 cooldown_ns:
+                                    description: Sets the minimum nanoseconds to wait before the same alert can fire again.
                                     type: integer
                                 enabled:
+                                    description: Controls whether Spaniel evaluates this alert.
                                     type: boolean
                                 group_by:
+                                    description: Lists result fields used to group matching telemetry into separate alert instances.
                                     items:
                                         type: string
                                     type: array
                                 instance_discovery:
                                     additionalProperties: true
+                                    description: Configures how Spaniel discovers and maintains alert instances from query results.
                                     type: object
                                 name:
+                                    description: Sets the human-readable name shown in the Spaniel interface.
                                     type: string
                                 pending_for_ns:
+                                    description: Requires the condition to remain true for this many nanoseconds before firing.
                                     type: integer
                                 pushover_enabled:
+                                    description: Enables or disables Pushover delivery when this alert fires.
                                     type: boolean
                                 query_sql:
+                                    description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                     type: string
                                 repeat_interval_ns:
+                                    description: Sets how often a still-firing alert may notify again, in nanoseconds.
                                     type: integer
                                 severity:
+                                    description: Assigns the alert severity used to prioritize and route notifications.
                                     enum:
                                         - info
                                         - warning
@@ -4489,24 +4564,33 @@ paths:
                             additionalProperties: false
                             properties:
                                 description:
+                                    description: Adds a short explanation of the dashboard so collaborators understand its purpose.
                                     type: string
                                 name:
+                                    description: Sets the human-readable name shown in the Spaniel interface.
                                     type: string
                                 panels:
+                                    description: Replaces the dashboard panel collection with the supplied ordered definitions.
                                     items:
                                         additionalProperties: false
                                         properties:
                                             display_type:
+                                                description: Selects how the query result is visualized, such as a chart, table, or stat.
                                                 type: string
                                             layout_json:
+                                                description: Stores the panel layout metadata used to place and size it on the dashboard.
                                                 type: string
                                             position:
+                                                description: Sets the panel order on the dashboard; lower positions appear first.
                                                 type: integer
                                             query_sql:
+                                                description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                                 type: string
                                             settings_json:
+                                                description: Stores display-specific configuration for the selected visualization type.
                                                 type: string
                                             title:
+                                                description: Sets the panel title shown to dashboard readers.
                                                 type: string
                                         required:
                                             - title
@@ -4575,7 +4659,8 @@ paths:
         delete:
             operationId: deleteDashboard
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -4622,7 +4707,8 @@ paths:
         get:
             operationId: getDashboard
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -4677,7 +4763,8 @@ paths:
         patch:
             operationId: patchDashboard
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -4689,24 +4776,33 @@ paths:
                             additionalProperties: false
                             properties:
                                 description:
+                                    description: Adds a short explanation of the dashboard so collaborators understand its purpose.
                                     type: string
                                 name:
+                                    description: Sets the human-readable name shown in the Spaniel interface.
                                     type: string
                                 panels:
+                                    description: Replaces the dashboard panel collection with the supplied ordered definitions.
                                     items:
                                         additionalProperties: false
                                         properties:
                                             display_type:
+                                                description: Selects how the query result is visualized, such as a chart, table, or stat.
                                                 type: string
                                             layout_json:
+                                                description: Stores the panel layout metadata used to place and size it on the dashboard.
                                                 type: string
                                             position:
+                                                description: Sets the panel order on the dashboard; lower positions appear first.
                                                 type: integer
                                             query_sql:
+                                                description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                                 type: string
                                             settings_json:
+                                                description: Stores display-specific configuration for the selected visualization type.
                                                 type: string
                                             title:
+                                                description: Sets the panel title shown to dashboard readers.
                                                 type: string
                                         required:
                                             - title
@@ -4781,7 +4877,8 @@ paths:
         get:
             operationId: exportDashboardConfig
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -4812,7 +4909,8 @@ paths:
         post:
             operationId: createDashboardPanel
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -4824,16 +4922,22 @@ paths:
                             additionalProperties: false
                             properties:
                                 display_type:
+                                    description: Selects how the query result is visualized, such as a chart, table, or stat.
                                     type: string
                                 layout_json:
+                                    description: Stores the panel layout metadata used to place and size it on the dashboard.
                                     type: string
                                 position:
+                                    description: Sets the panel order on the dashboard; lower positions appear first.
                                     type: integer
                                 query_sql:
+                                    description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                     type: string
                                 settings_json:
+                                    description: Stores display-specific configuration for the selected visualization type.
                                     type: string
                                 title:
+                                    description: Sets the panel title shown to dashboard readers.
                                     type: string
                             required:
                                 - title
@@ -4897,12 +5001,14 @@ paths:
         delete:
             operationId: deleteDashboardPanel
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Selects the panel within this dashboard to update, move, or remove.
+                  in: path
                   name: panelId
                   required: true
                   schema:
@@ -4949,12 +5055,14 @@ paths:
         patch:
             operationId: patchDashboardPanel
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Selects the panel within this dashboard to update, move, or remove.
+                  in: path
                   name: panelId
                   required: true
                   schema:
@@ -4966,16 +5074,22 @@ paths:
                             additionalProperties: false
                             properties:
                                 display_type:
+                                    description: Selects how the query result is visualized, such as a chart, table, or stat.
                                     type: string
                                 layout_json:
+                                    description: Stores the panel layout metadata used to place and size it on the dashboard.
                                     type: string
                                 position:
+                                    description: Sets the panel order on the dashboard; lower positions appear first.
                                     type: integer
                                 query_sql:
+                                    description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                     type: string
                                 settings_json:
+                                    description: Stores display-specific configuration for the selected visualization type.
                                     type: string
                                 title:
+                                    description: Sets the panel title shown to dashboard readers.
                                     type: string
                             required:
                                 - title
@@ -5039,12 +5153,14 @@ paths:
         post:
             operationId: moveDashboardPanel
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Selects the panel within this dashboard to update, move, or remove.
+                  in: path
                   name: panelId
                   required: true
                   schema:
@@ -5055,6 +5171,7 @@ paths:
                         schema:
                             properties:
                                 direction:
+                                    description: Moves the panel by this signed number of positions in the dashboard order.
                                     enum:
                                         - -1
                                         - 1
@@ -5106,7 +5223,8 @@ paths:
         post:
             operationId: previewDashboardQuery
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -5118,14 +5236,18 @@ paths:
                             additionalProperties: false
                             properties:
                                 display_type:
+                                    description: Selects how the query result is visualized, such as a chart, table, or stat.
                                     type: string
                                 name:
+                                    description: Sets the human-readable name shown in the Spaniel interface.
                                     type: string
                                 query_sql:
+                                    description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
                                     type: string
                                 variables:
                                     additionalProperties:
                                         type: string
+                                    description: Provides values for dashboard query variables while previewing the panel query.
                                     type: object
                             required:
                                 - query_sql
@@ -5185,7 +5307,8 @@ paths:
         post:
             operationId: createDashboardVariable
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -5197,14 +5320,19 @@ paths:
                             additionalProperties: false
                             properties:
                                 default_value:
+                                    description: Sets the value used when a dashboard variable has not been supplied explicitly.
                                     type: string
                                 kind:
+                                    description: Selects the variable input behavior used by the dashboard editor.
                                     type: string
                                 name:
+                                    description: Sets the human-readable name shown in the Spaniel interface.
                                     type: string
                                 options_json:
+                                    description: Stores the selectable options or configuration for this dashboard variable.
                                     type: string
                                 source:
+                                    description: Identifies the source used to populate this dashboard variable.
                                     type: string
                             required:
                                 - name
@@ -5266,12 +5394,14 @@ paths:
         delete:
             operationId: deleteDashboardVariable
             parameters:
-                - in: path
+                - description: Selects the dashboard that owns the requested resource or action.
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Selects the dashboard variable to remove.
+                  in: path
                   name: name
                   required: true
                   schema:
@@ -5325,6 +5455,7 @@ paths:
                             additionalProperties: false
                             properties:
                                 yaml:
+                                    description: Provides the YAML document to import into Spaniel.
                                     type: string
                             required:
                                 - yaml
@@ -5392,6 +5523,7 @@ paths:
                         schema:
                             properties:
                                 ids:
+                                    description: Provides dashboard identifiers in the exact order they should appear.
                                     items:
                                         type: string
                                     type: array
@@ -6087,7 +6219,8 @@ paths:
         post:
             operationId: acknowledgeNotification
             parameters:
-                - in: path
+                - description: Selects the notification to acknowledge or mark as read.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -6123,7 +6256,8 @@ paths:
         post:
             operationId: readNotification
             parameters:
-                - in: path
+                - description: Selects the notification to acknowledge or mark as read.
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -6419,6 +6553,7 @@ paths:
                         schema:
                             properties:
                                 label:
+                                    description: Sets a human-readable label that makes the session easy to recognize later.
                                     type: string
                             type: object
                 required: false
@@ -6460,7 +6595,8 @@ paths:
         delete:
             operationId: deleteSession
             parameters:
-                - in: path
+                - description: Selects the captured Spaniel session to read, update, activate, compare, or export.
+                  in: path
                   name: sessionId
                   required: true
                   schema:
@@ -6501,7 +6637,8 @@ paths:
         get:
             operationId: getSession
             parameters:
-                - in: path
+                - description: Selects the captured Spaniel session to read, update, activate, compare, or export.
+                  in: path
                   name: sessionId
                   required: true
                   schema:
@@ -6549,7 +6686,8 @@ paths:
         patch:
             operationId: patchSession
             parameters:
-                - in: path
+                - description: Selects the captured Spaniel session to read, update, activate, compare, or export.
+                  in: path
                   name: sessionId
                   required: true
                   schema:
@@ -6560,8 +6698,10 @@ paths:
                         schema:
                             properties:
                                 label:
+                                    description: Sets a human-readable label that makes the session easy to recognize later.
                                     type: string
                                 note:
+                                    description: Adds an optional note explaining the session update or acknowledgement.
                                     type: string
                             type: object
                 required: false
@@ -6609,7 +6749,8 @@ paths:
         post:
             operationId: activateSession
             parameters:
-                - in: path
+                - description: Selects the captured Spaniel session to read, update, activate, compare, or export.
+                  in: path
                   name: sessionId
                   required: true
                   schema:
@@ -6666,7 +6807,8 @@ paths:
         post:
             operationId: setSessionBaseline
             parameters:
-                - in: path
+                - description: Selects the captured Spaniel session to read, update, activate, compare, or export.
+                  in: path
                   name: sessionId
                   required: true
                   schema:
@@ -6677,6 +6819,7 @@ paths:
                         schema:
                             properties:
                                 is_baseline:
+                                    description: Marks or unmarks this session as the baseline used for comparisons.
                                     type: boolean
                             required:
                                 - is_baseline
@@ -6713,7 +6856,8 @@ paths:
         get:
             operationId: exportSessionBaseline
             parameters:
-                - in: path
+                - description: Selects the captured Spaniel session to read, update, activate, compare, or export.
+                  in: path
                   name: sessionId
                   required: true
                   schema:
@@ -6875,50 +7019,72 @@ paths:
                             additionalProperties: false
                             properties:
                                 advance_session_on_start:
+                                    description: Starts a new capture session automatically when Spaniel launches.
                                     type: boolean
                                 alerts_browser_enabled:
+                                    description: Enables browser-based alert delivery globally.
                                     type: boolean
                                 alerts_browser_template:
+                                    description: Sets the template used to format browser alert notifications.
                                     type: string
                                 alerts_dir:
+                                    description: Sets the directory where Spaniel reads alert definition files.
                                     type: string
                                 alerts_pushover_enabled:
+                                    description: Enables Pushover alert delivery globally.
                                     type: boolean
                                 alerts_pushover_template:
+                                    description: Sets the template used to format Pushover alert notifications.
                                     type: string
                                 auto_prune:
+                                    description: Automatically prunes retained telemetry when storage limits are reached.
                                     type: boolean
                                 bind_address_v4:
+                                    description: Sets the IPv4 address on which Spaniel listens for HTTP traffic.
                                     type: string
                                 bind_address_v6:
+                                    description: Sets the IPv6 address on which Spaniel listens for HTTP traffic.
                                     type: string
                                 db_path:
+                                    description: Sets the path of Spaniel’s DuckDB telemetry database.
                                     type: string
                                 forward:
+                                    description: Lists upstream OTLP destinations to receive forwarded telemetry.
                                     items:
                                         type: string
                                     type: array
                                 forward_sample:
+                                    description: Sets the sampling interval used when forwarding telemetry.
                                     type: integer
                                 max_db_size_mb:
+                                    description: Caps the telemetry database size in megabytes.
                                     type: integer
                                 max_sessions:
+                                    description: Limits how many capture sessions Spaniel retains.
                                     type: integer
                                 no_browser:
+                                    description: Prevents Spaniel from opening the browser automatically on startup.
                                     type: boolean
                                 otlp_grpc_port:
+                                    description: Sets the port accepting OTLP over gRPC.
                                     type: integer
                                 otlp_http_port:
+                                    description: Sets the port accepting OTLP over HTTP.
                                     type: integer
                                 port:
+                                    description: Sets the port serving the Spaniel web app and HTTP API.
                                     type: integer
                                 retention_days:
+                                    description: Sets how long telemetry is retained before age-based pruning.
                                     type: integer
                                 self_monitor:
+                                    description: Enables Spaniel’s own telemetry instrumentation.
                                     type: boolean
                                 source_burst:
+                                    description: Sets the maximum short-term telemetry burst accepted from a source.
                                     type: integer
                                 source_rps:
+                                    description: Sets the sustained telemetry requests-per-second limit for a source.
                                     type: integer
                             type: object
                 required: false
@@ -7274,7 +7440,8 @@ paths:
         get:
             operationId: getSpan
             parameters:
-                - in: path
+                - description: Selects the individual span to retrieve.
+                  in: path
                   name: spanId
                   required: true
                   schema:
@@ -7475,7 +7642,8 @@ paths:
         get:
             operationId: getTrace
             parameters:
-                - in: path
+                - description: Selects the distributed trace to retrieve, export, or inspect for linked telemetry.
+                  in: path
                   name: traceId
                   required: true
                   schema:
@@ -7526,7 +7694,8 @@ paths:
         get:
             operationId: exportTrace
             parameters:
-                - in: path
+                - description: Selects the distributed trace to retrieve, export, or inspect for linked telemetry.
+                  in: path
                   name: traceId
                   required: true
                   schema:
@@ -7561,7 +7730,8 @@ paths:
         get:
             operationId: listIncomingLinks
             parameters:
-                - in: path
+                - description: Selects the distributed trace to retrieve, export, or inspect for linked telemetry.
+                  in: path
                   name: traceId
                   required: true
                   schema:

@@ -5,29 +5,132 @@ import { Link } from 'react-router-dom'
 
 declare global {
   interface Window {
-    Redoc?: { init: (document: string | object, options: object, target: HTMLElement) => void }
+    Redoc?: {
+      init: (
+        document: string | object,
+        options: object,
+        target: HTMLElement,
+        callback?: () => void,
+      ) => void
+    }
   }
 }
 
+type OpenAPISchema = {
+  description?: unknown
+  properties?: Record<string, OpenAPISchema>
+  items?: OpenAPISchema
+  allOf?: OpenAPISchema[]
+  anyOf?: OpenAPISchema[]
+  oneOf?: OpenAPISchema[]
+}
+
+type OpenAPIOperation = {
+  operationId?: unknown
+  parameters?: Array<Record<string, unknown>>
+  requestBody?: { content?: Record<string, { schema?: OpenAPISchema }> }
+}
+
 type OpenAPIDocument = {
-  paths?: Record<string, Record<string, { parameters?: Array<Record<string, unknown>> }>>
+  paths?: Record<string, Record<string, OpenAPIOperation>>
 }
 
 function makeParameterDescriptionsVisible(document: OpenAPIDocument) {
   // ReDoc currently renders a parameter description for an object but omits it
-  // for scalar query parameters. Mirroring the canonical parameter description
-  // onto its schema keeps every query filter equally discoverable in the UI.
+  // for scalar query and path parameters. Mirroring the canonical description
+  // onto the schema keeps every filter and resource identifier discoverable.
   for (const path of Object.values(document.paths ?? {})) {
     for (const operation of Object.values(path)) {
       for (const parameter of operation?.parameters ?? []) {
-        if (parameter.in !== 'query' || typeof parameter.description !== 'string') continue
+        if (
+          (parameter.in !== 'query' && parameter.in !== 'path') ||
+          typeof parameter.description !== 'string'
+        )
+          continue
         const schema = parameter.schema
         if (!schema || typeof schema !== 'object' || Array.isArray(schema)) continue
-        if (!('description' in schema)) schema.description = parameter.description
+        const schemaObject = schema as Record<string, unknown>
+        if (!('description' in schemaObject)) schemaObject.description = parameter.description
       }
     }
   }
   return document
+}
+
+function schemaDescriptions(
+  schema: OpenAPISchema | undefined,
+  descriptions = new Map<string, string>(),
+) {
+  if (!schema) return descriptions
+  for (const [name, property] of Object.entries(schema.properties ?? {})) {
+    if (typeof property.description === 'string') descriptions.set(name, property.description)
+    schemaDescriptions(property, descriptions)
+  }
+  schemaDescriptions(schema.items, descriptions)
+  for (const branch of [
+    ...(schema.allOf ?? []),
+    ...(schema.anyOf ?? []),
+    ...(schema.oneOf ?? []),
+  ]) {
+    schemaDescriptions(branch, descriptions)
+  }
+  return descriptions
+}
+
+function appendDescriptions(
+  section: HTMLElement,
+  heading: string,
+  descriptions: Map<string, string>,
+) {
+  const title = [...section.querySelectorAll('h5')].find(
+    (element) => element.textContent?.trim().toLowerCase() === heading,
+  )
+  const table = title?.nextElementSibling
+  if (!table || table.tagName !== 'TABLE') return
+  for (const row of table.querySelectorAll('tbody > tr')) {
+    const field = row.querySelector<HTMLElement>('td[kind="field"]')
+    const description = field?.getAttribute('title')
+      ? descriptions.get(field.getAttribute('title')!)
+      : undefined
+    const details = row.querySelector('td:nth-child(2)')
+    if (!description || !details || details.querySelector('.spaniel-openapi-field-description'))
+      continue
+    const copy = document.createElement('p')
+    copy.className = 'spaniel-openapi-field-description'
+    copy.textContent = description
+    details.appendChild(copy)
+  }
+}
+
+function makeSchemaDescriptionsVisible(target: HTMLElement, document: OpenAPIDocument) {
+  const operations = new Map<string, { path: Map<string, string>; body: Map<string, string> }>()
+  for (const path of Object.values(document.paths ?? {})) {
+    for (const operation of Object.values(path)) {
+      if (typeof operation?.operationId !== 'string') continue
+      const pathDescriptions = new Map<string, string>()
+      for (const parameter of operation.parameters ?? []) {
+        if (
+          parameter.in === 'path' &&
+          typeof parameter.name === 'string' &&
+          typeof parameter.description === 'string'
+        ) {
+          pathDescriptions.set(parameter.name, parameter.description)
+        }
+      }
+      const bodyDescriptions = new Map<string, string>()
+      for (const media of Object.values(operation.requestBody?.content ?? {})) {
+        schemaDescriptions(media.schema, bodyDescriptions)
+      }
+      operations.set(operation.operationId, { path: pathDescriptions, body: bodyDescriptions })
+    }
+  }
+  for (const section of target.querySelectorAll<HTMLElement>('[data-section-id^="operation/"]')) {
+    if (section.id !== section.dataset.sectionId) continue
+    const operation = operations.get(section.dataset.sectionId!.slice('operation/'.length))
+    if (!operation) continue
+    appendDescriptions(section, 'path parameters', operation.path)
+    appendDescriptions(section, 'request body schema: application/json', operation.body)
+  }
 }
 
 function options(dark: boolean) {
@@ -39,7 +142,7 @@ function options(dark: boolean) {
         ink: '#edf5fb',
         muted: '#a8bdcc',
         accent: '#75b9e6',
-        success: '#96dfae',
+        success: '#14532d',
       }
     : {
         bg: '#f5f9fc',
@@ -48,7 +151,7 @@ function options(dark: boolean) {
         ink: '#1f2937',
         muted: '#54616e',
         accent: '#176d9c',
-        success: '#14532d',
+        success: '#96dfae',
       }
   return {
     theme: {
@@ -78,8 +181,18 @@ function applyThemeOverrides(dark: boolean) {
   const side = dark ? '#152536' : '#edf3f7'
   const ink = dark ? '#edf5fb' : '#1f2937'
   const selected = dark ? '#29445b' : '#dbe8f1'
-  const success = dark ? '#96dfae' : '#14532d'
+  const success = dark ? '#14532d' : '#96dfae'
   const additionalProperty = dark ? '#a8d8f0' : '#0f4c78'
+  const verbBadges = dark
+    ? ''
+    : `
+    .redoc-wrap button:has(.http-verb.get){background:#96dfae!important}
+    .redoc-wrap button:has(.http-verb.post){background:#bfdbfe!important}
+    .redoc-wrap button:has(.http-verb.put){background:#ddd6fe!important}
+    .redoc-wrap button:has(.http-verb.patch){background:#fde68a!important}
+    .redoc-wrap button:has(.http-verb.delete){background:#fecaca!important}
+    .redoc-wrap button:has(.http-verb.head),.redoc-wrap button:has(.http-verb.options){background:#dbe8f1!important}
+  `
   const styleID = 'spaniel-redoc-contrast'
   const style = document.getElementById(styleID) ?? document.createElement('style')
   style.id = styleID
@@ -98,8 +211,10 @@ function applyThemeOverrides(dark: boolean) {
     .redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}
     .redoc-wrap [role="tab"]{background:${side}!important;color:${ink}!important}
     .redoc-wrap [role="tab"][aria-selected="true"]{background:${selected}!important;color:${ink}!important}
-    .redoc-wrap button.sc-kzqdkY:not(.kokIwB){background:${success}!important;color:${dark ? '#102318' : '#effcf3'}!important}
+    .redoc-wrap button.sc-kzqdkY:not(.kokIwB){background:${success}!important;color:${dark ? '#effcf3' : '#102318'}!important}
     .redoc-wrap span.sc-Nxspf{color:${additionalProperty}!important}
+    .redoc-wrap .spaniel-openapi-field-description{margin:6px 0 0;font-size:12px;line-height:1.45;color:${ink}!important}
+    ${verbBadges}
   `
   if (!style.parentNode) document.head.appendChild(style)
 }
@@ -125,7 +240,9 @@ export default function OpenAPI() {
       const response = await fetch('/api/openapi.json')
       if (!response.ok) throw new Error(`The OpenAPI document returned ${response.status}.`)
       const document = makeParameterDescriptionsVisible((await response.json()) as OpenAPIDocument)
-      window.Redoc.init(document, options(resolvedTheme === 'dark'), target)
+      window.Redoc.init(document, options(resolvedTheme === 'dark'), target, () =>
+        makeSchemaDescriptionsVisible(target, document),
+      )
     }
     const id = 'spaniel-redoc-runtime'
     const script = document.getElementById(id) as HTMLScriptElement | null

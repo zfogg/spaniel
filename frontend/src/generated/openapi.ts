@@ -2310,25 +2310,40 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Adds key/value metadata to the alert for routing, ownership, and investigation context. */
           annotations?: {
             [key: string]: string
           }
+          /** @description Enables or disables browser notifications when this alert fires. */
           browser_enabled?: boolean
+          /** @description Defines the threshold or expression that determines when the alert is firing. */
           condition: {
             [key: string]: unknown
           }
+          /** @description Sets the minimum nanoseconds to wait before the same alert can fire again. */
           cooldown_ns?: number
+          /** @description Controls whether Spaniel evaluates this alert. */
           enabled?: boolean
+          /** @description Lists result fields used to group matching telemetry into separate alert instances. */
           group_by?: string[]
+          /** @description Configures how Spaniel discovers and maintains alert instances from query results. */
           instance_discovery?: {
             [key: string]: unknown
           }
+          /** @description Sets the human-readable name shown in the Spaniel interface. */
           name: string
+          /** @description Requires the condition to remain true for this many nanoseconds before firing. */
           pending_for_ns?: number
+          /** @description Enables or disables Pushover delivery when this alert fires. */
           pushover_enabled?: boolean
+          /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
           query_sql: string
+          /** @description Sets how often a still-firing alert may notify again, in nanoseconds. */
           repeat_interval_ns?: number
-          /** @enum {string} */
+          /**
+           * @description Assigns the alert severity used to prioritize and route notifications.
+           * @enum {string}
+           */
           severity?: 'info' | 'warning' | 'critical'
         }
       }
@@ -2428,6 +2443,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Provides the YAML document to import into Spaniel. */
           yaml: string
         }
       }
@@ -2483,25 +2499,40 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Adds key/value metadata to the alert for routing, ownership, and investigation context. */
           annotations?: {
             [key: string]: string
           }
+          /** @description Enables or disables browser notifications when this alert fires. */
           browser_enabled?: boolean
+          /** @description Defines the threshold or expression that determines when the alert is firing. */
           condition: {
             [key: string]: unknown
           }
+          /** @description Sets the minimum nanoseconds to wait before the same alert can fire again. */
           cooldown_ns?: number
+          /** @description Controls whether Spaniel evaluates this alert. */
           enabled?: boolean
+          /** @description Lists result fields used to group matching telemetry into separate alert instances. */
           group_by?: string[]
+          /** @description Configures how Spaniel discovers and maintains alert instances from query results. */
           instance_discovery?: {
             [key: string]: unknown
           }
+          /** @description Sets the human-readable name shown in the Spaniel interface. */
           name: string
+          /** @description Requires the condition to remain true for this many nanoseconds before firing. */
           pending_for_ns?: number
+          /** @description Enables or disables Pushover delivery when this alert fires. */
           pushover_enabled?: boolean
+          /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
           query_sql: string
+          /** @description Sets how often a still-firing alert may notify again, in nanoseconds. */
           repeat_interval_ns?: number
-          /** @enum {string} */
+          /**
+           * @description Assigns the alert severity used to prioritize and route notifications.
+           * @enum {string}
+           */
           severity?: 'info' | 'warning' | 'critical'
         }
       }
@@ -2578,6 +2609,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2611,6 +2643,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2662,6 +2695,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2669,25 +2703,40 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Adds key/value metadata to the alert for routing, ownership, and investigation context. */
           annotations?: {
             [key: string]: string
           }
+          /** @description Enables or disables browser notifications when this alert fires. */
           browser_enabled?: boolean
+          /** @description Defines the threshold or expression that determines when the alert is firing. */
           condition: {
             [key: string]: unknown
           }
+          /** @description Sets the minimum nanoseconds to wait before the same alert can fire again. */
           cooldown_ns?: number
+          /** @description Controls whether Spaniel evaluates this alert. */
           enabled?: boolean
+          /** @description Lists result fields used to group matching telemetry into separate alert instances. */
           group_by?: string[]
+          /** @description Configures how Spaniel discovers and maintains alert instances from query results. */
           instance_discovery?: {
             [key: string]: unknown
           }
+          /** @description Sets the human-readable name shown in the Spaniel interface. */
           name: string
+          /** @description Requires the condition to remain true for this many nanoseconds before firing. */
           pending_for_ns?: number
+          /** @description Enables or disables Pushover delivery when this alert fires. */
           pushover_enabled?: boolean
+          /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
           query_sql: string
+          /** @description Sets how often a still-firing alert may notify again, in nanoseconds. */
           repeat_interval_ns?: number
-          /** @enum {string} */
+          /**
+           * @description Assigns the alert severity used to prioritize and route notifications.
+           * @enum {string}
+           */
           severity?: 'info' | 'warning' | 'critical'
         }
       }
@@ -2747,6 +2796,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2784,6 +2834,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2824,6 +2875,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2868,6 +2920,7 @@ export interface operations {
       }
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2883,6 +2936,8 @@ export interface operations {
           'application/json': {
             data: components['schemas']['AlertEvent'][]
             meta: components['schemas']['Meta']
+            /** @description Current silences for this rule, included with the timeline so the inspector needs one request. */
+            silences: components['schemas']['AlertSilence'][]
           }
         }
       }
@@ -2902,6 +2957,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2909,7 +2965,9 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Targets one alert instance group; omit it when the action applies to every instance. */
           group_key: string
+          /** @description Adds an optional note explaining the session update or acknowledgement. */
           note?: string
         }
       }
@@ -2942,6 +3000,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -2949,6 +3008,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Targets one alert instance group; omit it when the action applies to every instance. */
           group_key: string
         }
       }
@@ -2981,6 +3041,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3036,6 +3097,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3069,6 +3131,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3076,9 +3139,13 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Records the reason for this silence so future readers understand the suppression. */
           comment: string
+          /** @description Sets when this silence ends as a Unix timestamp in nanoseconds. */
           ends_at: number
+          /** @description Targets one alert instance group; omit it when the action applies to every instance. */
           group_key?: string
+          /** @description Sets when this silence begins as a Unix timestamp in nanoseconds. */
           starts_at?: number
         }
       }
@@ -3120,7 +3187,9 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
+        /** @description Selects the alert silence record to update or remove. */
         silenceID: string
       }
       cookie?: never
@@ -3154,7 +3223,9 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
+        /** @description Selects the alert silence record to update or remove. */
         silenceID: string
       }
       cookie?: never
@@ -3162,9 +3233,13 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Records the reason for this silence so future readers understand the suppression. */
           comment: string
+          /** @description Sets when this silence ends as a Unix timestamp in nanoseconds. */
           ends_at: number
+          /** @description Targets one alert instance group; omit it when the action applies to every instance. */
           group_key?: string
+          /** @description Sets when this silence begins as a Unix timestamp in nanoseconds. */
           starts_at: number
         }
       }
@@ -3206,6 +3281,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the alert rule that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3213,7 +3289,10 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          /** @enum {string} */
+          /**
+           * @description Chooses where the test notification is delivered, such as the browser or Pushover.
+           * @enum {string}
+           */
           destination: 'browser' | 'pushover'
         }
       }
@@ -3334,14 +3413,23 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Adds a short explanation of the dashboard so collaborators understand its purpose. */
           description?: string
+          /** @description Sets the human-readable name shown in the Spaniel interface. */
           name: string
+          /** @description Replaces the dashboard panel collection with the supplied ordered definitions. */
           panels?: {
+            /** @description Selects how the query result is visualized, such as a chart, table, or stat. */
             display_type: string
+            /** @description Stores the panel layout metadata used to place and size it on the dashboard. */
             layout_json?: string
+            /** @description Sets the panel order on the dashboard; lower positions appear first. */
             position?: number
+            /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
             query_sql: string
+            /** @description Stores display-specific configuration for the selected visualization type. */
             settings_json?: string
+            /** @description Sets the panel title shown to dashboard readers. */
             title: string
           }[]
         }
@@ -3389,6 +3477,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Provides the YAML document to import into Spaniel. */
           yaml: string
         }
       }
@@ -3435,6 +3524,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Provides dashboard identifiers in the exact order they should appear. */
           ids: string[]
         }
       }
@@ -3485,6 +3575,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3518,6 +3609,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3569,6 +3661,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3576,14 +3669,23 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Adds a short explanation of the dashboard so collaborators understand its purpose. */
           description?: string
+          /** @description Sets the human-readable name shown in the Spaniel interface. */
           name: string
+          /** @description Replaces the dashboard panel collection with the supplied ordered definitions. */
           panels?: {
+            /** @description Selects how the query result is visualized, such as a chart, table, or stat. */
             display_type: string
+            /** @description Stores the panel layout metadata used to place and size it on the dashboard. */
             layout_json?: string
+            /** @description Sets the panel order on the dashboard; lower positions appear first. */
             position?: number
+            /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
             query_sql: string
+            /** @description Stores display-specific configuration for the selected visualization type. */
             settings_json?: string
+            /** @description Sets the panel title shown to dashboard readers. */
             title: string
           }[]
         }
@@ -3635,6 +3737,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3675,6 +3778,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3682,11 +3786,17 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Selects how the query result is visualized, such as a chart, table, or stat. */
           display_type: string
+          /** @description Stores the panel layout metadata used to place and size it on the dashboard. */
           layout_json?: string
+          /** @description Sets the panel order on the dashboard; lower positions appear first. */
           position?: number
+          /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
           query_sql: string
+          /** @description Stores display-specific configuration for the selected visualization type. */
           settings_json?: string
+          /** @description Sets the panel title shown to dashboard readers. */
           title: string
         }
       }
@@ -3746,7 +3856,9 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
+        /** @description Selects the panel within this dashboard to update, move, or remove. */
         panelId: string
       }
       cookie?: never
@@ -3798,7 +3910,9 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
+        /** @description Selects the panel within this dashboard to update, move, or remove. */
         panelId: string
       }
       cookie?: never
@@ -3806,11 +3920,17 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Selects how the query result is visualized, such as a chart, table, or stat. */
           display_type: string
+          /** @description Stores the panel layout metadata used to place and size it on the dashboard. */
           layout_json?: string
+          /** @description Sets the panel order on the dashboard; lower positions appear first. */
           position?: number
+          /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
           query_sql: string
+          /** @description Stores display-specific configuration for the selected visualization type. */
           settings_json?: string
+          /** @description Sets the panel title shown to dashboard readers. */
           title: string
         }
       }
@@ -3870,7 +3990,9 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
+        /** @description Selects the panel within this dashboard to update, move, or remove. */
         panelId: string
       }
       cookie?: never
@@ -3878,7 +4000,10 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          /** @enum {integer} */
+          /**
+           * @description Moves the panel by this signed number of positions in the dashboard order.
+           * @enum {integer}
+           */
           direction: -1 | 1
         }
       }
@@ -3929,6 +4054,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3936,9 +4062,13 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Selects how the query result is visualized, such as a chart, table, or stat. */
           display_type?: string
+          /** @description Sets the human-readable name shown in the Spaniel interface. */
           name?: string
+          /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */
           query_sql: string
+          /** @description Provides values for dashboard query variables while previewing the panel query. */
           variables?: {
             [key: string]: string
           }
@@ -3982,6 +4112,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
       }
       cookie?: never
@@ -3989,10 +4120,15 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Sets the value used when a dashboard variable has not been supplied explicitly. */
           default_value?: string
+          /** @description Selects the variable input behavior used by the dashboard editor. */
           kind: string
+          /** @description Sets the human-readable name shown in the Spaniel interface. */
           name: string
+          /** @description Stores the selectable options or configuration for this dashboard variable. */
           options_json?: string
+          /** @description Identifies the source used to populate this dashboard variable. */
           source: string
         }
       }
@@ -4052,7 +4188,9 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the dashboard that owns the requested resource or action. */
         id: string
+        /** @description Selects the dashboard variable to remove. */
         name: string
       }
       cookie?: never
@@ -4525,6 +4663,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the notification to acknowledge or mark as read. */
         id: string
       }
       cookie?: never
@@ -4558,6 +4697,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the notification to acknowledge or mark as read. */
         id: string
       }
       cookie?: never
@@ -4815,6 +4955,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Sets a human-readable label that makes the session easy to recognize later. */
           label?: string
         }
       }
@@ -4909,6 +5050,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the captured Spaniel session to read, update, activate, compare, or export. */
         sessionId: string
       }
       cookie?: never
@@ -4951,6 +5093,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the captured Spaniel session to read, update, activate, compare, or export. */
         sessionId: string
       }
       cookie?: never
@@ -4993,6 +5136,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the captured Spaniel session to read, update, activate, compare, or export. */
         sessionId: string
       }
       cookie?: never
@@ -5000,7 +5144,9 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Sets a human-readable label that makes the session easy to recognize later. */
           label?: string
+          /** @description Adds an optional note explaining the session update or acknowledgement. */
           note?: string
         }
       }
@@ -5042,6 +5188,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the captured Spaniel session to read, update, activate, compare, or export. */
         sessionId: string
       }
       cookie?: never
@@ -5088,6 +5235,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the captured Spaniel session to read, update, activate, compare, or export. */
         sessionId: string
       }
       cookie?: never
@@ -5095,6 +5243,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Marks or unmarks this session as the baseline used for comparisons. */
           is_baseline: boolean
         }
       }
@@ -5127,6 +5276,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the captured Spaniel session to read, update, activate, compare, or export. */
         sessionId: string
       }
       cookie?: never
@@ -5203,27 +5353,49 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
+          /** @description Starts a new capture session automatically when Spaniel launches. */
           advance_session_on_start?: boolean
+          /** @description Enables browser-based alert delivery globally. */
           alerts_browser_enabled?: boolean
+          /** @description Sets the template used to format browser alert notifications. */
           alerts_browser_template?: string
+          /** @description Sets the directory where Spaniel reads alert definition files. */
           alerts_dir?: string
+          /** @description Enables Pushover alert delivery globally. */
           alerts_pushover_enabled?: boolean
+          /** @description Sets the template used to format Pushover alert notifications. */
           alerts_pushover_template?: string
+          /** @description Automatically prunes retained telemetry when storage limits are reached. */
           auto_prune?: boolean
+          /** @description Sets the IPv4 address on which Spaniel listens for HTTP traffic. */
           bind_address_v4?: string
+          /** @description Sets the IPv6 address on which Spaniel listens for HTTP traffic. */
           bind_address_v6?: string
+          /** @description Sets the path of Spaniel’s DuckDB telemetry database. */
           db_path?: string
+          /** @description Lists upstream OTLP destinations to receive forwarded telemetry. */
           forward?: string[]
+          /** @description Sets the sampling interval used when forwarding telemetry. */
           forward_sample?: number
+          /** @description Caps the telemetry database size in megabytes. */
           max_db_size_mb?: number
+          /** @description Limits how many capture sessions Spaniel retains. */
           max_sessions?: number
+          /** @description Prevents Spaniel from opening the browser automatically on startup. */
           no_browser?: boolean
+          /** @description Sets the port accepting OTLP over gRPC. */
           otlp_grpc_port?: number
+          /** @description Sets the port accepting OTLP over HTTP. */
           otlp_http_port?: number
+          /** @description Sets the port serving the Spaniel web app and HTTP API. */
           port?: number
+          /** @description Sets how long telemetry is retained before age-based pruning. */
           retention_days?: number
+          /** @description Enables Spaniel’s own telemetry instrumentation. */
           self_monitor?: boolean
+          /** @description Sets the maximum short-term telemetry burst accepted from a source. */
           source_burst?: number
+          /** @description Sets the sustained telemetry requests-per-second limit for a source. */
           source_rps?: number
         }
       }
@@ -5502,6 +5674,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the individual span to retrieve. */
         spanId: string
       }
       cookie?: never
@@ -5650,6 +5823,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
         traceId: string
       }
       cookie?: never
@@ -5692,6 +5866,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
         traceId: string
       }
       cookie?: never
@@ -5732,6 +5907,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
+        /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
         traceId: string
       }
       cookie?: never

@@ -4362,45 +4362,57 @@
                     "additionalProperties": {
                       "type": "string"
                     },
-                    "type": "object"
+                    "type": "object",
+                    "description": "Adds key/value metadata to the alert for routing, ownership, and investigation context."
                   },
                   "browser_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables or disables browser notifications when this alert fires."
                   },
                   "condition": {
                     "additionalProperties": true,
-                    "type": "object"
+                    "type": "object",
+                    "description": "Defines the threshold or expression that determines when the alert is firing."
                   },
                   "cooldown_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the minimum nanoseconds to wait before the same alert can fire again."
                   },
                   "enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Controls whether Spaniel evaluates this alert."
                   },
                   "group_by": {
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "Lists result fields used to group matching telemetry into separate alert instances."
                   },
                   "instance_discovery": {
                     "additionalProperties": true,
-                    "type": "object"
+                    "type": "object",
+                    "description": "Configures how Spaniel discovers and maintains alert instances from query results."
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the human-readable name shown in the Spaniel interface."
                   },
                   "pending_for_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Requires the condition to remain true for this many nanoseconds before firing."
                   },
                   "pushover_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables or disables Pushover delivery when this alert fires."
                   },
                   "query_sql": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                   },
                   "repeat_interval_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets how often a still-firing alert may notify again, in nanoseconds."
                   },
                   "severity": {
                     "enum": [
@@ -4408,7 +4420,8 @@
                       "warning",
                       "critical"
                     ],
-                    "type": "string"
+                    "type": "string",
+                    "description": "Assigns the alert severity used to prioritize and route notifications."
                   }
                 },
                 "required": [
@@ -4656,7 +4669,8 @@
                 "additionalProperties": false,
                 "properties": {
                   "yaml": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Provides the YAML document to import into Spaniel."
                   }
                 },
                 "required": [
@@ -4754,45 +4768,57 @@
                     "additionalProperties": {
                       "type": "string"
                     },
-                    "type": "object"
+                    "type": "object",
+                    "description": "Adds key/value metadata to the alert for routing, ownership, and investigation context."
                   },
                   "browser_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables or disables browser notifications when this alert fires."
                   },
                   "condition": {
                     "additionalProperties": true,
-                    "type": "object"
+                    "type": "object",
+                    "description": "Defines the threshold or expression that determines when the alert is firing."
                   },
                   "cooldown_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the minimum nanoseconds to wait before the same alert can fire again."
                   },
                   "enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Controls whether Spaniel evaluates this alert."
                   },
                   "group_by": {
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "Lists result fields used to group matching telemetry into separate alert instances."
                   },
                   "instance_discovery": {
                     "additionalProperties": true,
-                    "type": "object"
+                    "type": "object",
+                    "description": "Configures how Spaniel discovers and maintains alert instances from query results."
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the human-readable name shown in the Spaniel interface."
                   },
                   "pending_for_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Requires the condition to remain true for this many nanoseconds before firing."
                   },
                   "pushover_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables or disables Pushover delivery when this alert fires."
                   },
                   "query_sql": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                   },
                   "repeat_interval_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets how often a still-firing alert may notify again, in nanoseconds."
                   },
                   "severity": {
                     "enum": [
@@ -4800,7 +4826,8 @@
                       "warning",
                       "critical"
                     ],
-                    "type": "string"
+                    "type": "string",
+                    "description": "Assigns the alert severity used to prioritize and route notifications."
                   }
                 },
                 "required": [
@@ -4965,7 +4992,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "responses": {
@@ -5042,7 +5070,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "responses": {
@@ -5106,7 +5135,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -5119,45 +5149,57 @@
                     "additionalProperties": {
                       "type": "string"
                     },
-                    "type": "object"
+                    "type": "object",
+                    "description": "Adds key/value metadata to the alert for routing, ownership, and investigation context."
                   },
                   "browser_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables or disables browser notifications when this alert fires."
                   },
                   "condition": {
                     "additionalProperties": true,
-                    "type": "object"
+                    "type": "object",
+                    "description": "Defines the threshold or expression that determines when the alert is firing."
                   },
                   "cooldown_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the minimum nanoseconds to wait before the same alert can fire again."
                   },
                   "enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Controls whether Spaniel evaluates this alert."
                   },
                   "group_by": {
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "Lists result fields used to group matching telemetry into separate alert instances."
                   },
                   "instance_discovery": {
                     "additionalProperties": true,
-                    "type": "object"
+                    "type": "object",
+                    "description": "Configures how Spaniel discovers and maintains alert instances from query results."
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the human-readable name shown in the Spaniel interface."
                   },
                   "pending_for_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Requires the condition to remain true for this many nanoseconds before firing."
                   },
                   "pushover_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables or disables Pushover delivery when this alert fires."
                   },
                   "query_sql": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                   },
                   "repeat_interval_ns": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets how often a still-firing alert may notify again, in nanoseconds."
                   },
                   "severity": {
                     "enum": [
@@ -5165,7 +5207,8 @@
                       "warning",
                       "critical"
                     ],
-                    "type": "string"
+                    "type": "string",
+                    "description": "Assigns the alert severity used to prioritize and route notifications."
                   }
                 },
                 "required": [
@@ -5272,7 +5315,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -5343,7 +5387,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "responses": {
@@ -5394,7 +5439,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -5472,7 +5518,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           },
           {
             "description": "Restricts alert events to one alert instance group key.",
@@ -5539,11 +5586,19 @@
                     },
                     "meta": {
                       "$ref": "#/components/schemas/Meta"
+                    },
+                    "silences": {
+                      "description": "Current silences for this rule, included with the timeline so the inspector needs one request.",
+                      "items": {
+                        "$ref": "#/components/schemas/AlertSilence"
+                      },
+                      "type": "array"
                     }
                   },
                   "required": [
                     "data",
-                    "meta"
+                    "meta",
+                    "silences"
                   ],
                   "type": "object"
                 }
@@ -5578,7 +5633,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -5587,10 +5643,12 @@
               "schema": {
                 "properties": {
                   "group_key": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Targets one alert instance group; omit it when the action applies to every instance."
                   },
                   "note": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Adds an optional note explaining the session update or acknowledgement."
                   }
                 },
                 "required": [
@@ -5665,7 +5723,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -5674,7 +5733,8 @@
               "schema": {
                 "properties": {
                   "group_key": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Targets one alert instance group; omit it when the action applies to every instance."
                   }
                 },
                 "required": [
@@ -5749,7 +5809,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -5864,7 +5925,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "responses": {
@@ -5932,7 +5994,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -5941,16 +6004,20 @@
               "schema": {
                 "properties": {
                   "comment": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Records the reason for this silence so future readers understand the suppression."
                   },
                   "ends_at": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets when this silence ends as a Unix timestamp in nanoseconds."
                   },
                   "group_key": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Targets one alert instance group; omit it when the action applies to every instance."
                   },
                   "starts_at": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets when this silence begins as a Unix timestamp in nanoseconds."
                   }
                 },
                 "required": [
@@ -6035,7 +6102,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           },
           {
             "in": "path",
@@ -6043,7 +6111,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert silence record to update or remove."
           }
         ],
         "responses": {
@@ -6100,7 +6169,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           },
           {
             "in": "path",
@@ -6108,7 +6178,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert silence record to update or remove."
           }
         ],
         "requestBody": {
@@ -6117,16 +6188,20 @@
               "schema": {
                 "properties": {
                   "comment": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Records the reason for this silence so future readers understand the suppression."
                   },
                   "ends_at": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets when this silence ends as a Unix timestamp in nanoseconds."
                   },
                   "group_key": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Targets one alert instance group; omit it when the action applies to every instance."
                   },
                   "starts_at": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets when this silence begins as a Unix timestamp in nanoseconds."
                   }
                 },
                 "required": [
@@ -6212,7 +6287,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the alert rule that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -6225,7 +6301,8 @@
                       "browser",
                       "pushover"
                     ],
-                    "type": "string"
+                    "type": "string",
+                    "description": "Chooses where the test notification is delivered, such as the browser or Pushover."
                   }
                 },
                 "required": [
@@ -6459,32 +6536,40 @@
                 "additionalProperties": false,
                 "properties": {
                   "description": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Adds a short explanation of the dashboard so collaborators understand its purpose."
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the human-readable name shown in the Spaniel interface."
                   },
                   "panels": {
                     "items": {
                       "additionalProperties": false,
                       "properties": {
                         "display_type": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Selects how the query result is visualized, such as a chart, table, or stat."
                         },
                         "layout_json": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Stores the panel layout metadata used to place and size it on the dashboard."
                         },
                         "position": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "Sets the panel order on the dashboard; lower positions appear first."
                         },
                         "query_sql": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                         },
                         "settings_json": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Stores display-specific configuration for the selected visualization type."
                         },
                         "title": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Sets the panel title shown to dashboard readers."
                         }
                       },
                       "required": [
@@ -6494,7 +6579,8 @@
                       ],
                       "type": "object"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "Replaces the dashboard panel collection with the supplied ordered definitions."
                   }
                 },
                 "required": [
@@ -6598,7 +6684,8 @@
                 "additionalProperties": false,
                 "properties": {
                   "yaml": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Provides the YAML document to import into Spaniel."
                   }
                 },
                 "required": [
@@ -6704,7 +6791,8 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "Provides dashboard identifiers in the exact order they should appear."
                   }
                 },
                 "required": [
@@ -6792,7 +6880,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           }
         ],
         "responses": {
@@ -6869,7 +6958,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           }
         ],
         "responses": {
@@ -6952,7 +7042,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -6962,32 +7053,40 @@
                 "additionalProperties": false,
                 "properties": {
                   "description": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Adds a short explanation of the dashboard so collaborators understand its purpose."
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the human-readable name shown in the Spaniel interface."
                   },
                   "panels": {
                     "items": {
                       "additionalProperties": false,
                       "properties": {
                         "display_type": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Selects how the query result is visualized, such as a chart, table, or stat."
                         },
                         "layout_json": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Stores the panel layout metadata used to place and size it on the dashboard."
                         },
                         "position": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "Sets the panel order on the dashboard; lower positions appear first."
                         },
                         "query_sql": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                         },
                         "settings_json": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Stores display-specific configuration for the selected visualization type."
                         },
                         "title": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Sets the panel title shown to dashboard readers."
                         }
                       },
                       "required": [
@@ -6997,7 +7096,8 @@
                       ],
                       "type": "object"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "Replaces the dashboard panel collection with the supplied ordered definitions."
                   }
                 },
                 "required": [
@@ -7111,7 +7211,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           }
         ],
         "responses": {
@@ -7162,7 +7263,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -7172,22 +7274,28 @@
                 "additionalProperties": false,
                 "properties": {
                   "display_type": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Selects how the query result is visualized, such as a chart, table, or stat."
                   },
                   "layout_json": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Stores the panel layout metadata used to place and size it on the dashboard."
                   },
                   "position": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the panel order on the dashboard; lower positions appear first."
                   },
                   "query_sql": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                   },
                   "settings_json": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Stores display-specific configuration for the selected visualization type."
                   },
                   "title": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the panel title shown to dashboard readers."
                   }
                 },
                 "required": [
@@ -7294,7 +7402,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           },
           {
             "in": "path",
@@ -7302,7 +7411,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the panel within this dashboard to update, move, or remove."
           }
         ],
         "responses": {
@@ -7379,7 +7489,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           },
           {
             "in": "path",
@@ -7387,7 +7498,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the panel within this dashboard to update, move, or remove."
           }
         ],
         "requestBody": {
@@ -7397,22 +7509,28 @@
                 "additionalProperties": false,
                 "properties": {
                   "display_type": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Selects how the query result is visualized, such as a chart, table, or stat."
                   },
                   "layout_json": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Stores the panel layout metadata used to place and size it on the dashboard."
                   },
                   "position": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the panel order on the dashboard; lower positions appear first."
                   },
                   "query_sql": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                   },
                   "settings_json": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Stores display-specific configuration for the selected visualization type."
                   },
                   "title": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the panel title shown to dashboard readers."
                   }
                 },
                 "required": [
@@ -7519,7 +7637,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           },
           {
             "in": "path",
@@ -7527,7 +7646,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the panel within this dashboard to update, move, or remove."
           }
         ],
         "requestBody": {
@@ -7540,7 +7660,8 @@
                       -1,
                       1
                     ],
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Moves the panel by this signed number of positions in the dashboard order."
                   }
                 },
                 "required": [
@@ -7628,7 +7749,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -7638,19 +7760,23 @@
                 "additionalProperties": false,
                 "properties": {
                   "display_type": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Selects how the query result is visualized, such as a chart, table, or stat."
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the human-readable name shown in the Spaniel interface."
                   },
                   "query_sql": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Supplies the read-only query Spaniel evaluates to produce this result or alert."
                   },
                   "variables": {
                     "additionalProperties": {
                       "type": "string"
                     },
-                    "type": "object"
+                    "type": "object",
+                    "description": "Provides values for dashboard query variables while previewing the panel query."
                   }
                 },
                 "required": [
@@ -7752,7 +7878,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           }
         ],
         "requestBody": {
@@ -7762,19 +7889,24 @@
                 "additionalProperties": false,
                 "properties": {
                   "default_value": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the value used when a dashboard variable has not been supplied explicitly."
                   },
                   "kind": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Selects the variable input behavior used by the dashboard editor."
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the human-readable name shown in the Spaniel interface."
                   },
                   "options_json": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Stores the selectable options or configuration for this dashboard variable."
                   },
                   "source": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Identifies the source used to populate this dashboard variable."
                   }
                 },
                 "required": [
@@ -7879,7 +8011,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard that owns the requested resource or action."
           },
           {
             "in": "path",
@@ -7887,7 +8020,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the dashboard variable to remove."
           }
         ],
         "responses": {
@@ -8959,7 +9093,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the notification to acknowledge or mark as read."
           }
         ],
         "responses": {
@@ -9018,7 +9153,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the notification to acknowledge or mark as read."
           }
         ],
         "responses": {
@@ -9482,7 +9618,8 @@
               "schema": {
                 "properties": {
                   "label": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets a human-readable label that makes the session easy to recognize later."
                   }
                 },
                 "type": "object"
@@ -9685,7 +9822,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the captured Spaniel session to read, update, activate, compare, or export."
           }
         ],
         "responses": {
@@ -9752,7 +9890,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the captured Spaniel session to read, update, activate, compare, or export."
           }
         ],
         "responses": {
@@ -9826,7 +9965,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the captured Spaniel session to read, update, activate, compare, or export."
           }
         ],
         "requestBody": {
@@ -9835,10 +9975,12 @@
               "schema": {
                 "properties": {
                   "label": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets a human-readable label that makes the session easy to recognize later."
                   },
                   "note": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Adds an optional note explaining the session update or acknowledgement."
                   }
                 },
                 "type": "object"
@@ -9920,7 +10062,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the captured Spaniel session to read, update, activate, compare, or export."
           }
         ],
         "requestBody": {
@@ -10008,7 +10151,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the captured Spaniel session to read, update, activate, compare, or export."
           }
         ],
         "requestBody": {
@@ -10017,7 +10161,8 @@
               "schema": {
                 "properties": {
                   "is_baseline": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Marks or unmarks this session as the baseline used for comparisons."
                   }
                 },
                 "required": [
@@ -10085,7 +10230,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the captured Spaniel session to read, update, activate, compare, or export."
           }
         ],
         "responses": {
@@ -10196,73 +10342,95 @@
                 "additionalProperties": false,
                 "properties": {
                   "advance_session_on_start": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Starts a new capture session automatically when Spaniel launches."
                   },
                   "alerts_browser_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables browser-based alert delivery globally."
                   },
                   "alerts_browser_template": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the template used to format browser alert notifications."
                   },
                   "alerts_dir": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the directory where Spaniel reads alert definition files."
                   },
                   "alerts_pushover_enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables Pushover alert delivery globally."
                   },
                   "alerts_pushover_template": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the template used to format Pushover alert notifications."
                   },
                   "auto_prune": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Automatically prunes retained telemetry when storage limits are reached."
                   },
                   "bind_address_v4": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the IPv4 address on which Spaniel listens for HTTP traffic."
                   },
                   "bind_address_v6": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the IPv6 address on which Spaniel listens for HTTP traffic."
                   },
                   "db_path": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sets the path of Spaniel’s DuckDB telemetry database."
                   },
                   "forward": {
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "Lists upstream OTLP destinations to receive forwarded telemetry."
                   },
                   "forward_sample": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the sampling interval used when forwarding telemetry."
                   },
                   "max_db_size_mb": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Caps the telemetry database size in megabytes."
                   },
                   "max_sessions": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Limits how many capture sessions Spaniel retains."
                   },
                   "no_browser": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Prevents Spaniel from opening the browser automatically on startup."
                   },
                   "otlp_grpc_port": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the port accepting OTLP over gRPC."
                   },
                   "otlp_http_port": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the port accepting OTLP over HTTP."
                   },
                   "port": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the port serving the Spaniel web app and HTTP API."
                   },
                   "retention_days": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets how long telemetry is retained before age-based pruning."
                   },
                   "self_monitor": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Enables Spaniel’s own telemetry instrumentation."
                   },
                   "source_burst": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the maximum short-term telemetry burst accepted from a source."
                   },
                   "source_rps": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Sets the sustained telemetry requests-per-second limit for a source."
                   }
                 },
                 "type": "object"
@@ -10828,7 +10996,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the individual span to retrieve."
           }
         ],
         "responses": {
@@ -11139,7 +11308,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
           }
         ],
         "responses": {
@@ -11220,7 +11390,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
           }
         ],
         "responses": {
@@ -11277,7 +11448,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
           }
         ],
         "responses": {
