@@ -40,6 +40,7 @@ frontend/playwright-report/
 frontend/.playwright/
 /spaniel
 *.duckdb
+*.duckdb.wal
 
 # Editor/IDE
 # .idea/
