@@ -165,9 +165,10 @@ func main() {
 	)
 
 	root := &cobra.Command{
-		Use:     "spaniel",
-		Version: version,
-		Short:   "Local OpenTelemetry collector and viewer",
+		Use:          "spaniel",
+		Version:      version,
+		Short:        "Local OpenTelemetry collector and viewer",
+		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			initViper(v)
 			bindRootFlags(v, cmd)
