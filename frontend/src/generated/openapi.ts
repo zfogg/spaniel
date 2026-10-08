@@ -3147,7 +3147,7 @@ export interface operations {
           }
         }
       }
-      /** @description The request was invalid. */
+      /** @description The notification destination must be browser or pushover. */
       400: {
         headers: {
           [name: string]: unknown
@@ -3156,7 +3156,7 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
-      /** @description The requested Spaniel resource was not found. */
+      /** @description The requested alert rule was not found. */
       404: {
         headers: {
           [name: string]: unknown
@@ -4502,8 +4502,8 @@ export interface operations {
   }
   searchTelemetry: {
     parameters: {
-      query: {
-        q: string
+      query?: {
+        q?: string
         sessionId?: string
         limit?: number
       }

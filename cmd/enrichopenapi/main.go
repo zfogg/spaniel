@@ -56,11 +56,7 @@ func applyErrorResponses(op map[string]any) {
 			delete(responses, status)
 		}
 	}
-	for _, status := range errorResponses[operationID] {
-		description := errorResponseDescriptions[status]
-		if descriptions, ok := operationErrorDescriptions[operationID]; ok && descriptions[status] != "" {
-			description = descriptions[status]
-		}
+	for status, description := range operationErrorDescriptions[operationID] {
 		responses[status] = map[string]any{
 			"description": description,
 			"content": map[string]any{"application/json": map[string]any{
@@ -79,41 +75,47 @@ var errorResponseDescriptions = map[string]string{
 	"502": "The upstream notification provider failed.",
 }
 
-var operationErrorDescriptions = map[string]map[string]string{
-	"testAlertNotification": {
-		"502": "Spaniel could not deliver the Pushover test notification.",
-	},
+func errors(statuses ...string) map[string]string {
+	descriptions := make(map[string]string, len(statuses))
+	for _, status := range statuses {
+		descriptions[status] = errorResponseDescriptions[status]
+	}
+	return descriptions
 }
 
-// Kept next to the response schema mapping so a changed handler contract is a
-// deliberate documentation change. Statuses are taken from each handler's
-// respondErr paths; absent entries deliberately mean the operation has no
-// handler-level error response.
-var errorResponses = map[string][]string{
-	"acknowledgeAlert": {"500"}, "acknowledgeAlertInstance": {"404"}, "acknowledgeNotification": {"500"},
-	"activateSession": {"404", "500"}, "checkUpdates": {"404"}, "compactStorage": {"500"},
-	"createAlert": {"400", "500"}, "createAlertSilence": {"400", "500"}, "createDashboard": {"400", "500"},
-	"createDashboardPanel": {"400", "404", "409", "500"}, "createDashboardVariable": {"400", "404", "409", "500"}, "createSession": {"500"},
-	"deleteAlert": {"404", "409", "500"}, "deleteAlertSilence": {"500"}, "deleteDashboard": {"404", "409", "500"},
-	"deleteDashboardPanel": {"404", "409", "500"}, "deleteDashboardVariable": {"404", "409", "500"}, "deleteSession": {"400", "500"},
-	"dropAllData": {"500"}, "duplicateAlert": {"404"}, "exportAlertConfig": {"404", "500"},
-	"exportDashboardConfig": {"404", "500"}, "exportSessionBaseline": {"404", "500"}, "exportTrace": {"404", "500"},
-	"getAlert": {"404"}, "getCoverage": {"500"}, "getDashboard": {"404"}, "getDatabaseSchema": {"500"},
-	"getDiff": {"400", "404", "500"}, "getMetricCardinality": {"500"}, "getMetricSeries": {"400", "500"},
-	"getServiceMap": {"500"}, "getSession": {"404", "500"}, "getSettings": {"404"}, "getSpan": {"404", "500"},
-	"getStats": {"500"}, "getStorageBreakdown": {"500"}, "getTrace": {"404", "500"},
-	"importAlertConfig": {"400", "409", "500"}, "importDashboardConfig": {"400", "500"}, "importSession": {"400"},
-	"listAlertEvents": {"500"}, "listAlertHistory": {"500"}, "listAlerts": {"500"}, "listAlertSilences": {"500"},
-	"listDashboards": {"500"}, "listIncomingLinks": {"500"}, "listIssues": {"500"}, "listLint": {"500"},
-	"listLogs": {"400", "500"}, "listMetrics": {"500"}, "listNotifications": {"500"}, "listQueryCatalog": {"400", "500"},
-	"listServices": {"500"}, "listSessions": {"500"}, "listSources": {"500"}, "listSpans": {"500"}, "listTraces": {"500"},
-	"moveDashboardPanel": {"404", "409", "500"}, "patchAlert": {"400", "404", "409", "500"},
-	"patchAlertSilence": {"400", "404"}, "patchDashboard": {"404", "409", "500"}, "patchDashboardPanel": {"400", "404", "409", "500"},
-	"patchSession": {"404", "500"}, "previewAlert": {"400", "404", "500"}, "previewAlertDraft": {"400"},
-	"previewDashboardQuery": {"400", "404"}, "pruneStorage": {"404", "500"}, "putSettings": {"400", "404", "500"},
-	"readNotification": {"500"}, "reloadAlertDefinitions": {"400", "501"}, "reorderDashboards": {"400", "409", "500"},
-	"searchTelemetry": {"500"}, "setSessionBaseline": {"500"}, "testAlertNotification": {"400", "404", "502"},
-	"unacknowledgeAlertInstance": {"404"},
+// Every operation explicitly owns the error responses that it emits. The
+// helper retains consistent shared wording while keeping the contract and any
+// operation-specific explanation in one place.
+var operationErrorDescriptions = map[string]map[string]string{
+	"acknowledgeAlert": errors("500"), "acknowledgeAlertInstance": errors("404"), "acknowledgeNotification": errors("500"),
+	"activateSession": errors("404", "500"), "checkUpdates": errors("404"), "compactStorage": errors("500"),
+	"createAlert": errors("400", "500"), "createAlertSilence": errors("400", "500"), "createDashboard": errors("400", "500"),
+	"createDashboardPanel": errors("400", "404", "409", "500"), "createDashboardVariable": errors("400", "404", "409", "500"), "createSession": errors("500"),
+	"deleteAlert": errors("404", "409", "500"), "deleteAlertSilence": errors("500"), "deleteDashboard": errors("404", "409", "500"),
+	"deleteDashboardPanel": errors("404", "409", "500"), "deleteDashboardVariable": errors("404", "409", "500"), "deleteSession": errors("400", "500"),
+	"dropAllData": errors("500"), "duplicateAlert": errors("404"), "exportAlertConfig": errors("404", "500"),
+	"exportDashboardConfig": errors("404", "500"), "exportSessionBaseline": errors("404", "500"), "exportTrace": errors("404", "500"),
+	"getAlert": errors("404"), "getCoverage": errors("500"), "getDashboard": errors("404"), "getDatabaseSchema": errors("500"),
+	"getDiff": errors("400", "404", "500"), "getMetricCardinality": errors("500"), "getMetricSeries": errors("400", "500"),
+	"getServiceMap": errors("500"), "getSession": errors("404", "500"), "getSettings": errors("404"), "getSpan": errors("404", "500"),
+	"getStats": errors("500"), "getStorageBreakdown": errors("500"), "getTrace": errors("404", "500"),
+	"importAlertConfig": errors("400", "409", "500"), "importDashboardConfig": errors("400", "500"), "importSession": errors("400"),
+	"listAlertEvents": errors("500"), "listAlertHistory": errors("500"), "listAlerts": errors("500"), "listAlertSilences": errors("500"),
+	"listDashboards": errors("500"), "listIncomingLinks": errors("500"), "listIssues": errors("500"), "listLint": errors("500"),
+	"listLogs": errors("400", "500"), "listMetrics": errors("500"), "listNotifications": errors("500"), "listQueryCatalog": errors("400", "500"),
+	"listServices": errors("500"), "listSessions": errors("500"), "listSources": errors("500"), "listSpans": errors("500"), "listTraces": errors("500"),
+	"moveDashboardPanel": errors("404", "409", "500"), "patchAlert": errors("400", "404", "409", "500"),
+	"patchAlertSilence": errors("400", "404"), "patchDashboard": errors("404", "409", "500"), "patchDashboardPanel": errors("400", "404", "409", "500"),
+	"patchSession": errors("404", "500"), "previewAlert": errors("400", "404", "500"), "previewAlertDraft": errors("400"),
+	"previewDashboardQuery": errors("400", "404"), "pruneStorage": errors("404", "500"), "putSettings": errors("400", "404", "500"),
+	"readNotification": errors("500"), "reloadAlertDefinitions": errors("400", "501"), "reorderDashboards": errors("400", "409", "500"),
+	"searchTelemetry": errors("500"), "setSessionBaseline": errors("500"),
+	"testAlertNotification": {
+		"400": "The notification destination must be browser or pushover.",
+		"404": "The requested alert rule was not found.",
+		"502": "Spaniel could not deliver the Pushover test notification.",
+	},
+	"unacknowledgeAlertInstance": errors("404"),
 }
 
 func applyExportSchema(op map[string]any) {

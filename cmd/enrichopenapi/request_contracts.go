@@ -52,7 +52,7 @@ var queryParameters = map[string][]any{
 	"getMetricCardinality": {query("sessionId", "string", false)},
 	"getMetricSeries":      {query("name", "string", true), query("service", "string", false), query("sessionId", "string", false), query("from", "integer", false), query("to", "integer", false), query("operation", "string", false), query("with_traces", "boolean", false)},
 	"listQueryCatalog":     {query("signal", "string", false), query("q", "string", false)},
-	"searchTelemetry":      {query("q", "string", true), query("sessionId", "string", false), query("limit", "integer", false)},
+	"searchTelemetry":      {query("q", "string", false), query("sessionId", "string", false), query("limit", "integer", false)},
 	"getServiceMap":        {query("sessionId", "string", false)},
 	"importSession":        {query("label", "string", true), query("format", "string", true)},
 	"listSources":          {query("sessionId", "string", false)},

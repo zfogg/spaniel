@@ -102,11 +102,26 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	}
 	condition.Pattern = strings.TrimSpace(condition.Pattern)
 	groups := make([]string, 0, len(in.GroupBy))
+	seenGroups := make(map[string]struct{}, len(in.GroupBy))
 	for _, group := range in.GroupBy {
 		group = strings.TrimSpace(group)
 		if group != "" {
+			key := strings.ToLower(group)
+			if _, exists := seenGroups[key]; exists {
+				return nil, &dslError{"alert group_by columns must be unique"}
+			}
+			seenGroups[key] = struct{}{}
 			groups = append(groups, group)
 		}
+	}
+	if in.PendingForNs < 0 || in.CooldownNs < 0 || in.RepeatIntervalNs < 0 {
+		return nil, &dslError{"alert lifecycle durations must not be negative"}
+	}
+	if (condition.Kind == "no_data" || condition.Kind == "any_of" || condition.Kind == "all_of") && len(groups) > 0 {
+		return nil, &dslError{"no_data and composite alerts cannot group results"}
+	}
+	if condition.Kind == "log_match" && !validAlertOperator(condition.Operator) {
+		return nil, &dslError{"log_match alert requires a valid operator"}
 	}
 	discoverySQL, discoveryEvery, discoveryStale := "", int64(0), int64(0)
 	if in.InstanceDiscovery != nil && strings.TrimSpace(in.InstanceDiscovery.Query) != "" {

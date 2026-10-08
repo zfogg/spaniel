@@ -6070,7 +6070,7 @@
                 }
               }
             },
-            "description": "The request was invalid."
+            "description": "The notification destination must be browser or pushover."
           },
           "404": {
             "content": {
@@ -6080,7 +6080,7 @@
                 }
               }
             },
-            "description": "The requested Spaniel resource was not found."
+            "description": "The requested alert rule was not found."
           },
           "502": {
             "content": {
@@ -8750,7 +8750,7 @@
           {
             "in": "query",
             "name": "q",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }

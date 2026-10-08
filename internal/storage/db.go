@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -230,9 +231,10 @@ type MetricSeriesCatalog struct {
 }
 
 func (d *DB) RecordMetricSeries(sessionID, service, name, attrs string, timestampNs int64) (bool, error) {
+	seriesKey := sha256.Sum256([]byte(name + "\x00" + service + "\x00" + attrs))
 	entry := &model.MetricSeriesCatalog{
 		SessionID: sessionID, ServiceName: service, Name: name,
-		SeriesKey: name + "\x00" + service + "\x00" + attrs, SeriesAttributes: attrs,
+		SeriesKey: fmt.Sprintf("%x", seriesKey[:]), SeriesAttributes: attrs,
 		FirstTimestampNs: timestampNs, LastTimestampNs: timestampNs, PointCount: 1,
 	}
 	if err := d.namedQuery("storage.RecordMetricSeries").MetricSeriesCatalog.Clauses(clause.OnConflict{DoNothing: true}).Create(entry); err != nil {

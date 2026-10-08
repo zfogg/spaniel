@@ -577,8 +577,6 @@ func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInst
 		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "sent")
 		record("notification_browser", fmt.Sprint(payload["body"]))
 		inbox(rule.Severity, rule.Name, fmt.Sprint(payload["body"]), "alert:"+rule.ID+":"+instance.GroupKey+":"+transition)
-	} else if rule.BrowserEnabled && hub == nil {
-		record("notification_browser_suppressed", "websocket hub unavailable")
 	} else if !rule.BrowserEnabled || (d.BrowserEnabled != nil && !d.BrowserEnabled()) {
 		record("notification_browser_suppressed", "disabled for this rule or globally")
 	}

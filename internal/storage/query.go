@@ -37,7 +37,7 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	if maxRows <= 0 {
 		maxRows = 1000
 	}
-	if d.path == "" || d.path == ":memory:" {
+	if runtime.GOOS != "windows" && (d.path == "" || d.path == ":memory:") {
 		return nil, nil, false, fmt.Errorf("read-only SQL is unavailable: the database is in-memory, not file-backed")
 	}
 	if err := validateReadOnlySQL(query); err != nil {
