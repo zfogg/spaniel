@@ -17,7 +17,9 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 import PaginationControls from '@/components/PaginationControls'
-import { fmtDuration, fmtClock } from '@/lib/fmt-relative'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
+import { useRelativeTimeNow } from '@/components/shared/use-relative-time'
+import { fmtDuration, fmtClock, fmtRelative } from '@/lib/fmt-relative'
 import { AnimatePresence, motion } from 'motion/react'
 import { TelemetryArrival } from '@/components/TelemetryArrival'
 import { useNewItemIDs } from '@/lib/use-new-item-ids'
@@ -234,8 +236,8 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
             <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">
               started
             </div>
-            <div className="font-mono text-[13px] text-foreground mt-1.5">
-              {fmtClock(span.start_ns)}
+            <div className="font-mono text-[10px] leading-relaxed text-foreground mt-1.5">
+              <TimestampWithAgo nanoseconds={span.start_ns} stacked />
             </div>
           </div>
         </div>
@@ -303,6 +305,7 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
 // ── Spans page ────────────────────────────────────────────────────────────────
 
 export default function Spans() {
+  const now = useRelativeTimeNow()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialDrilldown = drilldownFromURL(searchParams)
   const [view, setViewState] = useState<SpanView>(() => {
@@ -702,14 +705,14 @@ export default function Spans() {
             data-testid="spans-table-scroll"
             className={`h-full overflow-auto ${selected ? 'mr-[380px]' : ''}`}
           >
-            <div className="min-w-[1000px] w-[100cqw]">
+            <div className="min-w-[1090px] w-[100cqw]">
               {/* Column headers */}
               <div
                 className="sticky top-0 z-10 grid gap-2.5 px-3.5 py-[7px] border-b border-border font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-muted"
                 style={{
                   gridTemplateColumns: showingGroups
                     ? 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px'
-                    : 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
+                    : 'minmax(0,1.5fr) 130px 70px 70px 80px 100px 130px 60px',
                 }}
               >
                 {showingGroups ? (
@@ -730,6 +733,7 @@ export default function Spans() {
                     <div>service</div>
                     <div>kind</div>
                     <div className="text-right">dur</div>
+                    <div>ago</div>
                     <div>started</div>
                     <div>trace</div>
                     <div className="text-right">tag</div>
@@ -868,7 +872,8 @@ export default function Spans() {
                           onClick={() => (isSel ? clearSelectedSpan() : selectSpan(s.span_id))}
                           className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
                           style={{
-                            gridTemplateColumns: 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
+                            gridTemplateColumns:
+                              'minmax(0,1.5fr) 130px 70px 70px 80px 100px 130px 60px',
                             background: isSel
                               ? 'color-mix(in oklch, var(--accent, #6366f1) 14%, var(--background))'
                               : undefined,
@@ -893,6 +898,9 @@ export default function Spans() {
                             }}
                           >
                             {fmtDuration(s.duration_ns)}
+                          </div>
+                          <div className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                            {fmtRelative(s.start_ns, now)}
                           </div>
                           <div className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
                             {fmtClock(s.start_ns)}

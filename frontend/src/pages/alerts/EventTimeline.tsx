@@ -1,8 +1,8 @@
 import { type AlertEvent } from '@/lib/api'
 import PaginationControls from '@/components/PaginationControls'
-import { formatTimestampWithAgo } from './alert-model'
-import { TimestampWithAgo } from './AlertTime'
-import { useRelativeTimeNow } from './use-relative-time'
+import { formatTimestampWithAgo } from '@/components/shared/time-format'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
+import { useRelativeTimeNow } from '@/components/shared/use-relative-time'
 import { GroupBadge } from './AlertFields'
 export function EventTimeline({
   events,

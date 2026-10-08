@@ -5,7 +5,7 @@ import { qk } from '@/lib/query'
 import { useWS } from '@/lib/ws'
 import PaginationControls from '@/components/PaginationControls'
 import { severityTone } from './alert-styles'
-import { TimestampWithAgo } from './AlertTime'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { Empty } from './AlertFields'
 function notificationPageFrom(params: URLSearchParams) {
   return Math.max(1, Number(params.get('notification_page')) || 1)

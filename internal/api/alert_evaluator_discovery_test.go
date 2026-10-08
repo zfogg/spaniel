@@ -32,8 +32,13 @@ func TestEvaluateAlertRule_CreatesZeroValueInstanceForDiscoveredTarget(t *testin
 	}
 
 	now := time.Now()
-	if err := evaluateAlertRule(context.Background(), store, ws.NewHub(), rule, []*storage.AlertRule{rule}, now); err != nil {
+	writes := newTestAlertWriteBuffer(store)
+	queries := &alertQueryCache{results: map[string]alertQueryResult{}}
+	if err := evaluateAlertRule(context.Background(), store, writes, queries, ws.NewHub(), rule, []*storage.AlertRule{rule}, now); err != nil {
 		t.Fatalf("evaluate rule: %v", err)
+	}
+	if err := writes.flush(); err != nil {
+		t.Fatalf("flush rule evaluation: %v", err)
 	}
 	got, err := store.GetAlertRule(rule.ID)
 	if err != nil {
@@ -87,7 +92,11 @@ func TestAdvanceAlertInstance_SilenceSuppressesRepeat(t *testing.T) {
 		t.Fatal(err)
 	}
 	rule.Instances = persisted.Instances
-	if err := advanceAlertInstance(store, ws.NewHub(), rule, "all", map[string]string{}, 1, true, now); err != nil {
+	writes := newTestAlertWriteBuffer(store)
+	if err := advanceAlertInstance(writes, ws.NewHub(), rule, "all", map[string]string{}, 1, true, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := writes.flush(); err != nil {
 		t.Fatal(err)
 	}
 	got, err := store.GetAlertRule(rule.ID)
@@ -119,7 +128,11 @@ func TestAdvanceAlertInstance_StartsRepeatDeliveryWithoutPriorNotification(t *te
 		t.Fatal(err)
 	}
 	rule.Instances = persisted.Instances
-	if err := advanceAlertInstance(store, ws.NewHub(), rule, "all", map[string]string{}, value, true, now); err != nil {
+	writes := newTestAlertWriteBuffer(store)
+	if err := advanceAlertInstance(writes, ws.NewHub(), rule, "all", map[string]string{}, value, true, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := writes.flush(); err != nil {
 		t.Fatal(err)
 	}
 	got, err := store.GetAlertRule(rule.ID)
@@ -129,4 +142,25 @@ func TestAdvanceAlertInstance_StartsRepeatDeliveryWithoutPriorNotification(t *te
 	if got.Instances[0].LastNotifiedAt == nil {
 		t.Fatalf("repeat without prior notification did not mark delivery: %#v", got.Instances[0])
 	}
+}
+
+func TestAdvanceAlertInstance_SkipsUnchangedInstance(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "unchanged-instance.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	value := 1.0
+	rule := &storage.AlertRule{ID: "unchanged", Instances: []*storage.AlertInstance{{RuleID: "unchanged", GroupKey: "all", LabelsJSON: "{}", State: "firing", Value: &value}}}
+	writes := newTestAlertWriteBuffer(store)
+	if err := advanceAlertInstance(writes, nil, rule, "all", map[string]string{}, value, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if len(writes.instances) != 0 || len(writes.events) != 0 {
+		t.Fatalf("unchanged evaluation queued writes: instances=%d events=%d", len(writes.instances), len(writes.events))
+	}
+}
+
+func newTestAlertWriteBuffer(store *storage.DB) *alertWriteBuffer {
+	return &alertWriteBuffer{store: store, instances: map[string]*storage.AlertInstance{}, rules: map[string]*storage.AlertRule{}}
 }

@@ -49,13 +49,18 @@ func TestListAlertRulesLoadsInstancesInOneQuery(t *testing.T) {
 		}
 	}
 
-	count := 0
+	counts := map[string]int{}
 	for _, span := range recorder.Ended() {
-		if span.Name() == "storage.ListAlertRules" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
-			count++
+		if span.Parent().SpanID() == parent.SpanContext().SpanID() {
+			counts[span.Name()]++
 		}
 	}
-	if count != 2 {
-		t.Errorf("storage.ListAlertRules spans = %d, want 2 (rules and batched instances)", count)
+	for _, name := range []string{"storage.ListAlertRules", "storage.ListAlertRuleInstances"} {
+		if counts[name] != 1 {
+			t.Errorf("%s spans = %d, want 1", name, counts[name])
+		}
+	}
+	if len(counts) != 2 {
+		t.Errorf("query spans = %v, want only rules and batched instances", counts)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -545,6 +546,7 @@ func advanceAlertInstance(writes *alertWriteBuffer, hub *ws.Hub, rule *storage.A
 	if current == nil {
 		current = &storage.AlertInstance{RuleID: rule.ID, GroupKey: key}
 	}
+	before := *current
 	labelJSON, _ := json.Marshal(labels)
 	current.LabelsJSON = string(labelJSON)
 	current.Value = &value
@@ -556,12 +558,10 @@ func advanceAlertInstance(writes *alertWriteBuffer, hub *ws.Hub, rule *storage.A
 			current.State = "resolved"
 			current.ResolvedAt = ptrInt64(now.UnixNano())
 		}
-		writes.upsert(current)
-		writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
 		if prior != "" && prior != "resolved" {
 			emitAlert(hub, rule, current, "resolved", now, true)
-			writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "resolved", State: current.State, Value: current.Value})
 		}
+		queueAlertInstanceChanges(writes, &before, current, rule.ID, key, prior != "" && prior != "resolved", "resolved")
 		return nil
 	}
 	if current.State == "" || current.State == "resolved" {
@@ -574,8 +574,8 @@ func advanceAlertInstance(writes *alertWriteBuffer, hub *ws.Hub, rule *storage.A
 		current.State = "firing"
 		current.FiredAt = ptrInt64(now.UnixNano())
 	}
-	writes.upsert(current)
-	writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
+	notificationKind := ""
+	notificationDetail := ""
 	if prior != "firing" && current.State == "firing" {
 		silenced, err := writes.store.IsAlertSilenced(rule.ID, key, now.UnixNano())
 		if err != nil {
@@ -583,18 +583,40 @@ func advanceAlertInstance(writes *alertWriteBuffer, hub *ws.Hub, rule *storage.A
 		}
 		if !silenced {
 			emitAlert(hub, rule, current, "firing", now, false)
-			writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "firing", State: current.State, Value: current.Value})
+			notificationKind = "firing"
 		} else {
-			writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "notification_suppressed", State: current.State, Value: current.Value, Detail: "silenced"})
+			notificationKind = "notification_suppressed"
+			notificationDetail = "silenced"
 		}
-		writes.upsert(current)
 	}
 	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && alertRepeatDue(hub, rule, current, now) {
 		emitAlert(hub, rule, current, "repeat", now, true)
-		writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "repeat", State: current.State, Value: current.Value})
-		writes.upsert(current)
+		notificationKind = "repeat"
 	}
+	queueAlertInstanceChanges(writes, &before, current, rule.ID, key, notificationKind != "", notificationKind, notificationDetail)
 	return nil
+}
+
+// queueAlertInstanceChanges only persists durable changes. LastEvaluatedAt is
+// intentionally in-memory for a no-op tick: writing it alone turns every
+// evaluator pass into an upsert for every alert instance.
+func queueAlertInstanceChanges(writes *alertWriteBuffer, before, current *storage.AlertInstance, ruleID, key string, notification bool, notificationKind string, notificationDetail ...string) {
+	was := *before
+	now := *current
+	was.LastEvaluatedAt = 0
+	now.LastEvaluatedAt = 0
+	if reflect.DeepEqual(was, now) {
+		return
+	}
+	writes.upsert(current)
+	writes.event(&storage.AlertEvent{RuleID: ruleID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
+	if notification {
+		detail := ""
+		if len(notificationDetail) > 0 {
+			detail = notificationDetail[0]
+		}
+		writes.event(&storage.AlertEvent{RuleID: ruleID, GroupKey: key, Kind: notificationKind, State: current.State, Value: current.Value, Detail: detail})
+	}
 }
 
 func alertEvent(rule *storage.AlertRule, instance *storage.AlertInstance, transition string, now time.Time) *ws.Event {

@@ -14,7 +14,7 @@ import {
   draftFor,
   draftPayload,
 } from './alert-model'
-import { TimestampWithAgo } from './AlertTime'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { GroupBadge, InspectorSection, Field, LabelWithHelp } from './AlertFields'
 import { EventTimeline } from './EventTimeline'
 import { Silences } from './Silences'

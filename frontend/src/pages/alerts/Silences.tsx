@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type AlertSilence } from '@/lib/api'
 import PaginationControls from '@/components/PaginationControls'
-import { TimestampWithAgo } from './AlertTime'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { GroupBadge } from './AlertFields'
 import { durationNS } from './alert-model'
 export function Silences({

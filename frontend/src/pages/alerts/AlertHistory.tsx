@@ -1,7 +1,7 @@
 import { type AlertRule } from '@/lib/api'
 import PaginationControls from '@/components/PaginationControls'
 import { severityTone } from './alert-styles'
-import { TimestampWithAgo } from './AlertTime'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { GroupBadge, Empty } from './AlertFields'
 import { HistoryFilters, emptyHistoryFilters } from './alert-model'
 export function History({

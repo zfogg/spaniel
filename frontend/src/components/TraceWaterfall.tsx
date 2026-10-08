@@ -29,6 +29,7 @@ import JsonView from '@/components/JsonView'
 const NAME_W = 720
 const ZERO_ID = '0000000000000000'
 const DUR_W = 56
+const TIMELINE_MIN_W = 420
 const ROW_H = 32
 const STEPS = 6
 
@@ -873,7 +874,7 @@ function Inspector({
   }
 
   return (
-    <aside className="w-[320px] border-l border-border bg-background flex flex-col overflow-hidden shrink-0">
+    <aside className="sticky right-0 z-10 w-[320px] border-l border-border bg-background flex flex-col overflow-hidden shrink-0">
       {/* header */}
       <div className="px-4 py-3.5 border-b border-border">
         <div className="flex items-center gap-2 mb-2">
@@ -1526,9 +1527,12 @@ export default function TraceWaterfall({
         zoom={zoom}
       />
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden">
         {/* left: waterfall or flame */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div
+          className="flex-1 flex flex-col overflow-hidden"
+          style={{ minWidth: view === 'waterfall' ? NAME_W + TIMELINE_MIN_W + DUR_W : 0 }}
+        >
           {view === 'waterfall' ? (
             <>
               <Ruler traceDurNs={traceDurNs} spanCount={spans.length} />

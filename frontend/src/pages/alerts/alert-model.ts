@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from 'date-fns'
 import { type AlertRule } from '@/lib/api'
 export const ruleListTone: Record<string, { line: string; ink: string }> = {
   firing: { line: 'var(--danger)', ink: 'var(--danger-ink)' },
@@ -27,18 +26,6 @@ export const formatDuration = (nanoseconds: number) => {
   if (seconds % 3600 === 0) return `${seconds / 3600}h`
   return `${seconds / 60}m`
 }
-
-export const formatTimestamp = (nanoseconds: number) => new Date(nanoseconds / 1e6).toLocaleString()
-
-export const formatAgo = (nanoseconds: number, now = Date.now()) => {
-  const milliseconds = nanoseconds / 1e6
-  const difference = now - milliseconds
-  if (Math.abs(difference) < 60_000) return difference >= 0 ? 'moments ago' : 'in moments'
-  return formatDistanceToNow(milliseconds, { addSuffix: true })
-}
-
-export const formatTimestampWithAgo = (nanoseconds: number, now = Date.now()) =>
-  `${formatTimestamp(nanoseconds)} · ${formatAgo(nanoseconds, now)}`
 
 export async function showNativeBrowserNotification(title: string, body?: string) {
   if (!('Notification' in window)) return
