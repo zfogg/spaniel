@@ -679,6 +679,9 @@ func (r *Router) activateSession(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	r.store.SetActiveSession(sess.ID, sess.Label)
+	if r.hub != nil {
+		r.hub.Broadcast(ws.NewActiveSessionEvent(&ws.ActiveSessionPayload{ID: sess.ID, Label: sess.Label}))
+	}
 	respond(w, sess, 1, 1)
 }
 

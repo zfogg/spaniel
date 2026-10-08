@@ -41,6 +41,7 @@ import (
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/ingestion"
+	"github.com/zfogg/spaniel/internal/live"
 	"github.com/zfogg/spaniel/internal/mcp"
 	"github.com/zfogg/spaniel/internal/receiver"
 	"github.com/zfogg/spaniel/internal/storage"
@@ -676,6 +677,7 @@ func run(cfg runConfig) error {
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
 	limiter := ingestion.NewSourceLimiter(cfg.SourceRPS, cfg.SourceBurst)
 	pipeline := ingestion.NewPipelineFull(store, hub, sampler, limiter)
+	pipeline.SetLiveNotifier(live.NewPublisher(store, hub, pipeline, pipeline.DropCounters()).Notify)
 	// Store Spaniel's own self-telemetry quietly (no instrumentation/lint/
 	// detectors) so self-monitoring doesn't feed back on itself.
 	pipeline.SetSelfService(cfg.SelfTelemetryService)

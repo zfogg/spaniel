@@ -47,6 +47,7 @@ type Pipeline struct {
 	metricSeries  *metricSeriesLimiter
 	ingestSlots   chan struct{}
 	ingestPending atomic.Int64
+	liveNotify    func()
 }
 
 const (
@@ -58,6 +59,16 @@ const (
 // SetSelfService configures the service.name treated as Spaniel's own
 // self-telemetry; ingests from it are stored without generating new spans.
 func (p *Pipeline) SetSelfService(name string) { p.selfService = name }
+
+// SetLiveNotifier wires the server-owned footer snapshot publisher. Keeping
+// this optional leaves ingestion usable in focused tests and embedders.
+func (p *Pipeline) SetLiveNotifier(notify func()) { p.liveNotify = notify }
+
+func (p *Pipeline) notifyLiveState() {
+	if p.liveNotify != nil {
+		p.liveNotify()
+	}
+}
 
 // isSelfTraces reports whether every resource in the batch is Spaniel's own
 // self-telemetry, in which case it's stored without re-instrumentation.
@@ -398,6 +409,26 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					}
 					telemetry.Catalog().RecordStorageAppend(ctx, "span_links", float64(time.Since(t1).Microseconds())/1000)
 				}
+				if self && s.ParentSpanID == "" {
+					// Self-observability must not use the normal "span" event: the
+					// browser invalidates that event by refetching /api/traces, which
+					// would generate another self trace. Send a complete list row so
+					// the browser can patch its cache without an HTTP request instead.
+					p.hub.Broadcast(ws.NewSelfTraceEvent(&ws.SelfTracePayload{
+						TraceID:      s.TraceID,
+						ServiceName:  s.ServiceName,
+						Name:         s.Name,
+						Attributes:   s.Attributes,
+						StatusCode:   s.StatusCode,
+						StartNs:      s.StartNs,
+						EndNs:        s.EndNs,
+						DurationNs:   s.DurationNs,
+						SessionID:    s.SessionID,
+						SessionLabel: s.SessionLabel,
+						SpanCount:    1,
+						IssueKinds:   []string{},
+					}))
+				}
 				if !self {
 					p.scheduleLint(s)
 				}
@@ -424,6 +455,9 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 		ingestSpan.RecordError(err)
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
+	}
+	if !self && spansSeen > 0 {
+		p.notifyLiveState()
 	}
 	telemetry.Catalog().RecordIngest(ctx, "traces", "accepted", int64(spansSeen))
 	if droppedRateLimit+droppedSampled > 0 {
@@ -520,6 +554,9 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 		ingestSpan.SetStatus(codes.Error, err.Error())
 		return err
 	}
+	if !self && logsSeen > 0 {
+		p.notifyLiveState()
+	}
 	telemetry.Catalog().RecordIngest(ctx, "logs", "accepted", int64(logsSeen))
 	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", logsSeen))
 	return nil
@@ -545,6 +582,9 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	err := p.ingestMetricsTree(ctx, md, p.store.ActiveSessionID(), self)
 	if err == nil {
 		err = p.flush(ctx, !self)
+	}
+	if err == nil && !self && md.DataPointCount() > 0 {
+		p.notifyLiveState()
 	}
 	telemetry.Catalog().RecordStorageAppend(ctx, "metrics", float64(time.Since(t0).Microseconds())/1000)
 	if err != nil {
@@ -671,6 +711,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	// This runs in a debounce callback rather than an ingest request, so flush
 	// the appended spans here to make them durable and queryable.
 	_ = p.store.FlushBatch()
+	p.notifyLiveState()
 
 	// Store N+1 issues and broadcast.
 	for _, issue := range issues {

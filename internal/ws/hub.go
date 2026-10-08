@@ -38,6 +38,26 @@ type SpanPayload struct {
 	SessionID   string `json:"sessionId"`
 }
 
+// SelfTracePayload is a complete trace-list row sent only for Spaniel's own
+// telemetry. Clients patch it into their cached first page instead of issuing
+// an HTTP refetch, which prevents the UI read from generating another
+// self-observability trace and creating a refresh loop.
+type SelfTracePayload struct {
+	TraceID      string   `json:"trace_id"`
+	ServiceName  string   `json:"service_name"`
+	Name         string   `json:"name"`
+	Attributes   string   `json:"attributes"`
+	StatusCode   int      `json:"status_code"`
+	StartNs      int64    `json:"start_ns"`
+	EndNs        int64    `json:"end_ns"`
+	DurationNs   int64    `json:"duration_ns"`
+	SessionID    string   `json:"session_id"`
+	SessionLabel string   `json:"session_label"`
+	HasN1        bool     `json:"has_n1"`
+	SpanCount    int      `json:"span_count"`
+	IssueKinds   []string `json:"issue_kinds"`
+}
+
 type LogPayload struct {
 	TraceID     string `json:"traceId"`
 	SpanID      string `json:"spanId"`
@@ -79,6 +99,21 @@ type ThroughputPayload struct {
 	LogsPerSec  float64 `json:"logsPerSec"`
 }
 
+// LiveStatePayload is a complete replacement for the small, high-churn footer
+// resources.  Keeping the snapshots together lets clients bootstrap over HTTP
+// once and then update their cache without turning each ingest into more HTTP.
+// The concrete data lives in storage, so it remains deliberately transport
+// neutral here.
+type LiveStatePayload struct {
+	Stats   any `json:"stats"`
+	Sources any `json:"sources"`
+}
+
+type ActiveSessionPayload struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
 // Event is the outer discriminated union sent over the WebSocket.
 type Event struct {
 	Type      string `json:"type"`
@@ -93,6 +128,10 @@ type SpanEvent = SpanPayload
 
 func NewSpanEvent(p *SpanPayload) *Event {
 	return &Event{Type: "span", Timestamp: time.Now().UnixNano(), Payload: p}
+}
+
+func NewSelfTraceEvent(p *SelfTracePayload) *Event {
+	return &Event{Type: "self_trace", Timestamp: time.Now().UnixNano(), Payload: p}
 }
 
 func NewLogEvent(p *LogPayload) *Event {
@@ -113,6 +152,14 @@ func NewForwarderEvent(p *ForwarderPayload) *Event {
 
 func NewThroughputEvent(p *ThroughputPayload) *Event {
 	return &Event{Type: "throughput", Timestamp: time.Now().UnixNano(), Payload: p}
+}
+
+func NewLiveStateEvent(p *LiveStatePayload) *Event {
+	return &Event{Type: "live_state", Timestamp: time.Now().UnixNano(), Payload: p}
+}
+
+func NewActiveSessionEvent(p *ActiveSessionPayload) *Event {
+	return &Event{Type: "active_session", Timestamp: time.Now().UnixNano(), Payload: p}
 }
 
 // NewHeartbeatEvent is a payload-less liveness beat the server sends on a timer.

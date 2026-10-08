@@ -426,6 +426,64 @@ func TestPipeline_BroadcastsLog(t *testing.T) {
 	}
 }
 
+func TestPipeline_BroadcastsSelfTraceSnapshot(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("self-ws-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	hub := ws.NewHub()
+	conn, srv := dialPipelineHub(t, hub)
+	defer srv.Close()
+	defer conn.CloseNow() //nolint:errcheck
+
+	p := NewPipeline(db, hub)
+	p.SetSelfService("spaniel")
+	td := makeTraces("spaniel", func(ss ptrace.ScopeSpans) {
+		s := ss.Spans().AppendEmpty()
+		var tid pcommon.TraceID
+		var sid pcommon.SpanID
+		copy(tid[:], []byte("self-trace-12345"))
+		copy(sid[:], []byte("selfspan"))
+		s.SetTraceID(tid)
+		s.SetSpanID(sid)
+		s.SetName("storage.AppendSpan")
+		s.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+		s.SetEndTimestamp(pcommon.Timestamp(1_001_000_000))
+	})
+	if err := p.IngestTraces(context.Background(), td); err != nil {
+		t.Fatalf("IngestTraces: %v", err)
+	}
+
+	readCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, msg, err := conn.Read(readCtx)
+	if err != nil {
+		t.Fatalf("read self trace event: %v", err)
+	}
+	var ev struct {
+		Type    string `json:"type"`
+		Payload struct {
+			TraceID      string `json:"trace_id"`
+			ServiceName  string `json:"service_name"`
+			SpanCount    int    `json:"span_count"`
+			SessionID    string `json:"session_id"`
+			SessionLabel string `json:"session_label"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(msg, &ev); err != nil {
+		t.Fatalf("unmarshal self trace event: %v", err)
+	}
+	if ev.Type != "self_trace" {
+		t.Fatalf("event type = %q, want self_trace", ev.Type)
+	}
+	if ev.Payload.ServiceName != "spaniel" || ev.Payload.SpanCount != 1 {
+		t.Errorf("unexpected payload: %+v", ev.Payload)
+	}
+	if ev.Payload.SessionID != sess.ID || ev.Payload.SessionLabel != sess.Label {
+		t.Errorf("event session = %q/%q, want %q/%q", ev.Payload.SessionID, ev.Payload.SessionLabel, sess.ID, sess.Label)
+	}
+}
+
 func TestPipeline_BroadcastsMetric(t *testing.T) {
 	db := openTestDB(t)
 	sess, _ := db.CreateSession("metric-ws-session", false)
