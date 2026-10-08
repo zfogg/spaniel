@@ -22,6 +22,639 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for AlertListItemsSeverity.
+const (
+	AlertListItemsSeverityCritical AlertListItemsSeverity = "critical"
+	AlertListItemsSeverityInfo     AlertListItemsSeverity = "info"
+	AlertListItemsSeverityWarning  AlertListItemsSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the AlertListItemsSeverity enum.
+func (e AlertListItemsSeverity) Valid() bool {
+	switch e {
+	case AlertListItemsSeverityCritical:
+		return true
+	case AlertListItemsSeverityInfo:
+		return true
+	case AlertListItemsSeverityWarning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AlertRuleSeverity.
+const (
+	AlertRuleSeverityCritical AlertRuleSeverity = "critical"
+	AlertRuleSeverityInfo     AlertRuleSeverity = "info"
+	AlertRuleSeverityWarning  AlertRuleSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the AlertRuleSeverity enum.
+func (e AlertRuleSeverity) Valid() bool {
+	switch e {
+	case AlertRuleSeverityCritical:
+		return true
+	case AlertRuleSeverityInfo:
+		return true
+	case AlertRuleSeverityWarning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AlertTestNotificationDestination.
+const (
+	Browser  AlertTestNotificationDestination = "browser"
+	Pushover AlertTestNotificationDestination = "pushover"
+)
+
+// Valid indicates whether the value is a known member of the AlertTestNotificationDestination enum.
+func (e AlertTestNotificationDestination) Valid() bool {
+	switch e {
+	case Browser:
+		return true
+	case Pushover:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AlertTestNotificationStatus.
+const (
+	Sent       AlertTestNotificationStatus = "sent"
+	Suppressed AlertTestNotificationStatus = "suppressed"
+)
+
+// Valid indicates whether the value is a known member of the AlertTestNotificationStatus enum.
+func (e AlertTestNotificationStatus) Valid() bool {
+	switch e {
+	case Sent:
+		return true
+	case Suppressed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CoverageReportServicesSource.
+const (
+	Observed CoverageReportServicesSource = "observed"
+	Openapi  CoverageReportServicesSource = "openapi"
+)
+
+// Valid indicates whether the value is a known member of the CoverageReportServicesSource enum.
+func (e CoverageReportServicesSource) Valid() bool {
+	switch e {
+	case Observed:
+		return true
+	case Openapi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DashboardPanelsDisplayType.
+const (
+	DashboardPanelsDisplayTypeDeployCorrelation DashboardPanelsDisplayType = "deploy_correlation"
+	DashboardPanelsDisplayTypeEntityList        DashboardPanelsDisplayType = "entity_list"
+	DashboardPanelsDisplayTypeHeatmap           DashboardPanelsDisplayType = "heatmap"
+	DashboardPanelsDisplayTypeLogList           DashboardPanelsDisplayType = "log_list"
+	DashboardPanelsDisplayTypeSingleValue       DashboardPanelsDisplayType = "single_value"
+	DashboardPanelsDisplayTypeSpanList          DashboardPanelsDisplayType = "span_list"
+	DashboardPanelsDisplayTypeTable             DashboardPanelsDisplayType = "table"
+	DashboardPanelsDisplayTypeTimeSeries        DashboardPanelsDisplayType = "time_series"
+	DashboardPanelsDisplayTypeTraceList         DashboardPanelsDisplayType = "trace_list"
+)
+
+// Valid indicates whether the value is a known member of the DashboardPanelsDisplayType enum.
+func (e DashboardPanelsDisplayType) Valid() bool {
+	switch e {
+	case DashboardPanelsDisplayTypeDeployCorrelation:
+		return true
+	case DashboardPanelsDisplayTypeEntityList:
+		return true
+	case DashboardPanelsDisplayTypeHeatmap:
+		return true
+	case DashboardPanelsDisplayTypeLogList:
+		return true
+	case DashboardPanelsDisplayTypeSingleValue:
+		return true
+	case DashboardPanelsDisplayTypeSpanList:
+		return true
+	case DashboardPanelsDisplayTypeTable:
+		return true
+	case DashboardPanelsDisplayTypeTimeSeries:
+		return true
+	case DashboardPanelsDisplayTypeTraceList:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DashboardVariablesKind.
+const (
+	DashboardVariablesKindAttribute DashboardVariablesKind = "attribute"
+	DashboardVariablesKindBoolean   DashboardVariablesKind = "boolean"
+	DashboardVariablesKindDuration  DashboardVariablesKind = "duration"
+	DashboardVariablesKindEnum      DashboardVariablesKind = "enum"
+	DashboardVariablesKindLogId     DashboardVariablesKind = "log_id"
+	DashboardVariablesKindNumber    DashboardVariablesKind = "number"
+	DashboardVariablesKindOperation DashboardVariablesKind = "operation"
+	DashboardVariablesKindService   DashboardVariablesKind = "service"
+	DashboardVariablesKindSpanId    DashboardVariablesKind = "span_id"
+	DashboardVariablesKindString    DashboardVariablesKind = "string"
+	DashboardVariablesKindTime      DashboardVariablesKind = "time"
+	DashboardVariablesKindTraceId   DashboardVariablesKind = "trace_id"
+)
+
+// Valid indicates whether the value is a known member of the DashboardVariablesKind enum.
+func (e DashboardVariablesKind) Valid() bool {
+	switch e {
+	case DashboardVariablesKindAttribute:
+		return true
+	case DashboardVariablesKindBoolean:
+		return true
+	case DashboardVariablesKindDuration:
+		return true
+	case DashboardVariablesKindEnum:
+		return true
+	case DashboardVariablesKindLogId:
+		return true
+	case DashboardVariablesKindNumber:
+		return true
+	case DashboardVariablesKindOperation:
+		return true
+	case DashboardVariablesKindService:
+		return true
+	case DashboardVariablesKindSpanId:
+		return true
+	case DashboardVariablesKindString:
+		return true
+	case DashboardVariablesKindTime:
+		return true
+	case DashboardVariablesKindTraceId:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DashboardPanelDisplayType.
+const (
+	DashboardPanelDisplayTypeDeployCorrelation DashboardPanelDisplayType = "deploy_correlation"
+	DashboardPanelDisplayTypeEntityList        DashboardPanelDisplayType = "entity_list"
+	DashboardPanelDisplayTypeHeatmap           DashboardPanelDisplayType = "heatmap"
+	DashboardPanelDisplayTypeLogList           DashboardPanelDisplayType = "log_list"
+	DashboardPanelDisplayTypeSingleValue       DashboardPanelDisplayType = "single_value"
+	DashboardPanelDisplayTypeSpanList          DashboardPanelDisplayType = "span_list"
+	DashboardPanelDisplayTypeTable             DashboardPanelDisplayType = "table"
+	DashboardPanelDisplayTypeTimeSeries        DashboardPanelDisplayType = "time_series"
+	DashboardPanelDisplayTypeTraceList         DashboardPanelDisplayType = "trace_list"
+)
+
+// Valid indicates whether the value is a known member of the DashboardPanelDisplayType enum.
+func (e DashboardPanelDisplayType) Valid() bool {
+	switch e {
+	case DashboardPanelDisplayTypeDeployCorrelation:
+		return true
+	case DashboardPanelDisplayTypeEntityList:
+		return true
+	case DashboardPanelDisplayTypeHeatmap:
+		return true
+	case DashboardPanelDisplayTypeLogList:
+		return true
+	case DashboardPanelDisplayTypeSingleValue:
+		return true
+	case DashboardPanelDisplayTypeSpanList:
+		return true
+	case DashboardPanelDisplayTypeTable:
+		return true
+	case DashboardPanelDisplayTypeTimeSeries:
+		return true
+	case DashboardPanelDisplayTypeTraceList:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DashboardVariableKind.
+const (
+	DashboardVariableKindAttribute DashboardVariableKind = "attribute"
+	DashboardVariableKindBoolean   DashboardVariableKind = "boolean"
+	DashboardVariableKindDuration  DashboardVariableKind = "duration"
+	DashboardVariableKindEnum      DashboardVariableKind = "enum"
+	DashboardVariableKindLogId     DashboardVariableKind = "log_id"
+	DashboardVariableKindNumber    DashboardVariableKind = "number"
+	DashboardVariableKindOperation DashboardVariableKind = "operation"
+	DashboardVariableKindService   DashboardVariableKind = "service"
+	DashboardVariableKindSpanId    DashboardVariableKind = "span_id"
+	DashboardVariableKindString    DashboardVariableKind = "string"
+	DashboardVariableKindTime      DashboardVariableKind = "time"
+	DashboardVariableKindTraceId   DashboardVariableKind = "trace_id"
+)
+
+// Valid indicates whether the value is a known member of the DashboardVariableKind enum.
+func (e DashboardVariableKind) Valid() bool {
+	switch e {
+	case DashboardVariableKindAttribute:
+		return true
+	case DashboardVariableKindBoolean:
+		return true
+	case DashboardVariableKindDuration:
+		return true
+	case DashboardVariableKindEnum:
+		return true
+	case DashboardVariableKindLogId:
+		return true
+	case DashboardVariableKindNumber:
+		return true
+	case DashboardVariableKindOperation:
+		return true
+	case DashboardVariableKindService:
+		return true
+	case DashboardVariableKindSpanId:
+		return true
+	case DashboardVariableKindString:
+		return true
+	case DashboardVariableKindTime:
+		return true
+	case DashboardVariableKindTraceId:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MetricSeriesPointsPercentile.
+const (
+	MetricSeriesPointsPercentileP50 MetricSeriesPointsPercentile = "p50"
+	MetricSeriesPointsPercentileP95 MetricSeriesPointsPercentile = "p95"
+	MetricSeriesPointsPercentileP99 MetricSeriesPointsPercentile = "p99"
+)
+
+// Valid indicates whether the value is a known member of the MetricSeriesPointsPercentile enum.
+func (e MetricSeriesPointsPercentile) Valid() bool {
+	switch e {
+	case MetricSeriesPointsPercentileP50:
+		return true
+	case MetricSeriesPointsPercentileP95:
+		return true
+	case MetricSeriesPointsPercentileP99:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MetricSeriesSeriesPointsPercentile.
+const (
+	MetricSeriesSeriesPointsPercentileP50 MetricSeriesSeriesPointsPercentile = "p50"
+	MetricSeriesSeriesPointsPercentileP95 MetricSeriesSeriesPointsPercentile = "p95"
+	MetricSeriesSeriesPointsPercentileP99 MetricSeriesSeriesPointsPercentile = "p99"
+)
+
+// Valid indicates whether the value is a known member of the MetricSeriesSeriesPointsPercentile enum.
+func (e MetricSeriesSeriesPointsPercentile) Valid() bool {
+	switch e {
+	case MetricSeriesSeriesPointsPercentileP50:
+		return true
+	case MetricSeriesSeriesPointsPercentileP95:
+		return true
+	case MetricSeriesSeriesPointsPercentileP99:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SearchResultKind.
+const (
+	SearchResultKindLog     SearchResultKind = "log"
+	SearchResultKindService SearchResultKind = "service"
+	SearchResultKindSession SearchResultKind = "session"
+	SearchResultKindSpan    SearchResultKind = "span"
+	SearchResultKindTrace   SearchResultKind = "trace"
+)
+
+// Valid indicates whether the value is a known member of the SearchResultKind enum.
+func (e SearchResultKind) Valid() bool {
+	switch e {
+	case SearchResultKindLog:
+		return true
+	case SearchResultKindService:
+		return true
+	case SearchResultKindSession:
+		return true
+	case SearchResultKindSpan:
+		return true
+	case SearchResultKindTrace:
+		return true
+	default:
+		return false
+	}
+}
+
+// ActiveSession defines model for ActiveSession.
+type ActiveSession struct {
+	Id    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// AlertEvent defines model for AlertEvent.
+type AlertEvent struct {
+	CreatedAt float32  `json:"created_at"`
+	Detail    string   `json:"detail"`
+	GroupKey  string   `json:"group_key"`
+	Id        string   `json:"id"`
+	Kind      string   `json:"kind"`
+	RuleId    string   `json:"rule_id"`
+	State     string   `json:"state"`
+	Value     *float32 `json:"value,omitempty"`
+}
+
+// AlertInstance defines model for AlertInstance.
+type AlertInstance struct {
+	AcknowledgedAt      *float32 `json:"acknowledged_at,omitempty"`
+	AcknowledgementNote string   `json:"acknowledgement_note"`
+	FiredAt             *float32 `json:"fired_at,omitempty"`
+	FirstPendingAt      *float32 `json:"first_pending_at,omitempty"`
+	GroupKey            string   `json:"group_key"`
+	LabelsJson          string   `json:"labels_json"`
+	LastError           string   `json:"last_error"`
+	LastEvaluatedAt     float32  `json:"last_evaluated_at"`
+	ResolvedAt          *float32 `json:"resolved_at,omitempty"`
+	RuleId              string   `json:"rule_id"`
+	State               string   `json:"state"`
+	Value               *float32 `json:"value,omitempty"`
+}
+
+// AlertList defines model for AlertList.
+type AlertList struct {
+	Items []struct {
+		AnnotationsJson               string  `json:"annotations_json"`
+		BrowserEnabled                bool    `json:"browser_enabled"`
+		ConditionJson                 string  `json:"condition_json"`
+		CooldownNs                    float32 `json:"cooldown_ns"`
+		CreatedAt                     float32 `json:"created_at"`
+		Enabled                       bool    `json:"enabled"`
+		GroupByJson                   string  `json:"group_by_json"`
+		Id                            string  `json:"id"`
+		InstanceDiscoveryIntervalNs   float32 `json:"instance_discovery_interval_ns"`
+		InstanceDiscoveryLastRunAt    float32 `json:"instance_discovery_last_run_at"`
+		InstanceDiscoverySql          string  `json:"instance_discovery_sql"`
+		InstanceDiscoveryStaleAfterNs float32 `json:"instance_discovery_stale_after_ns"`
+		Instances                     []struct {
+			AcknowledgedAt      *float32 `json:"acknowledged_at,omitempty"`
+			AcknowledgementNote string   `json:"acknowledgement_note"`
+			FiredAt             *float32 `json:"fired_at,omitempty"`
+			FirstPendingAt      *float32 `json:"first_pending_at,omitempty"`
+			GroupKey            string   `json:"group_key"`
+			LabelsJson          string   `json:"labels_json"`
+			LastError           string   `json:"last_error"`
+			LastEvaluatedAt     float32  `json:"last_evaluated_at"`
+			ResolvedAt          *float32 `json:"resolved_at,omitempty"`
+			RuleId              string   `json:"rule_id"`
+			State               string   `json:"state"`
+			Value               *float32 `json:"value,omitempty"`
+		} `json:"instances"`
+		LastDurationNs   float32                `json:"last_duration_ns"`
+		LastError        string                 `json:"last_error"`
+		LastEvaluatedAt  float32                `json:"last_evaluated_at"`
+		LastSuccessAt    float32                `json:"last_success_at"`
+		Name             string                 `json:"name"`
+		NextEvaluationAt float32                `json:"next_evaluation_at"`
+		Owner            string                 `json:"owner"`
+		PendingForNs     float32                `json:"pending_for_ns"`
+		PushoverEnabled  bool                   `json:"pushover_enabled"`
+		QuerySql         string                 `json:"query_sql"`
+		QueryVersion     float32                `json:"query_version"`
+		RepeatIntervalNs float32                `json:"repeat_interval_ns"`
+		Severity         AlertListItemsSeverity `json:"severity"`
+		SourceFile       string                 `json:"source_file"`
+		SourceHash       string                 `json:"source_hash"`
+		Team             string                 `json:"team"`
+		UpdatedAt        float32                `json:"updated_at"`
+	} `json:"items"`
+	Summary struct {
+		InstanceCounts map[string]float32 `json:"instance_counts"`
+		RuleCounts     map[string]float32 `json:"rule_counts"`
+	} `json:"summary"`
+}
+
+// AlertListItemsSeverity defines model for AlertList.Items.Severity.
+type AlertListItemsSeverity string
+
+// AlertRule defines model for AlertRule.
+type AlertRule struct {
+	AnnotationsJson               string  `json:"annotations_json"`
+	BrowserEnabled                bool    `json:"browser_enabled"`
+	ConditionJson                 string  `json:"condition_json"`
+	CooldownNs                    float32 `json:"cooldown_ns"`
+	CreatedAt                     float32 `json:"created_at"`
+	Enabled                       bool    `json:"enabled"`
+	GroupByJson                   string  `json:"group_by_json"`
+	Id                            string  `json:"id"`
+	InstanceDiscoveryIntervalNs   float32 `json:"instance_discovery_interval_ns"`
+	InstanceDiscoveryLastRunAt    float32 `json:"instance_discovery_last_run_at"`
+	InstanceDiscoverySql          string  `json:"instance_discovery_sql"`
+	InstanceDiscoveryStaleAfterNs float32 `json:"instance_discovery_stale_after_ns"`
+	Instances                     []struct {
+		AcknowledgedAt      *float32 `json:"acknowledged_at,omitempty"`
+		AcknowledgementNote string   `json:"acknowledgement_note"`
+		FiredAt             *float32 `json:"fired_at,omitempty"`
+		FirstPendingAt      *float32 `json:"first_pending_at,omitempty"`
+		GroupKey            string   `json:"group_key"`
+		LabelsJson          string   `json:"labels_json"`
+		LastError           string   `json:"last_error"`
+		LastEvaluatedAt     float32  `json:"last_evaluated_at"`
+		ResolvedAt          *float32 `json:"resolved_at,omitempty"`
+		RuleId              string   `json:"rule_id"`
+		State               string   `json:"state"`
+		Value               *float32 `json:"value,omitempty"`
+	} `json:"instances"`
+	LastDurationNs   float32           `json:"last_duration_ns"`
+	LastError        string            `json:"last_error"`
+	LastEvaluatedAt  float32           `json:"last_evaluated_at"`
+	LastSuccessAt    float32           `json:"last_success_at"`
+	Name             string            `json:"name"`
+	NextEvaluationAt float32           `json:"next_evaluation_at"`
+	Owner            string            `json:"owner"`
+	PendingForNs     float32           `json:"pending_for_ns"`
+	PushoverEnabled  bool              `json:"pushover_enabled"`
+	QuerySql         string            `json:"query_sql"`
+	QueryVersion     float32           `json:"query_version"`
+	RepeatIntervalNs float32           `json:"repeat_interval_ns"`
+	Severity         AlertRuleSeverity `json:"severity"`
+	SourceFile       string            `json:"source_file"`
+	SourceHash       string            `json:"source_hash"`
+	Team             string            `json:"team"`
+	UpdatedAt        float32           `json:"updated_at"`
+}
+
+// AlertRuleSeverity defines model for AlertRule.Severity.
+type AlertRuleSeverity string
+
+// AlertSilence defines model for AlertSilence.
+type AlertSilence struct {
+	Comment   string  `json:"comment"`
+	CreatedAt float32 `json:"created_at"`
+	EndsAt    float32 `json:"ends_at"`
+	GroupKey  string  `json:"group_key"`
+	Id        string  `json:"id"`
+	RuleId    string  `json:"rule_id"`
+	StartsAt  float32 `json:"starts_at"`
+}
+
+// AlertTestNotification defines model for AlertTestNotification.
+type AlertTestNotification struct {
+	Body        *string                          `json:"body,omitempty"`
+	Destination AlertTestNotificationDestination `json:"destination"`
+	Status      AlertTestNotificationStatus      `json:"status"`
+}
+
+// AlertTestNotificationDestination defines model for AlertTestNotification.Destination.
+type AlertTestNotificationDestination string
+
+// AlertTestNotificationStatus defines model for AlertTestNotification.Status.
+type AlertTestNotificationStatus string
+
+// CompactResult defines model for CompactResult.
+type CompactResult struct {
+	BytesAfter  float32 `json:"bytes_after"`
+	BytesBefore float32 `json:"bytes_before"`
+	Reclaimed   float32 `json:"reclaimed"`
+}
+
+// CoverageReport defines model for CoverageReport.
+type CoverageReport struct {
+	Overall struct {
+		CoveragePct        float32 `json:"coverage_pct"`
+		DarkCount          float32 `json:"dark_count"`
+		ObservedOperations float32 `json:"observed_operations"`
+		TotalRoutes        float32 `json:"total_routes"`
+	} `json:"overall"`
+	Services []struct {
+		CoveragePct float32 `json:"coverage_pct"`
+		DarkRoutes  []struct {
+			Hits   float32  `json:"hits"`
+			Method string   `json:"method"`
+			P95Ns  *float32 `json:"p95_ns,omitempty"`
+			Path   string   `json:"path"`
+		} `json:"dark_routes"`
+		Name               string  `json:"name"`
+		ObservedOperations float32 `json:"observed_operations"`
+		ObservedRoutes     []struct {
+			Hits   float32  `json:"hits"`
+			Method string   `json:"method"`
+			P95Ns  *float32 `json:"p95_ns,omitempty"`
+			Path   string   `json:"path"`
+		} `json:"observed_routes"`
+		Source      CoverageReportServicesSource `json:"source"`
+		Spec        *string                      `json:"spec,omitempty"`
+		TotalRoutes float32                      `json:"total_routes"`
+	} `json:"services"`
+}
+
+// CoverageReportServicesSource defines model for CoverageReport.Services.Source.
+type CoverageReportServicesSource string
+
+// Dashboard defines model for Dashboard.
+type Dashboard struct {
+	CreatedAt   float32 `json:"created_at"`
+	Description string  `json:"description"`
+	Id          string  `json:"id"`
+	Name        string  `json:"name"`
+	Panels      []struct {
+		DashboardId  string                     `json:"dashboard_id"`
+		DisplayType  DashboardPanelsDisplayType `json:"display_type"`
+		Id           string                     `json:"id"`
+		LayoutJson   string                     `json:"layout_json"`
+		Position     float32                    `json:"position"`
+		QuerySql     string                     `json:"query_sql"`
+		QueryVersion float32                    `json:"query_version"`
+		SettingsJson string                     `json:"settings_json"`
+		Title        string                     `json:"title"`
+		UpdatedAt    float32                    `json:"updated_at"`
+	} `json:"panels"`
+	UpdatedAt float32 `json:"updated_at"`
+	Variables []struct {
+		DashboardId  string                 `json:"dashboard_id"`
+		DefaultValue string                 `json:"default_value"`
+		Kind         DashboardVariablesKind `json:"kind"`
+		Name         string                 `json:"name"`
+		OptionsJson  string                 `json:"options_json"`
+		Source       string                 `json:"source"`
+	} `json:"variables"`
+}
+
+// DashboardPanelsDisplayType defines model for Dashboard.Panels.DisplayType.
+type DashboardPanelsDisplayType string
+
+// DashboardVariablesKind defines model for Dashboard.Variables.Kind.
+type DashboardVariablesKind string
+
+// DashboardPanel defines model for DashboardPanel.
+type DashboardPanel struct {
+	DashboardId  string                    `json:"dashboard_id"`
+	DisplayType  DashboardPanelDisplayType `json:"display_type"`
+	Id           string                    `json:"id"`
+	LayoutJson   string                    `json:"layout_json"`
+	Position     float32                   `json:"position"`
+	QuerySql     string                    `json:"query_sql"`
+	QueryVersion float32                   `json:"query_version"`
+	SettingsJson string                    `json:"settings_json"`
+	Title        string                    `json:"title"`
+	UpdatedAt    float32                   `json:"updated_at"`
+}
+
+// DashboardPanelDisplayType defines model for DashboardPanel.DisplayType.
+type DashboardPanelDisplayType string
+
+// DashboardVariable defines model for DashboardVariable.
+type DashboardVariable struct {
+	DashboardId  string                `json:"dashboard_id"`
+	DefaultValue string                `json:"default_value"`
+	Kind         DashboardVariableKind `json:"kind"`
+	Name         string                `json:"name"`
+	OptionsJson  string                `json:"options_json"`
+	Source       string                `json:"source"`
+}
+
+// DashboardVariableKind defines model for DashboardVariable.Kind.
+type DashboardVariableKind string
+
+// DatabaseSchemaCatalog defines model for DatabaseSchemaCatalog.
+type DatabaseSchemaCatalog struct {
+	Fingerprint string   `json:"fingerprint"`
+	Parameters  []string `json:"parameters"`
+	Version     string   `json:"version"`
+	Views       []struct {
+		Columns []struct {
+			Description string  `json:"description"`
+			Name        string  `json:"name"`
+			Sensitivity *string `json:"sensitivity,omitempty"`
+			Type        string  `json:"type"`
+			UseItFor    string  `json:"use_it_for"`
+		} `json:"columns"`
+		Name    string `json:"name"`
+		Purpose string `json:"purpose"`
+		Samples []struct {
+			DisplayType string `json:"display_type"`
+			Explanation string `json:"explanation"`
+			Id          string `json:"id"`
+			Sql         string `json:"sql"`
+			Title       string `json:"title"`
+		} `json:"samples"`
+	} `json:"views"`
+}
+
 // Envelope defines model for Envelope.
 type Envelope struct {
 	Data JSONValue `json:"data"`
@@ -33,14 +666,519 @@ type Error struct {
 	Error string `json:"error"`
 }
 
+// ForwarderStatus defines model for ForwarderStatus.
+type ForwarderStatus struct {
+	DroppedSpool *float32 `json:"dropped_spool,omitempty"`
+	Errors       float32  `json:"errors"`
+	LastError    *string  `json:"last_error,omitempty"`
+	PendingBytes *float32 `json:"pending_bytes,omitempty"`
+	Sent         float32  `json:"sent"`
+	Url          string   `json:"url"`
+}
+
+// ImportResult defines model for ImportResult.
+type ImportResult struct {
+	Session struct {
+		CreatedAt      float32 `json:"created_at"`
+		ErrorCount     float32 `json:"error_count"`
+		Id             string  `json:"id"`
+		IsBaseline     bool    `json:"is_baseline"`
+		IsImported     bool    `json:"is_imported"`
+		Label          string  `json:"label"`
+		LastActivityNs float32 `json:"last_activity_ns"`
+		N1Count        float32 `json:"n1_count"`
+		Note           string  `json:"note"`
+		P95Ns          float32 `json:"p95_ns"`
+		Services       string  `json:"services"`
+		SizeBytes      float32 `json:"size_bytes"`
+		SpanCount      float32 `json:"span_count"`
+		TraceCount     float32 `json:"trace_count"`
+	} `json:"session"`
+	SpanCount  float32 `json:"span_count"`
+	TraceCount float32 `json:"trace_count"`
+}
+
 // JSONValue defines model for JSONValue.
 type JSONValue = interface{}
+
+// LintWarning defines model for LintWarning.
+type LintWarning struct {
+	CreatedAt float32 `json:"created_at"`
+	Message   string  `json:"message"`
+	RuleId    string  `json:"rule_id"`
+	SessionId string  `json:"session_id"`
+	Severity  string  `json:"severity"`
+	SpanId    string  `json:"span_id"`
+	TraceId   string  `json:"trace_id"`
+}
+
+// Log defines model for Log.
+type Log struct {
+	Attributes  string  `json:"attributes"`
+	Body        string  `json:"body"`
+	ReceivedAt  float32 `json:"received_at"`
+	ServiceName string  `json:"service_name"`
+	SessionId   string  `json:"session_id"`
+	Severity    float32 `json:"severity"`
+	SpanId      string  `json:"span_id"`
+	TimestampNs float32 `json:"timestamp_ns"`
+	TraceId     string  `json:"trace_id"`
+}
 
 // Meta defines model for Meta.
 type Meta struct {
 	Page                 *int                   `json:"page,omitempty"`
 	Total                *int                   `json:"total,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// MetricCardinalityStream defines model for MetricCardinalityStream.
+type MetricCardinalityStream struct {
+	ActiveSeries float32 `json:"active_series"`
+	Limit        float32 `json:"limit"`
+	Name         string  `json:"name"`
+	ServiceName  string  `json:"service_name"`
+}
+
+// MetricCatalogEntry defines model for MetricCatalogEntry.
+type MetricCatalogEntry struct {
+	AggregationTemporality *string `json:"aggregation_temporality,omitempty"`
+	Description            string  `json:"description"`
+	IsMonotonic            *bool   `json:"is_monotonic,omitempty"`
+	LastTimestampNs        float32 `json:"last_timestamp_ns"`
+	Name                   string  `json:"name"`
+	SampleCount            float32 `json:"sample_count"`
+	ServiceName            string  `json:"service_name"`
+	Type                   string  `json:"type"`
+	Unit                   string  `json:"unit"`
+}
+
+// MetricSeries defines model for MetricSeries.
+type MetricSeries struct {
+	Aggregation            *string              `json:"aggregation,omitempty"`
+	AggregationTemporality *string              `json:"aggregation_temporality,omitempty"`
+	Description            string               `json:"description"`
+	Dimensions             *map[string][]string `json:"dimensions,omitempty"`
+	IsMonotonic            *bool                `json:"is_monotonic,omitempty"`
+	Name                   string               `json:"name"`
+	Operation              *string              `json:"operation,omitempty"`
+	Points                 []struct {
+		Bounds    *[]float32 `json:"bounds,omitempty"`
+		Buckets   *[]float32 `json:"buckets,omitempty"`
+		Count     *float32   `json:"count,omitempty"`
+		Exemplars *[]struct {
+			SpanId  string `json:"span_id"`
+			TraceId string `json:"trace_id"`
+		} `json:"exemplars,omitempty"`
+		ExpNegativeCounts *[]float32                    `json:"exp_negative_counts,omitempty"`
+		ExpNegativeOffset *float32                      `json:"exp_negative_offset,omitempty"`
+		ExpPositiveCounts *[]float32                    `json:"exp_positive_counts,omitempty"`
+		ExpPositiveOffset *float32                      `json:"exp_positive_offset,omitempty"`
+		ExpScale          *float32                      `json:"exp_scale,omitempty"`
+		ExpZeroCount      *float32                      `json:"exp_zero_count,omitempty"`
+		ExpZeroThreshold  *float32                      `json:"exp_zero_threshold,omitempty"`
+		Flags             *float32                      `json:"flags,omitempty"`
+		Max               *float32                      `json:"max,omitempty"`
+		Min               *float32                      `json:"min,omitempty"`
+		Percentile        *MetricSeriesPointsPercentile `json:"percentile,omitempty"`
+		Quantiles         *map[string]float32           `json:"quantiles,omitempty"`
+		ScopeAttributes   *map[string]interface{}       `json:"scope_attributes,omitempty"`
+		ScopeName         *string                       `json:"scope_name,omitempty"`
+		ScopeSchemaUrl    *string                       `json:"scope_schema_url,omitempty"`
+		ScopeVersion      *string                       `json:"scope_version,omitempty"`
+		StartTimestampNs  *float32                      `json:"start_timestamp_ns,omitempty"`
+		Sum               *float32                      `json:"sum,omitempty"`
+		TimestampNs       float32                       `json:"timestamp_ns"`
+		Value             float32                       `json:"value"`
+	} `json:"points"`
+	Series *[]struct {
+		Attributes map[string]interface{} `json:"attributes"`
+		Key        string                 `json:"key"`
+		Points     []struct {
+			Bounds    *[]float32 `json:"bounds,omitempty"`
+			Buckets   *[]float32 `json:"buckets,omitempty"`
+			Count     *float32   `json:"count,omitempty"`
+			Exemplars *[]struct {
+				SpanId  string `json:"span_id"`
+				TraceId string `json:"trace_id"`
+			} `json:"exemplars,omitempty"`
+			ExpNegativeCounts *[]float32                          `json:"exp_negative_counts,omitempty"`
+			ExpNegativeOffset *float32                            `json:"exp_negative_offset,omitempty"`
+			ExpPositiveCounts *[]float32                          `json:"exp_positive_counts,omitempty"`
+			ExpPositiveOffset *float32                            `json:"exp_positive_offset,omitempty"`
+			ExpScale          *float32                            `json:"exp_scale,omitempty"`
+			ExpZeroCount      *float32                            `json:"exp_zero_count,omitempty"`
+			ExpZeroThreshold  *float32                            `json:"exp_zero_threshold,omitempty"`
+			Flags             *float32                            `json:"flags,omitempty"`
+			Max               *float32                            `json:"max,omitempty"`
+			Min               *float32                            `json:"min,omitempty"`
+			Percentile        *MetricSeriesSeriesPointsPercentile `json:"percentile,omitempty"`
+			Quantiles         *map[string]float32                 `json:"quantiles,omitempty"`
+			ScopeAttributes   *map[string]interface{}             `json:"scope_attributes,omitempty"`
+			ScopeName         *string                             `json:"scope_name,omitempty"`
+			ScopeSchemaUrl    *string                             `json:"scope_schema_url,omitempty"`
+			ScopeVersion      *string                             `json:"scope_version,omitempty"`
+			StartTimestampNs  *float32                            `json:"start_timestamp_ns,omitempty"`
+			Sum               *float32                            `json:"sum,omitempty"`
+			TimestampNs       float32                             `json:"timestamp_ns"`
+			Value             float32                             `json:"value"`
+		} `json:"points"`
+	} `json:"series,omitempty"`
+	ServiceName string `json:"service_name"`
+	Traces      []struct {
+		DurationNs float32 `json:"duration_ns"`
+		EndNs      float32 `json:"end_ns"`
+		Op         string  `json:"op"`
+		Service    string  `json:"service"`
+		StartNs    float32 `json:"start_ns"`
+		StatusCode float32 `json:"status_code"`
+		TraceId    string  `json:"trace_id"`
+	} `json:"traces"`
+	Type string `json:"type"`
+	Unit string `json:"unit"`
+}
+
+// MetricSeriesPointsPercentile defines model for MetricSeries.Points.Percentile.
+type MetricSeriesPointsPercentile string
+
+// MetricSeriesSeriesPointsPercentile defines model for MetricSeries.Series.Points.Percentile.
+type MetricSeriesSeriesPointsPercentile string
+
+// Ok defines model for Ok.
+type Ok struct {
+	Ok bool `json:"ok"`
+}
+
+// PruneResult defines model for PruneResult.
+type PruneResult struct {
+	DeletedByAge     float32 `json:"deleted_by_age"`
+	DeletedByCount   float32 `json:"deleted_by_count"`
+	DeletedBySize    float32 `json:"deleted_by_size"`
+	FinalDbSizeBytes float32 `json:"final_db_size_bytes"`
+	FinalSessions    float32 `json:"final_sessions"`
+}
+
+// QueryCatalogEntry defines model for QueryCatalogEntry.
+type QueryCatalogEntry struct {
+	Attributes  *map[string]interface{} `json:"attributes,omitempty"`
+	DisplayType string                  `json:"display_type"`
+	Name        string                  `json:"name"`
+	Query       string                  `json:"query"`
+	Signal      string                  `json:"signal"`
+}
+
+// QueryPreview defines model for QueryPreview.
+type QueryPreview struct {
+	Columns   []string `json:"columns"`
+	Condition *struct {
+		Kind     *string  `json:"kind,omitempty"`
+		Operator *string  `json:"operator,omitempty"`
+		Pattern  *string  `json:"pattern,omitempty"`
+		Value    *float32 `json:"value,omitempty"`
+	} `json:"condition,omitempty"`
+	DisplayType         *string `json:"display_type,omitempty"`
+	NotificationPreview *[]struct {
+		Destination string  `json:"destination"`
+		Reason      *string `json:"reason,omitempty"`
+		Status      string  `json:"status"`
+	} `json:"notification_preview,omitempty"`
+	Rows     []map[string]interface{} `json:"rows"`
+	Warnings []string                 `json:"warnings"`
+}
+
+// SearchResult defines model for SearchResult.
+type SearchResult struct {
+	Kind      SearchResultKind `json:"kind"`
+	SessionId string           `json:"session_id"`
+	SpanId    *string          `json:"span_id,omitempty"`
+	Subtitle  string           `json:"subtitle"`
+	Title     string           `json:"title"`
+	TraceId   string           `json:"trace_id"`
+}
+
+// SearchResultKind defines model for SearchResult.Kind.
+type SearchResultKind string
+
+// ServiceMapData defines model for ServiceMapData.
+type ServiceMapData struct {
+	Edges []struct {
+		AvgDurationNs float32 `json:"avg_duration_ns"`
+		CallCount     float32 `json:"call_count"`
+		ErrorCount    float32 `json:"error_count"`
+		From          string  `json:"from"`
+		To            string  `json:"to"`
+	} `json:"edges"`
+	Nodes []struct {
+		ErrorCount    float32 `json:"error_count"`
+		Id            string  `json:"id"`
+		P95Ns         float32 `json:"p95_ns"`
+		SpanCount     float32 `json:"span_count"`
+		TopOperations []struct {
+			Count float32 `json:"count"`
+			Name  string  `json:"name"`
+			P95Ns float32 `json:"p95_ns"`
+		} `json:"top_operations"`
+	} `json:"nodes"`
+}
+
+// Session defines model for Session.
+type Session struct {
+	CreatedAt      float32 `json:"created_at"`
+	ErrorCount     float32 `json:"error_count"`
+	Id             string  `json:"id"`
+	IsBaseline     bool    `json:"is_baseline"`
+	IsImported     bool    `json:"is_imported"`
+	Label          string  `json:"label"`
+	LastActivityNs float32 `json:"last_activity_ns"`
+	N1Count        float32 `json:"n1_count"`
+	Note           string  `json:"note"`
+	P95Ns          float32 `json:"p95_ns"`
+	Services       string  `json:"services"`
+	SizeBytes      float32 `json:"size_bytes"`
+	SpanCount      float32 `json:"span_count"`
+	TraceCount     float32 `json:"trace_count"`
+}
+
+// Settings defines model for Settings.
+type Settings struct {
+	AdvanceSessionOnStart    bool     `json:"advance_session_on_start"`
+	AlertsBrowserEnabled     bool     `json:"alerts_browser_enabled"`
+	AlertsBrowserTemplate    string   `json:"alerts_browser_template"`
+	AlertsDir                string   `json:"alerts_dir"`
+	AlertsPushoverConfigured bool     `json:"alerts_pushover_configured"`
+	AlertsPushoverEnabled    bool     `json:"alerts_pushover_enabled"`
+	AlertsPushoverTemplate   string   `json:"alerts_pushover_template"`
+	AutoPrune                bool     `json:"auto_prune"`
+	BearerTokenSet           bool     `json:"bearer_token_set"`
+	BindAddressV4            string   `json:"bind_address_v4"`
+	BindAddressV6            string   `json:"bind_address_v6"`
+	DbPath                   string   `json:"db_path"`
+	Forward                  []string `json:"forward"`
+	ForwardSample            float32  `json:"forward_sample"`
+	MaxDbSizeMb              float32  `json:"max_db_size_mb"`
+	MaxSessions              float32  `json:"max_sessions"`
+	McpAllowWrites           bool     `json:"mcp_allow_writes"`
+	McpEnabled               bool     `json:"mcp_enabled"`
+	NoBrowser                bool     `json:"no_browser"`
+	OtlpGrpcPort             float32  `json:"otlp_grpc_port"`
+	OtlpHttpPort             float32  `json:"otlp_http_port"`
+	Port                     float32  `json:"port"`
+	RetentionDays            float32  `json:"retention_days"`
+	Runtime                  struct {
+		Channel      string  `json:"channel"`
+		ConfigPath   string  `json:"config_path"`
+		DbSizeBytes  float32 `json:"db_size_bytes"`
+		OtlpGrpcPort float32 `json:"otlp_grpc_port"`
+		OtlpHttpPort float32 `json:"otlp_http_port"`
+		Pid          float32 `json:"pid"`
+		UptimeNs     float32 `json:"uptime_ns"`
+		Version      string  `json:"version"`
+	} `json:"runtime"`
+	SelfMonitor bool    `json:"self_monitor"`
+	SourceBurst float32 `json:"source_burst"`
+	SourceRps   float32 `json:"source_rps"`
+	TlsEnabled  bool    `json:"tls_enabled"`
+}
+
+// SettingsResponse defines model for SettingsResponse.
+type SettingsResponse struct {
+	AdvanceSessionOnStart    bool     `json:"advance_session_on_start"`
+	AlertsBrowserEnabled     bool     `json:"alerts_browser_enabled"`
+	AlertsBrowserTemplate    string   `json:"alerts_browser_template"`
+	AlertsDir                string   `json:"alerts_dir"`
+	AlertsPushoverConfigured bool     `json:"alerts_pushover_configured"`
+	AlertsPushoverEnabled    bool     `json:"alerts_pushover_enabled"`
+	AlertsPushoverTemplate   string   `json:"alerts_pushover_template"`
+	AutoPrune                bool     `json:"auto_prune"`
+	BearerTokenSet           bool     `json:"bearer_token_set"`
+	BindAddressV4            string   `json:"bind_address_v4"`
+	BindAddressV6            string   `json:"bind_address_v6"`
+	DbPath                   string   `json:"db_path"`
+	Forward                  []string `json:"forward"`
+	ForwardSample            float32  `json:"forward_sample"`
+	MaxDbSizeMb              float32  `json:"max_db_size_mb"`
+	MaxSessions              float32  `json:"max_sessions"`
+	McpAllowWrites           bool     `json:"mcp_allow_writes"`
+	McpEnabled               bool     `json:"mcp_enabled"`
+	NoBrowser                bool     `json:"no_browser"`
+	OtlpGrpcPort             float32  `json:"otlp_grpc_port"`
+	OtlpHttpPort             float32  `json:"otlp_http_port"`
+	Port                     float32  `json:"port"`
+	RetentionDays            float32  `json:"retention_days"`
+	Runtime                  struct {
+		Channel      string  `json:"channel"`
+		ConfigPath   string  `json:"config_path"`
+		DbSizeBytes  float32 `json:"db_size_bytes"`
+		OtlpGrpcPort float32 `json:"otlp_grpc_port"`
+		OtlpHttpPort float32 `json:"otlp_http_port"`
+		Pid          float32 `json:"pid"`
+		UptimeNs     float32 `json:"uptime_ns"`
+		Version      string  `json:"version"`
+	} `json:"runtime"`
+	SelfMonitor bool    `json:"self_monitor"`
+	SourceBurst float32 `json:"source_burst"`
+	SourceRps   float32 `json:"source_rps"`
+	TlsEnabled  bool    `json:"tls_enabled"`
+}
+
+// SourceStats defines model for SourceStats.
+type SourceStats struct {
+	AcceptedPerSec float32 `json:"accepted_per_sec"`
+	BytesPerSec    float32 `json:"bytes_per_sec"`
+	ErrorRate      float32 `json:"error_rate"`
+	LastSeenNs     float32 `json:"last_seen_ns"`
+	RejectedPerSec float32 `json:"rejected_per_sec"`
+	Service        string  `json:"service"`
+}
+
+// Span defines model for Span.
+type Span struct {
+	Attributes string  `json:"attributes"`
+	DurationNs float32 `json:"duration_ns"`
+	EndNs      float32 `json:"end_ns"`
+	Events     []struct {
+		Attributes string  `json:"attributes"`
+		Name       string  `json:"name"`
+		SessionId  string  `json:"session_id"`
+		SpanId     string  `json:"span_id"`
+		TimeNs     float32 `json:"time_ns"`
+		TraceId    string  `json:"trace_id"`
+	} `json:"events"`
+	Kind  float32 `json:"kind"`
+	Links []struct {
+		Attributes    string `json:"attributes"`
+		LinkedSpanId  string `json:"linked_span_id"`
+		LinkedTraceId string `json:"linked_trace_id"`
+		SessionId     string `json:"session_id"`
+		SpanId        string `json:"span_id"`
+		TraceId       string `json:"trace_id"`
+		TraceState    string `json:"trace_state"`
+	} `json:"links"`
+	Name          string  `json:"name"`
+	ParentSpanId  string  `json:"parent_span_id"`
+	ReceivedAt    float32 `json:"received_at"`
+	Resource      string  `json:"resource"`
+	ServiceName   string  `json:"service_name"`
+	SessionId     string  `json:"session_id"`
+	SessionLabel  string  `json:"session_label"`
+	SpanId        string  `json:"span_id"`
+	StartNs       float32 `json:"start_ns"`
+	StatusCode    float32 `json:"status_code"`
+	StatusMessage string  `json:"status_message"`
+	TraceId       string  `json:"trace_id"`
+}
+
+// SpanRow defines model for SpanRow.
+type SpanRow struct {
+	Attributes string  `json:"attributes"`
+	DurationNs float32 `json:"duration_ns"`
+	EndNs      float32 `json:"end_ns"`
+	Events     []struct {
+		Attributes string  `json:"attributes"`
+		Name       string  `json:"name"`
+		SessionId  string  `json:"session_id"`
+		SpanId     string  `json:"span_id"`
+		TimeNs     float32 `json:"time_ns"`
+		TraceId    string  `json:"trace_id"`
+	} `json:"events"`
+	Kind  float32 `json:"kind"`
+	Links []struct {
+		Attributes    string `json:"attributes"`
+		LinkedSpanId  string `json:"linked_span_id"`
+		LinkedTraceId string `json:"linked_trace_id"`
+		SessionId     string `json:"session_id"`
+		SpanId        string `json:"span_id"`
+		TraceId       string `json:"trace_id"`
+		TraceState    string `json:"trace_state"`
+	} `json:"links"`
+	Name          string  `json:"name"`
+	ParentSpanId  string  `json:"parent_span_id"`
+	ReceivedAt    float32 `json:"received_at"`
+	Resource      string  `json:"resource"`
+	ServiceName   string  `json:"service_name"`
+	SessionId     string  `json:"session_id"`
+	SessionLabel  string  `json:"session_label"`
+	SpanId        string  `json:"span_id"`
+	StartNs       float32 `json:"start_ns"`
+	StatusCode    float32 `json:"status_code"`
+	StatusMessage string  `json:"status_message"`
+	Tag           *string `json:"tag,omitempty"`
+	TraceId       string  `json:"trace_id"`
+}
+
+// Stats defines model for Stats.
+type Stats struct {
+	DbSize              float32 `json:"db_size"`
+	DroppedLogs         float32 `json:"dropped_logs"`
+	DroppedMetricPoints float32 `json:"dropped_metric_points"`
+	DroppedSpans        float32 `json:"dropped_spans"`
+	LastDropAt          float32 `json:"last_drop_at"`
+	LogCount            float32 `json:"log_count"`
+	LogsPerSec          float32 `json:"logs_per_sec"`
+	MetricsPerSec       float32 `json:"metrics_per_sec"`
+	PeakSpansPerSec     float32 `json:"peak_spans_per_sec"`
+	SpanCount           float32 `json:"span_count"`
+	SpansPerSec         float32 `json:"spans_per_sec"`
+	StorageFull         bool    `json:"storage_full"`
+	TraceCount          float32 `json:"trace_count"`
+}
+
+// StorageBreakdown defines model for StorageBreakdown.
+type StorageBreakdown struct {
+	LastCheckpointAt float32     `json:"last_checkpoint_at"`
+	MainBytes        float32     `json:"main_bytes"`
+	Sessions         interface{} `json:"sessions"`
+	Tables           []struct {
+		ApproxBytes float32 `json:"approx_bytes"`
+		Name        string  `json:"name"`
+		RowCount    float32 `json:"row_count"`
+	} `json:"tables"`
+	WalBytes float32 `json:"wal_bytes"`
+}
+
+// String defines model for String.
+type String = string
+
+// TraceIssue defines model for TraceIssue.
+type TraceIssue struct {
+	Count         float32 `json:"count"`
+	CreatedAt     float32 `json:"created_at"`
+	ExampleSpanId string  `json:"example_span_id"`
+	Fingerprint   string  `json:"fingerprint"`
+	Id            string  `json:"id"`
+	Kind          string  `json:"kind"`
+	ParentSpanId  string  `json:"parent_span_id"`
+	SessionId     string  `json:"session_id"`
+	TraceId       string  `json:"trace_id"`
+	WastedNs      float32 `json:"wasted_ns"`
+}
+
+// TraceRow defines model for TraceRow.
+type TraceRow struct {
+	Attributes   string    `json:"attributes"`
+	DurationNs   float32   `json:"duration_ns"`
+	EndNs        float32   `json:"end_ns"`
+	HasN1        bool      `json:"has_n1"`
+	IssueKinds   *[]string `json:"issue_kinds,omitempty"`
+	Name         string    `json:"name"`
+	ServiceName  string    `json:"service_name"`
+	SessionId    string    `json:"session_id"`
+	SessionLabel string    `json:"session_label"`
+	SpanCount    float32   `json:"span_count"`
+	StartNs      float32   `json:"start_ns"`
+	StatusCode   float32   `json:"status_code"`
+	TraceId      string    `json:"trace_id"`
+}
+
+// UpdateCheckResult defines model for UpdateCheckResult.
+type UpdateCheckResult struct {
+	Channel         string  `json:"channel"`
+	CheckedAtNs     float32 `json:"checked_at_ns"`
+	Current         string  `json:"current"`
+	Error           *string `json:"error,omitempty"`
+	IsOutdated      bool    `json:"is_outdated"`
+	Latest          string  `json:"latest"`
+	ReleaseNotesUrl string  `json:"release_notes_url"`
 }
 
 // BadRequest defines model for BadRequest.
@@ -2858,7 +3996,10 @@ type ListAlertsResponseObject interface {
 	VisitListAlertsResponse(w http.ResponseWriter) error
 }
 
-type ListAlerts200JSONResponse Envelope
+type ListAlerts200JSONResponse struct {
+	Data AlertList `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response ListAlerts200JSONResponse) VisitListAlertsResponse(w http.ResponseWriter) error {
 
@@ -2908,7 +4049,10 @@ type CreateAlertResponseObject interface {
 	VisitCreateAlertResponse(w http.ResponseWriter) error
 }
 
-type CreateAlert200JSONResponse Envelope
+type CreateAlert200JSONResponse struct {
+	Data AlertRule `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response CreateAlert200JSONResponse) VisitCreateAlertResponse(w http.ResponseWriter) error {
 
@@ -2957,7 +4101,10 @@ type ListAlertHistoryResponseObject interface {
 	VisitListAlertHistoryResponse(w http.ResponseWriter) error
 }
 
-type ListAlertHistory200JSONResponse Envelope
+type ListAlertHistory200JSONResponse struct {
+	Data []AlertEvent `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response ListAlertHistory200JSONResponse) VisitListAlertHistoryResponse(w http.ResponseWriter) error {
 
@@ -3007,7 +4154,10 @@ type ImportAlertConfigResponseObject interface {
 	VisitImportAlertConfigResponse(w http.ResponseWriter) error
 }
 
-type ImportAlertConfig200JSONResponse Envelope
+type ImportAlertConfig200JSONResponse struct {
+	Data AlertRule `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response ImportAlertConfig200JSONResponse) VisitImportAlertConfigResponse(w http.ResponseWriter) error {
 
@@ -3057,7 +4207,10 @@ type PreviewAlertDraftResponseObject interface {
 	VisitPreviewAlertDraftResponse(w http.ResponseWriter) error
 }
 
-type PreviewAlertDraft200JSONResponse Envelope
+type PreviewAlertDraft200JSONResponse struct {
+	Data QueryPreview `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response PreviewAlertDraft200JSONResponse) VisitPreviewAlertDraftResponse(w http.ResponseWriter) error {
 
@@ -3107,7 +4260,10 @@ type ReloadAlertDefinitionsResponseObject interface {
 	VisitReloadAlertDefinitionsResponse(w http.ResponseWriter) error
 }
 
-type ReloadAlertDefinitions200JSONResponse Envelope
+type ReloadAlertDefinitions200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response ReloadAlertDefinitions200JSONResponse) VisitReloadAlertDefinitionsResponse(w http.ResponseWriter) error {
 
@@ -3157,7 +4313,10 @@ type DeleteAlertResponseObject interface {
 	VisitDeleteAlertResponse(w http.ResponseWriter) error
 }
 
-type DeleteAlert200JSONResponse Envelope
+type DeleteAlert200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response DeleteAlert200JSONResponse) VisitDeleteAlertResponse(w http.ResponseWriter) error {
 
@@ -3207,7 +4366,10 @@ type GetAlertResponseObject interface {
 	VisitGetAlertResponse(w http.ResponseWriter) error
 }
 
-type GetAlert200JSONResponse Envelope
+type GetAlert200JSONResponse struct {
+	Data AlertRule `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response GetAlert200JSONResponse) VisitGetAlertResponse(w http.ResponseWriter) error {
 
@@ -3258,7 +4420,10 @@ type PatchAlertResponseObject interface {
 	VisitPatchAlertResponse(w http.ResponseWriter) error
 }
 
-type PatchAlert200JSONResponse Envelope
+type PatchAlert200JSONResponse struct {
+	Data AlertRule `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response PatchAlert200JSONResponse) VisitPatchAlertResponse(w http.ResponseWriter) error {
 
@@ -3309,7 +4474,10 @@ type AcknowledgeAlertResponseObject interface {
 	VisitAcknowledgeAlertResponse(w http.ResponseWriter) error
 }
 
-type AcknowledgeAlert200JSONResponse Envelope
+type AcknowledgeAlert200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response AcknowledgeAlert200JSONResponse) VisitAcknowledgeAlertResponse(w http.ResponseWriter) error {
 
@@ -3359,17 +4527,23 @@ type ExportAlertConfigResponseObject interface {
 	VisitExportAlertConfigResponse(w http.ResponseWriter) error
 }
 
-type ExportAlertConfig200JSONResponse Envelope
+type ExportAlertConfig200ApplicationyamlResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
 
-func (response ExportAlertConfig200JSONResponse) VisitExportAlertConfigResponse(w http.ResponseWriter) error {
+func (response ExportAlertConfig200ApplicationyamlResponse) VisitExportAlertConfigResponse(w http.ResponseWriter) error {
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
+	w.Header().Set("Content-Type", "application/yaml")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
 	}
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
 	return err
 }
 
@@ -3410,7 +4584,10 @@ type DuplicateAlertResponseObject interface {
 	VisitDuplicateAlertResponse(w http.ResponseWriter) error
 }
 
-type DuplicateAlert200JSONResponse Envelope
+type DuplicateAlert200JSONResponse struct {
+	Data AlertRule `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response DuplicateAlert200JSONResponse) VisitDuplicateAlertResponse(w http.ResponseWriter) error {
 
@@ -3460,7 +4637,10 @@ type ListAlertEventsResponseObject interface {
 	VisitListAlertEventsResponse(w http.ResponseWriter) error
 }
 
-type ListAlertEvents200JSONResponse Envelope
+type ListAlertEvents200JSONResponse struct {
+	Data []AlertEvent `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response ListAlertEvents200JSONResponse) VisitListAlertEventsResponse(w http.ResponseWriter) error {
 
@@ -3511,7 +4691,10 @@ type AcknowledgeAlertInstanceResponseObject interface {
 	VisitAcknowledgeAlertInstanceResponse(w http.ResponseWriter) error
 }
 
-type AcknowledgeAlertInstance200JSONResponse Envelope
+type AcknowledgeAlertInstance200JSONResponse struct {
+	Data AlertInstance `json:"data"`
+	Meta Meta          `json:"meta"`
+}
 
 func (response AcknowledgeAlertInstance200JSONResponse) VisitAcknowledgeAlertInstanceResponse(w http.ResponseWriter) error {
 
@@ -3562,7 +4745,10 @@ type UnacknowledgeAlertInstanceResponseObject interface {
 	VisitUnacknowledgeAlertInstanceResponse(w http.ResponseWriter) error
 }
 
-type UnacknowledgeAlertInstance200JSONResponse Envelope
+type UnacknowledgeAlertInstance200JSONResponse struct {
+	Data AlertInstance `json:"data"`
+	Meta Meta          `json:"meta"`
+}
 
 func (response UnacknowledgeAlertInstance200JSONResponse) VisitUnacknowledgeAlertInstanceResponse(w http.ResponseWriter) error {
 
@@ -3613,7 +4799,10 @@ type PreviewAlertResponseObject interface {
 	VisitPreviewAlertResponse(w http.ResponseWriter) error
 }
 
-type PreviewAlert200JSONResponse Envelope
+type PreviewAlert200JSONResponse struct {
+	Data QueryPreview `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response PreviewAlert200JSONResponse) VisitPreviewAlertResponse(w http.ResponseWriter) error {
 
@@ -3663,7 +4852,10 @@ type ListAlertSilencesResponseObject interface {
 	VisitListAlertSilencesResponse(w http.ResponseWriter) error
 }
 
-type ListAlertSilences200JSONResponse Envelope
+type ListAlertSilences200JSONResponse struct {
+	Data []AlertSilence `json:"data"`
+	Meta Meta           `json:"meta"`
+}
 
 func (response ListAlertSilences200JSONResponse) VisitListAlertSilencesResponse(w http.ResponseWriter) error {
 
@@ -3714,7 +4906,10 @@ type CreateAlertSilenceResponseObject interface {
 	VisitCreateAlertSilenceResponse(w http.ResponseWriter) error
 }
 
-type CreateAlertSilence200JSONResponse Envelope
+type CreateAlertSilence200JSONResponse struct {
+	Data AlertSilence `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response CreateAlertSilence200JSONResponse) VisitCreateAlertSilenceResponse(w http.ResponseWriter) error {
 
@@ -3765,7 +4960,10 @@ type DeleteAlertSilenceResponseObject interface {
 	VisitDeleteAlertSilenceResponse(w http.ResponseWriter) error
 }
 
-type DeleteAlertSilence200JSONResponse Envelope
+type DeleteAlertSilence200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response DeleteAlertSilence200JSONResponse) VisitDeleteAlertSilenceResponse(w http.ResponseWriter) error {
 
@@ -3817,7 +5015,10 @@ type PatchAlertSilenceResponseObject interface {
 	VisitPatchAlertSilenceResponse(w http.ResponseWriter) error
 }
 
-type PatchAlertSilence200JSONResponse Envelope
+type PatchAlertSilence200JSONResponse struct {
+	Data AlertSilence `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response PatchAlertSilence200JSONResponse) VisitPatchAlertSilenceResponse(w http.ResponseWriter) error {
 
@@ -3868,7 +5069,10 @@ type TestAlertNotificationResponseObject interface {
 	VisitTestAlertNotificationResponse(w http.ResponseWriter) error
 }
 
-type TestAlertNotification200JSONResponse Envelope
+type TestAlertNotification200JSONResponse struct {
+	Data AlertTestNotification `json:"data"`
+	Meta Meta                  `json:"meta"`
+}
 
 func (response TestAlertNotification200JSONResponse) VisitTestAlertNotificationResponse(w http.ResponseWriter) error {
 
@@ -3917,7 +5121,10 @@ type GetCoverageResponseObject interface {
 	VisitGetCoverageResponse(w http.ResponseWriter) error
 }
 
-type GetCoverage200JSONResponse Envelope
+type GetCoverage200JSONResponse struct {
+	Data CoverageReport `json:"data"`
+	Meta Meta           `json:"meta"`
+}
 
 func (response GetCoverage200JSONResponse) VisitGetCoverageResponse(w http.ResponseWriter) error {
 
@@ -3966,7 +5173,10 @@ type ListDashboardsResponseObject interface {
 	VisitListDashboardsResponse(w http.ResponseWriter) error
 }
 
-type ListDashboards200JSONResponse Envelope
+type ListDashboards200JSONResponse struct {
+	Data []Dashboard `json:"data"`
+	Meta Meta        `json:"meta"`
+}
 
 func (response ListDashboards200JSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
 
@@ -4016,7 +5226,10 @@ type CreateDashboardResponseObject interface {
 	VisitCreateDashboardResponse(w http.ResponseWriter) error
 }
 
-type CreateDashboard200JSONResponse Envelope
+type CreateDashboard200JSONResponse struct {
+	Data Dashboard `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response CreateDashboard200JSONResponse) VisitCreateDashboardResponse(w http.ResponseWriter) error {
 
@@ -4066,7 +5279,10 @@ type ImportDashboardConfigResponseObject interface {
 	VisitImportDashboardConfigResponse(w http.ResponseWriter) error
 }
 
-type ImportDashboardConfig200JSONResponse Envelope
+type ImportDashboardConfig200JSONResponse struct {
+	Data Dashboard `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response ImportDashboardConfig200JSONResponse) VisitImportDashboardConfigResponse(w http.ResponseWriter) error {
 
@@ -4116,7 +5332,10 @@ type ReorderDashboardsResponseObject interface {
 	VisitReorderDashboardsResponse(w http.ResponseWriter) error
 }
 
-type ReorderDashboards200JSONResponse Envelope
+type ReorderDashboards200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response ReorderDashboards200JSONResponse) VisitReorderDashboardsResponse(w http.ResponseWriter) error {
 
@@ -4166,7 +5385,10 @@ type DeleteDashboardResponseObject interface {
 	VisitDeleteDashboardResponse(w http.ResponseWriter) error
 }
 
-type DeleteDashboard200JSONResponse Envelope
+type DeleteDashboard200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response DeleteDashboard200JSONResponse) VisitDeleteDashboardResponse(w http.ResponseWriter) error {
 
@@ -4216,7 +5438,10 @@ type GetDashboardResponseObject interface {
 	VisitGetDashboardResponse(w http.ResponseWriter) error
 }
 
-type GetDashboard200JSONResponse Envelope
+type GetDashboard200JSONResponse struct {
+	Data Dashboard `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response GetDashboard200JSONResponse) VisitGetDashboardResponse(w http.ResponseWriter) error {
 
@@ -4267,7 +5492,10 @@ type PatchDashboardResponseObject interface {
 	VisitPatchDashboardResponse(w http.ResponseWriter) error
 }
 
-type PatchDashboard200JSONResponse Envelope
+type PatchDashboard200JSONResponse struct {
+	Data Dashboard `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response PatchDashboard200JSONResponse) VisitPatchDashboardResponse(w http.ResponseWriter) error {
 
@@ -4317,17 +5545,23 @@ type ExportDashboardConfigResponseObject interface {
 	VisitExportDashboardConfigResponse(w http.ResponseWriter) error
 }
 
-type ExportDashboardConfig200JSONResponse Envelope
+type ExportDashboardConfig200ApplicationyamlResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
 
-func (response ExportDashboardConfig200JSONResponse) VisitExportDashboardConfigResponse(w http.ResponseWriter) error {
+func (response ExportDashboardConfig200ApplicationyamlResponse) VisitExportDashboardConfigResponse(w http.ResponseWriter) error {
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
+	w.Header().Set("Content-Type", "application/yaml")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
 	}
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
 	return err
 }
 
@@ -4368,7 +5602,10 @@ type CreateDashboardPanelResponseObject interface {
 	VisitCreateDashboardPanelResponse(w http.ResponseWriter) error
 }
 
-type CreateDashboardPanel200JSONResponse Envelope
+type CreateDashboardPanel200JSONResponse struct {
+	Data DashboardPanel `json:"data"`
+	Meta Meta           `json:"meta"`
+}
 
 func (response CreateDashboardPanel200JSONResponse) VisitCreateDashboardPanelResponse(w http.ResponseWriter) error {
 
@@ -4419,7 +5656,10 @@ type DeleteDashboardPanelResponseObject interface {
 	VisitDeleteDashboardPanelResponse(w http.ResponseWriter) error
 }
 
-type DeleteDashboardPanel200JSONResponse Envelope
+type DeleteDashboardPanel200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response DeleteDashboardPanel200JSONResponse) VisitDeleteDashboardPanelResponse(w http.ResponseWriter) error {
 
@@ -4471,7 +5711,10 @@ type PatchDashboardPanelResponseObject interface {
 	VisitPatchDashboardPanelResponse(w http.ResponseWriter) error
 }
 
-type PatchDashboardPanel200JSONResponse Envelope
+type PatchDashboardPanel200JSONResponse struct {
+	Data DashboardPanel `json:"data"`
+	Meta Meta           `json:"meta"`
+}
 
 func (response PatchDashboardPanel200JSONResponse) VisitPatchDashboardPanelResponse(w http.ResponseWriter) error {
 
@@ -4523,7 +5766,10 @@ type MoveDashboardPanelResponseObject interface {
 	VisitMoveDashboardPanelResponse(w http.ResponseWriter) error
 }
 
-type MoveDashboardPanel200JSONResponse Envelope
+type MoveDashboardPanel200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response MoveDashboardPanel200JSONResponse) VisitMoveDashboardPanelResponse(w http.ResponseWriter) error {
 
@@ -4574,7 +5820,10 @@ type PreviewDashboardQueryResponseObject interface {
 	VisitPreviewDashboardQueryResponse(w http.ResponseWriter) error
 }
 
-type PreviewDashboardQuery200JSONResponse Envelope
+type PreviewDashboardQuery200JSONResponse struct {
+	Data QueryPreview `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response PreviewDashboardQuery200JSONResponse) VisitPreviewDashboardQueryResponse(w http.ResponseWriter) error {
 
@@ -4625,7 +5874,10 @@ type CreateDashboardVariableResponseObject interface {
 	VisitCreateDashboardVariableResponse(w http.ResponseWriter) error
 }
 
-type CreateDashboardVariable200JSONResponse Envelope
+type CreateDashboardVariable200JSONResponse struct {
+	Data DashboardVariable `json:"data"`
+	Meta Meta              `json:"meta"`
+}
 
 func (response CreateDashboardVariable200JSONResponse) VisitCreateDashboardVariableResponse(w http.ResponseWriter) error {
 
@@ -4676,7 +5928,10 @@ type DeleteDashboardVariableResponseObject interface {
 	VisitDeleteDashboardVariableResponse(w http.ResponseWriter) error
 }
 
-type DeleteDashboardVariable200JSONResponse Envelope
+type DeleteDashboardVariable200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response DeleteDashboardVariable200JSONResponse) VisitDeleteDashboardVariableResponse(w http.ResponseWriter) error {
 
@@ -4725,7 +5980,10 @@ type GetDatabaseSchemaResponseObject interface {
 	VisitGetDatabaseSchemaResponse(w http.ResponseWriter) error
 }
 
-type GetDatabaseSchema200JSONResponse Envelope
+type GetDatabaseSchema200JSONResponse struct {
+	Data DatabaseSchemaCatalog `json:"data"`
+	Meta Meta                  `json:"meta"`
+}
 
 func (response GetDatabaseSchema200JSONResponse) VisitGetDatabaseSchemaResponse(w http.ResponseWriter) error {
 
@@ -4823,7 +6081,10 @@ type ListForwardersResponseObject interface {
 	VisitListForwardersResponse(w http.ResponseWriter) error
 }
 
-type ListForwarders200JSONResponse Envelope
+type ListForwarders200JSONResponse struct {
+	Data []ForwarderStatus `json:"data"`
+	Meta Meta              `json:"meta"`
+}
 
 func (response ListForwarders200JSONResponse) VisitListForwardersResponse(w http.ResponseWriter) error {
 
@@ -4872,7 +6133,10 @@ type GetHealthResponseObject interface {
 	VisitGetHealthResponse(w http.ResponseWriter) error
 }
 
-type GetHealth200JSONResponse Envelope
+type GetHealth200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseWriter) error {
 
@@ -4921,7 +6185,10 @@ type ListIssuesResponseObject interface {
 	VisitListIssuesResponse(w http.ResponseWriter) error
 }
 
-type ListIssues200JSONResponse Envelope
+type ListIssues200JSONResponse struct {
+	Data []TraceIssue `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response ListIssues200JSONResponse) VisitListIssuesResponse(w http.ResponseWriter) error {
 
@@ -4970,7 +6237,10 @@ type ListLintResponseObject interface {
 	VisitListLintResponse(w http.ResponseWriter) error
 }
 
-type ListLint200JSONResponse Envelope
+type ListLint200JSONResponse struct {
+	Data []LintWarning `json:"data"`
+	Meta Meta          `json:"meta"`
+}
 
 func (response ListLint200JSONResponse) VisitListLintResponse(w http.ResponseWriter) error {
 
@@ -5019,7 +6289,10 @@ type ListLogsResponseObject interface {
 	VisitListLogsResponse(w http.ResponseWriter) error
 }
 
-type ListLogs200JSONResponse Envelope
+type ListLogs200JSONResponse struct {
+	Data []Log `json:"data"`
+	Meta Meta  `json:"meta"`
+}
 
 func (response ListLogs200JSONResponse) VisitListLogsResponse(w http.ResponseWriter) error {
 
@@ -5068,7 +6341,10 @@ type ListMetricsResponseObject interface {
 	VisitListMetricsResponse(w http.ResponseWriter) error
 }
 
-type ListMetrics200JSONResponse Envelope
+type ListMetrics200JSONResponse struct {
+	Data []MetricCatalogEntry `json:"data"`
+	Meta Meta                 `json:"meta"`
+}
 
 func (response ListMetrics200JSONResponse) VisitListMetricsResponse(w http.ResponseWriter) error {
 
@@ -5117,7 +6393,10 @@ type GetMetricCardinalityResponseObject interface {
 	VisitGetMetricCardinalityResponse(w http.ResponseWriter) error
 }
 
-type GetMetricCardinality200JSONResponse Envelope
+type GetMetricCardinality200JSONResponse struct {
+	Data []MetricCardinalityStream `json:"data"`
+	Meta Meta                      `json:"meta"`
+}
 
 func (response GetMetricCardinality200JSONResponse) VisitGetMetricCardinalityResponse(w http.ResponseWriter) error {
 
@@ -5166,7 +6445,10 @@ type GetMetricSeriesResponseObject interface {
 	VisitGetMetricSeriesResponse(w http.ResponseWriter) error
 }
 
-type GetMetricSeries200JSONResponse Envelope
+type GetMetricSeries200JSONResponse struct {
+	Data MetricSeries `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response GetMetricSeries200JSONResponse) VisitGetMetricSeriesResponse(w http.ResponseWriter) error {
 
@@ -5215,15 +6497,15 @@ type GetOpenAPISpecResponseObject interface {
 	VisitGetOpenAPISpecResponse(w http.ResponseWriter) error
 }
 
-type GetOpenAPISpec200JSONResponse Envelope
+type GetOpenAPISpec200ApplicationVndOaiOpenapiPlusJSONVersion31Response string
 
-func (response GetOpenAPISpec200JSONResponse) VisitGetOpenAPISpecResponse(w http.ResponseWriter) error {
+func (response GetOpenAPISpec200ApplicationVndOaiOpenapiPlusJSONVersion31Response) VisitGetOpenAPISpecResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/vnd.oai.openapi+json;version=3.1")
 	w.WriteHeader(200)
 	_, err := buf.WriteTo(w)
 	return err
@@ -5264,7 +6546,10 @@ type ListQueryCatalogResponseObject interface {
 	VisitListQueryCatalogResponse(w http.ResponseWriter) error
 }
 
-type ListQueryCatalog200JSONResponse Envelope
+type ListQueryCatalog200JSONResponse struct {
+	Data []QueryCatalogEntry `json:"data"`
+	Meta Meta                `json:"meta"`
+}
 
 func (response ListQueryCatalog200JSONResponse) VisitListQueryCatalogResponse(w http.ResponseWriter) error {
 
@@ -5313,7 +6598,10 @@ type SearchTelemetryResponseObject interface {
 	VisitSearchTelemetryResponse(w http.ResponseWriter) error
 }
 
-type SearchTelemetry200JSONResponse Envelope
+type SearchTelemetry200JSONResponse struct {
+	Data []SearchResult `json:"data"`
+	Meta Meta           `json:"meta"`
+}
 
 func (response SearchTelemetry200JSONResponse) VisitSearchTelemetryResponse(w http.ResponseWriter) error {
 
@@ -5362,7 +6650,10 @@ type GetServiceMapResponseObject interface {
 	VisitGetServiceMapResponse(w http.ResponseWriter) error
 }
 
-type GetServiceMap200JSONResponse Envelope
+type GetServiceMap200JSONResponse struct {
+	Data ServiceMapData `json:"data"`
+	Meta Meta           `json:"meta"`
+}
 
 func (response GetServiceMap200JSONResponse) VisitGetServiceMapResponse(w http.ResponseWriter) error {
 
@@ -5411,7 +6702,10 @@ type ListServicesResponseObject interface {
 	VisitListServicesResponse(w http.ResponseWriter) error
 }
 
-type ListServices200JSONResponse Envelope
+type ListServices200JSONResponse struct {
+	Data []String `json:"data"`
+	Meta Meta     `json:"meta"`
+}
 
 func (response ListServices200JSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
 
@@ -5460,7 +6754,10 @@ type ListSessionsResponseObject interface {
 	VisitListSessionsResponse(w http.ResponseWriter) error
 }
 
-type ListSessions200JSONResponse Envelope
+type ListSessions200JSONResponse struct {
+	Data []Session `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response ListSessions200JSONResponse) VisitListSessionsResponse(w http.ResponseWriter) error {
 
@@ -5510,7 +6807,10 @@ type CreateSessionResponseObject interface {
 	VisitCreateSessionResponse(w http.ResponseWriter) error
 }
 
-type CreateSession200JSONResponse Envelope
+type CreateSession200JSONResponse struct {
+	Data Session `json:"data"`
+	Meta Meta    `json:"meta"`
+}
 
 func (response CreateSession200JSONResponse) VisitCreateSessionResponse(w http.ResponseWriter) error {
 
@@ -5559,7 +6859,10 @@ type GetActiveSessionResponseObject interface {
 	VisitGetActiveSessionResponse(w http.ResponseWriter) error
 }
 
-type GetActiveSession200JSONResponse Envelope
+type GetActiveSession200JSONResponse struct {
+	Data ActiveSession `json:"data"`
+	Meta Meta          `json:"meta"`
+}
 
 func (response GetActiveSession200JSONResponse) VisitGetActiveSessionResponse(w http.ResponseWriter) error {
 
@@ -5609,7 +6912,10 @@ type ImportSessionResponseObject interface {
 	VisitImportSessionResponse(w http.ResponseWriter) error
 }
 
-type ImportSession200JSONResponse Envelope
+type ImportSession200JSONResponse struct {
+	Data ImportResult `json:"data"`
+	Meta Meta         `json:"meta"`
+}
 
 func (response ImportSession200JSONResponse) VisitImportSessionResponse(w http.ResponseWriter) error {
 
@@ -5659,7 +6965,10 @@ type DeleteSessionResponseObject interface {
 	VisitDeleteSessionResponse(w http.ResponseWriter) error
 }
 
-type DeleteSession200JSONResponse Envelope
+type DeleteSession200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response DeleteSession200JSONResponse) VisitDeleteSessionResponse(w http.ResponseWriter) error {
 
@@ -5709,7 +7018,10 @@ type GetSessionResponseObject interface {
 	VisitGetSessionResponse(w http.ResponseWriter) error
 }
 
-type GetSession200JSONResponse Envelope
+type GetSession200JSONResponse struct {
+	Data Session `json:"data"`
+	Meta Meta    `json:"meta"`
+}
 
 func (response GetSession200JSONResponse) VisitGetSessionResponse(w http.ResponseWriter) error {
 
@@ -5760,7 +7072,10 @@ type PatchSessionResponseObject interface {
 	VisitPatchSessionResponse(w http.ResponseWriter) error
 }
 
-type PatchSession200JSONResponse Envelope
+type PatchSession200JSONResponse struct {
+	Data Session `json:"data"`
+	Meta Meta    `json:"meta"`
+}
 
 func (response PatchSession200JSONResponse) VisitPatchSessionResponse(w http.ResponseWriter) error {
 
@@ -5811,7 +7126,10 @@ type ActivateSessionResponseObject interface {
 	VisitActivateSessionResponse(w http.ResponseWriter) error
 }
 
-type ActivateSession200JSONResponse Envelope
+type ActivateSession200JSONResponse struct {
+	Data Session `json:"data"`
+	Meta Meta    `json:"meta"`
+}
 
 func (response ActivateSession200JSONResponse) VisitActivateSessionResponse(w http.ResponseWriter) error {
 
@@ -5862,7 +7180,10 @@ type SetSessionBaselineResponseObject interface {
 	VisitSetSessionBaselineResponse(w http.ResponseWriter) error
 }
 
-type SetSessionBaseline200JSONResponse Envelope
+type SetSessionBaseline200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response SetSessionBaseline200JSONResponse) VisitSetSessionBaselineResponse(w http.ResponseWriter) error {
 
@@ -5912,7 +7233,7 @@ type ExportSessionBaselineResponseObject interface {
 	VisitExportSessionBaselineResponse(w http.ResponseWriter) error
 }
 
-type ExportSessionBaseline200JSONResponse Envelope
+type ExportSessionBaseline200JSONResponse string
 
 func (response ExportSessionBaseline200JSONResponse) VisitExportSessionBaselineResponse(w http.ResponseWriter) error {
 
@@ -5961,7 +7282,10 @@ type GetSettingsResponseObject interface {
 	VisitGetSettingsResponse(w http.ResponseWriter) error
 }
 
-type GetSettings200JSONResponse Envelope
+type GetSettings200JSONResponse struct {
+	Data SettingsResponse `json:"data"`
+	Meta Meta             `json:"meta"`
+}
 
 func (response GetSettings200JSONResponse) VisitGetSettingsResponse(w http.ResponseWriter) error {
 
@@ -6011,7 +7335,10 @@ type PutSettingsResponseObject interface {
 	VisitPutSettingsResponse(w http.ResponseWriter) error
 }
 
-type PutSettings200JSONResponse Envelope
+type PutSettings200JSONResponse struct {
+	Data Settings `json:"data"`
+	Meta Meta     `json:"meta"`
+}
 
 func (response PutSettings200JSONResponse) VisitPutSettingsResponse(w http.ResponseWriter) error {
 
@@ -6061,7 +7388,10 @@ type CheckUpdatesResponseObject interface {
 	VisitCheckUpdatesResponse(w http.ResponseWriter) error
 }
 
-type CheckUpdates200JSONResponse Envelope
+type CheckUpdates200JSONResponse struct {
+	Data UpdateCheckResult `json:"data"`
+	Meta Meta              `json:"meta"`
+}
 
 func (response CheckUpdates200JSONResponse) VisitCheckUpdatesResponse(w http.ResponseWriter) error {
 
@@ -6111,7 +7441,10 @@ type CompactStorageResponseObject interface {
 	VisitCompactStorageResponse(w http.ResponseWriter) error
 }
 
-type CompactStorage200JSONResponse Envelope
+type CompactStorage200JSONResponse struct {
+	Data CompactResult `json:"data"`
+	Meta Meta          `json:"meta"`
+}
 
 func (response CompactStorage200JSONResponse) VisitCompactStorageResponse(w http.ResponseWriter) error {
 
@@ -6160,7 +7493,10 @@ type DropAllDataResponseObject interface {
 	VisitDropAllDataResponse(w http.ResponseWriter) error
 }
 
-type DropAllData200JSONResponse Envelope
+type DropAllData200JSONResponse struct {
+	Data Ok   `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response DropAllData200JSONResponse) VisitDropAllDataResponse(w http.ResponseWriter) error {
 
@@ -6210,7 +7546,10 @@ type PruneStorageResponseObject interface {
 	VisitPruneStorageResponse(w http.ResponseWriter) error
 }
 
-type PruneStorage200JSONResponse Envelope
+type PruneStorage200JSONResponse struct {
+	Data PruneResult `json:"data"`
+	Meta Meta        `json:"meta"`
+}
 
 func (response PruneStorage200JSONResponse) VisitPruneStorageResponse(w http.ResponseWriter) error {
 
@@ -6259,7 +7598,10 @@ type ListSourcesResponseObject interface {
 	VisitListSourcesResponse(w http.ResponseWriter) error
 }
 
-type ListSources200JSONResponse Envelope
+type ListSources200JSONResponse struct {
+	Data []SourceStats `json:"data"`
+	Meta Meta          `json:"meta"`
+}
 
 func (response ListSources200JSONResponse) VisitListSourcesResponse(w http.ResponseWriter) error {
 
@@ -6308,7 +7650,10 @@ type ListSpansResponseObject interface {
 	VisitListSpansResponse(w http.ResponseWriter) error
 }
 
-type ListSpans200JSONResponse Envelope
+type ListSpans200JSONResponse struct {
+	Data []SpanRow `json:"data"`
+	Meta Meta      `json:"meta"`
+}
 
 func (response ListSpans200JSONResponse) VisitListSpansResponse(w http.ResponseWriter) error {
 
@@ -6358,7 +7703,10 @@ type GetSpanResponseObject interface {
 	VisitGetSpanResponse(w http.ResponseWriter) error
 }
 
-type GetSpan200JSONResponse Envelope
+type GetSpan200JSONResponse struct {
+	Data Span `json:"data"`
+	Meta Meta `json:"meta"`
+}
 
 func (response GetSpan200JSONResponse) VisitGetSpanResponse(w http.ResponseWriter) error {
 
@@ -6407,7 +7755,10 @@ type GetStatsResponseObject interface {
 	VisitGetStatsResponse(w http.ResponseWriter) error
 }
 
-type GetStats200JSONResponse Envelope
+type GetStats200JSONResponse struct {
+	Data Stats `json:"data"`
+	Meta Meta  `json:"meta"`
+}
 
 func (response GetStats200JSONResponse) VisitGetStatsResponse(w http.ResponseWriter) error {
 
@@ -6456,7 +7807,10 @@ type GetStorageBreakdownResponseObject interface {
 	VisitGetStorageBreakdownResponse(w http.ResponseWriter) error
 }
 
-type GetStorageBreakdown200JSONResponse Envelope
+type GetStorageBreakdown200JSONResponse struct {
+	Data StorageBreakdown `json:"data"`
+	Meta Meta             `json:"meta"`
+}
 
 func (response GetStorageBreakdown200JSONResponse) VisitGetStorageBreakdownResponse(w http.ResponseWriter) error {
 
@@ -6505,7 +7859,10 @@ type ListTracesResponseObject interface {
 	VisitListTracesResponse(w http.ResponseWriter) error
 }
 
-type ListTraces200JSONResponse Envelope
+type ListTraces200JSONResponse struct {
+	Data []TraceRow `json:"data"`
+	Meta Meta       `json:"meta"`
+}
 
 func (response ListTraces200JSONResponse) VisitListTracesResponse(w http.ResponseWriter) error {
 
@@ -6555,7 +7912,10 @@ type GetTraceResponseObject interface {
 	VisitGetTraceResponse(w http.ResponseWriter) error
 }
 
-type GetTrace200JSONResponse Envelope
+type GetTrace200JSONResponse struct {
+	Data []Span `json:"data"`
+	Meta Meta   `json:"meta"`
+}
 
 func (response GetTrace200JSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
 
@@ -6605,7 +7965,7 @@ type ExportTraceResponseObject interface {
 	VisitExportTraceResponse(w http.ResponseWriter) error
 }
 
-type ExportTrace200JSONResponse Envelope
+type ExportTrace200JSONResponse string
 
 func (response ExportTrace200JSONResponse) VisitExportTraceResponse(w http.ResponseWriter) error {
 
@@ -6655,7 +8015,10 @@ type ListIncomingLinksResponseObject interface {
 	VisitListIncomingLinksResponse(w http.ResponseWriter) error
 }
 
-type ListIncomingLinks200JSONResponse Envelope
+type ListIncomingLinks200JSONResponse struct {
+	Data []Span `json:"data"`
+	Meta Meta   `json:"meta"`
+}
 
 func (response ListIncomingLinks200JSONResponse) VisitListIncomingLinksResponse(w http.ResponseWriter) error {
 
@@ -9212,55 +10575,121 @@ func (sh *strictHandler) ListIncomingLinks(w http.ResponseWriter, r *http.Reques
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"rO9YF67nvdwbWXxa/G8A",
+	"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",
+	"SwuF6VRF3AMpA1Icmn23N0aPnx//fwA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

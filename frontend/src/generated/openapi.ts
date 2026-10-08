@@ -1109,6 +1109,314 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    ActiveSession: {
+      id: string
+      label: string
+    }
+    AlertEvent: {
+      created_at: number
+      detail: string
+      group_key: string
+      id: string
+      kind: string
+      rule_id: string
+      state: string
+      value?: number | null
+    }
+    AlertInstance: {
+      acknowledged_at?: number | null
+      acknowledgement_note: string
+      fired_at?: number | null
+      first_pending_at?: number | null
+      group_key: string
+      labels_json: string
+      last_error: string
+      last_evaluated_at: number
+      resolved_at?: number | null
+      rule_id: string
+      state: string
+      value?: number | null
+    }
+    AlertList: {
+      items: {
+        annotations_json: string
+        browser_enabled: boolean
+        condition_json: string
+        cooldown_ns: number
+        created_at: number
+        enabled: boolean
+        group_by_json: string
+        id: string
+        instance_discovery_interval_ns: number
+        instance_discovery_last_run_at: number
+        instance_discovery_sql: string
+        instance_discovery_stale_after_ns: number
+        /** @default [] */
+        instances: {
+          acknowledged_at?: number | null
+          acknowledgement_note: string
+          fired_at?: number | null
+          first_pending_at?: number | null
+          group_key: string
+          labels_json: string
+          last_error: string
+          last_evaluated_at: number
+          resolved_at?: number | null
+          rule_id: string
+          state: string
+          value?: number | null
+        }[]
+        last_duration_ns: number
+        last_error: string
+        last_evaluated_at: number
+        last_success_at: number
+        name: string
+        next_evaluation_at: number
+        owner: string
+        pending_for_ns: number
+        pushover_enabled: boolean
+        query_sql: string
+        query_version: number
+        repeat_interval_ns: number
+        /** @enum {string} */
+        severity: 'info' | 'warning' | 'critical'
+        source_file: string
+        source_hash: string
+        team: string
+        updated_at: number
+      }[]
+      summary: {
+        instance_counts: {
+          [key: string]: number
+        }
+        rule_counts: {
+          [key: string]: number
+        }
+      }
+    }
+    AlertRule: {
+      annotations_json: string
+      browser_enabled: boolean
+      condition_json: string
+      cooldown_ns: number
+      created_at: number
+      enabled: boolean
+      group_by_json: string
+      id: string
+      instance_discovery_interval_ns: number
+      instance_discovery_last_run_at: number
+      instance_discovery_sql: string
+      instance_discovery_stale_after_ns: number
+      /** @default [] */
+      instances: {
+        acknowledged_at?: number | null
+        acknowledgement_note: string
+        fired_at?: number | null
+        first_pending_at?: number | null
+        group_key: string
+        labels_json: string
+        last_error: string
+        last_evaluated_at: number
+        resolved_at?: number | null
+        rule_id: string
+        state: string
+        value?: number | null
+      }[]
+      last_duration_ns: number
+      last_error: string
+      last_evaluated_at: number
+      last_success_at: number
+      name: string
+      next_evaluation_at: number
+      owner: string
+      pending_for_ns: number
+      pushover_enabled: boolean
+      query_sql: string
+      query_version: number
+      repeat_interval_ns: number
+      /** @enum {string} */
+      severity: 'info' | 'warning' | 'critical'
+      source_file: string
+      source_hash: string
+      team: string
+      updated_at: number
+    }
+    AlertSilence: {
+      comment: string
+      created_at: number
+      ends_at: number
+      group_key: string
+      id: string
+      rule_id: string
+      starts_at: number
+    }
+    AlertTestNotification: {
+      body?: string
+      /** @enum {string} */
+      destination: 'browser' | 'pushover'
+      /** @enum {string} */
+      status: 'sent' | 'suppressed'
+    }
+    CompactResult: {
+      bytes_after: number
+      bytes_before: number
+      reclaimed: number
+    }
+    CoverageReport: {
+      overall: {
+        coverage_pct: number
+        dark_count: number
+        observed_operations: number
+        total_routes: number
+      }
+      services: {
+        coverage_pct: number
+        dark_routes: {
+          hits: number
+          method: string
+          p95_ns?: number
+          path: string
+        }[]
+        name: string
+        observed_operations: number
+        observed_routes: {
+          hits: number
+          method: string
+          p95_ns?: number
+          path: string
+        }[]
+        /** @enum {string} */
+        source: 'openapi' | 'observed'
+        spec?: string
+        total_routes: number
+      }[]
+    }
+    CoverageRoute: {
+      hits: number
+      method: string
+      p95_ns?: number
+      path: string
+    }
+    Dashboard: {
+      created_at: number
+      description: string
+      id: string
+      name: string
+      /** @default [] */
+      panels: {
+        dashboard_id: string
+        /** @enum {string} */
+        display_type:
+          | 'single_value'
+          | 'time_series'
+          | 'table'
+          | 'heatmap'
+          | 'entity_list'
+          | 'trace_list'
+          | 'span_list'
+          | 'log_list'
+          | 'deploy_correlation'
+        id: string
+        layout_json: string
+        position: number
+        query_sql: string
+        query_version: number
+        settings_json: string
+        title: string
+        updated_at: number
+      }[]
+      updated_at: number
+      /** @default [] */
+      variables: {
+        dashboard_id: string
+        default_value: string
+        /** @enum {string} */
+        kind:
+          | 'attribute'
+          | 'string'
+          | 'number'
+          | 'boolean'
+          | 'duration'
+          | 'time'
+          | 'enum'
+          | 'service'
+          | 'operation'
+          | 'trace_id'
+          | 'span_id'
+          | 'log_id'
+        name: string
+        options_json: string
+        source: string
+      }[]
+    }
+    DashboardPanel: {
+      dashboard_id: string
+      /** @enum {string} */
+      display_type:
+        | 'single_value'
+        | 'time_series'
+        | 'table'
+        | 'heatmap'
+        | 'entity_list'
+        | 'trace_list'
+        | 'span_list'
+        | 'log_list'
+        | 'deploy_correlation'
+      id: string
+      layout_json: string
+      position: number
+      query_sql: string
+      query_version: number
+      settings_json: string
+      title: string
+      updated_at: number
+    }
+    DashboardVariable: {
+      dashboard_id: string
+      default_value: string
+      /** @enum {string} */
+      kind:
+        | 'attribute'
+        | 'string'
+        | 'number'
+        | 'boolean'
+        | 'duration'
+        | 'time'
+        | 'enum'
+        | 'service'
+        | 'operation'
+        | 'trace_id'
+        | 'span_id'
+        | 'log_id'
+      name: string
+      options_json: string
+      source: string
+    }
+    DatabaseSchemaCatalog: {
+      fingerprint: string
+      /** @default [] */
+      parameters: string[]
+      version: string
+      views: {
+        columns: {
+          description: string
+          name: string
+          sensitivity?: string
+          type: string
+          use_it_for: string
+        }[]
+        name: string
+        purpose: string
+        /** @default [] */
+        samples: {
+          display_type: string
+          explanation: string
+          id: string
+          sql: string
+          title: string
+        }[]
+      }[]
+    }
     Envelope: {
       data: components['schemas']['JSONValue']
       meta: components['schemas']['Meta']
@@ -1116,12 +1424,621 @@ export interface components {
     Error: {
       error: string
     }
+    ForwarderStatus: {
+      dropped_spool?: number
+      errors: number
+      last_error?: string
+      pending_bytes?: number
+      sent: number
+      url: string
+    }
+    ImportResult: {
+      session: {
+        created_at: number
+        error_count: number
+        id: string
+        is_baseline: boolean
+        is_imported: boolean
+        label: string
+        last_activity_ns: number
+        n1_count: number
+        note: string
+        p95_ns: number
+        services: string
+        size_bytes: number
+        span_count: number
+        trace_count: number
+      }
+      span_count: number
+      trace_count: number
+    }
     JSONValue: unknown
+    LintWarning: {
+      created_at: number
+      message: string
+      rule_id: string
+      session_id: string
+      severity: string
+      span_id: string
+      trace_id: string
+    }
+    Log: {
+      attributes: string
+      body: string
+      received_at: number
+      service_name: string
+      session_id: string
+      severity: number
+      span_id: string
+      timestamp_ns: number
+      trace_id: string
+    }
     Meta: {
       page?: number
       total?: number
     } & {
       [key: string]: unknown
+    }
+    MetricCardinalityStream: {
+      active_series: number
+      limit: number
+      name: string
+      service_name: string
+    }
+    MetricCatalogEntry: {
+      aggregation_temporality?: string
+      description: string
+      is_monotonic?: boolean
+      last_timestamp_ns: number
+      name: string
+      sample_count: number
+      service_name: string
+      type: string
+      unit: string
+    }
+    MetricSeries: {
+      aggregation?: string
+      aggregation_temporality?: string
+      description: string
+      dimensions?: {
+        [key: string]: string[]
+      }
+      is_monotonic?: boolean
+      name: string
+      operation?: string
+      points: {
+        bounds?: number[]
+        buckets?: number[]
+        count?: number
+        exemplars?: {
+          span_id: string
+          trace_id: string
+        }[]
+        exp_negative_counts?: number[]
+        exp_negative_offset?: number
+        exp_positive_counts?: number[]
+        exp_positive_offset?: number
+        exp_scale?: number
+        exp_zero_count?: number
+        exp_zero_threshold?: number
+        flags?: number
+        max?: number
+        min?: number
+        /** @enum {string} */
+        percentile?: 'p50' | 'p95' | 'p99'
+        quantiles?: {
+          [key: string]: number
+        }
+        scope_attributes?: {
+          [key: string]: unknown
+        }
+        scope_name?: string
+        scope_schema_url?: string
+        scope_version?: string
+        start_timestamp_ns?: number
+        sum?: number
+        timestamp_ns: number
+        value: number
+      }[]
+      series?: {
+        attributes: {
+          [key: string]: unknown
+        }
+        key: string
+        points: {
+          bounds?: number[]
+          buckets?: number[]
+          count?: number
+          exemplars?: {
+            span_id: string
+            trace_id: string
+          }[]
+          exp_negative_counts?: number[]
+          exp_negative_offset?: number
+          exp_positive_counts?: number[]
+          exp_positive_offset?: number
+          exp_scale?: number
+          exp_zero_count?: number
+          exp_zero_threshold?: number
+          flags?: number
+          max?: number
+          min?: number
+          /** @enum {string} */
+          percentile?: 'p50' | 'p95' | 'p99'
+          quantiles?: {
+            [key: string]: number
+          }
+          scope_attributes?: {
+            [key: string]: unknown
+          }
+          scope_name?: string
+          scope_schema_url?: string
+          scope_version?: string
+          start_timestamp_ns?: number
+          sum?: number
+          timestamp_ns: number
+          value: number
+        }[]
+      }[]
+      service_name: string
+      traces: {
+        duration_ns: number
+        end_ns: number
+        op: string
+        service: string
+        start_ns: number
+        status_code: number
+        trace_id: string
+      }[]
+      type: string
+      unit: string
+    }
+    MetricSeriesExemplar: {
+      span_id: string
+      trace_id: string
+    }
+    MetricSeriesPoint: {
+      bounds?: number[]
+      buckets?: number[]
+      count?: number
+      exemplars?: {
+        span_id: string
+        trace_id: string
+      }[]
+      exp_negative_counts?: number[]
+      exp_negative_offset?: number
+      exp_positive_counts?: number[]
+      exp_positive_offset?: number
+      exp_scale?: number
+      exp_zero_count?: number
+      exp_zero_threshold?: number
+      flags?: number
+      max?: number
+      min?: number
+      /** @enum {string} */
+      percentile?: 'p50' | 'p95' | 'p99'
+      quantiles?: {
+        [key: string]: number
+      }
+      scope_attributes?: {
+        [key: string]: unknown
+      }
+      scope_name?: string
+      scope_schema_url?: string
+      scope_version?: string
+      start_timestamp_ns?: number
+      sum?: number
+      timestamp_ns: number
+      value: number
+    }
+    Ok: {
+      ok: boolean
+    }
+    PruneResult: {
+      deleted_by_age: number
+      deleted_by_count: number
+      deleted_by_size: number
+      final_db_size_bytes: number
+      final_sessions: number
+    }
+    QueryCatalogEntry: {
+      attributes?: {
+        [key: string]: unknown
+      }
+      display_type: string
+      name: string
+      query: string
+      signal: string
+    }
+    QueryPreview: {
+      columns: string[]
+      condition?: {
+        kind?: string
+        operator?: string
+        pattern?: string
+        value?: number
+      }
+      display_type?: string
+      notification_preview?: {
+        destination: string
+        reason?: string
+        status: string
+      }[]
+      rows: {
+        [key: string]: unknown
+      }[]
+      /** @default [] */
+      warnings: string[]
+    }
+    SearchResult: {
+      /** @enum {string} */
+      kind: 'trace' | 'span' | 'session' | 'service' | 'log'
+      session_id: string
+      span_id?: string
+      subtitle: string
+      title: string
+      trace_id: string
+    }
+    ServiceCoverage: {
+      coverage_pct: number
+      dark_routes: {
+        hits: number
+        method: string
+        p95_ns?: number
+        path: string
+      }[]
+      name: string
+      observed_operations: number
+      observed_routes: {
+        hits: number
+        method: string
+        p95_ns?: number
+        path: string
+      }[]
+      /** @enum {string} */
+      source: 'openapi' | 'observed'
+      spec?: string
+      total_routes: number
+    }
+    ServiceMapData: {
+      edges: {
+        avg_duration_ns: number
+        call_count: number
+        error_count: number
+        from: string
+        to: string
+      }[]
+      nodes: {
+        error_count: number
+        id: string
+        p95_ns: number
+        span_count: number
+        top_operations: {
+          count: number
+          name: string
+          p95_ns: number
+        }[]
+      }[]
+    }
+    ServiceMapEdge: {
+      avg_duration_ns: number
+      call_count: number
+      error_count: number
+      from: string
+      to: string
+    }
+    ServiceMapNode: {
+      error_count: number
+      id: string
+      p95_ns: number
+      span_count: number
+      top_operations: {
+        count: number
+        name: string
+        p95_ns: number
+      }[]
+    }
+    ServiceMapOpStat: {
+      count: number
+      name: string
+      p95_ns: number
+    }
+    Session: {
+      created_at: number
+      error_count: number
+      id: string
+      is_baseline: boolean
+      is_imported: boolean
+      label: string
+      last_activity_ns: number
+      n1_count: number
+      note: string
+      p95_ns: number
+      services: string
+      size_bytes: number
+      span_count: number
+      trace_count: number
+    }
+    SessionSize: {
+      approx_bytes: number
+      id: string
+      label: string
+      span_count: number
+    }
+    Settings: {
+      advance_session_on_start: boolean
+      alerts_browser_enabled: boolean
+      alerts_browser_template: string
+      alerts_dir: string
+      alerts_pushover_configured: boolean
+      alerts_pushover_enabled: boolean
+      alerts_pushover_template: string
+      auto_prune: boolean
+      bearer_token_set: boolean
+      bind_address_v4: string
+      bind_address_v6: string
+      db_path: string
+      forward: string[]
+      forward_sample: number
+      max_db_size_mb: number
+      max_sessions: number
+      mcp_allow_writes: boolean
+      mcp_enabled: boolean
+      no_browser: boolean
+      otlp_grpc_port: number
+      otlp_http_port: number
+      port: number
+      retention_days: number
+      runtime: {
+        channel: string
+        config_path: string
+        db_size_bytes: number
+        otlp_grpc_port: number
+        otlp_http_port: number
+        pid: number
+        uptime_ns: number
+        version: string
+      }
+      self_monitor: boolean
+      source_burst: number
+      source_rps: number
+      tls_enabled: boolean
+    }
+    SettingsResponse: {
+      advance_session_on_start: boolean
+      alerts_browser_enabled: boolean
+      alerts_browser_template: string
+      alerts_dir: string
+      alerts_pushover_configured: boolean
+      alerts_pushover_enabled: boolean
+      alerts_pushover_template: string
+      /** @default true */
+      auto_prune: boolean
+      bearer_token_set: boolean
+      bind_address_v4: string
+      bind_address_v6: string
+      db_path: string
+      forward: string[]
+      forward_sample: number
+      max_db_size_mb: number
+      max_sessions: number
+      mcp_allow_writes: boolean
+      mcp_enabled: boolean
+      no_browser: boolean
+      otlp_grpc_port: number
+      otlp_http_port: number
+      port: number
+      retention_days: number
+      runtime: {
+        channel: string
+        config_path: string
+        db_size_bytes: number
+        otlp_grpc_port: number
+        otlp_http_port: number
+        pid: number
+        uptime_ns: number
+        version: string
+      }
+      self_monitor: boolean
+      source_burst: number
+      source_rps: number
+      tls_enabled: boolean
+    }
+    SettingsRuntime: {
+      channel: string
+      config_path: string
+      db_size_bytes: number
+      otlp_grpc_port: number
+      otlp_http_port: number
+      pid: number
+      uptime_ns: number
+      version: string
+    }
+    SourceStats: {
+      accepted_per_sec: number
+      bytes_per_sec: number
+      error_rate: number
+      last_seen_ns: number
+      rejected_per_sec: number
+      service: string
+    }
+    Span: {
+      attributes: string
+      duration_ns: number
+      end_ns: number
+      events: {
+        attributes: string
+        name: string
+        session_id: string
+        span_id: string
+        time_ns: number
+        trace_id: string
+      }[]
+      kind: number
+      links: {
+        attributes: string
+        linked_span_id: string
+        linked_trace_id: string
+        session_id: string
+        span_id: string
+        trace_id: string
+        trace_state: string
+      }[]
+      name: string
+      parent_span_id: string
+      received_at: number
+      resource: string
+      service_name: string
+      session_id: string
+      session_label: string
+      span_id: string
+      start_ns: number
+      status_code: number
+      status_message: string
+      trace_id: string
+    }
+    SpanEvent: {
+      attributes: string
+      name: string
+      session_id: string
+      span_id: string
+      time_ns: number
+      trace_id: string
+    }
+    SpanGroup: {
+      attribute_variants: number
+      count: number
+      error_count: number
+      kind: number
+      latest_start_ns: number
+      max_duration_ns: number
+      name: string
+      p50_duration_ns: number
+      p95_duration_ns: number
+      service_name: string
+    }
+    SpanLink: {
+      attributes: string
+      linked_span_id: string
+      linked_trace_id: string
+      session_id: string
+      span_id: string
+      trace_id: string
+      trace_state: string
+    }
+    SpanRow: {
+      attributes: string
+      duration_ns: number
+      end_ns: number
+      events: {
+        attributes: string
+        name: string
+        session_id: string
+        span_id: string
+        time_ns: number
+        trace_id: string
+      }[]
+      kind: number
+      links: {
+        attributes: string
+        linked_span_id: string
+        linked_trace_id: string
+        session_id: string
+        span_id: string
+        trace_id: string
+        trace_state: string
+      }[]
+      name: string
+      parent_span_id: string
+      received_at: number
+      resource: string
+      service_name: string
+      session_id: string
+      session_label: string
+      span_id: string
+      start_ns: number
+      status_code: number
+      status_message: string
+      tag?: string
+      trace_id: string
+    }
+    Stats: {
+      db_size: number
+      dropped_logs: number
+      dropped_metric_points: number
+      dropped_spans: number
+      last_drop_at: number
+      log_count: number
+      logs_per_sec: number
+      metrics_per_sec: number
+      peak_spans_per_sec: number
+      span_count: number
+      spans_per_sec: number
+      /** @default false */
+      storage_full: boolean
+      trace_count: number
+    }
+    StorageBreakdown: {
+      last_checkpoint_at: number
+      main_bytes: number
+      sessions: unknown
+      tables: {
+        approx_bytes: number
+        name: string
+        row_count: number
+      }[]
+      wal_bytes: number
+    }
+    String: string
+    TableStat: {
+      approx_bytes: number
+      name: string
+      row_count: number
+    }
+    TraceIssue: {
+      count: number
+      created_at: number
+      example_span_id: string
+      fingerprint: string
+      id: string
+      kind: string
+      parent_span_id: string
+      session_id: string
+      trace_id: string
+      wasted_ns: number
+    }
+    TraceOverlay: {
+      duration_ns: number
+      end_ns: number
+      op: string
+      service: string
+      start_ns: number
+      status_code: number
+      trace_id: string
+    }
+    TraceRow: {
+      attributes: string
+      duration_ns: number
+      end_ns: number
+      has_n1: boolean
+      issue_kinds?: string[]
+      name: string
+      service_name: string
+      session_id: string
+      session_label: string
+      span_count: number
+      start_ns: number
+      status_code: number
+      trace_id: string
+    }
+    UpdateCheckResult: {
+      channel: string
+      checked_at_ns: number
+      current: string
+      error?: string
+      is_outdated: boolean
+      latest: string
+      release_notes_url: string
     }
   }
   responses: {
@@ -1166,7 +2083,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertList']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1192,7 +2112,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertRule']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1214,7 +2137,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertEvent'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1240,7 +2166,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertRule']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1266,7 +2195,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['QueryPreview']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1292,7 +2224,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1316,7 +2251,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertRule']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1340,7 +2278,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1368,7 +2309,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertRule']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1396,7 +2340,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1420,7 +2367,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/yaml': string
         }
       }
       400: components['responses']['BadRequest']
@@ -1448,7 +2395,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertRule']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1472,7 +2422,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertEvent'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1500,7 +2453,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertInstance']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1528,7 +2484,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertInstance']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1556,7 +2515,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['QueryPreview']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1580,7 +2542,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertSilence'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1608,7 +2573,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertSilence']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1633,7 +2601,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1662,7 +2633,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertSilence']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1690,7 +2664,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['AlertTestNotification']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1712,7 +2689,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['CoverageReport']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1734,7 +2714,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Dashboard'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1760,7 +2743,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Dashboard']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1786,7 +2772,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Dashboard']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1812,7 +2801,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1836,7 +2828,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Dashboard']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1860,7 +2855,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1888,7 +2886,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Dashboard']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1912,7 +2913,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/yaml': string
         }
       }
       400: components['responses']['BadRequest']
@@ -1940,7 +2941,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['DashboardPanel']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1965,7 +2969,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -1994,7 +3001,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['DashboardPanel']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2023,7 +3033,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2051,7 +3064,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['QueryPreview']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2079,7 +3095,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['DashboardVariable']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2104,7 +3123,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2126,7 +3148,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['DatabaseSchemaCatalog']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2170,7 +3195,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['ForwarderStatus'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2192,7 +3220,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2214,7 +3245,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['TraceIssue'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2236,7 +3270,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['LintWarning'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2258,7 +3295,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Log'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2280,7 +3320,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['MetricCatalogEntry'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2302,7 +3345,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['MetricCardinalityStream'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2324,7 +3370,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['MetricSeries']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2346,7 +3395,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/vnd.oai.openapi+json;version=3.1': string
         }
       }
       400: components['responses']['BadRequest']
@@ -2368,7 +3417,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['QueryCatalogEntry'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2390,7 +3442,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['SearchResult'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2412,7 +3467,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['ServiceMapData']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2434,7 +3492,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['String'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2456,7 +3517,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Session'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2482,7 +3546,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Session']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2504,7 +3571,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['ActiveSession']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2530,7 +3600,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['ImportResult']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2554,7 +3627,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Session']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2578,7 +3654,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2606,7 +3685,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Session']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2634,7 +3716,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Session']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2662,7 +3747,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2686,7 +3774,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': string
         }
       }
       400: components['responses']['BadRequest']
@@ -2708,7 +3796,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['SettingsResponse']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2734,7 +3825,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Settings']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2760,7 +3854,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['UpdateCheckResult']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2786,7 +3883,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['CompactResult']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2808,7 +3908,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Ok']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2834,7 +3937,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['PruneResult']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2856,7 +3962,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['SourceStats'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2878,7 +3987,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['SpanRow'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2902,7 +4014,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Span']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2924,7 +4039,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Stats']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2946,7 +4064,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['StorageBreakdown']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2968,7 +4089,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['TraceRow'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -2992,7 +4116,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Span'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']
@@ -3016,7 +4143,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': string
         }
       }
       400: components['responses']['BadRequest']
@@ -3040,7 +4167,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['Span'][]
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']

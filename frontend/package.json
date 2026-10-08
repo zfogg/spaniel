@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "generate:openapi": "openapi-typescript ../api/openapi.json -o src/generated/openapi.ts && oxfmt --write src/generated/openapi.ts",
+    "export:openapi-schemas": "tsx scripts/export-openapi-schemas.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "format": "oxfmt --write .",
@@ -89,6 +90,7 @@
     "openapi-typescript": "^7.13.0",
     "oxfmt": "^0.72.0",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.7.2",
     "vite": "^6.0.5",
     "vitest": "^4.1.7"

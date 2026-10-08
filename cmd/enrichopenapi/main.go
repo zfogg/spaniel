@@ -16,6 +16,7 @@ func main() {
 	if err := json.Unmarshal(b, &doc); err != nil {
 		panic(err)
 	}
+	applyFrontendSchemas(doc)
 	doc["tags"] = []any{map[string]any{"name": "Traces", "description": "Trace, span, log, service, and investigation APIs."}, map[string]any{"name": "Sessions", "description": "Capture session lifecycle and comparison APIs."}, map[string]any{"name": "Metrics", "description": "Metric catalog, cardinality, and time-series APIs."}, map[string]any{"name": "Dashboards", "description": "Dashboard definitions, panels, and variables."}, map[string]any{"name": "Alerts", "description": "Alert rules, instances, events, and silences."}, map[string]any{"name": "Administration", "description": "Settings, storage, coverage, schema, and source metadata."}}
 	for path, item := range doc["paths"].(map[string]any) {
 		for method, raw := range item.(map[string]any) {
@@ -23,6 +24,8 @@ func main() {
 				op := raw.(map[string]any)
 				op["tags"] = []any{tag(path)}
 				addExample(op, path)
+				applyResponseSchema(op)
+				applyExportSchema(op)
 			}
 		}
 	}
@@ -34,6 +37,75 @@ func main() {
 		panic(err)
 	}
 }
+
+func applyExportSchema(op map[string]any) {
+	operationID, _ := op["operationId"].(string)
+	mediaType, ok := exportMediaTypes[operationID]
+	if !ok {
+		return
+	}
+	responses := op["responses"].(map[string]any)
+	response := responses["200"].(map[string]any)
+	response["content"] = map[string]any{mediaType: map[string]any{"schema": map[string]any{"type": "string"}}}
+}
+
+var exportMediaTypes = map[string]string{
+	"exportAlertConfig":     "application/yaml",
+	"exportDashboardConfig": "application/yaml",
+	"exportSessionBaseline": "application/json",
+	"exportTrace":           "application/json",
+	"getOpenAPISpec":        "application/vnd.oai.openapi+json;version=3.1",
+}
+
+// applyFrontendSchemas imports the response shapes that already protect the
+// browser at runtime. They become named OpenAPI components so generated client
+// code can use the same contract at compile time.
+func applyFrontendSchemas(doc map[string]any) {
+	b, err := os.ReadFile("api/frontend-schemas.json")
+	if err != nil {
+		panic(err)
+	}
+	var schemas map[string]any
+	if err := json.Unmarshal(b, &schemas); err != nil {
+		panic(err)
+	}
+	components := doc["components"].(map[string]any)
+	componentSchemas := components["schemas"].(map[string]any)
+	for name, schema := range schemas {
+		componentSchemas[name] = schema
+	}
+	componentSchemas["Ok"] = map[string]any{"type": "object", "required": []any{"ok"}, "properties": map[string]any{"ok": map[string]any{"type": "boolean"}}}
+	componentSchemas["String"] = map[string]any{"type": "string"}
+	componentSchemas["ActiveSession"] = map[string]any{"type": "object", "required": []any{"id", "label"}, "properties": map[string]any{"id": map[string]any{"type": "string"}, "label": map[string]any{"type": "string"}}}
+	componentSchemas["AlertTestNotification"] = map[string]any{"type": "object", "required": []any{"destination", "status"}, "properties": map[string]any{"destination": map[string]any{"type": "string", "enum": []any{"browser", "pushover"}}, "status": map[string]any{"type": "string", "enum": []any{"sent", "suppressed"}}, "body": map[string]any{"type": "string"}}}
+}
+
+func applyResponseSchema(op map[string]any) {
+	operationID, _ := op["operationId"].(string)
+	name, ok := responseSchemas[operationID]
+	if !ok {
+		return
+	}
+	responses := op["responses"].(map[string]any)
+	response, _ := responses["200"].(map[string]any)
+	content, _ := response["content"].(map[string]any)
+	jsonContent, _ := content["application/json"].(map[string]any)
+	if jsonContent == nil {
+		return
+	}
+	dataSchema := map[string]any{"$ref": "#/components/schemas/" + name}
+	if strings.HasPrefix(name, "[]") {
+		dataSchema = map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/" + strings.TrimPrefix(name, "[]")}}
+	}
+	jsonContent["schema"] = map[string]any{"type": "object", "required": []any{"data", "meta"}, "properties": map[string]any{"data": dataSchema, "meta": map[string]any{"$ref": "#/components/schemas/Meta"}}}
+}
+
+var responseSchemas = map[string]string{
+	"listAlerts": "AlertList", "createAlert": "AlertRule", "listAlertHistory": "[]AlertEvent", "importAlertConfig": "AlertRule", "previewAlertDraft": "QueryPreview", "reloadAlertDefinitions": "Ok", "deleteAlert": "Ok", "getAlert": "AlertRule", "patchAlert": "AlertRule", "acknowledgeAlert": "Ok", "duplicateAlert": "AlertRule", "listAlertEvents": "[]AlertEvent", "acknowledgeAlertInstance": "AlertInstance", "unacknowledgeAlertInstance": "AlertInstance", "previewAlert": "QueryPreview", "listAlertSilences": "[]AlertSilence", "createAlertSilence": "AlertSilence", "deleteAlertSilence": "Ok", "patchAlertSilence": "AlertSilence", "testAlertNotification": "AlertTestNotification",
+	"getCoverage": "CoverageReport", "listDashboards": "[]Dashboard", "createDashboard": "Dashboard", "importDashboardConfig": "Dashboard", "reorderDashboards": "Ok", "deleteDashboard": "Ok", "getDashboard": "Dashboard", "patchDashboard": "Dashboard", "createDashboardPanel": "DashboardPanel", "deleteDashboardPanel": "Ok", "patchDashboardPanel": "DashboardPanel", "moveDashboardPanel": "Ok", "previewDashboardQuery": "QueryPreview", "createDashboardVariable": "DashboardVariable", "deleteDashboardVariable": "Ok",
+	"getDatabaseSchema": "DatabaseSchemaCatalog", "listForwarders": "[]ForwarderStatus", "getHealth": "Ok", "listIssues": "[]TraceIssue", "listLint": "[]LintWarning", "listLogs": "[]Log", "listMetrics": "[]MetricCatalogEntry", "getMetricCardinality": "[]MetricCardinalityStream", "getMetricSeries": "MetricSeries", "listQueryCatalog": "[]QueryCatalogEntry", "searchTelemetry": "[]SearchResult", "getServiceMap": "ServiceMapData", "listServices": "[]String", "listSessions": "[]Session", "createSession": "Session", "getActiveSession": "ActiveSession", "importSession": "ImportResult", "deleteSession": "Ok", "getSession": "Session", "patchSession": "Session", "activateSession": "Session", "setSessionBaseline": "Ok", "getSettings": "SettingsResponse", "putSettings": "Settings", "checkUpdates": "UpdateCheckResult", "compactStorage": "CompactResult", "dropAllData": "Ok", "pruneStorage": "PruneResult", "listSources": "[]SourceStats", "listSpans": "[]SpanRow", "getSpan": "Span", "getStats": "Stats", "getStorageBreakdown": "StorageBreakdown", "listTraces": "[]TraceRow", "getTrace": "[]Span", "listIncomingLinks": "[]Span",
+}
+
 func addExample(op map[string]any, path string) {
 	responses, _ := op["responses"].(map[string]any)
 	ok, _ := responses["200"].(map[string]any)

@@ -89,6 +89,7 @@ test-storage: verify-generated
 generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema
+	cd frontend && pnpm run export:openapi-schemas
 	go run ./cmd/enrichopenapi
 	go tool oapi-codegen --config api/oapi-codegen.yaml api/openapi.json
 	go run ./cmd/genopenapi
