@@ -70,6 +70,34 @@ type SpanEvent = model.SpanEvent
 type SpanLink = model.SpanLink
 type Metric = model.Metric
 type NotificationRecord = model.NotificationRecord
+type CoverageSpec = model.CoverageSpec
+
+func (d *DB) ListCoverageSpecs() ([]*CoverageSpec, error) {
+	return d.query.CoverageSpec.Order(d.query.CoverageSpec.CreatedAt.Desc()).Find()
+}
+
+func (d *DB) GetCoverageSpec(id string) (*CoverageSpec, error) {
+	return d.query.CoverageSpec.Where(d.query.CoverageSpec.ID.Eq(id)).First()
+}
+
+func (d *DB) CreateCoverageSpec(spec *CoverageSpec) error {
+	return d.query.CoverageSpec.Create(spec)
+}
+
+func (d *DB) UpdateCoverageSpec(spec *CoverageSpec) error {
+	q := d.query.CoverageSpec
+	_, err := q.Where(q.ID.Eq(spec.ID)).Updates(map[string]any{
+		"name": spec.Name, "service_name": spec.ServiceName, "format": spec.Format,
+		"source_url": spec.SourceURL, "content": spec.Content, "digest": spec.Digest,
+		"route_count": spec.RouteCount, "enabled": spec.Enabled, "updated_at": spec.UpdatedAt,
+	})
+	return err
+}
+
+func (d *DB) DeleteCoverageSpec(id string) error {
+	_, err := d.query.CoverageSpec.Where(d.query.CoverageSpec.ID.Eq(id)).Delete()
+	return err
+}
 
 // TraceRow and Stats are API projections rather than persisted schema models.
 // They stay in storage so callers retain the existing public result types while

@@ -22,7 +22,7 @@ func main() {
 		model.AlertRule{}, model.AlertInstance{}, model.AlertInstanceTarget{}, model.AlertEvent{}, model.AlertSilence{}, model.NotificationRecord{},
 		model.Dashboard{}, model.DashboardVariable{}, model.DashboardPanel{},
 		model.Span{}, model.Log{}, model.Session{}, model.LintWarning{},
-		model.TraceIssue{}, model.SpanEvent{}, model.SpanLink{}, model.Metric{}, model.Meta{}, model.MetricSeriesCatalog{},
+		model.TraceIssue{}, model.SpanEvent{}, model.SpanLink{}, model.Metric{}, model.Meta{}, model.MetricSeriesCatalog{}, model.CoverageSpec{},
 	)
 	g.ApplyInterface(func(model.SpanEventMethods) {}, model.SpanEvent{})
 	g.ApplyInterface(func(model.SpanLinkMethods) {}, model.SpanLink{})

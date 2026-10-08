@@ -220,7 +220,7 @@ func main() {
 	root.Flags().StringVar(&forwardSpoolDir, "forward-spool-dir", "", "Spool directory for forwarding retry buffer (default ~/.spaniel/forward)")
 	root.Flags().IntVar(&forwardMaxSpoolMB, "forward-max-spool-mb", 0, "Max spool size per upstream in MB, 0 = 100 MB default")
 	root.Flags().DurationVar(&forwardRetryMax, "forward-retry-max", 0, "Max retry backoff for forwarding, 0 = 30s default")
-	root.Flags().StringVar(&routesFile, "routes-file", "", "OpenAPI/proto spec file used as the coverage denominator")
+	root.Flags().StringVar(&routesFile, "routes-file", "", "OpenAPI 3 JSON or YAML file used as the coverage denominator")
 	root.Flags().StringVar(&tlsCert, "tls-cert", "", "TLS certificate file (PEM)")
 	root.Flags().StringVar(&tlsKey, "tls-key", "", "TLS key file (PEM)")
 	root.Flags().StringVar(&bearerToken, "bearer-token", "", "Require this bearer token on all requests (env: SPANIEL_BEARER_TOKEN)")

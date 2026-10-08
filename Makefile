@@ -1,4 +1,4 @@
-.PHONY: dev build build-server run test test-extensive test-storage generate verify-generated setup
+.PHONY: dev build build-server run test test-coverage test-extensive test-storage generate verify-generated setup
 
 # Use MSYS2 Bash when available; otherwise use Bash from PATH. Scoop's sh.exe
 # shim may select a broken Zsh process on Windows.
@@ -73,6 +73,20 @@ test: verify-generated
 	    ( cd "$$package_dir" && "$$test_binary" -test.timeout=10m ); \
 	  done
 
+# Focused coverage-spec contract check. Kept in the Makefile so Windows uses
+# the same UCRT64 toolchain as the routine suite without waiting on unrelated
+# long-running integration packages.
+test-coverage: verify-generated
+	@set -e; \
+	  mkdir -p $(BIN_DIR); \
+	  for package in ./internal/coverage ./internal/api; do \
+	    package_dir=$$(go list -f '{{.Dir}}' "$$package"); \
+	    test_name=$$(basename "$$package"); \
+	    test_binary="$(CURDIR)/$(BIN_DIR)/$$test_name.test$(EXE)"; \
+	    go test -c -o "$$test_binary" "$$package"; \
+	    ( cd "$$package_dir" && "$$test_binary" -test.timeout=10m ); \
+	  done
+
 # Full local confidence suite. This mirrors the test coverage in CI, while
 # keeping all Go invocations behind Make so Windows uses MSYS2 UCRT64 GCC.
 # Playwright must already have its Chromium browser installed.
@@ -95,6 +109,7 @@ generate:
 # OpenAPI is the canonical HTTP contract. Regenerate both server and browser
 # bindings together so neither side can silently drift from the document.
 generate-openapi:
+	go run ./cmd/openapiyaml
 	go tool oapi-codegen --config api/oapi-codegen.yaml api/openapi.json
 	go run ./cmd/genopenapi
 	cd frontend && pnpm run generate:openapi

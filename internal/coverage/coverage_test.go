@@ -260,6 +260,55 @@ func TestLoadManifest_BadFile(t *testing.T) {
 	}
 }
 
+func TestParseOpenAPI_UsesExplicitServiceNotTitle(t *testing.T) {
+	routes, title, err := ParseOpenAPI([]byte(`openapi: 3.1.0
+info: {title: Human-facing API title, version: '1'}
+paths:
+  /api/widgets/{id}:
+    get: {responses: {'200': {description: ok}}}`), "spaniel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if title != "Human-facing API title" || len(routes) != 1 || routes[0].Path != "/api/widgets/{id}" {
+		t.Fatalf("unexpected parse: %q %#v", title, routes)
+	}
+	m := &Manifests{Sources: []ManifestSource{{Name: title, ServiceName: "spaniel", Routes: routes}}}
+	r := ComputeOperations([]Operation{{ServiceName: "spaniel", Method: "GET", Path: "/api/widgets/{id}", Hits: 1}}, m)
+	if len(r.Services) != 1 || r.Services[0].CoveragePct != 100 {
+		t.Fatalf("explicit mapping did not join telemetry: %#v", r)
+	}
+}
+
+func TestParseOpenAPI_SpanielJSONAndYAML(t *testing.T) {
+	jsonSpec, err := os.ReadFile(filepath.Join("..", "..", "api", "openapi.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	routes, _, err := ParseOpenAPI(jsonSpec, "spaniel")
+	if err != nil {
+		t.Fatalf("Spaniel JSON spec: %v", err)
+	}
+	if len(routes) == 0 {
+		t.Fatal("Spaniel JSON spec has no routes")
+	}
+	_, _, err = ParseOpenAPI([]byte(`openapi: 3.1.0
+info: {title: Spaniel API, version: '0.1.0'}
+paths:
+  /api/coverage:
+    get:
+      responses: {'200': {description: coverage}}`), "spaniel")
+	if err != nil {
+		t.Fatalf("YAML spec: %v", err)
+	}
+}
+
+func TestComputeOperations_NormalizesTrailingSlash(t *testing.T) {
+	r := ComputeOperations([]Operation{{ServiceName: "spaniel", Method: "get", Path: "/api/health/", Hits: 1}}, &Manifests{Sources: []ManifestSource{{Name: "self", ServiceName: "spaniel", Routes: []ManifestRoute{{Method: "GET", Path: "/api/health"}}}}})
+	if r.Services[0].CoveragePct != 100 || len(r.Services[0].DarkRoutes) != 0 {
+		t.Fatalf("trailing slash did not match: %#v", r.Services[0])
+	}
+}
+
 func keys[K comparable, V any](m map[K]V) []K {
 	out := make([]K, 0, len(m))
 	for k := range m {

@@ -514,3 +514,21 @@ type NotificationRecord struct {
 }
 
 func (NotificationRecord) TableName() string { return "notification_records" }
+
+// CoverageSpec stores an OpenAPI route inventory. ServiceName is explicit:
+// info.title remains display metadata and is never used as a telemetry key.
+type CoverageSpec struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	ServiceName string `json:"service_name"`
+	Format      string `json:"format"`
+	SourceURL   string `json:"source_url,omitempty"`
+	Content     string `json:"content,omitempty"`
+	Digest      string `json:"digest"`
+	RouteCount  int    `json:"route_count"`
+	Enabled     bool   `json:"enabled"`
+	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
+}
+
+func (CoverageSpec) TableName() string { return "coverage_specs" }

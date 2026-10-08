@@ -17,6 +17,10 @@ func (r *Router) DeleteAlertSilence(w http.ResponseWriter, req *http.Request, id
 	r.deleteAlertSilence(w, req)
 }
 
+func (r *Router) DeleteCoverageSpec(w http.ResponseWriter, req *http.Request, id string) {
+	r.deleteCoverageSpec(w, req)
+}
+
 func (r *Router) DeleteDashboard(w http.ResponseWriter, req *http.Request, id string) {
 	r.deleteDashboard(w, req)
 }
@@ -59,6 +63,14 @@ func (r *Router) ListAlertSilences(w http.ResponseWriter, req *http.Request, id 
 
 func (r *Router) GetCoverage(w http.ResponseWriter, req *http.Request, _ apigen.GetCoverageParams) {
 	r.getCoverage(w, req)
+}
+
+func (r *Router) ListCoverageSpecs(w http.ResponseWriter, req *http.Request) {
+	r.listCoverageSpecs(w, req)
+}
+
+func (r *Router) GetCoverageSpec(w http.ResponseWriter, req *http.Request, id string) {
+	r.getCoverageSpec(w, req)
 }
 
 func (r *Router) ListDashboards(w http.ResponseWriter, req *http.Request) { r.listDashboards(w, req) }
@@ -241,6 +253,10 @@ func (r *Router) TestAlertNotification(w http.ResponseWriter, req *http.Request,
 	r.testAlertNotification(w, req)
 }
 
+func (r *Router) CreateCoverageSpec(w http.ResponseWriter, req *http.Request) {
+	r.createCoverageSpec(w, req)
+}
+
 func (r *Router) CreateDashboard(w http.ResponseWriter, req *http.Request) { r.createDashboard(w, req) }
 
 func (r *Router) ImportDashboardConfig(w http.ResponseWriter, req *http.Request) {
@@ -294,5 +310,9 @@ func (r *Router) CheckUpdates(w http.ResponseWriter, req *http.Request) { r.chec
 func (r *Router) CompactStorage(w http.ResponseWriter, req *http.Request) { r.compact(w, req) }
 
 func (r *Router) PruneStorage(w http.ResponseWriter, req *http.Request) { r.prune(w, req) }
+
+func (r *Router) ReplaceCoverageSpec(w http.ResponseWriter, req *http.Request, id string) {
+	r.replaceCoverageSpec(w, req)
+}
 
 func (r *Router) PutSettings(w http.ResponseWriter, req *http.Request) { r.putSettings(w, req) }

@@ -599,6 +599,59 @@ components:
                 - path
                 - hits
             type: object
+        CoverageSpec:
+            properties:
+                content:
+                    type: string
+                created_at:
+                    type: integer
+                digest:
+                    type: string
+                enabled:
+                    type: boolean
+                format:
+                    enum:
+                        - openapi
+                    type: string
+                id:
+                    type: string
+                name:
+                    type: string
+                route_count:
+                    type: integer
+                service_name:
+                    type: string
+                source_url:
+                    type: string
+                updated_at:
+                    type: integer
+            required:
+                - id
+                - name
+                - service_name
+                - format
+                - digest
+                - route_count
+                - enabled
+                - created_at
+                - updated_at
+            type: object
+        CoverageSpecInput:
+            properties:
+                content:
+                    type: string
+                enabled:
+                    type: boolean
+                name:
+                    type: string
+                service_name:
+                    type: string
+                source_url:
+                    type: string
+            required:
+                - name
+                - service_name
+            type: object
         Dashboard:
             $schema: https://json-schema.org/draft/2020-12/schema
             additionalProperties: false
@@ -4513,6 +4566,148 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Spaniel could not complete the request.
             summary: get Coverage
+            tags:
+                - Administration
+    /api/coverage/specs:
+        get:
+            operationId: listCoverageSpecs
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative Spaniel response
+                                    value:
+                                        data: {}
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/JSONValue'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+            summary: list Coverage Specs
+            tags:
+                - Administration
+        post:
+            operationId: createCoverageSpec
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CoverageSpecInput'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative Spaniel response
+                                    value:
+                                        data: {}
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/JSONValue'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+            summary: create Coverage Spec
+            tags:
+                - Administration
+    /api/coverage/specs/{id}:
+        delete:
+            operationId: deleteCoverageSpec
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative Spaniel response
+                                    value:
+                                        data: {}
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/JSONValue'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+            summary: delete Coverage Spec
+            tags:
+                - Administration
+        get:
+            operationId: getCoverageSpec
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative Spaniel response
+                                    value:
+                                        data: {}
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/JSONValue'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+            summary: get Coverage Spec
+            tags:
+                - Administration
+        put:
+            operationId: replaceCoverageSpec
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CoverageSpecInput'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative Spaniel response
+                                    value:
+                                        data: {}
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/JSONValue'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+            summary: replace Coverage Spec
             tags:
                 - Administration
     /api/dashboards:

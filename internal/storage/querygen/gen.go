@@ -22,6 +22,7 @@ var (
 	AlertInstanceTarget *alertInstanceTarget
 	AlertRule           *alertRule
 	AlertSilence        *alertSilence
+	CoverageSpec        *coverageSpec
 	Dashboard           *dashboard
 	DashboardPanel      *dashboardPanel
 	DashboardVariable   *dashboardVariable
@@ -45,6 +46,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	AlertInstanceTarget = &Q.AlertInstanceTarget
 	AlertRule = &Q.AlertRule
 	AlertSilence = &Q.AlertSilence
+	CoverageSpec = &Q.CoverageSpec
 	Dashboard = &Q.Dashboard
 	DashboardPanel = &Q.DashboardPanel
 	DashboardVariable = &Q.DashboardVariable
@@ -69,6 +71,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		AlertInstanceTarget: newAlertInstanceTarget(db, opts...),
 		AlertRule:           newAlertRule(db, opts...),
 		AlertSilence:        newAlertSilence(db, opts...),
+		CoverageSpec:        newCoverageSpec(db, opts...),
 		Dashboard:           newDashboard(db, opts...),
 		DashboardPanel:      newDashboardPanel(db, opts...),
 		DashboardVariable:   newDashboardVariable(db, opts...),
@@ -94,6 +97,7 @@ type Query struct {
 	AlertInstanceTarget alertInstanceTarget
 	AlertRule           alertRule
 	AlertSilence        alertSilence
+	CoverageSpec        coverageSpec
 	Dashboard           dashboard
 	DashboardPanel      dashboardPanel
 	DashboardVariable   dashboardVariable
@@ -122,6 +126,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		AlertInstanceTarget: q.AlertInstanceTarget.clone(db),
 		AlertRule:           q.AlertRule.clone(db),
 		AlertSilence:        q.AlertSilence.clone(db),
+		CoverageSpec:        q.CoverageSpec.clone(db),
 		Dashboard:           q.Dashboard.clone(db),
 		DashboardPanel:      q.DashboardPanel.clone(db),
 		DashboardVariable:   q.DashboardVariable.clone(db),
@@ -155,6 +160,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		AlertInstanceTarget: q.AlertInstanceTarget.replaceDB(db),
 		AlertRule:           q.AlertRule.replaceDB(db),
 		AlertSilence:        q.AlertSilence.replaceDB(db),
+		CoverageSpec:        q.CoverageSpec.replaceDB(db),
 		Dashboard:           q.Dashboard.replaceDB(db),
 		DashboardPanel:      q.DashboardPanel.replaceDB(db),
 		DashboardVariable:   q.DashboardVariable.replaceDB(db),
@@ -178,6 +184,7 @@ type queryCtx struct {
 	AlertInstanceTarget IAlertInstanceTargetDo
 	AlertRule           IAlertRuleDo
 	AlertSilence        IAlertSilenceDo
+	CoverageSpec        ICoverageSpecDo
 	Dashboard           IDashboardDo
 	DashboardPanel      IDashboardPanelDo
 	DashboardVariable   IDashboardVariableDo
@@ -201,6 +208,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		AlertInstanceTarget: q.AlertInstanceTarget.WithContext(ctx),
 		AlertRule:           q.AlertRule.WithContext(ctx),
 		AlertSilence:        q.AlertSilence.WithContext(ctx),
+		CoverageSpec:        q.CoverageSpec.WithContext(ctx),
 		Dashboard:           q.Dashboard.WithContext(ctx),
 		DashboardPanel:      q.DashboardPanel.WithContext(ctx),
 		DashboardVariable:   q.DashboardVariable.WithContext(ctx),

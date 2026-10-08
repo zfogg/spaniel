@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
-import { api, ServiceCoverage, CoverageRoute } from '@/lib/api'
+import { api, ServiceCoverage, CoverageRoute, CoverageSpec } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -282,7 +282,7 @@ function ServiceSection({
       {expanded && (
         <div
           data-testid={`routes-${svc.name}`}
-          className="pt-1 px-3.5 pb-3.5 grid gap-2 border-t border-border bg-muted"
+          className="pt-1 px-3.5 pb-3.5 grid gap-2 border-t border-border bg-muted max-h-[328px] overflow-y-auto overscroll-contain"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}
         >
           {filtered.length === 0 ? (
@@ -406,6 +406,163 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
 
 // ── page ────────────────────────────────────────────────────────────────────
 
+function SpecManager({ specs, reload }: { specs: CoverageSpec[]; reload: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [service, setService] = useState('')
+  const [content, setContent] = useState('')
+  const [sourceURL, setSourceURL] = useState('')
+  const [enabled, setEnabled] = useState(true)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const save = async () => {
+    try {
+      setError('')
+      const input = { name, service_name: service, content, source_url: sourceURL, enabled }
+      if (editing) await api.coverage.replaceSpec(editing, input)
+      else await api.coverage.createSpec(input)
+      setName('')
+      setService('')
+      setContent('')
+      setSourceURL('')
+      setEnabled(true)
+      setEditing(null)
+      setOpen(false)
+      reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save spec')
+    }
+  }
+  return (
+    <section className="mt-4 max-w-[720px] border border-border rounded-lg bg-background overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div>
+          <div className="font-medium text-sm">Declared API specs</div>
+          <p className="m-0 text-xs text-muted-foreground">
+            Map each document to a telemetry service explicitly.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs font-medium cursor-pointer"
+        >
+          {open ? 'Close editor' : 'Add spec'}
+        </button>
+      </div>
+      {open && (
+        <div className="p-4 grid gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Display name"
+              className="rounded border border-border bg-background px-2 py-1.5 text-xs"
+            />
+            <input
+              value={service}
+              onChange={(e) => setService(e.target.value)}
+              placeholder="Telemetry service.name"
+              className="rounded border border-border bg-background px-2 py-1.5 text-xs"
+            />
+          </div>
+          <input
+            value={sourceURL}
+            onChange={(e) => setSourceURL(e.target.value)}
+            placeholder="Optional OpenAPI URL (for example /api/openapi.json)"
+            className="rounded border border-border bg-background px-2 py-1.5 text-xs"
+          />
+          <label className="w-fit cursor-pointer rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground">
+            Choose file
+            <input
+              type="file"
+              accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml"
+              className="sr-only"
+              onChange={async (event) => {
+                const file = event.target.files?.[0]
+                if (file) {
+                  setContent(await file.text())
+                  if (!name) setName(file.name)
+                }
+              }}
+            />
+          </label>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Paste OpenAPI JSON or YAML"
+            className="min-h-28 rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px]"
+          />
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+            />
+            Use this spec in coverage
+          </label>
+          {error && <div className="text-xs text-danger">{error}</div>}
+          <div>
+            <button
+              type="button"
+              onClick={save}
+              className="rounded bg-foreground text-background px-3 py-1.5 text-xs font-medium cursor-pointer"
+            >
+              {editing ? 'Replace spec' : 'Validate and save'}
+            </button>
+          </div>
+        </div>
+      )}
+      {!open && (
+        <div className="divide-y divide-border">
+          {specs.length ? (
+            specs.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 px-4 py-2.5 text-xs">
+                <span className="font-medium flex-1">{s.name}</span>
+                <span className="font-mono text-muted-foreground">{s.service_name}</span>
+                <span className="font-mono text-muted-foreground">{s.route_count} routes</span>
+                <span className="font-mono text-muted-foreground">
+                  {s.enabled ? 'active' : 'paused'}
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const detail = (await api.coverage.getSpec(s.id)).data
+                    setEditing(s.id)
+                    setName(detail.name)
+                    setService(detail.service_name)
+                    setContent(detail.content ?? '')
+                    setSourceURL(detail.source_url ?? '')
+                    setEnabled(detail.enabled)
+                    setOpen(true)
+                  }}
+                  className="cursor-pointer text-foreground underline"
+                >
+                  Inspect / edit
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await api.coverage.deleteSpec(s.id)
+                    reload()
+                  }}
+                  className="text-danger cursor-pointer"
+                >
+                  Remove
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-3 text-xs text-muted-foreground">
+              No declared specs yet. Observed-only services count their seen routes.
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Coverage() {
   const [filter, setFilter] = useState<Filter>('all')
   const [protocol, setProtocol] = useState<Protocol>('all')
@@ -422,11 +579,21 @@ export default function Coverage() {
   } = useQuery({
     queryKey: qk.coverage(sessionID),
     queryFn: () => api.coverage.get(sessionID).then((r) => r.data),
+    // Coverage changes as this instance observes requests; keep the active
+    // page current without polling while it is in the background.
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
   })
 
   const { data: sessions = [] } = useQuery({
     queryKey: qk.sessions(),
     queryFn: () => api.sessions.list().then((r) => r.data),
+  })
+  const { data: specs = [], refetch: refetchSpecs } = useQuery({
+    queryKey: ['coverage-specs'],
+    queryFn: () => api.coverage.specs().then((r) => r.data),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
   })
 
   const totalDark = useMemo(() => report?.overall.dark_count ?? 0, [report])
@@ -596,6 +763,13 @@ export default function Coverage() {
                 ` service${servicesWithoutSpec === 1 ? '' : 's'} without a spec`}
             </div>
           </div>
+          <SpecManager
+            specs={specs}
+            reload={() => {
+              void refetchSpecs()
+              void refetch()
+            }}
+          />
         </div>
 
         <div className="pt-[18px] px-6 pb-1">

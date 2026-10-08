@@ -6,6 +6,7 @@ package coverage
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"github.com/zfogg/spaniel/internal/storage"
 )
@@ -75,6 +76,14 @@ type Manifests struct {
 	// per-service routes, plus the spec filename it came from for UI display.
 	Spec   string
 	Routes map[string][]ManifestRoute
+	// Sources is the durable multi-spec form. Spec/Routes remain for backwards
+	// compatible callers using --routes-file.
+	Sources []ManifestSource
+}
+
+type ManifestSource struct {
+	ID, Name, ServiceName string
+	Routes                []ManifestRoute
 }
 
 // Compute walks the given spans, extracts observed (service, method, path)
@@ -117,7 +126,7 @@ func Compute(spans []*storage.Span, m *Manifests) Report {
 func computeReport(observedBySvc map[string][]Route, servicesSeen map[string]bool, m *Manifests) Report {
 	// Make sure every service from a manifest still appears, even with 0 spans.
 	if m != nil {
-		for svc := range m.Routes {
+		for svc := range m.routesByService() {
 			servicesSeen[svc] = true
 		}
 	}
@@ -135,10 +144,7 @@ func computeReport(observedBySvc map[string][]Route, servicesSeen map[string]boo
 		var manifestRoutes []ManifestRoute
 		spec := ""
 		if m != nil {
-			manifestRoutes = m.Routes[svc]
-			if len(manifestRoutes) > 0 {
-				spec = m.Spec
-			}
+			manifestRoutes, spec = m.routesForService(svc)
 		}
 
 		sc := ServiceCoverage{
@@ -198,6 +204,35 @@ func computeReport(observedBySvc map[string][]Route, servicesSeen map[string]boo
 		report.Services = []ServiceCoverage{}
 	}
 	return report
+}
+
+func (m *Manifests) routesByService() map[string][]ManifestRoute {
+	result := map[string][]ManifestRoute{}
+	if m == nil {
+		return result
+	}
+	for svc, routes := range m.Routes {
+		result[svc] = append(result[svc], routes...)
+	}
+	for _, source := range m.Sources {
+		result[source.ServiceName] = append(result[source.ServiceName], source.Routes...)
+	}
+	return result
+}
+
+func (m *Manifests) routesForService(service string) ([]ManifestRoute, string) {
+	if routes := m.Routes[service]; len(routes) > 0 {
+		return routes, m.Spec
+	}
+	var routes []ManifestRoute
+	var names []string
+	for _, source := range m.Sources {
+		if source.ServiceName == service {
+			routes = append(routes, source.Routes...)
+			names = append(names, source.Name)
+		}
+	}
+	return routes, strings.Join(names, ", ")
 }
 
 // ComputeOperations joins database-aggregated observed operations against any
@@ -286,7 +321,13 @@ func percentile(sorted []int64, p int) int64 {
 	return sorted[idx]
 }
 
-func routeKey(method, path string) string { return method + " " + path }
+func routeKey(method, path string) string {
+	path = strings.TrimSuffix(path, "/")
+	if path == "" {
+		path = "/"
+	}
+	return strings.ToUpper(method) + " " + path
+}
 
 func sortRoutes(rs []Route) {
 	sort.Slice(rs, func(i, j int) bool {

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/zfogg/spaniel/internal/coverage"
@@ -11,6 +13,51 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
+
+func TestCoverageSpecsPersistAndMapExplicitService(t *testing.T) {
+	handler, db := setupRouterWithManifests(t, nil)
+	body := []byte(`{"name":"Spaniel public API","service_name":"spaniel","content":"openapi: 3.1.0\ninfo: {title: Spaniel API, version: '1'}\npaths:\n  /api/coverage:\n    get:\n      responses: {'200': {description: ok}}"}`)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/coverage/specs", bytes.NewReader(body)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("create spec = %d: %s", w.Code, w.Body.String())
+	}
+	_ = db.InsertSpan(&storage.Span{TraceID: "t", SpanID: "s", ServiceName: "spaniel", Name: "GET /api/coverage", Kind: 2, StartNs: 1, EndNs: 2, Attributes: `{"http.route":"/api/coverage","http.request.method":"GET"}`, Resource: "{}", SessionID: db.ActiveSessionID()})
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/coverage", nil))
+	var out struct {
+		Data coverage.Report `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Data.Services) != 1 || out.Data.Services[0].Name != "spaniel" || out.Data.Services[0].CoveragePct != 100 {
+		t.Fatalf("coverage = %#v", out.Data)
+	}
+}
+
+func TestCoverageSpecPersistsAfterStorageReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "coverage.duckdb")
+	store, err := storage.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateCoverageSpec(&storage.CoverageSpec{ID: "spec", Name: "persisted", ServiceName: "spaniel", Format: "openapi", Content: "{}", Digest: "digest", RouteCount: 1, Enabled: true, CreatedAt: 1, UpdatedAt: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := storage.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	specs, err := reopened.ListCoverageSpecs()
+	if err != nil || len(specs) != 1 || specs[0].Name != "persisted" || specs[0].ServiceName != "spaniel" {
+		t.Fatalf("reloaded specs = %#v, %v", specs, err)
+	}
+}
 
 func setupRouterWithManifests(t *testing.T, m *coverage.Manifests) (http.Handler, *storage.DB) {
 	t.Helper()

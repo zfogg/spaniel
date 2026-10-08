@@ -131,7 +131,7 @@ spaniel ingests OTLP metrics too — gauges, counters, and histograms — and ch
 
 ### 🎯 Instrumentation coverage
 
-See which of your HTTP routes have ever been traced. Point spaniel at an OpenAPI/proto spec with `--routes-file` and it computes a coverage percentage and lists the **dark routes** — endpoints in your spec that no trace has ever exercised.
+See which of your HTTP routes have ever been traced. Point spaniel at an OpenAPI 3 JSON or YAML spec with `--routes-file` and it computes a coverage percentage and lists the **dark routes** — endpoints in your spec that no trace has ever exercised.
 
 ### ⌨️ Works in the terminal too
 

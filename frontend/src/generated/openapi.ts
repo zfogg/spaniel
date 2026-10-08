@@ -298,6 +298,43 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/coverage/specs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** list Coverage Specs */
+    get: operations['listCoverageSpecs']
+    put?: never
+    /** create Coverage Spec */
+    post: operations['createCoverageSpec']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/coverage/specs/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** get Coverage Spec */
+    get: operations['getCoverageSpec']
+    /** replace Coverage Spec */
+    put: operations['replaceCoverageSpec']
+    post?: never
+    /** delete Coverage Spec */
+    delete: operations['deleteCoverageSpec']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/dashboards': {
     parameters: {
       query?: never
@@ -1368,6 +1405,27 @@ export interface components {
       method: string
       p95_ns?: number
       path: string
+    }
+    CoverageSpec: {
+      content?: string
+      created_at: number
+      digest: string
+      enabled: boolean
+      /** @enum {string} */
+      format: 'openapi'
+      id: string
+      name: string
+      route_count: number
+      service_name: string
+      source_url?: string
+      updated_at: number
+    }
+    CoverageSpecInput: {
+      content?: string
+      enabled?: boolean
+      name: string
+      service_name: string
+      source_url?: string
     }
     Dashboard: {
       created_at: number
@@ -3368,6 +3426,130 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  listCoverageSpecs: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['JSONValue']
+          }
+        }
+      }
+    }
+  }
+  createCoverageSpec: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CoverageSpecInput']
+      }
+    }
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['JSONValue']
+          }
+        }
+      }
+    }
+  }
+  getCoverageSpec: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['JSONValue']
+          }
+        }
+      }
+    }
+  }
+  replaceCoverageSpec: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CoverageSpecInput']
+      }
+    }
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['JSONValue']
+          }
+        }
+      }
+    }
+  }
+  deleteCoverageSpec: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['JSONValue']
+          }
         }
       }
     }
