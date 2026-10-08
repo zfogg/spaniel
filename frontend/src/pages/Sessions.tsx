@@ -916,7 +916,10 @@ export default function Sessions() {
           {/* sessions table */}
           <div className="px-6 py-1 min-w-0">
             <div className="overflow-x-auto pb-2 [scrollbar-gutter:stable]">
-              <div className="min-w-[970px]">
+              {/* Fixed columns, gaps, and horizontal padding total just over 1,000px.
+                  Keep the sheet wider than that so the final header/action column
+                  stays inside the same horizontal scroll surface. */}
+              <div className="min-w-[1024px]">
                 {/* column header */}
                 <div
                   className="grid gap-2.5 px-3.5 py-2 font-mono text-[9px] text-ink3 uppercase tracking-[0.14em] bg-surface2 rounded-t-[10px] border border-line"
