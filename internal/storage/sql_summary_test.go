@@ -10,19 +10,45 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-func TestWithQueryNamePrefixesSimpleNames(t *testing.T) {
-	parent := WithQueryName(context.Background(), "Parent")
-	for _, name := range []string{"", " ", "\t\n"} {
-		if got := WithQueryName(parent, name); got != parent {
-			t.Errorf("empty name %q replaced the parent context", name)
+func TestStorageQueryNameValidation(t *testing.T) {
+	for _, name := range []string{"Ab", "z0", "ListAlertRules", "Query_123", "a_", "Z09_a"} {
+		if got, want := storageQueryName(name), "spaniel.storage."+name; got != want {
+			t.Errorf("storageQueryName(%q) = %q, want %q", name, got, want)
 		}
 	}
+	for _, name := range []string{"", " ", "A", "z", "0", "1Query", "_Query", "Query.Name", "Query-Name", "Query Name", "Query/Name", "Query\tName", "Query\nName", "Query!", "Query\x00", "éQuery", "Queryé", "Query１"} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("storageQueryName(%q) did not panic", name)
+				}
+			}()
+			storageQueryName(name)
+		})
+	}
+}
+
+func TestWithQueryNamePrefixesSimpleNames(t *testing.T) {
+	parent := WithQueryName(context.Background(), "Parent")
 	ctx := WithQueryName(parent, "  DashboardLatency  ")
 	if got := queryNameFromContext(ctx); got != "spaniel.storage.DashboardLatency" {
 		t.Errorf("query name = %q, want spaniel.storage.DashboardLatency", got)
 	}
 	if got := queryNameFromContext(parent); got != "spaniel.storage.Parent" {
 		t.Errorf("parent query name changed to %q", got)
+	}
+}
+
+func TestWithQueryNamePanicsOnInvalidName(t *testing.T) {
+	for _, name := range []string{"", " ", "\t\n", "1Query", "_Query", "Query.Name", "Query Name"} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("WithQueryName(%q) did not panic", name)
+				}
+			}()
+			WithQueryName(context.Background(), name)
+		})
 	}
 }
 

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -14,23 +15,28 @@ import (
 type queryNameKey struct{}
 
 // storageQueryName qualifies a simple operation name for Spaniel storage spans.
+// After trimming surrounding whitespace, names must match [A-Za-z][A-Za-z0-9_]+.
+// Invalid names panic.
 func storageQueryName(name string) string {
 	name = strings.TrimSpace(name)
-	if name == "" {
-		return ""
+	if len(name) < 2 {
+		panic(fmt.Sprintf("storage query name must match [A-Za-z][A-Za-z0-9_]+: %q", name))
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		letter := c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'
+		if !letter && (i == 0 || !(c >= '0' && c <= '9' || c == '_')) {
+			panic(fmt.Sprintf("storage query name must match [A-Za-z][A-Za-z0-9_]+: %q", name))
+		}
 	}
 	return "spaniel.storage." + name
 }
 
 // WithQueryName attaches a stable name to one database operation. Callers pass
 // a simple name such as DashboardLatency; the spaniel.storage. prefix is added
-// here. Empty names are ignored.
+// here. Empty or invalid names panic.
 func WithQueryName(ctx context.Context, name string) context.Context {
-	name = storageQueryName(name)
-	if name == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, queryNameKey{}, name)
+	return context.WithValue(ctx, queryNameKey{}, storageQueryName(name))
 }
 
 func queryNameFromContext(ctx context.Context) string {

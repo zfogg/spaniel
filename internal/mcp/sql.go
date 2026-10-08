@@ -31,7 +31,7 @@ func (h *handler) registerSQLTool(s *mcpsdk.Server) {
 
 type QuerySQLInput struct {
 	SQL     string `json:"sql" jsonschema:"the SQL to run (read-only; the engine rejects writes)"`
-	Name    string `json:"name,omitempty" jsonschema:"optional simple query name; Spaniel adds the spaniel.storage. prefix (default ReadOnlyQuery)"`
+	Name    string `json:"name,omitempty" jsonschema:"optional simple query name; Spaniel adds the spaniel.storage. prefix (default UserQuery)"`
 	MaxRows int    `json:"max_rows,omitempty" jsonschema:"max rows to return (default 1000, max 50000)"`
 }
 
@@ -59,7 +59,11 @@ func (h *handler) querySQL(ctx context.Context, _ *mcpsdk.CallToolRequest, in Qu
 
 	// Read-only is enforced by the DuckDB engine (the store opens a read-only
 	// connection); a write/DDL/COPY/ATTACH comes back here as an error.
-	qctx = storage.WithQueryName(qctx, in.Name)
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		name = "UserQuery"
+	}
+	qctx = storage.WithQueryName(qctx, name)
 	cols, rows, truncated, err := h.store.ReadOnlyQuery(qctx, in.SQL, maxRows)
 	if err != nil {
 		return nil, QuerySQLOutput{}, fmt.Errorf("query failed: %w", err)

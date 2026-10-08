@@ -1,9 +1,39 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"testing"
+
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
+
+func TestQuerySQL_SpanNames(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = provider.Shutdown(context.Background()) })
+	cs, _ := connect(t, Options{Version: "t"})
+	for _, tc := range []struct{ name, want string }{
+		{"", "spaniel.storage.UserQuery"},
+		{" \t", "spaniel.storage.UserQuery"},
+		{"Custom_Query1", "spaniel.storage.Custom_Query1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(recorder.Ended())
+			callStructured[QuerySQLOutput](t, cs, "query_sql", map[string]any{"sql": "SELECT 1", "name": tc.name})
+			for _, span := range recorder.Ended()[before:] {
+				if span.Name() == tc.want {
+					return
+				}
+			}
+			t.Fatalf("no %s span recorded", tc.want)
+		})
+	}
+}
 
 func TestQuerySQL_Select(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
