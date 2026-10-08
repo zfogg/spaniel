@@ -209,6 +209,7 @@ function ServiceSection({
       if (b.hits === 0) return 1
       return b.hits - a.hits
     })
+    .reverse()
   const c = svcColor(svc.name).fg
 
   return (
