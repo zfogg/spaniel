@@ -111,16 +111,6 @@ type SourceStatsRow struct {
 	LastSeen    int64
 }
 
-// StatsRow is the compact aggregate returned by the generated storage stats
-// query before DB-size and runtime counters are added by the storage service.
-type StatsRow struct {
-	SpanCount       int
-	TraceCount      int
-	LogCount        int
-	SessionCount    int
-	OldestSessionAt int64
-}
-
 type SessionSummary struct {
 	ID             string
 	Label          string
