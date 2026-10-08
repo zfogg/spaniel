@@ -80,6 +80,17 @@ type TraceListRow struct {
 
 type CountValue struct{ Count int64 }
 
+// StatsRow is the generated-query projection for the storage overview.
+// Keep this beside the other generated-query result types so querygen can
+// compile independently of the API representation.
+type StatsRow struct {
+	SpanCount       int64
+	TraceCount      int64
+	LogCount        int64
+	SessionCount    int64
+	OldestSessionAt int64
+}
+
 type SourceStatsRow struct {
 	ServiceName string
 	SpanCount   int64
