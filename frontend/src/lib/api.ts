@@ -75,6 +75,7 @@ export type QueryCatalogEntry = APIModels['QueryCatalogEntry']
 export type AlertRule = APIModels['AlertRule']
 export type AlertEvent = APIModels['AlertEvent']
 export type AlertSilence = APIModels['AlertSilence']
+export type AlertEventsEnvelope = Envelope<AlertEvent[]> & { silences: AlertSilence[] }
 export type NotificationRecord = APIModels['NotificationRecord']
 export type AlertList = APIModels['AlertList']
 
@@ -315,7 +316,7 @@ export const api = {
         openapiClient.GET('/api/alerts/{id}/events', {
           params: { path: { id }, query: { group_key: groupKey, page, limit } },
         }),
-      )
+      ).then((response) => response as AlertEventsEnvelope)
     },
     history: (
       filters: {
@@ -333,8 +334,6 @@ export const api = {
     ) => {
       return unwrap(openapiClient.GET('/api/alerts/history', { params: { query: filters } }))
     },
-    silences: (id: string) =>
-      unwrap(openapiClient.GET('/api/alerts/{id}/silences', { params: { path: { id } } })),
     silence: (
       id: string,
       body: { ends_at: number; comment: string; group_key?: string; starts_at?: number },

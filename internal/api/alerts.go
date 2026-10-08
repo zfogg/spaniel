@@ -596,7 +596,17 @@ func (r *Router) listAlertEvents(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 500, err.Error())
 		return
 	}
-	respondPage(w, x, total, page)
+	silences, err := r.store.WithContext(q.Context()).ListAlertSilences(chi.URLParam(q, "id"))
+	if err != nil {
+		respondErr(w, q, 500, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+		"data":     x,
+		"meta":     map[string]any{"total": total, "page": page},
+		"silences": silences,
+	})
 }
 func (r *Router) listAlertHistory(w http.ResponseWriter, q *http.Request) {
 	rules, _ := r.store.WithContext(q.Context()).ListAlertRules()

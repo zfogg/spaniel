@@ -75,6 +75,38 @@ func TestAlertsAPI_CreateExportAndPreview(t *testing.T) {
 	}
 }
 
+func TestAlertsAPI_EventsIncludesSilences(t *testing.T) {
+	handler, store := setupRouter(t)
+	rule := &storage.AlertRule{ID: "timeline-rule", Name: "Timeline", QuerySQL: "SELECT 1 AS value", ConditionJSON: `{"kind":"threshold","operator":">","value":0}`, GroupByJSON: "[]", Enabled: true}
+	if err := store.CreateAlertRule(rule); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: "all", Kind: "evaluated", State: "resolved", Detail: "healthy"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateAlertSilence(&storage.AlertSilence{RuleID: rule.ID, GroupKey: "all", Comment: "maintenance", StartsAt: 1, EndsAt: 2}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := do(t, handler, http.MethodGet, "/api/alerts/"+rule.ID+"/events?page=1&limit=15", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var response struct {
+		Data     []storage.AlertEvent   `json:"data"`
+		Silences []storage.AlertSilence `json:"silences"`
+		Meta     struct {
+			Total int `json:"total"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Data) != 1 || response.Meta.Total != 1 || len(response.Silences) != 1 {
+		t.Fatalf("response = %#v, want one event and one silence", response)
+	}
+}
+
 func TestAlertsAPI_ListPaginatesAndPromotesFiringRules(t *testing.T) {
 	handler, store := setupRouter(t)
 	for i := 0; i < 16; i++ {

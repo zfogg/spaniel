@@ -634,14 +634,28 @@ export default function Alerts() {
           ) : rules.length ? (
             rules.map((rule) => {
               const currentState = ruleState(rule)
+              const visual = ruleListTone[currentState] ?? ruleListTone.resolved
               return (
                 <button
                   key={rule.id}
                   onClick={() => setSelectedId(rule.id)}
-                  className={`mb-2 grid w-full grid-cols-[1fr_auto] gap-3 rounded border p-3 text-left ${selected?.id === rule.id ? 'border-accent bg-accent-bg' : 'border-border'}`}
+                  className="mb-2 grid w-full grid-cols-[minmax(0,1fr)_21.5rem] items-center gap-3 rounded border p-3 text-left transition-colors hover:brightness-95"
+                  style={{
+                    borderColor:
+                      selected?.id === rule.id
+                        ? 'var(--accent)'
+                        : `color-mix(in oklch, ${visual.line} 36%, var(--border))`,
+                    background: `color-mix(in oklch, ${visual.line} ${selected?.id === rule.id ? '15%' : '7%'}, var(--surface))`,
+                    boxShadow:
+                      selected?.id === rule.id
+                        ? `inset 3px 0 0 ${visual.line}, inset 0 0 0 1px color-mix(in oklch, ${visual.line} 18%, transparent)`
+                        : undefined,
+                  }}
                 >
                   <span>
-                    <b className="block text-sm">{rule.name}</b>
+                    <b className="block text-sm" style={{ color: visual.ink }}>
+                      {rule.name}
+                    </b>
                     <span className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
                       <span>{rule.instances?.length ?? 0} instances</span>
                       <span
@@ -651,10 +665,13 @@ export default function Alerts() {
                       </span>
                     </span>
                   </span>
-                  <span
-                    className={`h-fit rounded px-1.5 py-0.5 font-mono text-[10px] ${tone[currentState] ?? ''}`}
-                  >
-                    {currentState}
+                  <span className="flex min-w-0 items-center gap-1">
+                    <RuleSparkline values={ruleSparklines.get(rule.id) ?? []} color={visual.line} />
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] ${tone[currentState] ?? ''}`}
+                    >
+                      {currentState}
+                    </span>
                   </span>
                 </button>
               )
@@ -980,10 +997,6 @@ function Inspector({
   const events = useQuery({
     queryKey: ['alert-events', rule.id, eventsPage],
     queryFn: () => api.alerts.events(rule.id, { page: eventsPage, limit: 15 }),
-  })
-  const silences = useQuery({
-    queryKey: ['alert-silences', rule.id],
-    queryFn: () => api.alerts.silences(rule.id).then((x) => x.data),
   })
   const acknowledge = useMutation({
     mutationFn: () => api.alerts.acknowledge(rule.id),
@@ -1510,7 +1523,7 @@ function Inspector({
       <InspectorSection title="Silences">
         <Silences
           ruleID={rule.id}
-          rows={silences.data ?? []}
+          rows={events.data?.silences ?? []}
           initialGroup={silenceGroup}
           onGroupUsed={() => setSilenceGroup(null)}
         />
@@ -1768,14 +1781,14 @@ function Silences({
         starts_at: startsAt ? new Date(startsAt).getTime() * 1e6 : undefined,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alert-silences', ruleID] })
+      qc.invalidateQueries({ queryKey: ['alert-events', ruleID] })
       setComment('')
       if (initialGroup) onGroupUsed()
     },
   })
   const revoke = useMutation({
     mutationFn: (id: string) => api.alerts.removeSilence(ruleID, id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['alert-silences', ruleID] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alert-events', ruleID] }),
   })
   const update = useMutation({
     mutationFn: (silence: AlertSilence) =>
@@ -1786,7 +1799,7 @@ function Silences({
         group_key: silence.group_key,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alert-silences', ruleID] })
+      qc.invalidateQueries({ queryKey: ['alert-events', ruleID] })
       setEditing(null)
     },
   })
