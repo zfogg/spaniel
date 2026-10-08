@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -119,6 +120,31 @@ func TestActivateSession(t *testing.T) {
 	}
 	if store.ActiveSessionID() != s.ID {
 		t.Errorf("ActiveSessionID = %q, want %q", store.ActiveSessionID(), s.ID)
+	}
+}
+
+func TestActivateSession_PersistsWhenStartupAdvanceIsDisabled(t *testing.T) {
+	handler, settings, store := newSettingsRouter(t)
+	settings.Viper.Set("advance_session_on_start", false)
+	settings.PersistActiveSession = settings.SaveActiveSession
+	s, err := store.CreateSession("resume-me", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := do(t, handler, http.MethodPost, "/api/sessions/"+s.ID+"/activate", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := settings.Viper.GetString("active_session_id"); got != s.ID {
+		t.Fatalf("active_session_id = %q, want %q", got, s.ID)
+	}
+	config, err := os.ReadFile(settings.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(config), "active_session_id: "+s.ID) {
+		t.Fatalf("config did not persist active session: %s", config)
 	}
 }
 

@@ -99,6 +99,63 @@ func newRunStub(t *testing.T) *runStub {
 	return s
 }
 
+func TestActivateStartupSession_ResumesPersistedSession(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "spaniel.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	persisted, err := store.CreateSession("previous", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, created, err := activateStartupSession(store, false, persisted.ID)
+	if err != nil {
+		t.Fatalf("activateStartupSession: %v", err)
+	}
+	if created {
+		t.Fatal("created a session despite a valid persisted active session")
+	}
+	if got.ID != persisted.ID || store.ActiveSessionID() != persisted.ID {
+		t.Fatalf("resumed session = %q / active = %q, want %q", got.ID, store.ActiveSessionID(), persisted.ID)
+	}
+	all, err := store.ListSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("session count = %d, want 1", len(all))
+	}
+}
+
+func TestActivateStartupSession_CreatesWhenAdvancingOrMissing(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "spaniel.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	for _, tc := range []struct {
+		name      string
+		advance   bool
+		persisted string
+	}{
+		{name: "advancing ignores saved session", advance: true, persisted: "saved"},
+		{name: "missing saved session falls back", persisted: "missing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, created, err := activateStartupSession(store, tc.advance, tc.persisted)
+			if err != nil {
+				t.Fatalf("activateStartupSession: %v", err)
+			}
+			if !created || got.ID == "" || store.ActiveSessionID() != got.ID {
+				t.Fatalf("created=%v session=%+v active=%q", created, got, store.ActiveSessionID())
+			}
+		})
+	}
+}
+
 func (s *runStub) record(r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	r.Body = io.NopCloser(bytes.NewReader(body))

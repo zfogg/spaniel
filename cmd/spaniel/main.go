@@ -394,6 +394,8 @@ type runConfig struct {
 	MaxSessions           int
 	MaxDBSizeMB           int
 	AutoPrune             bool
+	AdvanceSessionOnStart bool
+	ActiveSessionID       string
 	ForwardURLs           []string
 	ForwardSample         float64
 	RoutesFile            string
@@ -437,6 +439,8 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		MaxSessions:           v.GetInt("max_sessions"),
 		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
 		AutoPrune:             v.GetBool("auto_prune"),
+		AdvanceSessionOnStart: v.GetBool("advance_session_on_start"),
+		ActiveSessionID:       v.GetString("active_session_id"),
 		ForwardURLs:           v.GetStringSlice("forward"),
 		ForwardSample:         v.GetFloat64("forward_sample"),
 		ForwardSpoolDir:       v.GetString("forward_spool_dir"),
@@ -539,6 +543,30 @@ func expandHome(p string) string {
 	return p
 }
 
+// activateStartupSession selects the session used for a newly-started server.
+// When session advancement is disabled, a valid persisted active session is
+// resumed; otherwise a fresh session is created. The boolean reports whether
+// a new session was created so its ID can be persisted for the next restart.
+func activateStartupSession(store *storage.DB, advance bool, activeSessionID string) (*storage.Session, bool, error) {
+	if !advance && activeSessionID != "" {
+		sess, err := store.GetSession(activeSessionID)
+		if err != nil {
+			return nil, false, fmt.Errorf("load active session: %w", err)
+		}
+		if sess != nil {
+			store.SetActiveSession(sess.ID, sess.Label)
+			return sess, false, nil
+		}
+	}
+
+	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
+	if err != nil {
+		return nil, false, fmt.Errorf("create session: %w", err)
+	}
+	store.SetActiveSession(sess.ID, sess.Label)
+	return sess, true, nil
+}
+
 // receiverConfigError reports why telemetry could never be ingested with the
 // given OTLP receiver ports (both disabled), or nil if at least one is enabled.
 // A live OTLP receiver is the only ingest path, so run() refuses to start
@@ -624,11 +652,10 @@ func run(cfg runConfig) error {
 	}
 	_ = store.SetSpanielVersion(version)
 
-	sess, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
+	sess, createdSession, err := activateStartupSession(store, cfg.AdvanceSessionOnStart, cfg.ActiveSessionID)
 	if err != nil {
-		return fmt.Errorf("create session: %w", err)
+		return err
 	}
-	store.SetActiveSession(sess.ID, sess.Label)
 
 	storagePolicy := newStorageGuardPolicy(int64(cfg.MaxDBSizeMB)*1024*1024, cfg.AutoPrune)
 	telemetry.Catalog().SetStorageDBSizeLimit(int64(cfg.MaxDBSizeMB) * 1024 * 1024)
@@ -883,6 +910,12 @@ func run(cfg runConfig) error {
 			}
 			return setupOTel(endpoint)
 		},
+	}
+	settingsSvc.PersistActiveSession = settingsSvc.SaveActiveSession
+	if createdSession && !cfg.AdvanceSessionOnStart && cfg.Viper != nil {
+		if err := settingsSvc.SaveActiveSession(sess.ID); err != nil {
+			return fmt.Errorf("persist active session: %w", err)
+		}
 	}
 	apiRouter := api.NewRouterFull(store, hub, fwd, manifests, settingsSvc, pipeline, pipeline.DropCounters(), pipeline)
 

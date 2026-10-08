@@ -672,6 +672,12 @@ func (r *Router) activateSession(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 404, "session not found")
 		return
 	}
+	if r.settings != nil && !r.settings.Viper.GetBool("advance_session_on_start") && r.settings.PersistActiveSession != nil {
+		if err := r.settings.PersistActiveSession(sess.ID); err != nil {
+			respondErr(w, req, 500, "persist active session: "+err.Error())
+			return
+		}
+	}
 	r.store.SetActiveSession(sess.ID, sess.Label)
 	respond(w, sess, 1, 1)
 }

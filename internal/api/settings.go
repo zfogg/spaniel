@@ -402,6 +402,13 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 		s.Viper.Set("alerts.pushover_template", *u.AlertsPushoverTemplate)
 	}
 
+	return s.Save()
+}
+
+// Save writes the current persistable settings to the global config file.
+// It intentionally uses a fresh Viper so project-level settings never leak
+// into the user's global configuration.
+func (s *SettingsService) Save() error {
 	if s.ConfigPath == "" {
 		// In-memory only (tests). Nothing to persist.
 		return nil
@@ -430,6 +437,13 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 		return fmt.Errorf("commit config: %w", err)
 	}
 	return nil
+}
+
+// SaveActiveSession records the session that should be resumed when startup
+// session advancement is disabled.
+func (s *SettingsService) SaveActiveSession(id string) error {
+	s.Viper.Set("active_session_id", id)
+	return s.Save()
 }
 
 func parentDir(p string) string {
