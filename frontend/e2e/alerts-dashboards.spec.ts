@@ -13,7 +13,7 @@ const dashboard = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/**', async (route) => {
+  await page.route(/^https?:\/\/[^/]+\/api\//, async (route) => {
     const path = new URL(route.request().url()).pathname
     let data: unknown = []
     if (path === '/api/alerts')
