@@ -55,6 +55,39 @@ describe('useLiveInvalidation', () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] })
   })
 
+  it('updates forwarder status from the live event without invalidating its query', () => {
+    const qc = new QueryClient()
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children)
+
+    renderHook(() => useLiveInvalidation(), { wrapper })
+    captured!({
+      type: 'forwarder',
+      timestamp_ns: 0,
+      payload: {
+        url: 'http://tempo:4318',
+        sent: 12,
+        errors: 1,
+        lastError: 'connection refused',
+        pendingBytes: 64,
+        droppedSpool: 2,
+      },
+    })
+
+    expect(qc.getQueryData(['forwarders'])).toEqual([
+      {
+        url: 'http://tempo:4318',
+        sent: 12,
+        errors: 1,
+        last_error: 'connection refused',
+        pending_bytes: 64,
+        dropped_spool: 2,
+      },
+    ])
+    expect(spy).not.toHaveBeenCalled()
+  })
+
   it('ignores throughput events', () => {
     const qc = new QueryClient()
     const spy = vi.spyOn(qc, 'invalidateQueries')

@@ -412,7 +412,6 @@ function ForwarderStatusRows() {
   const { data: statuses = [] } = useQuery({
     queryKey: qk.forwarders(),
     queryFn: () => api.forwarders.list().then((r) => r.data),
-    refetchInterval: 5000,
   })
 
   const active = statuses.filter((s) => (s.pending_bytes ?? 0) > 0 || (s.dropped_spool ?? 0) > 0)

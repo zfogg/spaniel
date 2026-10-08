@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
+import type { ForwarderStatus } from './api'
 import { onWSEvent } from './ws'
 
 // Single shared client. This is a local dev tool talking to localhost, so we
@@ -66,12 +67,13 @@ const INVALIDATIONS: Record<string, string[]> = {
   log: ['logs', 'dashboard-panel'],
   metric: ['metrics', 'metric-series', 'dashboard-panel'],
   issue: ['issues', 'traces', 'trace'],
-  forwarder: ['forwarders'],
   alert: ['alerts', 'notifications'],
 }
 
 // Opens a single WebSocket and turns live events into throttled query
-// invalidations. Mount exactly once near the app root. Invalidations are
+// invalidations. Forwarder status is the exception: its complete per-upstream
+// snapshot arrives in the event, so it updates the cache directly without an
+// HTTP refetch. Mount exactly once near the app root. Invalidations are
 // coalesced (~1/sec per prefix) so a burst of spans does not trigger a refetch
 // per message. invalidateQueries only refetches active observers, so marking a
 // broad set of prefixes is cheap when those views aren't mounted.
@@ -88,6 +90,22 @@ export function useLiveInvalidation() {
     }
 
     const unsub = onWSEvent((ev) => {
+      if (ev.type === 'forwarder') {
+        const status: ForwarderStatus = {
+          url: ev.payload.url,
+          sent: ev.payload.sent,
+          errors: ev.payload.errors,
+          last_error: ev.payload.lastError,
+          pending_bytes: ev.payload.pendingBytes,
+          dropped_spool: ev.payload.droppedSpool,
+        }
+        qc.setQueryData<ForwarderStatus[]>(qk.forwarders(), (previous = []) => {
+          const index = previous.findIndex((item) => item.url === status.url)
+          if (index === -1) return [...previous, status]
+          return previous.map((item, i) => (i === index ? status : item))
+        })
+        return
+      }
       // Self-telemetry catalog frames update the Metrics sidebar locally. They
       // must not refetch telemetry queries, which would form a feedback loop.
       if (ev.type === 'metric' && ev.payload.catalogOnly) return
