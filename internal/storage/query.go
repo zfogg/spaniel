@@ -25,8 +25,8 @@ import (
 // The guard deliberately tokenizes rather than parsing a different SQL dialect,
 // preserving DuckDB-specific SELECT syntax.
 //
-// This requires a file-backed database; an in-memory database can't be reopened
-// read-only as a second instance.
+// Non-Windows platforms require a file-backed database because an in-memory
+// database can't be reopened as a second, read-only instance.
 func (d *DB) ReadOnlyQuery(ctx context.Context, query string, maxRows int) (cols []string, rows [][]any, truncated bool, err error) {
 	return d.ReadOnlyQueryArgs(ctx, query, nil, maxRows)
 }

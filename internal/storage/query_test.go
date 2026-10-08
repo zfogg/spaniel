@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -204,7 +205,17 @@ func TestReadOnlyQuery_InMemoryUnsupported(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	if _, _, _, err := d.ReadOnlyQuery(context.Background(), "SELECT 1", 10); err == nil {
+	_, rows, _, err := d.ReadOnlyQuery(context.Background(), "SELECT 1", 10)
+	if runtime.GOOS == "windows" {
+		if err != nil {
+			t.Fatalf("Windows should query the server connection safely: %v", err)
+		}
+		if len(rows) != 1 || rows[0][0] != int32(1) && rows[0][0] != int64(1) {
+			t.Errorf("rows = %#v, want one row containing 1", rows)
+		}
+		return
+	}
+	if err == nil {
 		t.Error("expected in-memory DB to report read-only SQL unavailable")
 	}
 }
