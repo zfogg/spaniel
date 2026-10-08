@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { qk } from '@/lib/query'
 import { api, ServiceCoverage, CoverageRoute, CoverageSpec } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
@@ -319,6 +320,19 @@ function ServiceSection({
 function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
   const dark = route.hits === 0
   const m = methodTone(route.method)
+  const navigate = useNavigate()
+  const operationName =
+    route.method && route.method !== 'RPC' ? `${route.method} ${route.path}` : route.path
+  const { data: routeSpans = [], isFetching } = useQuery({
+    queryKey: ['coverage-route-traces', svc, route.method, route.path],
+    queryFn: () =>
+      api.spans
+        .list({ service: svc, name: operationName, limit: 7, sort: 'time' })
+        .then((response) => response.data),
+    enabled: !dark && Boolean(operationName),
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  })
   return (
     <aside className="w-[340px] border-l border-border bg-background flex flex-col overflow-auto">
       <div className="py-3.5 px-4 border-b border-border">
@@ -401,6 +415,64 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
           </div>
         </div>
       )}
+
+      <section className="border-t border-border px-4 py-3.5">
+        <div className="mb-2.5 flex items-center justify-between">
+          <div className="font-medium text-xs text-foreground">Recent traces</div>
+          <span className="inline-flex items-center gap-1 font-mono text-[9px] text-muted-foreground">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${dark ? 'bg-muted-foreground' : 'bg-[#3e6a3e]'}`}
+            />
+            {dark ? 'waiting for traffic' : isFetching ? 'refreshing' : 'live · 5s'}
+          </span>
+        </div>
+        {dark ? (
+          <p className="m-0 rounded-md border border-border bg-muted px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+            Call this endpoint to populate its trace list.
+          </p>
+        ) : routeSpans.length === 0 ? (
+          <p className="m-0 rounded-md border border-border bg-muted px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+            Waiting for a matching trace in this session.
+          </p>
+        ) : (
+          <div className="max-h-[330px] space-y-1 overflow-y-auto pr-1">
+            {routeSpans.map((span) => {
+              const failed = span.status_code === 2
+              return (
+                <button
+                  key={span.span_id}
+                  type="button"
+                  onClick={() => navigate(`/traces/${encodeURIComponent(span.trace_id)}`)}
+                  className="group w-full cursor-pointer rounded-md border border-transparent px-2.5 py-2 text-left outline-hidden transition-colors hover:border-border hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted"
+                  title={`Open trace ${span.trace_id}`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${failed ? 'bg-danger text-white' : 'bg-[#dbead9] text-[#285b28]'}`}
+                    >
+                      {failed ? 'ERROR' : 'OK'}
+                    </span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
+                      {span.kind === 2 ? 'SERVER' : 'SPAN'}
+                    </span>
+                    <span className="ml-auto font-mono text-[9px] text-muted-foreground">
+                      {fmtNs(span.duration_ns)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-foreground">
+                      {span.trace_id}
+                    </span>
+                    <span className="font-mono text-[9px] text-muted-foreground group-hover:text-foreground">
+                      open ↗
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </section>
     </aside>
   )
 }
