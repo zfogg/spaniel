@@ -29,9 +29,9 @@ import RouteErrorBoundary from './components/RouteErrorBoundary'
 import { Toaster } from 'sonner'
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import { useGlobalShortcuts } from './lib/shortcuts'
-import { useQuery } from '@tanstack/react-query'
 import { qk, useLiveInvalidation } from './lib/query'
 import { api } from './lib/api'
+import { useSharedPollingQuery } from './lib/shared-polling-query'
 
 // ── Spaniel logo SVG ──────────────────────────────────────────────────────────
 
@@ -258,10 +258,10 @@ function fmtBytes(n: number): string {
 // ── Forwarding status pills ───────────────────────────────────────────────────
 
 function ForwardingPills() {
-  const { data: statuses = [] } = useQuery({
+  const { data: statuses = [] } = useSharedPollingQuery({
     queryKey: qk.forwarders(),
     queryFn: () => api.forwarders.list().then((r) => r.data),
-    refetchInterval: 5000,
+    intervalMs: 5000,
   })
 
   if (statuses.length === 0) return null

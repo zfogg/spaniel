@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, Stats } from '@/lib/api'
+import { api } from '@/lib/api'
 import { useWSStatus } from '@/lib/ws'
+import { qk } from '@/lib/query'
+import { useSharedPollingQuery } from '@/lib/shared-polling-query'
 import SourcesPanel from './SourcesPanel'
 import { fmtRate } from './bottom-bar-format'
 
@@ -38,12 +40,16 @@ interface ActiveSession {
 }
 
 export default function BottomBar() {
-  const [stats, setStats] = useState<Stats | null>(null)
   const [active, setActive] = useState<ActiveSession | null>(null)
   const [showSources, setShowSources] = useState(false)
   const footerRef = useRef<HTMLElement>(null)
   const { connected, since } = useWSStatus()
   const [now, setNow] = useState(() => Date.now())
+  const { data: stats = null } = useSharedPollingQuery({
+    queryKey: qk.stats(),
+    queryFn: () => api.stats.get().then((r) => r.data),
+    intervalMs: 4000,
+  })
 
   // Tick once a second so the "connected for <duration>" readout stays live.
   useEffect(() => {
@@ -66,12 +72,6 @@ export default function BottomBar() {
   useEffect(() => {
     let cancel = false
     function refresh() {
-      api.stats
-        .get()
-        .then((r) => {
-          if (!cancel) setStats(r.data)
-        })
-        .catch(() => {})
       api.sessions
         .getActive()
         .then((r) => {

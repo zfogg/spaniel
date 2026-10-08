@@ -155,21 +155,25 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
 }
 
 export function useWS(onEvent: Handler, onStatus?: StatusHandler) {
-  // Keep the latest callbacks in refs so the single long-lived socket always
-  // calls the current handlers, rather than capturing the first render's
-  // closures forever (the effect intentionally runs once).
+  // Keep the latest callbacks in refs so subscriptions to the one app-wide
+  // socket always call current handlers rather than stale render closures.
   const evRef = useRef(onEvent)
   evRef.current = onEvent
   const stRef = useRef(onStatus)
   stRef.current = onStatus
-  useEffect(
-    () =>
-      createWS(
-        (e) => evRef.current(e),
-        (s) => stRef.current?.(s),
-      ),
-    [],
-  )
+  useEffect(() => {
+    const unsub = onWSEvent((e) => evRef.current(e))
+    const onSharedStatus = (status: WSStatus) => stRef.current?.(status.connected)
+    if (stRef.current) {
+      statusListeners.add(onSharedStatus)
+      onSharedStatus(sharedStatus)
+    }
+    return () => {
+      unsub()
+      statusListeners.delete(onSharedStatus)
+      releaseSharedWS()
+    }
+  }, [])
 }
 
 // ── Shared event bus ──────────────────────────────────────────────────────────
@@ -178,14 +182,44 @@ export function useWS(onEvent: Handler, onStatus?: StatusHandler) {
 // useLiveActivity are mounted.
 
 type Listener = (ev: WsEvent) => void
+type SharedStatusListener = (status: WSStatus) => void
 const listeners = new Set<Listener>()
+const statusListeners = new Set<SharedStatusListener>()
 let sharedDisconnect: (() => void) | null = null
+let sharedStopTimer: ReturnType<typeof setTimeout> | null = null
+let sharedStatus: WSStatus = { connected: false, since: null }
 
 function ensureSharedWS() {
+  if (sharedStopTimer) {
+    clearTimeout(sharedStopTimer)
+    sharedStopTimer = null
+  }
   if (sharedDisconnect) return
-  sharedDisconnect = createWS((ev) => {
-    for (const fn of listeners) fn(ev)
-  })
+  sharedDisconnect = createWS(
+    (ev) => {
+      for (const fn of listeners) fn(ev)
+    },
+    (connected) => {
+      sharedStatus = connected
+        ? { connected: true, since: Date.now() }
+        : { connected: false, since: null }
+      for (const fn of statusListeners) fn(sharedStatus)
+    },
+  )
+}
+
+function releaseSharedWS() {
+  if (listeners.size > 0 || statusListeners.size > 0 || sharedStopTimer) return
+  // React Strict Mode immediately tears down and recreates effects in development.
+  // Defer closing until the next task so that probe does not create a second /ws
+  // upgrade for the same app instance.
+  sharedStopTimer = setTimeout(() => {
+    sharedStopTimer = null
+    if (listeners.size > 0 || statusListeners.size > 0 || !sharedDisconnect) return
+    sharedDisconnect()
+    sharedDisconnect = null
+    sharedStatus = { connected: false, since: null }
+  }, 0)
 }
 
 /** Subscribe to the shared WebSocket event stream. Returns an unsubscribe fn. */
@@ -194,10 +228,7 @@ export function onWSEvent(fn: Listener): () => void {
   listeners.add(fn)
   return () => {
     listeners.delete(fn)
-    if (listeners.size === 0 && sharedDisconnect) {
-      sharedDisconnect()
-      sharedDisconnect = null
-    }
+    releaseSharedWS()
   }
 }
 
@@ -210,18 +241,15 @@ export interface WSStatus {
 // Hook for components that care about connection status and how long the
 // current connection has been up. `since` resets on every (re)connect.
 export function useWSStatus(): WSStatus {
-  const [status, setStatus] = useState<WSStatus>({ connected: false, since: null })
-  useEffect(
-    () =>
-      createWS(
-        () => {},
-        (connected) => {
-          setStatus(
-            connected ? { connected: true, since: Date.now() } : { connected: false, since: null },
-          )
-        },
-      ),
-    [],
-  )
+  const [status, setStatus] = useState<WSStatus>(sharedStatus)
+  useEffect(() => {
+    ensureSharedWS()
+    statusListeners.add(setStatus)
+    setStatus(sharedStatus)
+    return () => {
+      statusListeners.delete(setStatus)
+      releaseSharedWS()
+    }
+  }, [])
   return status
 }
