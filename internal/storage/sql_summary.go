@@ -13,14 +13,24 @@ import (
 // intentionally private so only this package controls how it is read.
 type queryNameKey struct{}
 
-// WithQueryName attaches a stable, human-owned name to one database operation.
-// Empty names are ignored. It is intended for callers of ReadOnlyQuery when a
-// user has supplied a meaningful name for their SQL.
+// storageQueryName qualifies a simple operation name for Spaniel storage spans.
+func storageQueryName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	return "spaniel.storage." + name
+}
+
+// WithQueryName attaches a stable name to one database operation. Callers pass
+// a simple name such as DashboardLatency; the spaniel.storage. prefix is added
+// here. Empty names are ignored.
 func WithQueryName(ctx context.Context, name string) context.Context {
-	if strings.TrimSpace(name) == "" {
+	name = storageQueryName(name)
+	if name == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, queryNameKey{}, strings.TrimSpace(name))
+	return context.WithValue(ctx, queryNameKey{}, name)
 }
 
 func queryNameFromContext(ctx context.Context) string {

@@ -46,7 +46,7 @@ func (d *DB) DeleteCoverageSpec(id string) error {
 // Route extraction and percentile aggregation stay in DuckDB so coverage does
 // not need to materialize the complete session in memory.
 func (d *DB) ListCoverageOperations(sessionID string) ([]*CoverageOperation, error) {
-	rows, err := d.namedQuery("storage.ListCoverageOperations").Span.ListCoverageOperations(sessionID)
+	rows, err := d.namedQuery("ListCoverageOperations").Span.ListCoverageOperations(sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (d *DB) ListCoverageOperations(sessionID string) ([]*CoverageOperation, err
 }
 
 func (d *DB) GetCoverageQuality(sessionID string) (*CoverageQuality, error) {
-	rows, err := d.namedQuery("storage.GetCoverageQuality").Span.GetCoverageQuality(sessionID)
+	rows, err := d.namedQuery("GetCoverageQuality").Span.GetCoverageQuality(sessionID)
 	if err != nil {
 		return nil, err
 	}

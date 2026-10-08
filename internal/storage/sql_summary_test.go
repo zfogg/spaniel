@@ -10,6 +10,22 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
+func TestWithQueryNamePrefixesSimpleNames(t *testing.T) {
+	parent := WithQueryName(context.Background(), "Parent")
+	for _, name := range []string{"", " ", "\t\n"} {
+		if got := WithQueryName(parent, name); got != parent {
+			t.Errorf("empty name %q replaced the parent context", name)
+		}
+	}
+	ctx := WithQueryName(parent, "  DashboardLatency  ")
+	if got := queryNameFromContext(ctx); got != "spaniel.storage.DashboardLatency" {
+		t.Errorf("query name = %q, want spaniel.storage.DashboardLatency", got)
+	}
+	if got := queryNameFromContext(parent); got != "spaniel.storage.Parent" {
+		t.Errorf("parent query name changed to %q", got)
+	}
+}
+
 func TestSQLSummary(t *testing.T) {
 	for _, tt := range []struct{ sql, want string }{
 		{"SELECT * FROM spans WHERE trace_id = 'secret' ORDER BY start_ns DESC", "SELECT * FROM spans WHERE trace_id = ? ORDER BY start_ns DESC · 1 args"},
@@ -56,14 +72,14 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 	}
 
 	for _, span := range recorder.Ended() {
-		if span.Name() != "storage.ReadOnlyQuery" {
+		if span.Name() != "spaniel.storage.ReadOnlyQuery" {
 			continue
 		}
 		attrs := map[string]string{}
 		for _, attr := range span.Attributes() {
 			attrs[string(attr.Key)] = attr.Value.AsString()
 		}
-		if attrs["db.query.summary"] != "storage.ReadOnlyQuery" {
+		if attrs["db.query.summary"] != "spaniel.storage.ReadOnlyQuery" {
 			t.Errorf("summary = %q", attrs["db.query.summary"])
 		}
 		if attrs["db.query.text"] != "SELECT ? AS value" {
@@ -86,20 +102,20 @@ func TestReadOnlyQueryUsesExplicitUserName(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = d.Close() })
-	ctx := WithQueryName(context.Background(), "storage.DashboardLatency")
+	ctx := WithQueryName(context.Background(), "DashboardLatency")
 	if _, _, _, err := d.ReadOnlyQuery(ctx, "SELECT 'secret' AS value", 1); err != nil {
 		t.Fatalf("ReadOnlyQuery: %v", err)
 	}
 
 	for _, span := range recorder.Ended() {
-		if span.Name() != "storage.DashboardLatency" {
+		if span.Name() != "spaniel.storage.DashboardLatency" {
 			continue
 		}
 		foundSummary := false
 		for _, attr := range span.Attributes() {
 			if string(attr.Key) == "db.query.summary" {
 				foundSummary = true
-				if attr.Value.AsString() != "storage.DashboardLatency" {
+				if attr.Value.AsString() != "spaniel.storage.DashboardLatency" {
 					t.Errorf("summary = %q, want DashboardLatency", attr.Value.AsString())
 				}
 			}

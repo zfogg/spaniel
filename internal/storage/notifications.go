@@ -22,7 +22,7 @@ func (d *DB) RecordNotification(n *NotificationRecord) error {
 			return nil
 		}
 	}
-	return d.namedQuery("storage.RecordNotification").NotificationRecord.Create(n)
+	return d.namedQuery("RecordNotification").NotificationRecord.Create(n)
 }
 
 func (d *DB) ListNotifications(source string, page, limit int) ([]*NotificationRecord, int64, error) {

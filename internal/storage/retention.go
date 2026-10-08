@@ -198,7 +198,7 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
 	}
 
 	deleted := 0
-	err := d.namedGORM("storage.DeleteOldestTelemetryBatch").Transaction(func(tx *gorm.DB) error {
+	err := d.namedGORM("DeleteOldestTelemetryBatch").Transaction(func(tx *gorm.DB) error {
 		for _, table := range []string{"lint_warnings", "trace_issues", "logs", "span_events", "span_links"} {
 			if err := tx.Exec(`DELETE FROM ` + table + ` WHERE ` + traceMatch(table)).Error; err != nil {
 				return fmt.Errorf("delete old trace %s: %w", table, err)
@@ -253,7 +253,7 @@ func (d *DB) protectedSessionIDsOlderThan(cutoffNs int64, activeID string) ([]st
 func (d *DB) resetTelemetry() error {
 	// Generated DAOs retain model ownership and the normal instrumentation path;
 	// each predicate makes the intended whole-table maintenance deletion explicit.
-	q := d.namedQuery("storage.ResetTelemetry")
+	q := d.namedQuery("ResetTelemetry")
 	return q.Transaction(func(tx *querygen.Query) error {
 		if _, err := tx.LintWarning.Where(tx.LintWarning.SpanID.IsNotNull()).Delete(); err != nil {
 			return fmt.Errorf("truncate lint_warnings: %w", err)

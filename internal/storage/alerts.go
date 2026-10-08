@@ -17,7 +17,7 @@ type AlertEvent = model.AlertEvent
 type AlertSilence = model.AlertSilence
 
 func (d *DB) ListAlertRules() ([]*AlertRule, error) {
-	rules := d.namedQuery("storage.ListAlertRules")
+	rules := d.namedQuery("ListAlertRules")
 	xs, err := rules.AlertRule.Order(rules.AlertRule.UpdatedAt.Desc()).Find()
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func (d *DB) ListAlertRules() ([]*AlertRule, error) {
 	for i, x := range xs {
 		ruleIDs[i] = x.ID
 	}
-	instancesQuery := d.namedQuery("storage.ListAlertRuleInstances")
+	instancesQuery := d.namedQuery("ListAlertRuleInstances")
 	instances, err := instancesQuery.AlertInstance.Where(instancesQuery.AlertInstance.RuleID.In(ruleIDs...)).Order(instancesQuery.AlertInstance.LastEvaluatedAt.Desc()).Find()
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (d *DB) CreateAlertRule(r *AlertRule) error {
 	}
 	r.CreatedAt = now
 	r.UpdatedAt = now
-	return d.namedQuery("storage.CreateAlertRule").AlertRule.Create(r)
+	return d.namedQuery("CreateAlertRule").AlertRule.Create(r)
 }
 
 // DuplicateAlertRule copies only the definition. Runtime state, file ownership,
@@ -111,7 +111,7 @@ func (d *DB) UpdateAlertRule(r *AlertRule) error {
 		}
 	}
 	r.UpdatedAt = time.Now().UnixNano()
-	return d.namedQuery("storage.UpdateAlertRule").AlertRule.Save(r)
+	return d.namedQuery("UpdateAlertRule").AlertRule.Save(r)
 }
 
 func (d *DB) RecordAlertEvaluation(ruleID string, evaluatedAt, durationNs, nextAt int64, evaluationErr error) error {
@@ -137,7 +137,7 @@ func (d *DB) RecordAlertEvaluations(rules []*AlertRule) error {
 	if len(rules) == 0 {
 		return nil
 	}
-	return d.namedQuery("storage.RecordAlertEvaluations").AlertRule.Save(rules...)
+	return d.namedQuery("RecordAlertEvaluations").AlertRule.Save(rules...)
 }
 func (d *DB) UpsertAlertInstance(x *AlertInstance) error {
 	return d.UpsertAlertInstances([]*AlertInstance{x})
@@ -147,7 +147,7 @@ func (d *DB) UpsertAlertInstances(instances []*AlertInstance) error {
 	if len(instances) == 0 {
 		return nil
 	}
-	q := d.namedQuery("storage.UpsertAlertInstances")
+	q := d.namedQuery("UpsertAlertInstances")
 	if err := q.AlertInstance.Save(instances...); err != nil {
 		return fmt.Errorf("upsert alert instances: %w", err)
 	}
@@ -173,7 +173,7 @@ func (d *DB) UpsertAlertInstanceTargets(targets []*AlertInstanceTarget) error {
 	if len(targets) == 0 {
 		return nil
 	}
-	q := d.namedQuery("storage.UpsertAlertInstanceTargets")
+	q := d.namedQuery("UpsertAlertInstanceTargets")
 	if _, err := q.AlertInstanceTarget.Delete(targets...); err != nil {
 		return fmt.Errorf("delete alert instance targets for replacement: %w", err)
 	}
@@ -200,7 +200,7 @@ func (d *DB) AcknowledgeAlert(id string) ([]*AlertInstance, error) {
 	// firing condition must remain firing so a later evaluation can resolve it
 	// correctly (and so the UI can still communicate the actual condition).
 	var changed []*AlertInstance
-	err := d.namedQuery("storage.AcknowledgeAlert").Transaction(func(tx *querygen.Query) error {
+	err := d.namedQuery("AcknowledgeAlert").Transaction(func(tx *querygen.Query) error {
 		q := tx.AlertInstance.Where(
 			tx.AlertInstance.RuleID.Eq(id),
 			tx.AlertInstance.State.In("pending", "firing"),
@@ -262,7 +262,7 @@ func (d *DB) UnacknowledgeAlertInstance(ruleID, groupKey string) (*AlertInstance
 	return instance, true, nil
 }
 func (d *DB) DeleteAlertRule(id string) error {
-	return d.namedQuery("storage.DeleteAlertRule").Transaction(func(tx *querygen.Query) error {
+	return d.namedQuery("DeleteAlertRule").Transaction(func(tx *querygen.Query) error {
 		if _, err := tx.AlertInstanceTarget.Where(tx.AlertInstanceTarget.RuleID.Eq(id)).Delete(); err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ func (d *DB) RecordAlertEvents(events []*AlertEvent) error {
 			e.CreatedAt = time.Now().UnixNano()
 		}
 	}
-	return d.namedQuery("storage.RecordAlertEvents").AlertEvent.CreateInBatches(events, len(events))
+	return d.namedQuery("RecordAlertEvents").AlertEvent.CreateInBatches(events, len(events))
 }
 
 type AlertEventFilter struct {

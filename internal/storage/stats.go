@@ -45,7 +45,7 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 	// roots avoids an exact COUNT(DISTINCT trace_id), whose hash table grew to
 	// multiple GiB on a modest on-disk store and stalled the stats endpoint.
 	// This named query combines all dashboard aggregates into one round trip.
-	rows, err := d.namedQuery("storage.GetStats").Span.GetStats(sessionID)
+	rows, err := d.namedQuery("GetStats").Span.GetStats(sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (d *DB) LoadDropCounters() (spans, logs, metrics int64, err error) {
 
 // SaveDropCounters writes the current drop counters to the meta table.
 func (d *DB) SaveDropCounters(spans, logs, metrics int64) error {
-	q := d.namedQuery("storage.SaveDropCounters")
+	q := d.namedQuery("SaveDropCounters")
 	return q.Transaction(func(tx *querygen.Query) error {
 		for _, entry := range []*model.Meta{
 			{Key: "dropped_spans", Value: strconv.FormatInt(spans, 10)},

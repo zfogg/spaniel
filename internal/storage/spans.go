@@ -27,7 +27,7 @@ func (d *DB) InsertSpan(s *Span) error {
 	if s.DurationNs == 0 {
 		s.DurationNs = s.EndNs - s.StartNs
 	}
-	return d.namedQuery("storage.InsertSpan").Span.Create(s)
+	return d.namedQuery("InsertSpan").Span.Create(s)
 }
 
 // InsertSpanEvents bulk-inserts the events attached to a span. Empty input
@@ -37,7 +37,7 @@ func (d *DB) InsertSpanEvents(events []*SpanEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
-	return d.namedQuery("storage.InsertSpanEvents").SpanEvent.Create(events...)
+	return d.namedQuery("InsertSpanEvents").SpanEvent.Create(events...)
 }
 
 // ListEventsBySpan returns the events attached to a single span, in time order.
@@ -59,12 +59,12 @@ func (d *DB) InsertSpanLinks(links []*SpanLink) error {
 	if len(links) == 0 {
 		return nil
 	}
-	return d.namedQuery("storage.InsertSpanLinks").SpanLink.Create(links...)
+	return d.namedQuery("InsertSpanLinks").SpanLink.Create(links...)
 }
 
 // ListLinksBySpan returns the outbound links emitted by a single span.
 func (d *DB) ListLinksBySpan(spanID string) ([]*SpanLink, error) {
-	q := d.namedQuery("storage.ListLinksBySpan")
+	q := d.namedQuery("ListLinksBySpan")
 	rows, err := q.SpanLink.ListBySpan(spanID)
 	return spanLinkPointers(rows, err)
 }
@@ -72,7 +72,7 @@ func (d *DB) ListLinksBySpan(spanID string) ([]*SpanLink, error) {
 // ListIncomingLinks returns every link in the store whose target is the
 // given trace ID — the "who links into this trace?" reverse lookup.
 func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
-	q := d.namedQuery("storage.ListIncomingLinks")
+	q := d.namedQuery("ListIncomingLinks")
 	rows, err := q.SpanLink.ListIncomingByTrace(linkedTraceID)
 	return spanLinkPointers(rows, err)
 }
@@ -81,7 +81,7 @@ func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
 // bulk-attach links to spans when serving GET /api/traces/:id so the
 // waterfall can show the link badge without a per-span round-trip.
 func (d *DB) ListLinksByTrace(traceID string) ([]*SpanLink, error) {
-	q := d.namedQuery("storage.ListLinksByTrace")
+	q := d.namedQuery("ListLinksByTrace")
 	rows, err := q.SpanLink.ListByTrace(traceID)
 	return spanLinkPointers(rows, err)
 }
@@ -204,7 +204,7 @@ func (d *DB) CountSpanGroups(f SpanFilter) (int, error) {
 // reference those spans. It is intended for narrow telemetry repair actions;
 // it deliberately leaves all other spans in the affected traces intact.
 func (d *DB) DeleteSpansNamed(name string) (int, error) {
-	q := d.namedQuery("storage.DeleteSpansNamed")
+	q := d.namedQuery("DeleteSpansNamed")
 	spans, err := q.Span.Where(q.Span.Name.Eq(name)).Find()
 	if err != nil {
 		return 0, err

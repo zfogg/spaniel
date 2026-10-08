@@ -583,7 +583,7 @@ func legacySQLField(field string) string {
 // informational (surfaced in doctor/settings); schema versioning is owned by the
 // migrations table. Best-effort by design — callers may ignore the error.
 func (d *DB) SetSpanielVersion(version string) error {
-	return d.namedQuery("storage.SetSpanielVersion").Meta.UpsertValue("spaniel_version", version)
+	return d.namedQuery("SetSpanielVersion").Meta.UpsertValue("spaniel_version", version)
 }
 
 // SpanielVersion returns the spaniel version recorded in the meta table, or "".

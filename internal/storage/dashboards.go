@@ -21,7 +21,7 @@ func (d *DB) MoveDashboardPanel(dashboardID, panelID string, direction int) erro
 	if direction != -1 && direction != 1 {
 		return fmt.Errorf("direction must be -1 or 1")
 	}
-	return d.namedQuery("storage.MoveDashboardPanel").Transaction(func(tx *querygen.Query) error {
+	return d.namedQuery("MoveDashboardPanel").Transaction(func(tx *querygen.Query) error {
 		p := tx.DashboardPanel
 		panels, err := p.Where(p.DashboardID.Eq(dashboardID)).Order(p.Position, p.Title, p.ID).Find()
 		if err != nil {
@@ -92,7 +92,7 @@ func (d *DB) ReorderDashboards(ids []string) error {
 	if err != nil {
 		return err
 	}
-	return d.namedQuery("storage.ReorderDashboards").Meta.UpsertValue("dashboard_order", string(encoded))
+	return d.namedQuery("ReorderDashboards").Meta.UpsertValue("dashboard_order", string(encoded))
 }
 func (d *DB) GetDashboard(id string) (*Dashboard, error) {
 	x, err := d.query.Dashboard.Where(d.query.Dashboard.ID.Eq(id)).First()
@@ -120,7 +120,7 @@ func (d *DB) CreateDashboard(name, description string) (*Dashboard, error) {
 func (d *DB) CreateDashboardWithPanels(name, description string, panels []*DashboardPanel) (*Dashboard, error) {
 	now := time.Now().UnixNano()
 	x := &Dashboard{ID: uuid.NewString(), Name: name, Description: description, CreatedAt: now, UpdatedAt: now, Variables: []*DashboardVariable{}, Panels: []*DashboardPanel{}}
-	err := d.namedQuery("storage.CreateDashboard").Transaction(func(tx *querygen.Query) error {
+	err := d.namedQuery("CreateDashboard").Transaction(func(tx *querygen.Query) error {
 		if err := tx.Dashboard.Create(x); err != nil {
 			return err
 		}
@@ -152,10 +152,10 @@ func (d *DB) CreateDashboardWithPanels(name, description string, panels []*Dashb
 }
 func (d *DB) UpdateDashboard(x *Dashboard) error {
 	x.UpdatedAt = time.Now().UnixNano()
-	return d.namedQuery("storage.UpdateDashboard").Dashboard.Save(x)
+	return d.namedQuery("UpdateDashboard").Dashboard.Save(x)
 }
 func (d *DB) DeleteDashboard(id string) error {
-	return d.namedQuery("storage.DeleteDashboard").Transaction(func(tx *querygen.Query) error {
+	return d.namedQuery("DeleteDashboard").Transaction(func(tx *querygen.Query) error {
 		if _, err := tx.DashboardPanel.Where(tx.DashboardPanel.DashboardID.Eq(id)).Delete(); err != nil {
 			return err
 		}
@@ -185,7 +185,7 @@ func (d *DB) ReplaceDashboardDefinition(x *Dashboard) error {
 	if err := d.DeleteDashboard(x.ID); err != nil {
 		return err
 	}
-	q := d.namedQuery("storage.ReplaceDashboardDefinition")
+	q := d.namedQuery("ReplaceDashboardDefinition")
 	// Create the parent on its own. GORM otherwise persists the preloaded
 	// association slices here and the explicit child creates below attempt to
 	// write them a second time.
@@ -208,10 +208,10 @@ func (d *DB) ReplaceDashboardDefinition(x *Dashboard) error {
 	return nil
 }
 func (d *DB) SaveDashboardVariable(v *DashboardVariable) error {
-	return d.namedQuery("storage.SaveDashboardVariable").DashboardVariable.Save(v)
+	return d.namedQuery("SaveDashboardVariable").DashboardVariable.Save(v)
 }
 func (d *DB) DeleteDashboardVariable(id, name string) error {
-	q := d.namedQuery("storage.DeleteDashboardVariable")
+	q := d.namedQuery("DeleteDashboardVariable")
 	_, err := q.DashboardVariable.Where(
 		q.DashboardVariable.DashboardID.Eq(id),
 		q.DashboardVariable.Name.Eq(name),
@@ -224,14 +224,14 @@ func (d *DB) CreateDashboardPanel(p *DashboardPanel) error {
 	if p.Position < 0 {
 		p.Position = 0
 	}
-	return d.namedQuery("storage.CreateDashboardPanel").DashboardPanel.Create(p)
+	return d.namedQuery("CreateDashboardPanel").DashboardPanel.Create(p)
 }
 func (d *DB) UpdateDashboardPanel(p *DashboardPanel) error {
 	p.UpdatedAt = time.Now().UnixNano()
 	// DuckDB's ART index does not allow an indexed key to be deleted and
 	// reinserted in one transaction. Commit the delete before recreating the
 	// stable ID; the API still returns the replacement only on success.
-	q := d.namedQuery("storage.UpdateDashboardPanel")
+	q := d.namedQuery("UpdateDashboardPanel")
 	if _, err := q.DashboardPanel.Where(
 		q.DashboardPanel.ID.Eq(p.ID),
 		q.DashboardPanel.DashboardID.Eq(p.DashboardID),
@@ -241,7 +241,7 @@ func (d *DB) UpdateDashboardPanel(p *DashboardPanel) error {
 	return q.DashboardPanel.Create(p)
 }
 func (d *DB) DeleteDashboardPanel(dashboardID, id string) error {
-	q := d.namedQuery("storage.DeleteDashboardPanel")
+	q := d.namedQuery("DeleteDashboardPanel")
 	_, err := q.DashboardPanel.Where(
 		q.DashboardPanel.ID.Eq(id),
 		q.DashboardPanel.DashboardID.Eq(dashboardID),

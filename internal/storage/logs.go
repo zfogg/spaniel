@@ -8,7 +8,7 @@ type Log = model.Log
 func (d *DB) AppendLog(l *Log) error { return d.batcher.AppendLog(l) }
 
 func (d *DB) InsertLog(l *Log) error {
-	return d.namedQuery("storage.InsertLog").Log.Create(l)
+	return d.namedQuery("InsertLog").Log.Create(l)
 }
 
 type LogFilter struct {

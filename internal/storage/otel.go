@@ -94,7 +94,7 @@ func (p *gormOTelPlugin) before(op string) func(*gorm.DB) {
 			// Do not leak generic db.query/db.row operation names into Spaniel's
 			// own telemetry. A call outside a DB method is still Spaniel storage
 			// work, even though it has no more-specific source-owned name.
-			name = "storage." + op
+			name = storageQueryName(op)
 		}
 		ctx, _ = p.tracer.Start(ctx, name,
 			trace.WithSpanKind(trace.SpanKindClient),
@@ -116,7 +116,7 @@ func storageCallerName() string {
 	// GORM's callback dispatcher adds a substantial stack between this plugin
 	// and the storage method that initiated the operation. Sixteen frames was
 	// too shallow in live traffic, leaving ordinary storage methods labelled
-	// storage.query instead of their source-owned method name.
+	// spaniel.storage.query instead of their source-owned method name.
 	pcs := make([]uintptr, 64)
 	n := runtime.Callers(3, pcs)
 	for _, pc := range pcs[:n] {
@@ -130,7 +130,7 @@ func storageCallerName() string {
 			if dot := strings.IndexByte(method, '.'); dot >= 0 {
 				method = method[:dot]
 			}
-			return "storage." + method
+			return storageQueryName(method)
 		}
 	}
 	return ""

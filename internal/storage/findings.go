@@ -7,7 +7,7 @@ type LintWarning = model.LintWarning
 type TraceIssue = model.TraceIssue
 
 func (d *DB) InsertLintWarning(w *LintWarning) error {
-	if err := d.namedQuery("storage.InsertLintWarning").LintWarning.Create(w); err != nil {
+	if err := d.namedQuery("InsertLintWarning").LintWarning.Create(w); err != nil {
 		return err
 	}
 	return d.RecordNotification(&NotificationRecord{
@@ -30,7 +30,7 @@ func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 }
 
 func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
-	return d.namedQuery("storage.UpsertTraceIssue").TraceIssue.Save(issue)
+	return d.namedQuery("UpsertTraceIssue").TraceIssue.Save(issue)
 }
 
 func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {

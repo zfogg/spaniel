@@ -36,7 +36,7 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 	parentID := parent.SpanContext().SpanID()
 	var dbSpan sdktrace.ReadOnlySpan
 	for _, s := range sr.Ended() {
-		if s.Name() == "storage.ListTraces" && s.Parent().SpanID() == parentID {
+		if s.Name() == "spaniel.storage.ListTraces" && s.Parent().SpanID() == parentID {
 			dbSpan = s
 			break
 		}
@@ -46,7 +46,7 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 		for _, s := range sr.Ended() {
 			names = append(names, s.Name())
 		}
-		t.Fatalf("no storage.ListTraces span nested under parent; recorded spans: %v", names)
+		t.Fatalf("no spaniel.storage.ListTraces span nested under parent; recorded spans: %v", names)
 	}
 	for _, s := range sr.Ended() {
 		if s.Parent().SpanID() == parentID && (s.Name() == "db.query" || s.Name() == "db.row") {
@@ -95,7 +95,7 @@ func TestWithoutContext_DBSpanIsRoot(t *testing.T) {
 
 	parentID := parent.SpanContext().SpanID()
 	for _, s := range sr.Ended() {
-		if s.Name() == "storage.ListTraces" && s.Parent().SpanID() == parentID {
+		if s.Name() == "spaniel.storage.ListTraces" && s.Parent().SpanID() == parentID {
 			t.Errorf("storage span unexpectedly nested under parent without WithContext")
 		}
 	}
@@ -122,11 +122,47 @@ func TestWithContext_NamesGeneratedWriteSpan(t *testing.T) {
 
 	parentID := parent.SpanContext().SpanID()
 	for _, s := range sr.Ended() {
-		if s.Name() == "storage.SetSpanielVersion" && s.Parent().SpanID() == parentID {
+		if s.Name() == "spaniel.storage.SetSpanielVersion" && s.Parent().SpanID() == parentID {
 			return
 		}
 	}
 	t.Fatal("no source-named generated write span nested under parent")
+}
+
+func TestNamedHelpersPrefixSimpleNames(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = provider.Shutdown(context.Background()) })
+
+	d, err := Open(filepath.Join(t.TempDir(), "named-helpers.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	ctx, parent := otel.Tracer("test").Start(context.Background(), "parent")
+	store := d.WithContext(ctx)
+	if _, err := store.namedQuery("CountSpans").Span.Count(); err != nil {
+		t.Fatal(err)
+	}
+	var one int
+	if err := store.namedGORM("SelectOne").Raw("SELECT 1").Scan(&one).Error; err != nil {
+		t.Fatal(err)
+	}
+	parent.End()
+
+	counts := map[string]int{}
+	for _, span := range recorder.Ended() {
+		if span.Parent().SpanID() == parent.SpanContext().SpanID() {
+			counts[span.Name()]++
+		}
+	}
+	for _, name := range []string{"spaniel.storage.CountSpans", "spaniel.storage.SelectOne"} {
+		if counts[name] != 1 {
+			t.Errorf("%s spans = %d, want 1; recorded %v", name, counts[name], counts)
+		}
+	}
 }
 
 func TestGORMPluginFallbackIsStorageNamed(t *testing.T) {
@@ -155,7 +191,7 @@ func TestGORMPluginFallbackIsStorageNamed(t *testing.T) {
 		if strings.HasPrefix(span.Name(), "db.") {
 			t.Errorf("generic database span name %q recorded", span.Name())
 		}
-		if strings.HasPrefix(span.Name(), "storage.") {
+		if strings.HasPrefix(span.Name(), "spaniel.storage.") {
 			return
 		}
 	}
@@ -181,11 +217,11 @@ func TestWithContext_NamesActiveMetricSeriesSpan(t *testing.T) {
 	}
 	parent.End()
 	for _, span := range sr.Ended() {
-		if span.Name() == "storage.ActiveMetricSeries" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
+		if span.Name() == "spaniel.storage.ActiveMetricSeries" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
 			return
 		}
 	}
-	t.Fatal("no storage.ActiveMetricSeries span nested under parent")
+	t.Fatal("no spaniel.storage.ActiveMetricSeries span nested under parent")
 }
 
 func TestWithContext_GetStatsEmitsOneStorageSpan(t *testing.T) {
@@ -209,11 +245,11 @@ func TestWithContext_GetStatsEmitsOneStorageSpan(t *testing.T) {
 
 	var count int
 	for _, span := range sr.Ended() {
-		if span.Name() == "storage.GetStats" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
+		if span.Name() == "spaniel.storage.GetStats" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
 			count++
 		}
 	}
 	if count != 1 {
-		t.Fatalf("storage.GetStats spans = %d, want 1", count)
+		t.Fatalf("spaniel.storage.GetStats spans = %d, want 1", count)
 	}
 }

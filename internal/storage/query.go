@@ -50,7 +50,7 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	if !skipTracing(ctx) {
 		name := queryNameFromContext(ctx)
 		if name == "" {
-			name = "storage.ReadOnlyQuery"
+			name = storageQueryName("ReadOnlyQuery")
 		}
 		attrs := []attribute.KeyValue{
 			semconv.DBSystemKey.String("duckdb"),

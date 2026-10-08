@@ -35,7 +35,7 @@ func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session,
 		IsBaseline: isBaseline, IsImported: isImported,
 		SpanCount: 0, Services: string(services),
 	}
-	if err := d.namedQuery("storage.CreateSession").Session.Create(s); err != nil {
+	if err := d.namedQuery("CreateSession").Session.Create(s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -101,7 +101,7 @@ func (d *DB) GetSession(id string) (*Session, error) {
 }
 
 func (d *DB) SetBaseline(id string, isBaseline bool) error {
-	q := d.namedQuery("storage.SetBaseline")
+	q := d.namedQuery("SetBaseline")
 	return q.Transaction(func(tx *querygen.Query) error {
 		if isBaseline {
 			// clear any previous baseline first
@@ -134,13 +134,13 @@ func (d *DB) UpdateSession(id string, p SessionPatch) error {
 	if len(updates) == 0 {
 		return nil
 	}
-	q := d.namedQuery("storage.UpdateSession")
+	q := d.namedQuery("UpdateSession")
 	_, err := q.Session.Where(q.Session.ID.Eq(id)).Updates(updates)
 	return err
 }
 
 func (d *DB) DeleteSession(id string) error {
-	q := d.namedQuery("storage.DeleteSession")
+	q := d.namedQuery("DeleteSession")
 	return q.Transaction(func(tx *querygen.Query) error {
 		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SessionID.Eq(id)).Delete(); err != nil {
 			return err

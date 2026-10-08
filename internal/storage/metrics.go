@@ -31,7 +31,7 @@ func (d *DB) RecordMetricSeries(sessionID, service, name, attrs string, timestam
 		SeriesKey: fmt.Sprintf("%x", seriesKey[:]), SeriesAttributes: attrs,
 		FirstTimestampNs: timestampNs, LastTimestampNs: timestampNs, PointCount: 1,
 	}
-	if err := d.namedQuery("storage.RecordMetricSeries").MetricSeriesCatalog.Clauses(clause.OnConflict{DoNothing: true}).Create(entry); err != nil {
+	if err := d.namedQuery("RecordMetricSeries").MetricSeriesCatalog.Clauses(clause.OnConflict{DoNothing: true}).Create(entry); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -51,13 +51,13 @@ func (d *DB) MetricSeriesCatalog() ([]MetricSeriesCatalog, error) {
 
 // InsertMetric stores one metric data point.
 func (d *DB) InsertMetric(m *Metric) error {
-	return d.namedQuery("storage.InsertMetric").Metric.Create(m)
+	return d.namedQuery("InsertMetric").Metric.Create(m)
 }
 
 // ActiveMetricSeries returns the durable source for the observable
 // active-series gauge without reconstructing identities from raw points.
 func (d *DB) ActiveMetricSeries() (int64, error) {
-	return d.namedQuery("storage.ActiveMetricSeries").MetricSeriesCatalog.Count()
+	return d.namedQuery("ActiveMetricSeries").MetricSeriesCatalog.Count()
 }
 
 // ListMetricCatalog returns one entry per (service, name) seen in the session.
