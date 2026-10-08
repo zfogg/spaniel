@@ -554,6 +554,9 @@ func TestDeleteSessionCascades(t *testing.T) {
 	if err := db.InsertLog(log); err != nil {
 		t.Fatalf("InsertLog: %v", err)
 	}
+	if _, err := db.RecordMetricSeries(sess.ID, "svc", "request.count", `{"route":"/health"}`, time.Now().UnixNano()); err != nil {
+		t.Fatalf("RecordMetricSeries: %v", err)
+	}
 
 	if err := db.DeleteSession(sess.ID); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
@@ -581,6 +584,13 @@ func TestDeleteSessionCascades(t *testing.T) {
 	}
 	if len(logs) != 0 {
 		t.Errorf("expected 0 logs after session delete, got %d", len(logs))
+	}
+	series, err := db.MetricSeriesCatalog()
+	if err != nil {
+		t.Fatalf("MetricSeriesCatalog: %v", err)
+	}
+	if len(series) != 0 {
+		t.Errorf("expected 0 metric catalog entries after session delete, got %d", len(series))
 	}
 }
 

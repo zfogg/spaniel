@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-table'
 import { qk } from '@/lib/query'
 import { api, Session } from '@/lib/api'
+import { useSharedPollingQuery } from '@/lib/shared-polling-query'
 import { type DiffHistoryEntry, pushDiffHistory, readDiffHistory } from '@/lib/diff-history'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -142,6 +143,17 @@ function NumCell({ label, value, hot }: { label: string; value: string | number;
       <div className="font-mono text-[9px] text-ink3 uppercase tracking-[0.14em] mt-0.5">
         {label}
       </div>
+    </div>
+  )
+}
+
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 px-3 py-2.5 border-l border-line first:border-l-0">
+      <div className="font-serif text-[19px] leading-none font-semibold text-ink truncate">
+        {value}
+      </div>
+      <div className="mt-1 font-mono text-[9px] text-ink3 tracking-[0.08em]">{label}</div>
     </div>
   )
 }
@@ -692,8 +704,20 @@ export default function Sessions() {
     queryKey: qk.activeSession(),
     queryFn: () => api.sessions.getActive().then((r) => r.data),
   })
+  // Keep this on the same cache key as BottomBar. A deletion refetches this
+  // exact key immediately; the footer and this page update from one response.
+  const { data: stats = null } = useSharedPollingQuery({
+    queryKey: qk.stats(),
+    queryFn: () => api.stats.get().then((r) => r.data),
+    intervalMs: 4000,
+  })
+  const { data: settings = null } = useQuery({
+    queryKey: qk.settings(),
+    queryFn: () => api.settings.get().then((r) => r.data),
+  })
   const activeId = activeData?.id ?? ''
   const baselineId = sessions.find((s) => s.is_baseline)?.id ?? null
+  const biggestSessionBytes = Math.max(0, ...sessions.map((session) => session.size_bytes))
 
   // After any write, refetch the list + active session (server is the source of
   // truth for is_baseline / active flags). Because all data views are scoped to
@@ -730,7 +754,15 @@ export default function Sessions() {
   async function handleDelete(id: string) {
     await api.sessions.delete(id)
     if (compareId === id) setCompareId(null)
-    reload()
+    // Do not leave the summary, footer, or Settings storage view showing the
+    // old database size after a destructive action. Active observers refetch
+    // now; inactive storage/settings views are marked stale for their return.
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: qk.sessions(), exact: true }),
+      queryClient.refetchQueries({ queryKey: qk.stats(), exact: true }),
+      queryClient.invalidateQueries({ queryKey: qk.storage(), exact: true }),
+      queryClient.invalidateQueries({ queryKey: qk.settings(), exact: true }),
+    ])
   }
 
   function handleCompare(id: string | null) {
@@ -905,6 +937,15 @@ export default function Sessions() {
               <span className="font-sans text-[13px] text-ink2">
                 Named windows of telemetry. Each branch usually gets its own.
               </span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 rounded-lg border border-line bg-surface2 overflow-hidden max-w-[760px]">
+              <SummaryStat label="used now" value={fmtSessionSize(stats?.db_size ?? 0)} />
+              <SummaryStat
+                label="storage limit"
+                value={fmtSessionSize((settings?.max_db_size_mb ?? 0) * 1_048_576)}
+              />
+              <SummaryStat label="largest session" value={fmtSessionSize(biggestSessionBytes)} />
+              <SummaryStat label="sessions" value={String(sessions.length)} />
             </div>
           </div>
 

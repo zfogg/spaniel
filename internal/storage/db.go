@@ -813,7 +813,9 @@ func (d *DB) ListSessions() ([]*Session, error) {
 	for _, s := range result {
 		payloadTotal += s.SizeBytes
 	}
-	if dbBytes := d.FileSize(); dbBytes > 0 && payloadTotal > 0 {
+	// Allocate the live DuckDB footprint to sessions so this total reconciles
+	// with the usage shown in Stats after deletes.
+	if dbBytes := d.UsedSize(); dbBytes > 0 && payloadTotal > 0 {
 		var allocated int64
 		for _, s := range result {
 			s.SizeBytes = s.SizeBytes * dbBytes / payloadTotal
@@ -879,6 +881,9 @@ func (d *DB) UpdateSession(id string, p SessionPatch) error {
 func (d *DB) DeleteSession(id string) error {
 	q := d.namedQuery("storage.DeleteSession")
 	return q.Transaction(func(tx *querygen.Query) error {
+		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SessionID.Eq(id)).Delete(); err != nil {
+			return err
+		}
 		if _, err := tx.LintWarning.Where(tx.LintWarning.SessionID.Eq(id)).Delete(); err != nil {
 			return err
 		}
@@ -971,13 +976,16 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 		s.OldestSessionAt = rows[0].OldestSessionAt
 	}
 
-	if d.path != "" && d.path != ":memory:" {
-		if fi, err := os.Stat(d.path); err == nil {
-			s.DBSize = fi.Size()
-		}
-	}
+	// Use live blocks plus the WAL rather than the file's high-water mark. A
+	// deleted session frees blocks immediately, while DuckDB may retain its file
+	// allocation for future writes.
+	s.DBSize = d.UsedSize()
 	return s, nil
 }
+
+// Checkpoint flushes pending appender work and makes a subsequent storage-size
+// query observe the committed database state.
+func (d *DB) Checkpoint() error { return d.flushBeforeCheckpoint() }
 
 // GetSourceStats returns per-service ingest stats for the given session
 // (or all sessions when sessionID is ""). Rates are derived from received_at.

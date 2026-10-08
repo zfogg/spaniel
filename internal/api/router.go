@@ -707,6 +707,12 @@ func (r *Router) deleteSession(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
+	// The footer and Sessions summary report live used blocks. Checkpoint now so
+	// the response-triggered refetch observes this deletion immediately rather
+	// than waiting for DuckDB's next background checkpoint.
+	if err := r.store.WithContext(req.Context()).Checkpoint(); err != nil {
+		slog.WarnContext(req.Context(), "checkpoint after session deletion failed", "session_id", sessionID, "error", err)
+	}
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 
