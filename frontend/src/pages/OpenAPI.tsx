@@ -207,6 +207,12 @@ function applyThemeOverrides(dark: boolean) {
     .redoc-wrap button:has(.http-verb)+div[aria-hidden] input{background:#1b2d3d!important;border-color:#36536d!important;color:#edf5fb!important}
     .redoc-wrap button:has(.http-verb)+div[aria-hidden] input::placeholder{color:#a8bdcc!important}
     .redoc-wrap button:has(.http-verb) :is(svg,svg polygon){fill:#edf5fb!important}
+    .redoc-wrap .sc-dlWCHZ,.redoc-wrap .sc-dlWCHZ>div{background:#1b2d3d!important;color:#edf5fb!important}
+    .redoc-wrap .sc-dlWCHZ input{background:#1b2d3d!important;border-color:#36536d!important;color:#edf5fb!important}
+    .redoc-wrap .sc-dlWCHZ input::placeholder{color:#a8bdcc!important}
+    .redoc-wrap .sc-kWtpeL{background:#1b2d3d!important;border-color:#36536d!important;color:#edf5fb!important}
+    .redoc-wrap .sc-kWtpeL span{color:#edf5fb!important}
+    .redoc-wrap button.sc-EgOXT :is(svg,svg polygon){fill:#edf5fb!important}
   `
     : ''
   const styleID = 'spaniel-redoc-contrast'
