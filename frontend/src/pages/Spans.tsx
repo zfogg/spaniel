@@ -185,13 +185,15 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
   const navigate = useNavigate()
   const attrs = parseAttrs(span.attributes)
   const entries = Object.entries(attrs)
+  const resourceAttrs = parseAttrs(span.resource)
+  const resourceCount = Object.keys(resourceAttrs).length
   const kindLabel = KIND_LABELS[span.kind] ?? 'unknown'
   const isSlow = span.duration_ns > SLOW_NS
 
   return (
     <aside
       data-testid="span-inspector"
-      className="w-[380px] border-l border-border bg-background flex flex-col overflow-hidden shrink-0"
+      className="h-full w-[380px] border-l border-border bg-background flex flex-col overflow-hidden shrink-0"
     >
       <div className="px-4 py-3.5 border-b border-border">
         <div className="flex items-center gap-2 mb-2">
@@ -262,7 +264,7 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
 
       <div className="flex-1 overflow-x-hidden overflow-y-auto">
         <div className="pt-3 px-4 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] flex items-baseline">
-          attributes
+          span attributes
           <span className="flex-1" />
           <span className="text-muted-foreground normal-case tracking-normal">
             {entries.length} keys
@@ -274,6 +276,22 @@ function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }
           ) : (
             <div className="px-4 py-3 font-mono text-[10.5px] text-muted-foreground">
               no attributes
+            </div>
+          )}
+        </div>
+        <div className="border-t border-border pt-3 px-4 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] flex items-baseline">
+          resource attributes
+          <span className="flex-1" />
+          <span className="text-muted-foreground normal-case tracking-normal">
+            {resourceCount} keys
+          </span>
+        </div>
+        <div className="pt-1 pb-3.5">
+          {resourceCount > 0 ? (
+            <JsonView data={resourceAttrs} />
+          ) : (
+            <div className="px-4 py-3 font-mono text-[10.5px] text-muted-foreground">
+              no resource attributes
             </div>
           )}
         </div>
@@ -553,7 +571,7 @@ export default function Spans() {
       )}
 
       {/* Main */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
+      <div className="@container flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
         {/* Search + filters bar */}
         <div className="px-3.5 py-2.5 border-b border-border flex items-center gap-2.5 flex-wrap">
           <div
@@ -678,210 +696,240 @@ export default function Spans() {
           </div>
         )}
 
-        {/* Column headers */}
-        <div
-          className="grid gap-2.5 px-3.5 py-[7px] border-b border-border font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-muted"
-          style={{
-            gridTemplateColumns: showingGroups
-              ? 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px'
-              : 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
-          }}
-        >
-          {showingGroups ? (
-            <>
-              <div>operation</div>
-              <div>service</div>
-              <div>kind</div>
-              <div className="text-right">count</div>
-              <div>latest</div>
-              <div className="text-right">errors</div>
-              <div className="text-right">p50</div>
-              <div className="text-right">p95</div>
-              <div className="text-right">max</div>
-            </>
-          ) : (
-            <>
-              <div>name</div>
-              <div>service</div>
-              <div>kind</div>
-              <div className="text-right">dur</div>
-              <div>started</div>
-              <div>trace</div>
-              <div className="text-right">tag</div>
-            </>
-          )}
-        </div>
-
-        {/* Rows */}
-        <div className="flex-1 overflow-x-hidden overflow-y-auto">
-          {(showingGroups ? groupsLoading : loading) ? (
-            <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">
-              loading…
-            </div>
-          ) : (showingGroups ? groupsError : isError) ? (
-            <ErrorState
-              what="spans"
-              error={showingGroups ? groupsErrorDetail : error}
-              onRetry={() => (showingGroups ? refetchGroups() : refetch())}
-            />
-          ) : showingGroups && groups.length === 0 ? (
-            <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">
-              no operations match — clear the search or try another page
-            </div>
-          ) : showingGroups ? (
-            groups
-              .filter((g) =>
-                `${g.name} ${g.service_name}`.toLowerCase().includes(query.trim().toLowerCase()),
-              )
-              .map((g) => (
-                <button
-                  key={`${g.service_name}:${g.name}:${g.kind}`}
-                  type="button"
-                  data-testid={`span-group-${g.service_name}-${g.name}`}
-                  onClick={() => openGroup(g)}
-                  className="grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border bg-transparent"
-                  style={{
-                    gridTemplateColumns: 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px',
-                  }}
-                >
-                  <div className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">
-                    {g.name}
-                    <span className="ml-2 text-[10px] text-muted-foreground">
-                      {g.attribute_variants} attribute {g.attribute_variants === 1 ? 'set' : 'sets'}
-                    </span>
-                  </div>
-                  <div>
-                    <SvcChip name={g.service_name} />
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {KIND_LABELS[g.kind] ?? 'unknown'}
-                  </div>
-                  <div className="text-right font-mono text-[11.5px]">{g.count}</div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {fmtClock(g.latest_start_ns)}
-                  </div>
-                  <div
-                    className="text-right font-mono text-[11.5px]"
-                    style={{ color: g.error_count ? 'var(--destructive)' : undefined }}
-                  >
-                    {g.error_count || '—'}
-                  </div>
-                  <div className="text-right font-mono text-[11.5px]">
-                    {fmtDuration(g.p50_duration_ns)}
-                  </div>
-                  <div className="text-right font-mono text-[11.5px]">
-                    {fmtDuration(g.p95_duration_ns)}
-                  </div>
-                  <div className="text-right font-mono text-[11.5px]">
-                    {fmtDuration(g.max_duration_ns)}
-                  </div>
-                </button>
-              ))
-          ) : filtered.length === 0 ? (
-            spans.length === 0 ? (
-              <EmptyState
-                title="No spans recorded"
-                hint="Send any OTLP span — they'll appear here."
-                glyph={
-                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                    <rect
-                      x="4"
-                      y="13"
-                      width="18"
-                      height="4"
-                      rx="2"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      opacity="0.6"
-                    />
-                    <rect
-                      x="10"
-                      y="21"
-                      width="14"
-                      height="4"
-                      rx="2"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      opacity="0.4"
-                    />
-                    <rect
-                      x="7"
-                      y="5"
-                      width="10"
-                      height="4"
-                      rx="2"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      opacity="0.5"
-                    />
-                  </svg>
-                }
-                cta={{
-                  label: 'OTLP docs →',
-                  href: 'https://opentelemetry.io/docs/specs/otel/protocol/',
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+          {/* Keep the scrollbars beside the inspector without shrinking the columns. */}
+          <div
+            data-testid="spans-table-scroll"
+            className={`h-full overflow-auto ${selected ? 'mr-[380px]' : ''}`}
+          >
+            <div className="min-w-[1000px] w-[100cqw]">
+              {/* Column headers */}
+              <div
+                className="sticky top-0 z-10 grid gap-2.5 px-3.5 py-[7px] border-b border-border font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-muted"
+                style={{
+                  gridTemplateColumns: showingGroups
+                    ? 'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px'
+                    : 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
                 }}
-              />
-            ) : (
-              <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">
-                no spans match — clear a filter or try a different query
+              >
+                {showingGroups ? (
+                  <>
+                    <div>operation</div>
+                    <div>service</div>
+                    <div>kind</div>
+                    <div className="text-right">count</div>
+                    <div>latest</div>
+                    <div className="text-right">errors</div>
+                    <div className="text-right">p50</div>
+                    <div className="text-right">p95</div>
+                    <div className="text-right">max</div>
+                  </>
+                ) : (
+                  <>
+                    <div>name</div>
+                    <div>service</div>
+                    <div>kind</div>
+                    <div className="text-right">dur</div>
+                    <div>started</div>
+                    <div>trace</div>
+                    <div className="text-right">tag</div>
+                  </>
+                )}
               </div>
-            )
-          ) : (
-            filtered.map((s) => {
-              const isSel = s.span_id === selectedId
-              const isSlow = s.duration_ns > SLOW_NS
-              const kindLabel = KIND_LABELS[s.kind] ?? 'unknown'
-              return (
-                <TelemetryArrival key={s.span_id} arriving={arrivingSpanIDs.has(s.span_id)}>
-                  <button
-                    type="button"
-                    data-testid={`span-row-${s.span_id}`}
-                    onClick={() => (isSel ? clearSelectedSpan() : selectSpan(s.span_id))}
-                    className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
-                    style={{
-                      gridTemplateColumns: 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
-                      background: isSel
-                        ? 'color-mix(in oklch, var(--accent, #6366f1) 14%, var(--background))'
-                        : undefined,
-                    }}
-                  >
-                    <div
-                      title={httpDisplayName(s)}
-                      className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
-                    >
-                      {httpDisplayName(s)}
-                    </div>
-                    <div>
-                      <SvcChip name={s.service_name} />
-                    </div>
-                    <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
-                      {kindLabel}
-                    </div>
-                    <div
-                      className="text-right font-mono text-[11.5px] font-semibold"
-                      style={{
-                        color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)',
+
+              {/* Rows */}
+              <div>
+                {(showingGroups ? groupsLoading : loading) ? (
+                  <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">
+                    loading…
+                  </div>
+                ) : (showingGroups ? groupsError : isError) ? (
+                  <ErrorState
+                    what="spans"
+                    error={showingGroups ? groupsErrorDetail : error}
+                    onRetry={() => (showingGroups ? refetchGroups() : refetch())}
+                  />
+                ) : showingGroups && groups.length === 0 ? (
+                  <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">
+                    no operations match — clear the search or try another page
+                  </div>
+                ) : showingGroups ? (
+                  groups
+                    .filter((g) =>
+                      `${g.name} ${g.service_name}`
+                        .toLowerCase()
+                        .includes(query.trim().toLowerCase()),
+                    )
+                    .map((g) => (
+                      <button
+                        key={`${g.service_name}:${g.name}:${g.kind}`}
+                        type="button"
+                        data-testid={`span-group-${g.service_name}-${g.name}`}
+                        onClick={() => openGroup(g)}
+                        className="grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border bg-transparent"
+                        style={{
+                          gridTemplateColumns:
+                            'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px',
+                        }}
+                      >
+                        <div className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap">
+                          {g.name}
+                          <span className="ml-2 text-[10px] text-muted-foreground">
+                            {g.attribute_variants} attribute{' '}
+                            {g.attribute_variants === 1 ? 'set' : 'sets'}
+                          </span>
+                        </div>
+                        <div>
+                          <SvcChip name={g.service_name} />
+                        </div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {KIND_LABELS[g.kind] ?? 'unknown'}
+                        </div>
+                        <div className="text-right font-mono text-[11.5px]">{g.count}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {fmtClock(g.latest_start_ns)}
+                        </div>
+                        <div
+                          className="text-right font-mono text-[11.5px]"
+                          style={{ color: g.error_count ? 'var(--destructive)' : undefined }}
+                        >
+                          {g.error_count || '—'}
+                        </div>
+                        <div className="text-right font-mono text-[11.5px]">
+                          {fmtDuration(g.p50_duration_ns)}
+                        </div>
+                        <div className="text-right font-mono text-[11.5px]">
+                          {fmtDuration(g.p95_duration_ns)}
+                        </div>
+                        <div className="text-right font-mono text-[11.5px]">
+                          {fmtDuration(g.max_duration_ns)}
+                        </div>
+                      </button>
+                    ))
+                ) : filtered.length === 0 ? (
+                  spans.length === 0 ? (
+                    <EmptyState
+                      title="No spans recorded"
+                      hint="Send any OTLP span — they'll appear here."
+                      glyph={
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                          <rect
+                            x="4"
+                            y="13"
+                            width="18"
+                            height="4"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            opacity="0.6"
+                          />
+                          <rect
+                            x="10"
+                            y="21"
+                            width="14"
+                            height="4"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            opacity="0.4"
+                          />
+                          <rect
+                            x="7"
+                            y="5"
+                            width="10"
+                            height="4"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            opacity="0.5"
+                          />
+                        </svg>
+                      }
+                      cta={{
+                        label: 'OTLP docs →',
+                        href: 'https://opentelemetry.io/docs/specs/otel/protocol/',
                       }}
-                    >
-                      {fmtDuration(s.duration_ns)}
+                    />
+                  ) : (
+                    <div className="px-5 py-10 text-center font-mono text-[11px] text-muted-foreground">
+                      no spans match — clear a filter or try a different query
                     </div>
-                    <div className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-                      {fmtClock(s.start_ns)}
-                    </div>
-                    <div
-                      title={s.trace_id}
-                      className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
-                    >
-                      {s.trace_id}
-                    </div>
-                    <div className="text-right">
-                      <TagBadge tag={s.tag} />
-                    </div>
-                  </button>
-                </TelemetryArrival>
-              )
-            })
-          )}
+                  )
+                ) : (
+                  filtered.map((s) => {
+                    const isSel = s.span_id === selectedId
+                    const isSlow = s.duration_ns > SLOW_NS
+                    const kindLabel = KIND_LABELS[s.kind] ?? 'unknown'
+                    return (
+                      <TelemetryArrival key={s.span_id} arriving={arrivingSpanIDs.has(s.span_id)}>
+                        <button
+                          type="button"
+                          data-testid={`span-row-${s.span_id}`}
+                          onClick={() => (isSel ? clearSelectedSpan() : selectSpan(s.span_id))}
+                          className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
+                          style={{
+                            gridTemplateColumns: 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
+                            background: isSel
+                              ? 'color-mix(in oklch, var(--accent, #6366f1) 14%, var(--background))'
+                              : undefined,
+                          }}
+                        >
+                          <div
+                            title={httpDisplayName(s)}
+                            className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                          >
+                            {httpDisplayName(s)}
+                          </div>
+                          <div>
+                            <SvcChip name={s.service_name} />
+                          </div>
+                          <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
+                            {kindLabel}
+                          </div>
+                          <div
+                            className="text-right font-mono text-[11.5px] font-semibold"
+                            style={{
+                              color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)',
+                            }}
+                          >
+                            {fmtDuration(s.duration_ns)}
+                          </div>
+                          <div className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                            {fmtClock(s.start_ns)}
+                          </div>
+                          <div
+                            title={s.trace_id}
+                            className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                          >
+                            {s.trace_id}
+                          </div>
+                          <div className="text-right">
+                            <TagBadge tag={s.tag} />
+                          </div>
+                        </button>
+                      </TelemetryArrival>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Inspector */}
+          <AnimatePresence mode="wait" initial={false}>
+            {selected && (
+              <motion.div
+                key={selected.span_id}
+                className="absolute inset-y-0 right-0 z-20 shadow-lg"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
+              >
+                <SpanInspector span={selected} onClose={clearSelectedSpan} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Status footer */}
@@ -899,22 +947,6 @@ export default function Spans() {
           </code>
         </div>
       </div>
-
-      {/* Inspector */}
-      <AnimatePresence mode="wait" initial={false}>
-        {selected && (
-          <motion.div
-            key={selected.span_id}
-            className="shrink-0"
-            initial={{ opacity: 0, x: 8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 8 }}
-            transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
-          >
-            <SpanInspector span={selected} onClose={clearSelectedSpan} />
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
