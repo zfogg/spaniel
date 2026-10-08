@@ -66,6 +66,9 @@ func TestOpenAPIContract(t *testing.T) {
 			if jsonResponse != nil && len(jsonResponse.Examples) == 0 {
 				t.Errorf("documented operation %s %s has no response example", strings.ToUpper(method), path)
 			}
+			if jsonResponse != nil && jsonResponse.Schema != nil && jsonResponse.Schema.Ref == "#/components/schemas/Envelope" {
+				t.Errorf("documented operation %s %s still uses the untyped Envelope response", strings.ToUpper(method), path)
+			}
 		}
 	}
 	if len(generated.Tags) == 0 {
