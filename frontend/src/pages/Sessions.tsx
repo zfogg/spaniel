@@ -147,6 +147,22 @@ function NumCell({ label, value, hot }: { label: string; value: string | number;
   )
 }
 
+function fmtTelemetryCount(value: number) {
+  if (value < 1_000) return value.toLocaleString()
+
+  const units = [
+    [1_000_000_000, 'b'],
+    [1_000_000, 'm'],
+    [1_000, 'k'],
+  ] as const
+  const [divisor, suffix] = units.find(([threshold]) => value >= threshold)!
+  const compact = (value / divisor)
+    .toFixed(2)
+    .replace(/\.00$/, '')
+    .replace(/(\.\d)0$/, '$1')
+  return `${compact}${suffix}`
+}
+
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 px-3 py-2.5 border-l border-line first:border-l-0">
@@ -536,8 +552,8 @@ function SessionRow({
         </div>
       </div>
 
-      <NumCell label="traces" value={s.trace_count} />
-      <NumCell label="spans" value={s.span_count} />
+      <NumCell label="traces" value={fmtTelemetryCount(s.trace_count)} />
+      <NumCell label="spans" value={fmtTelemetryCount(s.span_count)} />
       <NumCell label="p95" value={fmtP95(s.p95_ns)} hot={p95Ms > 500} />
 
       {/* size */}
