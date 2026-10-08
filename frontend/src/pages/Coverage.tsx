@@ -68,6 +68,15 @@ function fmtNs(ns: number): string {
   return `${(ns / 1_000_000_000).toFixed(2)}s`
 }
 
+function fmtLastSeen(ns: number | undefined): string {
+  if (!ns) return '—'
+  const elapsedMs = Date.now() - ns / 1_000_000
+  if (elapsedMs < 60_000) return 'just now'
+  if (elapsedMs < 3_600_000) return `${Math.floor(elapsedMs / 60_000)}m ago`
+  if (elapsedMs < 86_400_000) return `${Math.floor(elapsedMs / 3_600_000)}h ago`
+  return `${Math.floor(elapsedMs / 86_400_000)}d ago`
+}
+
 // ── atoms ────────────────────────────────────────────────────────────────────
 
 function CoverageBar({ pct, big = false }: { pct: number; big?: boolean }) {
@@ -338,7 +347,7 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-0 border-b border-border">
+      <div className="grid grid-cols-3 gap-0 border-b border-border">
         <div className="py-3.5 px-4 border-r border-border">
           <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">
             traces seen
@@ -355,6 +364,14 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
           </div>
           <div className="font-serif text-2xl font-semibold leading-[1.1] mt-1 text-foreground">
             {route.p95_ns ? fmtNs(route.p95_ns) : '—'}
+          </div>
+        </div>
+        <div className="py-3.5 px-4 border-l border-border">
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">
+            last seen
+          </div>
+          <div className="font-serif text-xl font-semibold leading-[1.1] mt-1 text-foreground">
+            {fmtLastSeen(route.last_seen_ns)}
           </div>
         </div>
       </div>
@@ -413,14 +430,8 @@ export default function Coverage() {
   })
 
   const totalDark = useMemo(() => report?.overall.dark_count ?? 0, [report])
-  const quality = useMemo(() => {
-    const observed = report?.services.flatMap((svc) => svc.observed_routes) ?? []
-    return {
-      generic: observed.filter((route) => route.path === '/api/' || route.path === '/').length,
-      fallback: observed.filter((route) => route.method === '').length,
-      noSpec: report?.services.filter((svc) => svc.source !== 'openapi').length ?? 0,
-    }
-  }, [report])
+  const quality = report?.quality
+  const servicesWithoutSpec = report?.services.filter((svc) => svc.source !== 'openapi').length ?? 0
 
   if (loading) {
     return (
@@ -559,21 +570,30 @@ export default function Coverage() {
             <code className="font-mono text-xs bg-muted py-px px-[5px] rounded">http.route</code>{' '}
             against any declared specs to find the dark ones.
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 max-w-[720px]">
+          <div className="mt-3 grid grid-cols-2 gap-2 max-w-[720px] xl:grid-cols-4">
             <div
-              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality.generic ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
+              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality?.missing_route_spans ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
             >
-              {quality.generic} generic route{quality.generic === 1 ? '' : 's'}
+              {(quality?.missing_route_spans ?? 0) +
+                ` server span${quality?.missing_route_spans === 1 ? '' : 's'} missing http.route`}
             </div>
             <div
-              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality.fallback ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
+              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality?.generic_route_spans ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
             >
-              {quality.fallback} server-name fallback{quality.fallback === 1 ? '' : 's'}
+              {(quality?.generic_route_spans ?? 0) +
+                ` generic route span${quality?.generic_route_spans === 1 ? '' : 's'}`}
             </div>
             <div
-              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality.noSpec ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
+              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality?.dynamic_route_spans ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
             >
-              {quality.noSpec} service{quality.noSpec === 1 ? '' : 's'} without a spec
+              {(quality?.dynamic_route_spans ?? 0) +
+                ` dynamic route span${quality?.dynamic_route_spans === 1 ? '' : 's'}`}
+            </div>
+            <div
+              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${servicesWithoutSpec ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
+            >
+              {servicesWithoutSpec +
+                ` service${servicesWithoutSpec === 1 ? '' : 's'} without a spec`}
             </div>
           </div>
         </div>

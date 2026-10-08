@@ -60,6 +60,7 @@ func (d *DB) namedGORM(name string) *gorm.DB {
 
 type Span = model.Span
 type CoverageOperation = model.CoverageOperation
+type CoverageQuality = model.CoverageQuality
 type Log = model.Log
 type Session = model.Session
 type LintWarning = model.LintWarning
@@ -1086,6 +1087,17 @@ func (d *DB) ListCoverageOperations(sessionID string) ([]*CoverageOperation, err
 		operations[i] = &rows[i]
 	}
 	return operations, nil
+}
+
+func (d *DB) GetCoverageQuality(sessionID string) (*CoverageQuality, error) {
+	rows, err := d.namedQuery("storage.GetCoverageQuality").Span.GetCoverageQuality(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return &CoverageQuality{}, nil
+	}
+	return &rows[0], nil
 }
 
 // InsertMetric stores one metric data point.

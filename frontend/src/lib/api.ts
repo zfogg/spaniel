@@ -300,6 +300,7 @@ export const CoverageRouteSchema = z.object({
   path: z.string(),
   hits: z.number(),
   p95_ns: z.number().optional(),
+  last_seen_ns: z.number().optional(),
 })
 
 export const ServiceCoverageSchema = z.object({
@@ -320,6 +321,11 @@ export const CoverageReportSchema = z.object({
     total_routes: z.number(),
     dark_count: z.number(),
     coverage_pct: z.number(),
+  }),
+  quality: z.object({
+    missing_route_spans: z.number(),
+    generic_route_spans: z.number(),
+    dynamic_route_spans: z.number(),
   }),
 })
 
@@ -636,8 +642,6 @@ export const AlertRuleSchema = z.object({
   pending_for_ns: z.number(),
   cooldown_ns: z.number(),
   repeat_interval_ns: z.number(),
-  owner: z.string(),
-  team: z.string(),
   severity: z.enum(['info', 'warning', 'critical']),
   enabled: z.boolean(),
   browser_enabled: z.boolean(),

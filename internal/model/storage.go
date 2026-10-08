@@ -69,6 +69,15 @@ type CoverageOperation struct {
 	Path        string
 	Hits        int
 	P95Ns       int64
+	LastSeenNs  int64
+}
+
+// CoverageQuality summarizes instrumentation that cannot be assigned to a
+// stable route template and therefore should not silently inflate coverage.
+type CoverageQuality struct {
+	MissingRouteSpans int64
+	GenericRouteSpans int64
+	DynamicRouteSpans int64
 }
 
 // TraceListRow is the generated query projection before storage parses the
@@ -404,8 +413,6 @@ type AlertRule struct {
 	PendingForNs                  int64            `json:"pending_for_ns"`
 	CooldownNs                    int64            `json:"cooldown_ns"`
 	RepeatIntervalNs              int64            `json:"repeat_interval_ns"`
-	Owner                         string           `json:"owner"`
-	Team                          string           `json:"team"`
 	Severity                      string           `json:"severity"`
 	AnnotationsJSON               string           `json:"annotations_json"`
 	Enabled                       bool             `json:"enabled"`

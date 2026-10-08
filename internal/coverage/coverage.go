@@ -13,10 +13,11 @@ import (
 // Route is one entry on a service's operation list. Method is uppercase HTTP
 // verb ("GET", "POST", ...) or "RPC" for non-HTTP operations.
 type Route struct {
-	Method string `json:"method"`
-	Path   string `json:"path"`
-	Hits   int    `json:"hits"`
-	P95Ns  int64  `json:"p95_ns,omitempty"`
+	Method     string `json:"method"`
+	Path       string `json:"path"`
+	Hits       int    `json:"hits"`
+	P95Ns      int64  `json:"p95_ns,omitempty"`
+	LastSeenNs int64  `json:"last_seen_ns,omitempty"`
 }
 
 // Operation is one database-aggregated observed route. It is intentionally
@@ -27,6 +28,7 @@ type Operation struct {
 	Path        string
 	Hits        int
 	P95Ns       int64
+	LastSeenNs  int64
 }
 
 // ServiceCoverage is the per-service section of the report.
@@ -45,6 +47,13 @@ type ServiceCoverage struct {
 type Report struct {
 	Services []ServiceCoverage `json:"services"`
 	Overall  Overall           `json:"overall"`
+	Quality  Quality           `json:"quality"`
+}
+
+type Quality struct {
+	MissingRouteSpans int64 `json:"missing_route_spans"`
+	GenericRouteSpans int64 `json:"generic_route_spans"`
+	DynamicRouteSpans int64 `json:"dynamic_route_spans"`
 }
 
 // Overall is the rolled-up across-all-services summary.
@@ -203,10 +212,11 @@ func ComputeOperations(operations []Operation, m *Manifests) Report {
 		}
 		servicesSeen[op.ServiceName] = true
 		observedBySvc[op.ServiceName] = append(observedBySvc[op.ServiceName], Route{
-			Method: op.Method,
-			Path:   op.Path,
-			Hits:   op.Hits,
-			P95Ns:  op.P95Ns,
+			Method:     op.Method,
+			Path:       op.Path,
+			Hits:       op.Hits,
+			P95Ns:      op.P95Ns,
+			LastSeenNs: op.LastSeenNs,
 		})
 	}
 	return computeReport(observedBySvc, servicesSeen, m)

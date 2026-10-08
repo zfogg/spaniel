@@ -77,6 +77,32 @@ func TestGetCoverage_ObservedOnly(t *testing.T) {
 	}
 }
 
+func TestGetCoverage_ReportsInstrumentationQuality(t *testing.T) {
+	handler, db := setupRouterWithManifests(t, nil)
+	sid := db.ActiveSessionID()
+	for _, span := range []*storage.Span{
+		{TraceID: "t1", SpanID: "missing", ServiceName: "api", Name: "missing route", Kind: 2, StartNs: 1, EndNs: 2, Attributes: `{}`, Resource: `{}`, SessionID: sid},
+		{TraceID: "t2", SpanID: "generic", ServiceName: "api", Name: "GET /api", Kind: 2, StartNs: 2, EndNs: 3, Attributes: `{"http.route":"/api/","http.request.method":"GET"}`, Resource: `{}`, SessionID: sid},
+		{TraceID: "t3", SpanID: "dynamic", ServiceName: "api", Name: "GET order", Kind: 2, StartNs: 3, EndNs: 4, Attributes: `{"http.route":"/api/orders/123","http.request.method":"GET"}`, Resource: `{}`, SessionID: sid},
+	} {
+		if err := db.InsertSpan(span); err != nil {
+			t.Fatalf("InsertSpan: %v", err)
+		}
+	}
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/coverage", nil))
+	var resp struct {
+		Data coverage.Report `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := resp.Data.Quality; got.MissingRouteSpans != 1 || got.GenericRouteSpans != 1 || got.DynamicRouteSpans != 1 {
+		t.Fatalf("quality = %+v, want one count in each category", got)
+	}
+}
+
 func TestGetCoverage_WithManifest_HasDarkRoutes(t *testing.T) {
 	m := &coverage.Manifests{
 		Spec: "openapi.yaml",
