@@ -47,10 +47,39 @@ function options(dark: boolean) {
   }
 }
 
+function applyThemeOverrides(dark: boolean) {
+  const bg = dark ? '#111f2e' : '#f5f9fc'
+  const side = dark ? '#152536' : '#edf3f7'
+  const ink = dark ? '#edf5fb' : '#1f2937'
+  const selected = dark ? '#29445b' : '#dbe8f1'
+  const styleID = 'spaniel-redoc-contrast'
+  const style = document.getElementById(styleID) ?? document.createElement('style')
+  style.id = styleID
+  // ReDoc captures its styled-components palette when it first mounts. The
+  // application theme can change later, so keep the three ReDoc columns and
+  // their text tied to the current application palette independently.
+  style.textContent = `
+    .redoc-wrap,.redoc-wrap .api-content{background:${bg}!important;color:${ink}!important}
+    .redoc-wrap>.menu-content{background:${side}!important;color:${ink}!important}
+    .redoc-wrap>.menu-content *{background-color:${side}!important;color:${ink}!important}
+    .redoc-wrap>:nth-child(2){background:${bg}!important;color:${ink}!important}
+    .redoc-wrap>:nth-child(4),.redoc-wrap pre{background:${side}!important;color:${ink}!important}
+    .redoc-wrap :is(.react-tabs__tab-panel,[class*="sc-gsFSXq"]){background:${side}!important;color:${ink}!important}
+    .redoc-wrap .api-content :is(h1,h2,h3,h4,h5,h6,p,td,th,label,span){color:${ink}!important}
+    .redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}
+    .redoc-wrap [role="tab"]{background:${side}!important;color:${ink}!important}
+    .redoc-wrap [role="tab"][aria-selected="true"]{background:${selected}!important;color:${ink}!important}
+  `
+  if (!style.parentNode) document.head.appendChild(style)
+}
+
 export default function OpenAPI() {
   const ref = useRef<HTMLDivElement>(null)
   const initialized = useRef(false)
   const { resolvedTheme } = useTheme()
+  useEffect(() => {
+    if (resolvedTheme) applyThemeOverrides(resolvedTheme === 'dark')
+  }, [resolvedTheme])
   useEffect(() => {
     const target = ref.current
     // ReDoc owns a React tree below this node. Clearing it during React's
@@ -63,14 +92,6 @@ export default function OpenAPI() {
       if (!window.Redoc || target.dataset.redocMounted === 'true') return
       target.dataset.redocMounted = 'true'
       window.Redoc.init('/api/openapi.json', options(resolvedTheme === 'dark'), target)
-      const dark = resolvedTheme === 'dark'
-      const ink = dark ? '#edf5fb' : '#1f2937'
-      const selected = dark ? '#29445b' : '#dbe8f1'
-      const styleID = 'spaniel-redoc-contrast'
-      const style = document.getElementById(styleID) ?? document.createElement('style')
-      style.id = styleID
-      style.textContent = `.redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}.redoc-wrap [role="tab"]{color:${ink}!important}.redoc-wrap [role="tab"][aria-selected="true"]{background:${selected}!important;color:${ink}!important}`
-      if (!style.parentNode) document.head.appendChild(style)
     }
     const id = 'spaniel-redoc-runtime'
     const script = document.getElementById(id) as HTMLScriptElement | null
