@@ -59,6 +59,7 @@ func (d *DB) namedGORM(name string) *gorm.DB {
 }
 
 type Span = model.Span
+type CoverageOperation = model.CoverageOperation
 type Log = model.Log
 type Session = model.Session
 type LintWarning = model.LintWarning
@@ -1067,6 +1068,21 @@ func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
 func (d *DB) GetSpansBySession(sessionID string) ([]*Span, error) {
 	return d.query.Span.Where(d.query.Span.SessionID.Eq(sessionID)).
 		Order(d.query.Span.StartNs).Find()
+}
+
+// ListCoverageOperations returns one row per observed operation in a session.
+// Route extraction and percentile aggregation stay in DuckDB so coverage does
+// not need to materialize the complete session in memory.
+func (d *DB) ListCoverageOperations(sessionID string) ([]*CoverageOperation, error) {
+	rows, err := d.namedQuery("storage.ListCoverageOperations").Span.ListCoverageOperations(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	operations := make([]*CoverageOperation, len(rows))
+	for i := range rows {
+		operations[i] = &rows[i]
+	}
+	return operations, nil
 }
 
 // InsertMetric stores one metric data point.

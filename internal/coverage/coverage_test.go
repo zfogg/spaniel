@@ -98,6 +98,19 @@ func TestCompute_SkipsClientAndUnknownSpans(t *testing.T) {
 	}
 }
 
+func TestComputeOperations_UsesDatabaseAggregates(t *testing.T) {
+	r := ComputeOperations([]Operation{
+		{ServiceName: "api", Method: "GET", Path: "/api/cart", Hits: 42, P95Ns: 900},
+	}, nil)
+	if len(r.Services) != 1 || len(r.Services[0].ObservedRoutes) != 1 {
+		t.Fatalf("expected one observed operation, got %+v", r.Services)
+	}
+	route := r.Services[0].ObservedRoutes[0]
+	if route.Hits != 42 || route.P95Ns != 900 {
+		t.Errorf("aggregate values were not retained: %+v", route)
+	}
+}
+
 // ── manifest joins ────────────────────────────────────────────────────────────
 
 func TestCompute_WithManifest_ProducesDarkRoutes(t *testing.T) {

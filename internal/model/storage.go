@@ -60,6 +60,17 @@ type SpanGroup struct {
 	AttributeVariants int    `json:"attribute_variants"`
 }
 
+// CoverageOperation is the compact database-side aggregate used by the
+// coverage report. It avoids loading every span and its attributes merely to
+// discover the small set of observed routes.
+type CoverageOperation struct {
+	ServiceName string
+	Method      string
+	Path        string
+	Hits        int
+	P95Ns       int64
+}
+
 // TraceListRow is the generated query projection before storage parses the
 // comma-delimited issue kinds for the API response.
 type TraceListRow struct {
@@ -98,6 +109,16 @@ type SourceStatsRow struct {
 	BytesTotal  int64
 	FirstSeen   int64
 	LastSeen    int64
+}
+
+// StatsRow is the compact aggregate returned by the generated storage stats
+// query before DB-size and runtime counters are added by the storage service.
+type StatsRow struct {
+	SpanCount       int
+	TraceCount      int
+	LogCount        int
+	SessionCount    int
+	OldestSessionAt int64
 }
 
 type SessionSummary struct {

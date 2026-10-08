@@ -19,11 +19,21 @@ type Route struct {
 	P95Ns  int64  `json:"p95_ns,omitempty"`
 }
 
+// Operation is one database-aggregated observed route. It is intentionally
+// independent of storage so the coverage calculation remains pure.
+type Operation struct {
+	ServiceName string
+	Method      string
+	Path        string
+	Hits        int
+	P95Ns       int64
+}
+
 // ServiceCoverage is the per-service section of the report.
 type ServiceCoverage struct {
 	Name           string  `json:"name"`
-	Source         string  `json:"source"`            // "openapi" | "observed"
-	Spec           string  `json:"spec,omitempty"`    // filename when source=openapi
+	Source         string  `json:"source"`         // "openapi" | "observed"
+	Spec           string  `json:"spec,omitempty"` // filename when source=openapi
 	ObservedOps    int     `json:"observed_operations"`
 	TotalRoutes    int     `json:"total_routes"`
 	CoveragePct    float64 `json:"coverage_pct"`
@@ -92,6 +102,10 @@ func Compute(spans []*storage.Span, m *Manifests) Report {
 		})
 	}
 
+	return computeReport(observedBySvc, servicesSeen, m)
+}
+
+func computeReport(observedBySvc map[string][]Route, servicesSeen map[string]bool, m *Manifests) Report {
 	// Make sure every service from a manifest still appears, even with 0 spans.
 	if m != nil {
 		for svc := range m.Routes {
@@ -175,6 +189,27 @@ func Compute(spans []*storage.Span, m *Manifests) Report {
 		report.Services = []ServiceCoverage{}
 	}
 	return report
+}
+
+// ComputeOperations joins database-aggregated observed operations against any
+// loaded manifests. It is equivalent to Compute but avoids materializing the
+// source spans on high-volume captures.
+func ComputeOperations(operations []Operation, m *Manifests) Report {
+	servicesSeen := map[string]bool{}
+	observedBySvc := map[string][]Route{}
+	for _, op := range operations {
+		if op.Path == "" {
+			continue
+		}
+		servicesSeen[op.ServiceName] = true
+		observedBySvc[op.ServiceName] = append(observedBySvc[op.ServiceName], Route{
+			Method: op.Method,
+			Path:   op.Path,
+			Hits:   op.Hits,
+			P95Ns:  op.P95Ns,
+		})
+	}
+	return computeReport(observedBySvc, servicesSeen, m)
 }
 
 // extractOperation picks the (method, path) pair off a span. Order of

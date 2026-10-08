@@ -220,6 +220,7 @@ type ISpanDo interface {
 	SearchChildSpans(sessionID string, pattern string, limit int) (result []model.SearchResult, err error)
 	SearchServices(sessionID string, pattern string, limit int) (result []model.SearchResult, err error)
 	ListTraceOverlays(service string, sessionID string, fromNs int64, toNs int64, limit int) (result []model.TraceOverlay, err error)
+	ListCoverageOperations(sessionID string) (result []model.CoverageOperation, err error)
 	ListTagged(sessionID string, service string, name string, hasKind bool, kind int, sort string, limit int, offset int) (result []model.SpanRow, err error)
 	ListGroups(sessionID string, limit int, offset int) (result []model.SpanGroup, err error)
 	ListTraces(sessionID string, service string, limit int, offset int) (result []model.TraceListRow, err error)
@@ -316,6 +317,23 @@ func (s spanDo) ListTraceOverlays(service string, sessionID string, fromNs int64
 	params = append(params, toNs)
 	params = append(params, limit)
 	generateSQL.WriteString("SELECT trace_id, name AS op, service_name AS service, status_code, start_ns, end_ns, duration_ns FROM spans WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (? = '' OR service_name = ?) AND (? = '' OR session_id = ?) AND (? = 0 OR start_ns >= ?) AND (? = 0 OR start_ns <= ?) ORDER BY start_ns ASC LIMIT ? ")
+
+	var executeSQL *gorm.DB
+	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
+}
+
+// ListCoverageOperations
+//
+// WITH operations AS (SELECT service_name, CASE WHEN json_extract_string(attributes, '$."http.route"') != ” THEN COALESCE(NULLIF(json_extract_string(attributes, '$."http.request.method"'), ”), NULLIF(json_extract_string(attributes, '$."http.method"'), ”), 'GET') WHEN json_extract_string(attributes, '$."rpc.method"') != ” THEN 'RPC' WHEN kind = 2 AND name != ” THEN ” END AS method, CASE WHEN json_extract_string(attributes, '$."http.route"') != ” THEN json_extract_string(attributes, '$."http.route"') WHEN json_extract_string(attributes, '$."rpc.method"') != ” THEN CASE WHEN json_extract_string(attributes, '$."rpc.service"') != ” THEN json_extract_string(attributes, '$."rpc.service"') || '.' || json_extract_string(attributes, '$."rpc.method"') ELSE json_extract_string(attributes, '$."rpc.method"') END WHEN kind = 2 AND name != ” THEN name END AS path, duration_ns FROM @@table WHERE session_id = @sessionID) SELECT service_name, method, path, COUNT(*) AS hits, CAST(quantile_disc(duration_ns, 0.95) AS BIGINT) AS p95_ns FROM operations WHERE path IS NOT NULL AND path != ” GROUP BY service_name, method, path
+func (s spanDo) ListCoverageOperations(sessionID string) (result []model.CoverageOperation, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, sessionID)
+	generateSQL.WriteString("WITH operations AS (SELECT service_name, CASE WHEN json_extract_string(attributes, '$.\"http.route\"') != '' THEN COALESCE(NULLIF(json_extract_string(attributes, '$.\"http.request.method\"'), ''), NULLIF(json_extract_string(attributes, '$.\"http.method\"'), ''), 'GET') WHEN json_extract_string(attributes, '$.\"rpc.method\"') != '' THEN 'RPC' WHEN kind = 2 AND name != '' THEN '' END AS method, CASE WHEN json_extract_string(attributes, '$.\"http.route\"') != '' THEN json_extract_string(attributes, '$.\"http.route\"') WHEN json_extract_string(attributes, '$.\"rpc.method\"') != '' THEN CASE WHEN json_extract_string(attributes, '$.\"rpc.service\"') != '' THEN json_extract_string(attributes, '$.\"rpc.service\"') || '.' || json_extract_string(attributes, '$.\"rpc.method\"') ELSE json_extract_string(attributes, '$.\"rpc.method\"') END WHEN kind = 2 AND name != '' THEN name END AS path, duration_ns FROM spans WHERE session_id = ?) SELECT service_name, method, path, COUNT(*) AS hits, CAST(quantile_disc(duration_ns, 0.95) AS BIGINT) AS p95_ns FROM operations WHERE path IS NOT NULL AND path != '' GROUP BY service_name, method, path ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
