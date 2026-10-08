@@ -91,8 +91,8 @@ function HeatCell({
       <span
         className="font-mono text-[9px] font-bold rounded-[3px] px-1 tracking-[0.05em] whitespace-nowrap shrink-0"
         style={{
-          color: m.fg,
-          background: dark ? 'var(--background)' : 'transparent',
+          color: dark ? m.fg : 'white',
+          background: dark ? 'var(--background)' : m.fg,
           border: `1px solid ${m.fg}`,
         }}
       >
