@@ -158,6 +158,10 @@ func (r *Router) saveCoverageSpec(w http.ResponseWriter, req *http.Request, id s
 			respondErr(w, req, 404, "coverage spec not found")
 			return
 		}
+		if in.ServiceName != spec.ServiceName {
+			respondErr(w, req, 400, "service_name cannot be changed after a coverage spec is created")
+			return
+		}
 	} else {
 		spec = &storage.CoverageSpec{ID: uuid.NewString(), CreatedAt: now}
 	}

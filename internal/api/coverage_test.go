@@ -59,6 +59,37 @@ func TestCoverageSpecPersistsAfterStorageReload(t *testing.T) {
 	}
 }
 
+func TestCoverageSpecCanBeReplaced(t *testing.T) {
+	handler, _ := setupRouterWithManifests(t, nil)
+	create := []byte(`{"name":"initial","service_name":"spaniel","content":"openapi: 3.1.0\ninfo: {title: Spaniel API, version: '1'}\npaths: {}"}`)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/coverage/specs", bytes.NewReader(create)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("create spec = %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Data storage.CoverageSpec `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	replacement := []byte(`{"name":"refreshed","service_name":"spaniel","content":"openapi: 3.1.0\ninfo: {title: Spaniel API, version: '2'}\npaths:\n  /api/openapi.yaml:\n    get:\n      responses: {'200': {description: ok}}"}`)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/api/coverage/specs/"+created.Data.ID, bytes.NewReader(replacement)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("replace spec = %d: %s", w.Code, w.Body.String())
+	}
+	var updated struct {
+		Data storage.CoverageSpec `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.Data.ID != created.Data.ID || updated.Data.Name != "refreshed" || updated.Data.RouteCount != 1 {
+		t.Fatalf("updated spec = %#v", updated.Data)
+	}
+}
+
 func setupRouterWithManifests(t *testing.T, m *coverage.Manifests) (http.Handler, *storage.DB) {
 	t.Helper()
 	store, err := storage.Open(":memory:")

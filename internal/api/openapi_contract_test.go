@@ -85,8 +85,11 @@ func TestOpenAPIYAMLContract(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("GET /api/openapi.yaml = %d", res.Code)
 	}
-	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "application/yaml") {
+	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "text/yaml") {
 		t.Fatalf("content type = %q", got)
+	}
+	if got := res.Header().Get("Content-Disposition"); !strings.Contains(got, "inline") {
+		t.Fatalf("content disposition = %q", got)
 	}
 	if !strings.Contains(res.Body.String(), "openapi:") {
 		t.Fatal("YAML spec is missing its OpenAPI version")

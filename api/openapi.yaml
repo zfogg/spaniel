@@ -6499,15 +6499,22 @@ paths:
                 - Administration
     /api/openapi.yaml:
         get:
+            description: Returns the complete Spaniel OpenAPI 3.1 contract as human-readable YAML. Open this URL directly to inspect the specification in the browser, or use it as the source for a generated client, validator, or coverage manifest.
             operationId: getOpenAPIYAML
             responses:
                 "200":
                     content:
-                        application/yaml:
+                        text/yaml:
                             schema:
                                 type: string
-                    description: Successful response
-            summary: get OpenAPI YAML
+                    description: The current OpenAPI contract, rendered inline as YAML text.
+                    headers:
+                        Content-Disposition:
+                            description: Marks the response as inline so browsers display the YAML rather than downloading it.
+                            schema:
+                                example: inline; filename="openapi.yaml"
+                                type: string
+            summary: view OpenAPI YAML specification
             tags:
                 - Administration
     /api/query-catalog:

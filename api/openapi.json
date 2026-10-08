@@ -9532,19 +9532,29 @@
     "/api/openapi.yaml": {
       "get": {
         "operationId": "getOpenAPIYAML",
+        "description": "Returns the complete Spaniel OpenAPI 3.1 contract as human-readable YAML. Open this URL directly to inspect the specification in the browser, or use it as the source for a generated client, validator, or coverage manifest.",
         "responses": {
           "200": {
             "content": {
-              "application/yaml": {
+              "text/yaml": {
                 "schema": {
                   "type": "string"
                 }
               }
             },
-            "description": "Successful response"
+            "description": "The current OpenAPI contract, rendered inline as YAML text.",
+            "headers": {
+              "Content-Disposition": {
+                "description": "Marks the response as inline so browsers display the YAML rather than downloading it.",
+                "schema": {
+                  "example": "inline; filename=\"openapi.yaml\"",
+                  "type": "string"
+                }
+              }
+            }
           }
         },
-        "summary": "get OpenAPI YAML",
+        "summary": "view OpenAPI YAML specification",
         "tags": [
           "Administration"
         ]

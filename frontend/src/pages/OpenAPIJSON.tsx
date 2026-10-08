@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Braces, Copy, ExternalLink, FileCode2, LoaderCircle } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { JsonCode, YamlCode } from '@/components/ui/HighlightedCode'
 
 type SpecFormat = 'yaml' | 'json'
@@ -13,8 +13,14 @@ async function loadOpenAPI(format: SpecFormat) {
 }
 
 export default function OpenAPIJSON() {
-  const [format, setFormat] = useState<SpecFormat>('yaml')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedFormat = searchParams.get('fileformat')
+  const format: SpecFormat = selectedFormat === 'json' ? 'json' : 'yaml'
   const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (selectedFormat === 'yaml' || selectedFormat === 'json') return
+    setSearchParams({ fileformat: 'yaml' }, { replace: true })
+  }, [selectedFormat, setSearchParams])
   const document = useQuery({
     queryKey: ['openapi-document', format],
     queryFn: () => loadOpenAPI(format),
@@ -96,7 +102,7 @@ export default function OpenAPIJSON() {
                     type="button"
                     role="tab"
                     aria-selected={format === candidate}
-                    onClick={() => setFormat(candidate)}
+                    onClick={() => setSearchParams({ fileformat: candidate })}
                     className={`rounded px-2.5 py-1 font-mono text-[10px] font-semibold uppercase transition-colors ${format === candidate ? 'bg-white text-[#315d7e] shadow-sm dark:bg-surface dark:text-foreground' : 'text-[#627789] hover:text-[#315d7e] dark:text-muted-foreground dark:hover:text-foreground'}`}
                   >
                     {candidate}

@@ -27,7 +27,10 @@ func (r *Router) openAPI(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (r *Router) openAPIYAML(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	// text/yaml plus an explicit inline disposition asks browsers to render the
+	// document as readable text rather than treating it as a file download.
+	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+	w.Header().Set("Content-Disposition", `inline; filename="openapi.yaml"`)
 	spec, err := apigen.GetSwagger()
 	if err != nil {
 		http.Error(w, "OpenAPI specification is unavailable", http.StatusInternalServerError)

@@ -771,7 +771,10 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** get OpenAPI YAML */
+    /**
+     * view OpenAPI YAML specification
+     * @description Returns the complete Spaniel OpenAPI 3.1 contract as human-readable YAML. Open this URL directly to inspect the specification in the browser, or use it as the source for a generated client, validator, or coverage manifest.
+     */
     get: operations['getOpenAPIYAML']
     put?: never
     post?: never
@@ -4937,13 +4940,15 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Successful response */
+      /** @description The current OpenAPI contract, rendered inline as YAML text. */
       200: {
         headers: {
+          /** @description Marks the response as inline so browsers display the YAML rather than downloading it. */
+          'Content-Disposition'?: string
           [name: string]: unknown
         }
         content: {
-          'application/yaml': string
+          'text/yaml': string
         }
       }
     }
