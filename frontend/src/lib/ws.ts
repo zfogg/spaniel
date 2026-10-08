@@ -59,6 +59,8 @@ export interface AlertPayload {
 export interface AlertSyncPayload {
   ruleId: string
   reason: string
+  events?: import('./api').AlertEvent[]
+  total?: number
 }
 export interface NotificationPayload {
   id: string

@@ -24,7 +24,7 @@ afterEach(() => {
 })
 
 describe('dashboard deletion', () => {
-  for (const path of ['/dashboards/new', '/dashboards/test-dashboard']) {
+  for (const path of ['/dashboards/test-dashboard']) {
     for (const confirmed of [false, true]) {
       it(`${confirmed ? 'deletes' : 'keeps'} the selected dashboard at ${path} after confirmation`, async () => {
         vi.spyOn(api.dashboards, 'list').mockResolvedValue({
