@@ -9,6 +9,15 @@ coverage*
 frontend/node_modules
 frontend/dist
 **/node_modules
+/bin/
+/frontend/node_modules/
+*.exe
+*.exe~
+spaniel
+spaniel.exe
+spaniel.exe~
+*.duckdb
+*.duckdb.wal
 **/.DS_Store
 docker-compose.yml
 Dockerfile
