@@ -15,7 +15,11 @@ function fmtBytes(n: number): string {
     v /= 1024
     i++
   }
-  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`
+  const precision = i === 0 ? 0 : 2
+  return `${v
+    .toFixed(precision)
+    .replace(/\.00$/, '')
+    .replace(/(\.\d)0$/, '$1')} ${u[i]}`
 }
 
 function fmtCount(n: number): string {

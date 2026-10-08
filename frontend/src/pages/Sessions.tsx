@@ -560,11 +560,11 @@ function SessionRow({
       <div>
         <div
           className="font-mono text-[11px] text-ink"
-          title="Allocated share of the on-disk DuckDB database, based on all session telemetry: spans, logs, metrics, events, links, and findings."
+          title="Estimated share of current DuckDB use. DuckDB compresses several sessions into shared blocks, so this proportionally allocates the live database total across all session telemetry. It will rebalance after a session is deleted, and all shares sum exactly to “used now.”"
         >
           {fmtSessionSize(s.size_bytes)}
         </div>
-        <div className="font-mono text-[10px] text-ink3">db allocation</div>
+        <div className="font-mono text-[10px] text-ink3">est. db share</div>
       </div>
 
       {/* actions */}

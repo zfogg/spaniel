@@ -33,6 +33,7 @@ describe('fmtSessionSize', () => {
 
   it('formats megabytes', () => {
     expect(fmtSessionSize(48 * 1_048_576)).toBe('48 MB')
+    expect(fmtSessionSize(48.125 * 1_048_576)).toBe('48.13 MB')
   })
 
   it('formats gigabytes', () => {
