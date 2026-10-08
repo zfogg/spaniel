@@ -4235,7 +4235,7 @@
     }
   },
   "info": {
-    "description": "The complete local Spaniel HTTP API. JSON endpoints return the Envelope shape unless an operation explicitly returns an export.",
+    "description": "Spaniel's local HTTP API powers the web app's views of traces, logs, metrics, lints, coverage, sessions, alerts, dashboards, and storage. It is also a documented integration surface for scripts and custom tools that query or automate a local Spaniel instance. Use this specification to generate a client or call endpoints directly; most JSON operations return the Envelope wrapper, while exports and explicitly documented exceptions return their own representation.",
     "title": "Spaniel API",
     "version": "0.1.0"
   },
@@ -4246,6 +4246,7 @@
         "operationId": "listAlerts",
         "parameters": [
           {
+            "description": "Selects which result page to return. Pair it with limit to walk a large result set.",
             "in": "query",
             "name": "page",
             "required": false,
@@ -4254,6 +4255,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -4262,6 +4264,7 @@
             }
           },
           {
+            "description": "Filters records by their current lifecycle state.",
             "in": "query",
             "name": "state",
             "required": false,
@@ -4270,6 +4273,7 @@
             }
           },
           {
+            "description": "Searches alert rule names and related text to quickly narrow the list.",
             "in": "query",
             "name": "search",
             "required": false,
@@ -4486,6 +4490,7 @@
         "operationId": "listAlertHistory",
         "parameters": [
           {
+            "description": "Selects which result page to return. Pair it with limit to walk a large result set.",
             "in": "query",
             "name": "page",
             "required": false,
@@ -4494,6 +4499,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -4502,6 +4508,7 @@
             }
           },
           {
+            "description": "Restricts alert history to one alert rule identifier.",
             "in": "query",
             "name": "rule_id",
             "required": false,
@@ -4510,6 +4517,7 @@
             }
           },
           {
+            "description": "Filters records by their current lifecycle state.",
             "in": "query",
             "name": "state",
             "required": false,
@@ -4518,6 +4526,7 @@
             }
           },
           {
+            "description": "Filters results by the OpenTelemetry span kind.",
             "in": "query",
             "name": "kind",
             "required": false,
@@ -4526,6 +4535,7 @@
             }
           },
           {
+            "description": "Filters results by severity level, such as error or warn.",
             "in": "query",
             "name": "severity",
             "required": false,
@@ -4534,6 +4544,7 @@
             }
           },
           {
+            "description": "Restricts alert events to one alert instance group key.",
             "in": "query",
             "name": "group_key",
             "required": false,
@@ -4542,6 +4553,7 @@
             }
           },
           {
+            "description": "Searches alert rule names and related text to quickly narrow the list.",
             "in": "query",
             "name": "search",
             "required": false,
@@ -4550,6 +4562,7 @@
             }
           },
           {
+            "description": "Sets the inclusive start of the time range as a Unix timestamp in nanoseconds.",
             "in": "query",
             "name": "from",
             "required": false,
@@ -4558,6 +4571,7 @@
             }
           },
           {
+            "description": "Sets the inclusive end of the time range as a Unix timestamp in nanoseconds.",
             "in": "query",
             "name": "to",
             "required": false,
@@ -5461,6 +5475,7 @@
             }
           },
           {
+            "description": "Restricts alert events to one alert instance group key.",
             "in": "query",
             "name": "group_key",
             "required": false,
@@ -5469,6 +5484,7 @@
             }
           },
           {
+            "description": "Selects which result page to return. Pair it with limit to walk a large result set.",
             "in": "query",
             "name": "page",
             "required": false,
@@ -5477,6 +5493,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -6293,6 +6310,7 @@
         "operationId": "getCoverage",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -8004,6 +8022,7 @@
         "operationId": "getDiff",
         "parameters": [
           {
+            "description": "Identifies the baseline session used as the starting point for the comparison.",
             "in": "query",
             "name": "baseline",
             "required": true,
@@ -8012,6 +8031,7 @@
             }
           },
           {
+            "description": "Identifies the session to compare against the baseline.",
             "in": "query",
             "name": "compare",
             "required": true,
@@ -8234,6 +8254,7 @@
         "operationId": "listIssues",
         "parameters": [
           {
+            "description": "Restricts results to a single distributed trace.",
             "in": "query",
             "name": "traceId",
             "required": false,
@@ -8242,6 +8263,7 @@
             }
           },
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -8313,6 +8335,7 @@
         "operationId": "listLint",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -8383,6 +8406,7 @@
         "operationId": "listLogs",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -8391,6 +8415,7 @@
             }
           },
           {
+            "description": "Restricts results to a single distributed trace.",
             "in": "query",
             "name": "traceId",
             "required": false,
@@ -8399,6 +8424,7 @@
             }
           },
           {
+            "description": "Restricts results to logs associated with one span.",
             "in": "query",
             "name": "spanId",
             "required": false,
@@ -8407,6 +8433,7 @@
             }
           },
           {
+            "description": "Filters results by severity level, such as error or warn.",
             "in": "query",
             "name": "severity",
             "required": false,
@@ -8415,6 +8442,7 @@
             }
           },
           {
+            "description": "Restricts results to telemetry emitted by the named service.",
             "in": "query",
             "name": "service",
             "required": false,
@@ -8423,6 +8451,7 @@
             }
           },
           {
+            "description": "Selects which result page to return. Pair it with limit to walk a large result set.",
             "in": "query",
             "name": "page",
             "required": false,
@@ -8431,6 +8460,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -8520,6 +8550,7 @@
         "operationId": "listMetrics",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -8591,6 +8622,7 @@
         "operationId": "getMetricCardinality",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -8658,6 +8690,7 @@
         "operationId": "getMetricSeries",
         "parameters": [
           {
+            "description": "Restricts results to the named metric or span operation, depending on this endpoint.",
             "in": "query",
             "name": "name",
             "required": true,
@@ -8666,6 +8699,7 @@
             }
           },
           {
+            "description": "Restricts results to telemetry emitted by the named service.",
             "in": "query",
             "name": "service",
             "required": false,
@@ -8674,6 +8708,7 @@
             }
           },
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -8682,6 +8717,7 @@
             }
           },
           {
+            "description": "Sets the inclusive start of the time range as a Unix timestamp in nanoseconds.",
             "in": "query",
             "name": "from",
             "required": false,
@@ -8690,6 +8726,7 @@
             }
           },
           {
+            "description": "Sets the inclusive end of the time range as a Unix timestamp in nanoseconds.",
             "in": "query",
             "name": "to",
             "required": false,
@@ -8698,6 +8735,7 @@
             }
           },
           {
+            "description": "Selects the metric operation to apply when deriving the returned series, such as a rate or delta.",
             "in": "query",
             "name": "operation",
             "required": false,
@@ -8706,6 +8744,7 @@
             }
           },
           {
+            "description": "Includes trace links and exemplar context with metric points when available. Enable it when investigating a metric spike.",
             "in": "query",
             "name": "with_traces",
             "required": false,
@@ -8714,7 +8753,7 @@
             }
           },
           {
-            "description": "Indexed metric dimensions, encoded as attributes[key]=value. The legacy attr.key=value form remains supported.",
+            "description": "Indexed metric dimensions, encoded as attributes[key]=value.",
             "explode": true,
             "in": "query",
             "name": "attributes",
@@ -8817,6 +8856,7 @@
         "operationId": "listNotifications",
         "parameters": [
           {
+            "description": "Selects which result page to return. Pair it with limit to walk a large result set.",
             "in": "query",
             "name": "page",
             "required": false,
@@ -8825,6 +8865,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -8833,6 +8874,7 @@
             }
           },
           {
+            "description": "Filters notifications by their originating source.",
             "in": "query",
             "name": "source",
             "required": false,
@@ -9072,6 +9114,7 @@
         "operationId": "listQueryCatalog",
         "parameters": [
           {
+            "description": "Restricts the query catalog to a telemetry signal type, such as traces, metrics, or logs.",
             "in": "query",
             "name": "signal",
             "required": false,
@@ -9080,6 +9123,7 @@
             }
           },
           {
+            "description": "Searches the endpoint's text index. Use a short, specific term to narrow results.",
             "in": "query",
             "name": "q",
             "required": false,
@@ -9158,6 +9202,7 @@
         "operationId": "searchTelemetry",
         "parameters": [
           {
+            "description": "Searches the endpoint's text index. Use a short, specific term to narrow results.",
             "in": "query",
             "name": "q",
             "required": false,
@@ -9166,6 +9211,7 @@
             }
           },
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -9174,6 +9220,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -9243,6 +9290,7 @@
         "operationId": "getServiceMap",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -9541,6 +9589,7 @@
         "operationId": "importSession",
         "parameters": [
           {
+            "description": "Sets the human-readable label assigned to the imported session.",
             "in": "query",
             "name": "label",
             "required": true,
@@ -9549,6 +9598,7 @@
             }
           },
           {
+            "description": "Declares the import payload format so Spaniel can parse the uploaded session correctly.",
             "in": "query",
             "name": "format",
             "required": true,
@@ -10553,6 +10603,7 @@
         "operationId": "listSources",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -10622,6 +10673,7 @@
         "operationId": "listSpans",
         "parameters": [
           {
+            "description": "Chooses the span presentation or grouping used by the spans view.",
             "in": "query",
             "name": "view",
             "required": false,
@@ -10630,6 +10682,7 @@
             }
           },
           {
+            "description": "Chooses the ordering for returned spans so you can inspect the most relevant results first.",
             "in": "query",
             "name": "sort",
             "required": false,
@@ -10638,6 +10691,7 @@
             }
           },
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -10646,6 +10700,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -10654,6 +10709,7 @@
             }
           },
           {
+            "description": "Selects which result page to return. Pair it with limit to walk a large result set.",
             "in": "query",
             "name": "page",
             "required": false,
@@ -10662,6 +10718,7 @@
             }
           },
           {
+            "description": "Restricts results to telemetry emitted by the named service.",
             "in": "query",
             "name": "service",
             "required": false,
@@ -10670,6 +10727,7 @@
             }
           },
           {
+            "description": "Restricts results to the named metric or span operation, depending on this endpoint.",
             "in": "query",
             "name": "name",
             "required": false,
@@ -10678,6 +10736,7 @@
             }
           },
           {
+            "description": "Filters results by the OpenTelemetry span kind.",
             "in": "query",
             "name": "kind",
             "required": false,
@@ -10840,6 +10899,7 @@
         "operationId": "getStats",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -10967,6 +11027,7 @@
         "operationId": "listTraces",
         "parameters": [
           {
+            "description": "Limits results to one captured Spaniel session. Omit it to use the endpoint default scope.",
             "in": "query",
             "name": "sessionId",
             "required": false,
@@ -10975,6 +11036,7 @@
             }
           },
           {
+            "description": "Restricts results to telemetry emitted by the named service.",
             "in": "query",
             "name": "service",
             "required": false,
@@ -10983,6 +11045,7 @@
             }
           },
           {
+            "description": "Selects which result page to return. Pair it with limit to walk a large result set.",
             "in": "query",
             "name": "page",
             "required": false,
@@ -10991,6 +11054,7 @@
             }
           },
           {
+            "description": "Caps how many results are returned in one response. Use it with page to paginate through larger result sets.",
             "in": "query",
             "name": "limit",
             "required": false,

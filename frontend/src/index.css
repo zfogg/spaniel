@@ -35,6 +35,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ReDoc has an independently tall document inside Spaniel's fixed app shell.
+   Keep its host as the single, visibly scrollable surface so hash navigation
+   never strands the reader below the app navigation. */
+.openapi-docs-scroll {
+  scrollbar-gutter: stable;
+}
+
+.openapi-docs-scroll::-webkit-scrollbar {
+  width: 12px;
+}
+
+.openapi-docs-scroll::-webkit-scrollbar-track {
+  background: var(--surface2);
+}
+
+.openapi-docs-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid var(--surface2);
+  border-radius: 999px;
+  background: var(--accent);
+}
+
 /* ── light mode — Drift (sky · sand · slate) ──────────────────────────────── */
 /* The application shell carries text-white for the dark canvas. Its color must
    still follow the semantic foreground token when the theme switches. */

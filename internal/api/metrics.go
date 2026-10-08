@@ -122,8 +122,8 @@ type MetricSeriesResponse struct {
 }
 
 // GET /api/metrics/series?name=&service=&sessionId=&from=&to=&operation=
-// Repeated attr.<allowed-key>=value parameters filter indexed dimensions. Raw
-// OTLP attributes remain inspectable on the point but are never query keys.
+// Repeated attributes[allowed-key]=value parameters filter indexed dimensions.
+// Raw OTLP attributes remain inspectable on the point but are never query keys.
 func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	name := q.Get("name")
@@ -341,9 +341,6 @@ func histogramInterval(points []MetricSeriesPoint, index int, cumulative bool) (
 func metricDimensionFilters(q map[string][]string) map[string]string {
 	out := map[string]string{}
 	for k, v := range q {
-		if strings.HasPrefix(k, "attr.") && len(v) > 0 {
-			out[strings.TrimPrefix(k, "attr.")] = v[0]
-		}
 		if strings.HasPrefix(k, "attributes[") && strings.HasSuffix(k, "]") && len(v) > 0 {
 			out[strings.TrimSuffix(strings.TrimPrefix(k, "attributes["), "]")] = v[0]
 		}

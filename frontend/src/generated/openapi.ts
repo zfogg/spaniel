@@ -2262,9 +2262,13 @@ export interface operations {
   listAlerts: {
     parameters: {
       query?: {
+        /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
+        /** @description Filters records by their current lifecycle state. */
         state?: string
+        /** @description Searches alert rule names and related text to quickly narrow the list. */
         search?: string
       }
       header?: never
@@ -2364,15 +2368,25 @@ export interface operations {
   listAlertHistory: {
     parameters: {
       query?: {
+        /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
+        /** @description Restricts alert history to one alert rule identifier. */
         rule_id?: string
+        /** @description Filters records by their current lifecycle state. */
         state?: string
+        /** @description Filters results by the OpenTelemetry span kind. */
         kind?: string
+        /** @description Filters results by severity level, such as error or warn. */
         severity?: string
+        /** @description Restricts alert events to one alert instance group key. */
         group_key?: string
+        /** @description Searches alert rule names and related text to quickly narrow the list. */
         search?: string
+        /** @description Sets the inclusive start of the time range as a Unix timestamp in nanoseconds. */
         from?: number
+        /** @description Sets the inclusive end of the time range as a Unix timestamp in nanoseconds. */
         to?: number
       }
       header?: never
@@ -2845,8 +2859,11 @@ export interface operations {
   listAlertEvents: {
     parameters: {
       query?: {
+        /** @description Restricts alert events to one alert instance group key. */
         group_key?: string
+        /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
       }
       header?: never
@@ -3245,6 +3262,7 @@ export interface operations {
   getCoverage: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -4115,7 +4133,9 @@ export interface operations {
   getDiff: {
     parameters: {
       query: {
+        /** @description Identifies the baseline session used as the starting point for the comparison. */
         baseline: string
+        /** @description Identifies the session to compare against the baseline. */
         compare: string
       }
       header?: never
@@ -4211,7 +4231,9 @@ export interface operations {
   listIssues: {
     parameters: {
       query?: {
+        /** @description Restricts results to a single distributed trace. */
         traceId?: string
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -4245,6 +4267,7 @@ export interface operations {
   listLint: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -4278,12 +4301,19 @@ export interface operations {
   listLogs: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
+        /** @description Restricts results to a single distributed trace. */
         traceId?: string
+        /** @description Restricts results to logs associated with one span. */
         spanId?: string
+        /** @description Filters results by severity level, such as error or warn. */
         severity?: string
+        /** @description Restricts results to telemetry emitted by the named service. */
         service?: string
+        /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
       }
       header?: never
@@ -4327,6 +4357,7 @@ export interface operations {
   listMetrics: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -4360,6 +4391,7 @@ export interface operations {
   getMetricCardinality: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -4393,14 +4425,21 @@ export interface operations {
   getMetricSeries: {
     parameters: {
       query: {
+        /** @description Restricts results to the named metric or span operation, depending on this endpoint. */
         name: string
+        /** @description Restricts results to telemetry emitted by the named service. */
         service?: string
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
+        /** @description Sets the inclusive start of the time range as a Unix timestamp in nanoseconds. */
         from?: number
+        /** @description Sets the inclusive end of the time range as a Unix timestamp in nanoseconds. */
         to?: number
+        /** @description Selects the metric operation to apply when deriving the returned series, such as a rate or delta. */
         operation?: string
+        /** @description Includes trace links and exemplar context with metric points when available. Enable it when investigating a metric spike. */
         with_traces?: boolean
-        /** @description Indexed metric dimensions, encoded as attributes[key]=value. The legacy attr.key=value form remains supported. */
+        /** @description Indexed metric dimensions, encoded as attributes[key]=value. */
         attributes?: {
           [key: string]: string
         }
@@ -4445,8 +4484,11 @@ export interface operations {
   listNotifications: {
     parameters: {
       query?: {
+        /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
+        /** @description Filters notifications by their originating source. */
         source?: string
       }
       header?: never
@@ -4587,7 +4629,9 @@ export interface operations {
   listQueryCatalog: {
     parameters: {
       query?: {
+        /** @description Restricts the query catalog to a telemetry signal type, such as traces, metrics, or logs. */
         signal?: string
+        /** @description Searches the endpoint's text index. Use a short, specific term to narrow results. */
         q?: string
       }
       header?: never
@@ -4630,8 +4674,11 @@ export interface operations {
   searchTelemetry: {
     parameters: {
       query?: {
+        /** @description Searches the endpoint's text index. Use a short, specific term to narrow results. */
         q?: string
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
       }
       header?: never
@@ -4665,6 +4712,7 @@ export interface operations {
   getServiceMap: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -4819,7 +4867,9 @@ export interface operations {
   importSession: {
     parameters: {
       query: {
+        /** @description Sets the human-readable label assigned to the imported session. */
         label: string
+        /** @description Declares the import payload format so Spaniel can parse the uploaded session correctly. */
         format: string
       }
       header?: never
@@ -5367,6 +5417,7 @@ export interface operations {
   listSources: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -5400,13 +5451,21 @@ export interface operations {
   listSpans: {
     parameters: {
       query?: {
+        /** @description Chooses the span presentation or grouping used by the spans view. */
         view?: string
+        /** @description Chooses the ordering for returned spans so you can inspect the most relevant results first. */
         sort?: string
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
+        /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
+        /** @description Restricts results to telemetry emitted by the named service. */
         service?: string
+        /** @description Restricts results to the named metric or span operation, depending on this endpoint. */
         name?: string
+        /** @description Filters results by the OpenTelemetry span kind. */
         kind?: number
       }
       header?: never
@@ -5483,6 +5542,7 @@ export interface operations {
   getStats: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
       }
       header?: never
@@ -5547,9 +5607,13 @@ export interface operations {
   listTraces: {
     parameters: {
       query?: {
+        /** @description Limits results to one captured Spaniel session. Omit it to use the endpoint default scope. */
         sessionId?: string
+        /** @description Restricts results to telemetry emitted by the named service. */
         service?: string
+        /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
+        /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
       }
       header?: never

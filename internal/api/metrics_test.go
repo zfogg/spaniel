@@ -168,7 +168,7 @@ func TestGetMetricSeries_FiltersCompleteAttributeSetsOnServer(t *testing.T) {
 		}
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=requests&service=api&sessionId=s1&attr.result=ok", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=requests&service=api&sessionId=s1&attributes[result]=ok", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -185,6 +185,22 @@ func TestGetMetricSeries_FiltersCompleteAttributeSetsOnServer(t *testing.T) {
 	}
 	if got := resp.Data.Dimensions["result"]; len(got) != 2 || got[0] != "error" || got[1] != "ok" {
 		t.Fatalf("dimension menu = %v, want all stream values", got)
+	}
+
+	legacyReq := httptest.NewRequest(http.MethodGet, "/api/metrics/series?name=requests&service=api&sessionId=s1&attr.result=ok", nil)
+	legacyW := httptest.NewRecorder()
+	handler.ServeHTTP(legacyW, legacyReq)
+	if legacyW.Code != http.StatusOK {
+		t.Fatalf("legacy status: want 200, got %d (%s)", legacyW.Code, legacyW.Body.String())
+	}
+	var legacyResp struct {
+		Data MetricSeriesResponse `json:"data"`
+	}
+	if err := json.Unmarshal(legacyW.Body.Bytes(), &legacyResp); err != nil {
+		t.Fatal(err)
+	}
+	if len(legacyResp.Data.Series) != 2 {
+		t.Fatalf("legacy attr filter matched %d series, want no filtering", len(legacyResp.Data.Series))
 	}
 }
 

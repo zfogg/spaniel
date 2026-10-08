@@ -46,7 +46,7 @@ export default function OpenAPIJSON() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              to="/docs/openapi"
+              to="/openapi-docs"
               className="inline-flex items-center gap-1.5 rounded-md border border-[#bcd1df] bg-white px-3 py-2 text-xs font-medium text-[#315d7e] shadow-sm transition-colors hover:bg-[#f5faff] dark:border-border dark:bg-background dark:text-foreground dark:hover:bg-muted"
             >
               Redoc reference <ExternalLink size={13} />

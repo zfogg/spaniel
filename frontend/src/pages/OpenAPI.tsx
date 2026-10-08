@@ -5,8 +5,29 @@ import { Link } from 'react-router-dom'
 
 declare global {
   interface Window {
-    Redoc?: { init: (url: string, options: object, target: HTMLElement) => void }
+    Redoc?: { init: (document: string | object, options: object, target: HTMLElement) => void }
   }
+}
+
+type OpenAPIDocument = {
+  paths?: Record<string, Record<string, { parameters?: Array<Record<string, unknown>> }>>
+}
+
+function makeParameterDescriptionsVisible(document: OpenAPIDocument) {
+  // ReDoc currently renders a parameter description for an object but omits it
+  // for scalar query parameters. Mirroring the canonical parameter description
+  // onto its schema keeps every query filter equally discoverable in the UI.
+  for (const path of Object.values(document.paths ?? {})) {
+    for (const operation of Object.values(path)) {
+      for (const parameter of operation?.parameters ?? []) {
+        if (parameter.in !== 'query' || typeof parameter.description !== 'string') continue
+        const schema = parameter.schema
+        if (!schema || typeof schema !== 'object' || Array.isArray(schema)) continue
+        if (!('description' in schema)) schema.description = parameter.description
+      }
+    }
+  }
+  return document
 }
 
 function options(dark: boolean) {
@@ -38,6 +59,7 @@ function options(dark: boolean) {
       sidebar: { backgroundColor: c.side, textColor: c.muted, activeTextColor: c.ink },
       rightPanel: { backgroundColor: c.bg, textColor: c.ink },
       codeBlock: { backgroundColor: c.side },
+      schema: { nestedBackground: c.side, linesColor: c.edge },
       typography: {
         fontFamily: 'Inter, sans-serif',
         headings: { fontFamily: 'Fraunces, serif' },
@@ -67,6 +89,7 @@ function applyThemeOverrides(dark: boolean) {
     .redoc-wrap>:nth-child(2){background:${bg}!important;color:${ink}!important}
     .redoc-wrap>:nth-child(4),.redoc-wrap pre{background:${side}!important;color:${ink}!important}
     .redoc-wrap :is(.react-tabs__tab-panel,[class*="sc-gsFSXq"]){background:${side}!important;color:${ink}!important}
+    .redoc-wrap td[colspan="2"]>div{background:${side}!important;color:${ink}!important}
     .redoc-wrap .api-content :is(h1,h2,h3,h4,h5,h6,p,td,th,label,span){color:${ink}!important}
     .redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}
     .redoc-wrap [role="tab"]{background:${side}!important;color:${ink}!important}
@@ -90,10 +113,13 @@ export default function OpenAPI() {
     // to the host element.
     if (!target || !resolvedTheme || initialized.current) return
     initialized.current = true
-    const mount = () => {
+    const mount = async () => {
       if (!window.Redoc || target.dataset.redocMounted === 'true') return
       target.dataset.redocMounted = 'true'
-      window.Redoc.init('/api/openapi.json', options(resolvedTheme === 'dark'), target)
+      const response = await fetch('/api/openapi.json')
+      if (!response.ok) throw new Error(`The OpenAPI document returned ${response.status}.`)
+      const document = makeParameterDescriptionsVisible((await response.json()) as OpenAPIDocument)
+      window.Redoc.init(document, options(resolvedTheme === 'dark'), target)
     }
     const id = 'spaniel-redoc-runtime'
     const script = document.getElementById(id) as HTMLScriptElement | null
@@ -109,7 +135,7 @@ export default function OpenAPI() {
     }
   }, [resolvedTheme])
   return (
-    <main className="flex-1 overflow-y-auto bg-background p-4">
+    <main className="openapi-docs-scroll min-h-0 flex-1 overflow-y-scroll overscroll-contain bg-background p-4">
       <header className="mx-auto mb-4 flex max-w-[1280px] items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 shadow-sm">
         <div>
           <p className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground">
@@ -118,10 +144,10 @@ export default function OpenAPI() {
           <h1 className="mt-0.5 font-serif text-lg font-semibold">Spaniel API</h1>
         </div>
         <Link
-          to="/docs/openapi-json"
+          to="/docs/openapi-spec"
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
         >
-          <Braces size={14} /> View OpenAPI JSON
+          <Braces size={14} /> View OpenAPI spec file
         </Link>
       </header>
       <div
