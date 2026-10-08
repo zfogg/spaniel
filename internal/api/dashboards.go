@@ -230,7 +230,12 @@ func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
 	if rejectFileManagedDashboard(w, req) {
 		return
 	}
-	if err := r.store.DeleteDashboard(chi.URLParam(req, "id")); err != nil {
+	id := chi.URLParam(req, "id")
+	if _, err := r.store.GetDashboard(id); err != nil {
+		respondErr(w, req, http.StatusNotFound, "dashboard not found")
+		return
+	}
+	if err := r.store.DeleteDashboard(id); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
@@ -262,6 +267,10 @@ func (r *Router) savePanel(w http.ResponseWriter, req *http.Request, update bool
 	p := &storage.DashboardPanel{DashboardID: id, Title: in.Title, DisplayType: in.DisplayType, QuerySQL: in.QuerySQL, QueryVersion: dashboardQueryVersion, SettingsJSON: or(in.SettingsJSON, "{}"), LayoutJSON: or(in.LayoutJSON, "{}"), Position: in.Position}
 	if update {
 		p.ID = chi.URLParam(req, "panelId")
+		if !dashboardHasPanel(dashboard, p.ID) {
+			respondErr(w, req, http.StatusNotFound, "dashboard panel not found")
+			return
+		}
 		err = r.store.UpdateDashboardPanel(p)
 	} else {
 		err = r.store.CreateDashboardPanel(p)
@@ -378,7 +387,12 @@ func (r *Router) saveVariable(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 400, "session_id is a built-in parameter for the active session")
 		return
 	}
-	v := &storage.DashboardVariable{DashboardID: chi.URLParam(req, "id"), Name: in.Name, Kind: in.Kind, Source: in.Source, OptionsJSON: or(in.OptionsJSON, "[]"), DefaultValue: in.DefaultValue}
+	dashboardID := chi.URLParam(req, "id")
+	if _, err := r.store.GetDashboard(dashboardID); err != nil {
+		respondErr(w, req, http.StatusNotFound, "dashboard not found")
+		return
+	}
+	v := &storage.DashboardVariable{DashboardID: dashboardID, Name: in.Name, Kind: in.Kind, Source: in.Source, OptionsJSON: or(in.OptionsJSON, "[]"), DefaultValue: in.DefaultValue}
 	if err := validateDashboardVariable(v, v.DefaultValue); err != nil {
 		respondErr(w, req, 400, err.Error())
 		return
@@ -424,7 +438,17 @@ func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
 	if rejectFileManagedDashboard(w, req) {
 		return
 	}
-	if err := r.store.DeleteDashboardPanel(chi.URLParam(req, "id"), chi.URLParam(req, "panelId")); err != nil {
+	dashboard, err := r.store.GetDashboard(chi.URLParam(req, "id"))
+	if err != nil {
+		respondErr(w, req, http.StatusNotFound, "dashboard not found")
+		return
+	}
+	panelID := chi.URLParam(req, "panelId")
+	if !dashboardHasPanel(dashboard, panelID) {
+		respondErr(w, req, http.StatusNotFound, "dashboard panel not found")
+		return
+	}
+	if err := r.store.DeleteDashboardPanel(dashboard.ID, panelID); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
@@ -434,11 +458,39 @@ func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
 	if rejectFileManagedDashboard(w, req) {
 		return
 	}
-	if err := r.store.DeleteDashboardVariable(chi.URLParam(req, "id"), chi.URLParam(req, "name")); err != nil {
+	dashboard, err := r.store.GetDashboard(chi.URLParam(req, "id"))
+	if err != nil {
+		respondErr(w, req, http.StatusNotFound, "dashboard not found")
+		return
+	}
+	name := chi.URLParam(req, "name")
+	if !dashboardHasVariable(dashboard, name) {
+		respondErr(w, req, http.StatusNotFound, "dashboard variable not found")
+		return
+	}
+	if err := r.store.DeleteDashboardVariable(dashboard.ID, name); err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
 	respond(w, map[string]bool{"ok": true}, 1, 1)
+}
+
+func dashboardHasPanel(dashboard *model.Dashboard, id string) bool {
+	for _, panel := range dashboard.Panels {
+		if panel.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func dashboardHasVariable(dashboard *model.Dashboard, name string) bool {
+	for _, variable := range dashboard.Variables {
+		if variable.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request) {

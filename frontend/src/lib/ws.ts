@@ -60,6 +60,11 @@ export interface AlertSyncPayload {
   ruleId: string
   reason: string
 }
+export interface NotificationPayload {
+  id: string
+  source: string
+  sourceId: string
+}
 
 export type WsEvent =
   | { type: 'span'; timestamp_ns: number; payload: SpanPayload }
@@ -70,6 +75,7 @@ export type WsEvent =
   | { type: 'throughput'; timestamp_ns: number; payload: ThroughputPayload }
   | { type: 'alert'; timestamp_ns: number; payload: AlertPayload }
   | { type: 'alert_sync'; timestamp_ns: number; payload: AlertSyncPayload }
+  | { type: 'notification'; timestamp_ns: number; payload: NotificationPayload }
   | { type: 'heartbeat'; timestamp_ns: number }
 
 // Keep SpanEvent as a backward-compat alias:

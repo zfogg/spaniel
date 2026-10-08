@@ -27,6 +27,7 @@ func main() {
 				op := raw.(map[string]any)
 				op["tags"] = []any{tag(path)}
 				applyResponseSchema(op)
+				applyErrorResponses(op)
 				applyExportSchema(op)
 				addExample(op, doc)
 			}
@@ -39,6 +40,70 @@ func main() {
 	if err := os.WriteFile("api/openapi.json", append(out, '\n'), 0o644); err != nil {
 		panic(err)
 	}
+}
+
+func applyErrorResponses(op map[string]any) {
+	operationID, _ := op["operationId"].(string)
+	responses, _ := op["responses"].(map[string]any)
+	if responses == nil {
+		return
+	}
+	// The base document predates the typed HTTP boundary and declared 400/404
+	// on every operation. Keep only the successful response, then reconstruct
+	// the error contract from the handler's actual respondErr paths.
+	for status := range responses {
+		if status != "200" {
+			delete(responses, status)
+		}
+	}
+	for _, status := range errorResponses[operationID] {
+		responses[status] = map[string]any{
+			"description": errorResponseDescriptions[status],
+			"content": map[string]any{"application/json": map[string]any{
+				"schema": map[string]any{"$ref": "#/components/schemas/Error"},
+			}},
+		}
+	}
+}
+
+var errorResponseDescriptions = map[string]string{
+	"400": "The request was invalid.",
+	"404": "The requested Spaniel resource was not found.",
+	"409": "The request conflicts with the current resource state.",
+	"500": "Spaniel could not complete the request.",
+	"501": "This optional capability is not configured.",
+	"502": "The upstream notification provider failed.",
+}
+
+// Kept next to the response schema mapping so a changed handler contract is a
+// deliberate documentation change. Statuses are taken from each handler's
+// respondErr paths; absent entries deliberately mean the operation has no
+// handler-level error response.
+var errorResponses = map[string][]string{
+	"acknowledgeAlert": {"500"}, "acknowledgeAlertInstance": {"404"}, "acknowledgeNotification": {"500"},
+	"activateSession": {"404", "500"}, "checkUpdates": {"404"}, "compactStorage": {"500"},
+	"createAlert": {"400", "500"}, "createAlertSilence": {"400", "500"}, "createDashboard": {"400", "500"},
+	"createDashboardPanel": {"400", "404", "409", "500"}, "createDashboardVariable": {"400", "404", "409", "500"}, "createSession": {"500"},
+	"deleteAlert": {"404", "409", "500"}, "deleteAlertSilence": {"500"}, "deleteDashboard": {"404", "409", "500"},
+	"deleteDashboardPanel": {"404", "409", "500"}, "deleteDashboardVariable": {"404", "409", "500"}, "deleteSession": {"400", "500"},
+	"dropAllData": {"500"}, "duplicateAlert": {"404"}, "exportAlertConfig": {"404", "500"},
+	"exportDashboardConfig": {"404", "500"}, "exportSessionBaseline": {"404", "500"}, "exportTrace": {"404", "500"},
+	"getAlert": {"404"}, "getCoverage": {"500"}, "getDashboard": {"404"}, "getDatabaseSchema": {"500"},
+	"getDiff": {"400", "404", "500"}, "getMetricCardinality": {"500"}, "getMetricSeries": {"400", "500"},
+	"getServiceMap": {"500"}, "getSession": {"404", "500"}, "getSettings": {"404"}, "getSpan": {"404", "500"},
+	"getStats": {"500"}, "getStorageBreakdown": {"500"}, "getTrace": {"404", "500"},
+	"importAlertConfig": {"400", "409", "500"}, "importDashboardConfig": {"400", "500"}, "importSession": {"400"},
+	"listAlertEvents": {"500"}, "listAlertHistory": {"500"}, "listAlerts": {"500"}, "listAlertSilences": {"500"},
+	"listDashboards": {"500"}, "listIncomingLinks": {"500"}, "listIssues": {"500"}, "listLint": {"500"},
+	"listLogs": {"400", "500"}, "listMetrics": {"500"}, "listNotifications": {"500"}, "listQueryCatalog": {"400", "500"},
+	"listServices": {"500"}, "listSessions": {"500"}, "listSources": {"500"}, "listSpans": {"500"}, "listTraces": {"500"},
+	"moveDashboardPanel": {"404", "409", "500"}, "patchAlert": {"400", "404", "409", "500"},
+	"patchAlertSilence": {"400", "404"}, "patchDashboard": {"404", "409", "500"}, "patchDashboardPanel": {"400", "404", "409", "500"},
+	"patchSession": {"404", "500"}, "previewAlert": {"400", "404", "500"}, "previewAlertDraft": {"400"},
+	"previewDashboardQuery": {"400", "404"}, "pruneStorage": {"404", "500"}, "putSettings": {"400", "404", "500"},
+	"readNotification": {"500"}, "reloadAlertDefinitions": {"400", "501"}, "reorderDashboards": {"400", "409", "500"},
+	"searchTelemetry": {"500"}, "setSessionBaseline": {"500"}, "testAlertNotification": {"404", "502"},
+	"unacknowledgeAlertInstance": {"404"},
 }
 
 func applyExportSchema(op map[string]any) {

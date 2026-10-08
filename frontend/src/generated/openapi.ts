@@ -2262,8 +2262,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   createAlert: {
@@ -2292,8 +2299,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listAlertHistory: {
@@ -2328,8 +2351,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   importAlertConfig: {
@@ -2358,8 +2388,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   previewAlertDraft: {
@@ -2388,8 +2443,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   reloadAlertDefinitions: {
@@ -2418,8 +2480,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description This optional capability is not configured. */
+      501: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getAlert: {
@@ -2444,8 +2522,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   deleteAlert: {
@@ -2470,8 +2555,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   patchAlert: {
@@ -2502,8 +2612,42 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   acknowledgeAlert: {
@@ -2534,8 +2678,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   exportAlertConfig: {
@@ -2558,8 +2709,24 @@ export interface operations {
           'application/yaml': string
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   duplicateAlert: {
@@ -2590,8 +2757,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listAlertEvents: {
@@ -2621,8 +2795,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   acknowledgeAlertInstance: {
@@ -2654,8 +2835,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   unacknowledgeAlertInstance: {
@@ -2686,8 +2874,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   previewAlert: {
@@ -2718,8 +2913,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listAlertSilences: {
@@ -2744,8 +2964,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   createAlertSilence: {
@@ -2779,8 +3006,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   deleteAlertSilence: {
@@ -2806,8 +3049,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   patchAlertSilence: {
@@ -2842,8 +3092,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   testAlertNotification: {
@@ -2875,8 +3141,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The upstream notification provider failed. */
+      502: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getCoverage: {
@@ -2901,8 +3183,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listDashboards: {
@@ -2925,8 +3214,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   createDashboard: {
@@ -2955,8 +3251,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   importDashboardConfig: {
@@ -2985,8 +3297,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   reorderDashboards: {
@@ -3015,8 +3343,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getDashboard: {
@@ -3041,8 +3394,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   deleteDashboard: {
@@ -3067,8 +3427,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   patchDashboard: {
@@ -3099,8 +3484,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   exportDashboardConfig: {
@@ -3123,8 +3533,24 @@ export interface operations {
           'application/yaml': string
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   createDashboardPanel: {
@@ -3155,8 +3581,42 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   deleteDashboardPanel: {
@@ -3182,8 +3642,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   patchDashboardPanel: {
@@ -3215,8 +3700,42 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   moveDashboardPanel: {
@@ -3249,8 +3768,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   previewDashboardQuery: {
@@ -3281,8 +3825,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   createDashboardVariable: {
@@ -3313,8 +3873,42 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   deleteDashboardVariable: {
@@ -3340,8 +3934,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The request conflicts with the current resource state. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getDatabaseSchema: {
@@ -3364,8 +3983,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getDiff: {
@@ -3391,8 +4017,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listForwarders: {
@@ -3415,8 +4066,6 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
     }
   }
   getHealth: {
@@ -3439,8 +4088,6 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
     }
   }
   listIssues: {
@@ -3466,8 +4113,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listLint: {
@@ -3492,8 +4146,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listLogs: {
@@ -3525,8 +4186,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listMetrics: {
@@ -3551,8 +4228,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getMetricCardinality: {
@@ -3577,8 +4261,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getMetricSeries: {
@@ -3609,8 +4300,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listNotifications: {
@@ -3638,8 +4345,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   acknowledgeNotification: {
@@ -3664,8 +4378,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   readNotification: {
@@ -3690,8 +4411,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getOpenAPISpec: {
@@ -3712,8 +4440,6 @@ export interface operations {
           'application/vnd.oai.openapi+json;version=3.1': string
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
     }
   }
   listQueryCatalog: {
@@ -3739,8 +4465,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   searchTelemetry: {
@@ -3767,8 +4509,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getServiceMap: {
@@ -3793,8 +4542,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listServices: {
@@ -3817,8 +4573,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listSessions: {
@@ -3841,8 +4604,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   createSession: {
@@ -3871,8 +4641,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getActiveSession: {
@@ -3895,8 +4672,6 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
     }
   }
   importSession: {
@@ -3928,8 +4703,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getSession: {
@@ -3954,8 +4736,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   deleteSession: {
@@ -3980,8 +4778,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   patchSession: {
@@ -4013,8 +4827,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   activateSession: {
@@ -4045,8 +4875,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   setSessionBaseline: {
@@ -4077,8 +4923,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   exportSessionBaseline: {
@@ -4101,8 +4954,24 @@ export interface operations {
           'application/json': string
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getSettings: {
@@ -4125,8 +4994,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   putSettings: {
@@ -4155,8 +5031,33 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   checkUpdates: {
@@ -4185,8 +5086,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   compactStorage: {
@@ -4215,8 +5123,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   dropAllData: {
@@ -4239,8 +5154,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   pruneStorage: {
@@ -4269,8 +5191,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listSources: {
@@ -4295,8 +5233,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listSpans: {
@@ -4329,8 +5274,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getSpan: {
@@ -4355,8 +5307,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getStats: {
@@ -4381,8 +5349,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getStorageBreakdown: {
@@ -4405,8 +5380,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listTraces: {
@@ -4435,8 +5417,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getTrace: {
@@ -4461,8 +5450,24 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   exportTrace: {
@@ -4485,8 +5490,24 @@ export interface operations {
           'application/json': string
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description The requested Spaniel resource was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listIncomingLinks: {
@@ -4511,8 +5532,15 @@ export interface operations {
           }
         }
       }
-      400: components['responses']['BadRequest']
-      404: components['responses']['NotFound']
+      /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
 }

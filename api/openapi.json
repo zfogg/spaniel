@@ -4310,11 +4310,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Alerts",
@@ -4372,10 +4376,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "create Alert",
@@ -4518,11 +4536,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Alert History",
@@ -4582,10 +4604,34 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "import Alert Config",
@@ -4662,10 +4708,14 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           }
         },
         "summary": "preview Alert Draft",
@@ -4718,10 +4768,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This optional capability is not configured."
           }
         },
         "summary": "reload Alert Definitions",
@@ -4772,11 +4836,35 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "delete Alert",
@@ -4832,11 +4920,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "get Alert",
@@ -4904,10 +4996,44 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "patch Alert",
@@ -4969,11 +5095,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "acknowledge Alert",
@@ -5006,11 +5136,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "export Alert Config",
@@ -5079,11 +5223,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "duplicate Alert",
@@ -5178,11 +5326,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Alert Events",
@@ -5261,11 +5413,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "acknowledge Alert Instance",
@@ -5341,11 +5497,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "unacknowledge Alert Instance",
@@ -5432,10 +5592,34 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "preview Alert",
@@ -5497,11 +5681,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Alert Silences",
@@ -5585,10 +5773,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "create Alert Silence",
@@ -5647,11 +5849,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "delete Alert Silence",
@@ -5744,10 +5950,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "patch Alert Silence",
@@ -5822,11 +6042,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The upstream notification provider failed."
           }
         },
         "summary": "test Alert Notification",
@@ -5894,11 +6128,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Coverage",
@@ -5954,11 +6192,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Dashboards",
@@ -6035,10 +6277,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "create Dashboard",
@@ -6117,10 +6373,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "import Dashboard Config",
@@ -6183,10 +6453,34 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "reorder Dashboards",
@@ -6237,11 +6531,35 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "delete Dashboard",
@@ -6316,11 +6634,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "get Dashboard",
@@ -6406,11 +6728,35 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "patch Dashboard",
@@ -6443,11 +6789,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "export Dashboard Config",
@@ -6517,10 +6877,44 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "create Dashboard Panel",
@@ -6579,11 +6973,35 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "delete Dashboard Panel",
@@ -6659,10 +7077,44 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "patch Dashboard Panel",
@@ -6743,11 +7195,35 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "move Dashboard Panel",
@@ -6834,10 +7310,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "preview Dashboard Query",
@@ -6905,10 +7395,44 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "create Dashboard Variable",
@@ -6967,11 +7491,35 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request conflicts with the current resource state."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "delete Dashboard Variable",
@@ -7024,11 +7572,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Database Schema",
@@ -7143,10 +7695,34 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Diff",
@@ -7196,12 +7772,6 @@
               }
             },
             "description": "Successful response"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
           }
         },
         "summary": "list Forwarders",
@@ -7241,12 +7811,6 @@
               }
             },
             "description": "Successful response"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
           }
         },
         "summary": "get Health",
@@ -7317,11 +7881,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Issues",
@@ -7383,11 +7951,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Lint",
@@ -7507,10 +8079,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Logs",
@@ -7573,11 +8159,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Metrics",
@@ -7636,11 +8226,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Metric Cardinality",
@@ -7768,10 +8362,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Metric Series",
@@ -7858,11 +8466,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Notifications",
@@ -7913,11 +8525,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "acknowledge Notification",
@@ -7968,11 +8584,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "read Notification",
@@ -7994,12 +8614,6 @@
               }
             },
             "description": "Successful response"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
           }
         },
         "summary": "get Open A P I Spec",
@@ -8068,10 +8682,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Query Catalog",
@@ -8148,11 +8776,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "search Telemetry",
@@ -8220,11 +8852,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Service Map",
@@ -8268,11 +8904,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Services",
@@ -8325,11 +8965,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Sessions",
@@ -8390,11 +9034,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "create Session",
@@ -8435,12 +9083,6 @@
               }
             },
             "description": "Successful response"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
           }
         },
         "summary": "get Active Session",
@@ -8522,10 +9164,14 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           }
         },
         "summary": "import Session",
@@ -8577,10 +9223,24 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "delete Session",
@@ -8636,11 +9296,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Session",
@@ -8714,11 +9388,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "patch Session",
@@ -8787,11 +9475,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "activate Session",
@@ -8860,11 +9562,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "set Session Baseline",
@@ -8903,11 +9609,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "export Session Baseline",
@@ -8955,11 +9675,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "get Settings",
@@ -9017,10 +9741,34 @@
             "description": "Successful response"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "put Settings",
@@ -9078,11 +9826,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
           }
         },
         "summary": "check Updates",
@@ -9136,11 +9888,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "compact Storage",
@@ -9181,11 +9937,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "drop All Data",
@@ -9241,11 +10001,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "prune Storage",
@@ -9306,11 +10080,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Sources",
@@ -9437,11 +10215,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Spans",
@@ -9499,11 +10281,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Span",
@@ -9561,11 +10357,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Stats",
@@ -9618,11 +10418,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Storage Breakdown",
@@ -9717,11 +10521,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Traces",
@@ -9784,11 +10592,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "get Trace",
@@ -9827,11 +10649,25 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The requested Spaniel resource was not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "export Trace",
@@ -9894,11 +10730,15 @@
             },
             "description": "Successful response"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Spaniel could not complete the request."
           }
         },
         "summary": "list Incoming Links",

@@ -582,7 +582,15 @@ export default function Alerts() {
       </section>
       <aside className="flex-1 overflow-auto bg-surface p-5">
         {state === 'notifications' ? (
-          <NotificationInspector />
+          <NotificationInspector
+            openSource={(link) => {
+              const id = new URLSearchParams(link.split('?')[1] ?? '').get('id')
+              if (id) setLocation(id, null)
+              setTab('board')
+              setState('attention')
+              setRulePage(1)
+            }}
+          />
         ) : creating ? (
           <CreateAlert
             close={() => setLocation(selectedId, null)}
@@ -637,7 +645,7 @@ function NotificationList() {
     queryFn: () => api.notifications.list({ page, source: 'alert' }),
   })
   useWS((event) => {
-    if (event.type === 'alert' || event.type === 'issue') {
+    if (event.type === 'alert' || event.type === 'issue' || event.type === 'notification') {
       qc.invalidateQueries({ queryKey: qk.notifications() })
     }
   })
@@ -699,8 +707,8 @@ function NotificationList() {
   )
 }
 
-function NotificationInspector() {
-  const [params, setParams] = useSearchParams()
+function NotificationInspector({ openSource }: { openSource: (link: string) => void }) {
+  const [params] = useSearchParams()
   const page = notificationPageFrom(params)
   const qc = useQueryClient()
   const notifications = useQuery({
@@ -710,9 +718,8 @@ function NotificationInspector() {
   const rows = notifications.data?.data ?? []
   const selectedID = params.get('notification') ?? rows[0]?.id
   const notification = rows.find((item) => item.id === selectedID) ?? rows[0]
-  const update = useMutation({
-    mutationFn: ({ id, acknowledged }: { id: string; acknowledged?: boolean }) =>
-      acknowledged ? api.notifications.acknowledge(id) : api.notifications.read(id),
+  const acknowledge = useMutation({
+    mutationFn: (id: string) => api.notifications.acknowledge(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications() }),
   })
   if (!notification) {
@@ -748,17 +755,9 @@ function NotificationInspector() {
         <dd>{notification.read_at ? 'Read' : 'Unread'}</dd>
       </dl>
       <div className="flex flex-wrap gap-2">
-        {!notification.read_at && (
-          <button
-            onClick={() => update.mutate({ id: notification.id })}
-            className="rounded border border-border px-3 py-1.5 text-xs"
-          >
-            Mark read
-          </button>
-        )}
         {!notification.acknowledged_at && (
           <button
-            onClick={() => update.mutate({ id: notification.id, acknowledged: true })}
+            onClick={() => acknowledge.mutate(notification.id)}
             className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
           >
             Acknowledge
@@ -766,7 +765,7 @@ function NotificationInspector() {
         )}
         {notification.link && (
           <button
-            onClick={() => setParams(new URLSearchParams(notification.link.split('?')[1] ?? ''))}
+            onClick={() => openSource(notification.link)}
             className="rounded border border-border px-3 py-1.5 text-xs"
           >
             Open source
