@@ -93,7 +93,12 @@ function appendDescriptions(
       ? descriptions.get(field.getAttribute('title')!)
       : undefined
     const details = row.querySelector('td:nth-child(2)')
-    if (!description || !details || details.querySelector('.spaniel-openapi-field-description'))
+    if (
+      !description ||
+      !details ||
+      details.textContent?.includes(description) ||
+      details.querySelector('.spaniel-openapi-field-description')
+    )
       continue
     const copy = document.createElement('p')
     copy.className = 'spaniel-openapi-field-description'
@@ -186,13 +191,24 @@ function applyThemeOverrides(dark: boolean) {
   const verbBadges = dark
     ? ''
     : `
-    .redoc-wrap button:has(.http-verb.get){background:#96dfae!important}
-    .redoc-wrap button:has(.http-verb.post){background:#bfdbfe!important}
-    .redoc-wrap button:has(.http-verb.put){background:#ddd6fe!important}
-    .redoc-wrap button:has(.http-verb.patch){background:#fde68a!important}
-    .redoc-wrap button:has(.http-verb.delete){background:#fecaca!important}
-    .redoc-wrap button:has(.http-verb.head),.redoc-wrap button:has(.http-verb.options){background:#dbe8f1!important}
+    .redoc-wrap .http-verb.get{background:#96dfae!important;color:#102318!important}
+    .redoc-wrap .http-verb.post{background:#bfdbfe!important;color:#172554!important}
+    .redoc-wrap .http-verb.put{background:#ddd6fe!important;color:#312e81!important}
+    .redoc-wrap .http-verb.patch{background:#fde68a!important;color:#713f12!important}
+    .redoc-wrap .http-verb.delete{background:#fecaca!important;color:#7f1d1d!important}
+    .redoc-wrap .http-verb.head,.redoc-wrap .http-verb.options{background:#dbe8f1!important;color:#1f2937!important}
   `
+  const endpointDropdown = dark
+    ? `
+    .redoc-wrap button:has(.http-verb)+div[aria-hidden],
+    .redoc-wrap button:has(.http-verb)+div[aria-hidden]>div,
+    .redoc-wrap button:has(.http-verb)+div[aria-hidden]>div>div{background:#1b2d3d!important;color:#edf5fb!important}
+    .redoc-wrap button:has(.http-verb)+div[aria-hidden] :is(p,span,div){color:#edf5fb!important}
+    .redoc-wrap button:has(.http-verb)+div[aria-hidden] input{background:#1b2d3d!important;border-color:#36536d!important;color:#edf5fb!important}
+    .redoc-wrap button:has(.http-verb)+div[aria-hidden] input::placeholder{color:#a8bdcc!important}
+    .redoc-wrap button:has(.http-verb) :is(svg,svg polygon){fill:#edf5fb!important}
+  `
+    : ''
   const styleID = 'spaniel-redoc-contrast'
   const style = document.getElementById(styleID) ?? document.createElement('style')
   style.id = styleID
@@ -215,6 +231,7 @@ function applyThemeOverrides(dark: boolean) {
     .redoc-wrap span.sc-Nxspf{color:${additionalProperty}!important}
     .redoc-wrap .spaniel-openapi-field-description{margin:6px 0 0;font-size:12px;line-height:1.45;color:${ink}!important}
     ${verbBadges}
+    ${endpointDropdown}
   `
   if (!style.parentNode) document.head.appendChild(style)
 }
