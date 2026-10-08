@@ -119,7 +119,7 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
           className={`inline-block px-2.5 py-[5px] rounded-md font-sans text-xs font-medium cursor-pointer select-none whitespace-nowrap transition-colors border ${
             isActive
               ? 'text-foreground bg-muted border-border'
-              : 'text-muted-foreground bg-transparent border-transparent'
+              : 'text-muted-foreground bg-transparent border-transparent hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
           }`}
         >
           {label}
@@ -171,7 +171,7 @@ function DocsMenu() {
         className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-[5px] text-xs font-medium transition-colors ${
           docsActive
             ? 'border-border bg-muted text-foreground'
-            : 'border-transparent text-muted-foreground hover:text-foreground'
+            : 'border-transparent text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
         }`}
       >
         Docs {visible && !fading ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -188,7 +188,7 @@ function DocsMenu() {
               `block rounded px-2.5 py-2 text-xs transition-colors ${
                 isActive
                   ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
               }`
             }
           >
@@ -200,7 +200,7 @@ function DocsMenu() {
               `block rounded px-2.5 py-2 text-xs transition-colors ${
                 isActive
                   ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
               }`
             }
           >
@@ -212,7 +212,7 @@ function DocsMenu() {
               `block rounded px-2.5 py-2 text-xs transition-colors ${
                 isActive
                   ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
               }`
             }
           >
