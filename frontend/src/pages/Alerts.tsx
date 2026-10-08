@@ -4,6 +4,7 @@ import {
   type SetStateAction,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react'
@@ -30,6 +31,11 @@ const severityTone: Record<string, string> = {
   warning: 'bg-warn-bg text-warn-ink',
   info: 'bg-accent-bg text-accent-ink',
 }
+const ruleListTone: Record<string, { line: string; ink: string }> = {
+  firing: { line: 'var(--danger)', ink: 'var(--danger-ink)' },
+  pending: { line: 'var(--warn)', ink: 'var(--warn-ink)' },
+  resolved: { line: 'var(--ok)', ink: 'var(--ok-ink)' },
+}
 const ruleState = (rule: AlertRule) =>
   rule.instances?.find((instance) => instance.state === 'firing')?.state ??
   rule.instances?.find((instance) => instance.state === 'pending')?.state ??
@@ -50,6 +56,62 @@ const formatDuration = (nanoseconds: number) => {
   return `${seconds / 60}m`
 }
 const formatTimestamp = (nanoseconds: number) => new Date(nanoseconds / 1e6).toLocaleString()
+function RuleSparkline({ values, color }: { values: number[]; color: string }) {
+  const width = 132
+  const height = 34
+  const padding = 3
+  if (values.length < 2) {
+    return (
+      <svg
+        aria-label="Recent evaluation values are not available yet"
+        className="h-8 w-full"
+        preserveAspectRatio="none"
+        role="img"
+        viewBox={`0 0 ${width} ${height}`}
+      >
+        <path
+          d={`M ${padding} ${height / 2} H ${width - padding}`}
+          fill="none"
+          opacity="0.45"
+          stroke={color}
+          strokeDasharray="3 3"
+          strokeLinecap="round"
+          strokeWidth="1.5"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+    )
+  }
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || 1
+  const points = values
+    .map((value, index) => {
+      const x = padding + (index / (values.length - 1)) * (width - padding * 2)
+      const y = height - padding - ((value - min) / span) * (height - padding * 2)
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  return (
+    <svg
+      aria-label={`Recent evaluation values from ${min.toLocaleString()} to ${max.toLocaleString()}`}
+      className="h-8 w-full overflow-visible"
+      preserveAspectRatio="none"
+      role="img"
+      viewBox={`0 0 ${width} ${height}`}
+    >
+      <polyline
+        fill="none"
+        points={points}
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
 const formatAgo = (nanoseconds: number, now = Date.now()) => {
   const milliseconds = nanoseconds / 1e6
   const difference = now - milliseconds
@@ -343,14 +405,50 @@ export default function Alerts() {
         .then((x) => x),
     enabled: tab === 'history',
   })
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: qk.alerts() })
-    qc.invalidateQueries({ queryKey: ['alert-history'] })
-    qc.invalidateQueries({ queryKey: ['alert-events'] })
-    qc.invalidateQueries({ queryKey: ['alert-silences'] })
+  // The board needs a short recent trend for each visible rule. Fetch one
+  // bounded event page and group it locally instead of issuing one /events
+  // request per card.
+  const boardHistory = useQuery({
+    queryKey: ['alert-rule-sparklines', rules.map((rule) => rule.id)],
+    queryFn: () => api.alerts.history({ page: 1, limit: 500 }),
+    enabled: tab === 'board' && state !== 'notifications' && rules.length > 0,
+    staleTime: 10_000,
+  })
+  const ruleSparklines = useMemo(() => {
+    const values = new Map<string, number[]>()
+    for (const event of boardHistory.data?.data ?? []) {
+      if (event.kind !== 'evaluation' || event.value == null) continue
+      const series = values.get(event.rule_id) ?? []
+      if (series.length < 18) series.push(event.value)
+      values.set(event.rule_id, series)
+    }
+    for (const series of values.values()) series.reverse()
+    return values
+  }, [boardHistory.data])
+  const refreshTimer = useRef<number | null>(null)
+  const selectedRuleID = selectedId ?? rules[0]?.id
+  const refreshedEventRuleID = useRef<string | null>(null)
+  const refresh = (eventRuleID?: string) => {
+    if (eventRuleID && eventRuleID === selectedRuleID) refreshedEventRuleID.current = eventRuleID
+    if (refreshTimer.current) return
+    refreshTimer.current = window.setTimeout(() => {
+      refreshTimer.current = null
+      qc.invalidateQueries({ queryKey: qk.alerts() })
+      qc.invalidateQueries({ queryKey: ['alert-history'] })
+      if (refreshedEventRuleID.current) {
+        qc.invalidateQueries({ queryKey: ['alert-events', refreshedEventRuleID.current] })
+        refreshedEventRuleID.current = null
+      }
+    }, 100)
   }
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current)
+    },
+    [],
+  )
   useWS((e) => {
-    if (e.type === 'alert' || e.type === 'alert_sync') refresh()
+    if (e.type === 'alert' || e.type === 'alert_sync') refresh(e.payload.ruleId)
     // Server ordering puts firing rules first. Bring a newly firing rule to
     // page one so live changes cannot remain invisible on a later page.
     if (e.type === 'alert' && e.payload.transition === 'firing') setRulePage(1)
