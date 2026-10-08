@@ -53,6 +53,9 @@ func evaluateAlerts(parent context.Context, store *storage.DB, hub *ws.Hub, now 
 	defer span.End()
 
 	store = store.WithContext(ctx)
+	writes := &alertWriteBuffer{store: store, instances: map[string]*storage.AlertInstance{}, rules: map[string]*storage.AlertRule{}}
+	queries := &alertQueryCache{results: map[string]alertQueryResult{}}
+	defer func() { _ = writes.flush() }()
 	rules, err := store.ListAlertRules()
 	if err != nil {
 		telemetry.Catalog().RecordAlertEvaluation(ctx, "error")
@@ -65,29 +68,29 @@ func evaluateAlerts(parent context.Context, store *storage.DB, hub *ws.Hub, now 
 			continue
 		}
 		started := time.Now()
-		err := evaluateAlertRule(ctx, store, hub, rule, rules, now)
+		err := evaluateAlertRule(ctx, store, writes, queries, hub, rule, rules, now)
 		duration := time.Since(started).Nanoseconds()
 		next := now.Add(interval).UnixNano()
 		if err != nil {
 			telemetry.Catalog().RecordAlertEvaluation(ctx, "error")
 			// Evaluation errors are attached to an instance rather than silently
 			// suppressing the rule. This makes malformed historic data observable.
-			_ = store.UpsertAlertInstance(&storage.AlertInstance{
+			writes.upsert(&storage.AlertInstance{
 				RuleID: rule.ID, GroupKey: "__evaluation_error__", State: "error",
 				LastEvaluatedAt: now.UnixNano(), LastError: err.Error(),
 			})
-			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: "__evaluation_error__", Kind: "evaluation_error", State: "error", Detail: err.Error()})
-			_ = store.RecordAlertEvaluation(rule.ID, now.UnixNano(), duration, next, err)
+			writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: "__evaluation_error__", Kind: "evaluation_error", State: "error", Detail: err.Error()})
+			writes.recordEvaluation(rule, now.UnixNano(), duration, next, err)
 			emitAlertSync(hub, rule.ID, "evaluation_error", now)
 			continue
 		}
-		if err := resolveEvaluationError(store, rule, now); err != nil {
+		if err := resolveEvaluationError(writes, rule, now); err != nil {
 			telemetry.Catalog().RecordAlertEvaluation(ctx, "error")
-			_ = store.RecordAlertEvaluation(rule.ID, now.UnixNano(), duration, next, err)
+			writes.recordEvaluation(rule, now.UnixNano(), duration, next, err)
 			emitAlertSync(hub, rule.ID, "evaluation_error", now)
 			continue
 		}
-		_ = store.RecordAlertEvaluation(rule.ID, now.UnixNano(), duration, next, nil)
+		writes.recordEvaluation(rule, now.UnixNano(), duration, next, nil)
 		emitAlertSync(hub, rule.ID, "evaluation", now)
 		telemetry.Catalog().RecordAlertEvaluation(ctx, "ok")
 	}
@@ -100,13 +103,16 @@ func emitAlertSync(hub *ws.Hub, ruleID, reason string, now time.Time) {
 	hub.Broadcast(&ws.Event{
 		Type:      "alert_sync",
 		Timestamp: now.UnixNano(),
-		Payload:   map[string]string{"ruleId": ruleID, "reason": reason},
+		Payload: map[string]any{
+			"ruleId": ruleID,
+			"reason": reason,
+		},
 	})
 }
 
 // resolveEvaluationError keeps historical failures in alert_events but removes
 // their stale error status from the current instance board after a good run.
-func resolveEvaluationError(store *storage.DB, rule *storage.AlertRule, now time.Time) error {
+func resolveEvaluationError(writes *alertWriteBuffer, rule *storage.AlertRule, now time.Time) error {
 	for _, instance := range rule.Instances {
 		if instance.GroupKey != "__evaluation_error__" || instance.State != "error" {
 			continue
@@ -115,15 +121,14 @@ func resolveEvaluationError(store *storage.DB, rule *storage.AlertRule, now time
 		instance.ResolvedAt = ptrInt64(now.UnixNano())
 		instance.LastEvaluatedAt = now.UnixNano()
 		instance.LastError = ""
-		if err := store.UpsertAlertInstance(instance); err != nil {
-			return fmt.Errorf("resolve prior evaluation error: %w", err)
-		}
-		return store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: "evaluation_recovered", State: "resolved", Detail: "a later evaluation succeeded"})
+		writes.upsert(instance)
+		writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: "evaluation_recovered", State: "resolved", Detail: "a later evaluation succeeded"})
+		return nil
 	}
 	return nil
 }
 
-func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, allRules []*storage.AlertRule, now time.Time) error {
+func evaluateAlertRule(parent context.Context, store *storage.DB, writes *alertWriteBuffer, queries *alertQueryCache, hub *ws.Hub, rule *storage.AlertRule, allRules []*storage.AlertRule, now time.Time) error {
 	var condition alertCondition
 	if err := json.Unmarshal([]byte(rule.ConditionJSON), &condition); err != nil {
 		return fmt.Errorf("read alert condition: %w", err)
@@ -161,14 +166,14 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 		if condition.Kind == "all_of" {
 			breached = active == len(condition.RuleIDs)
 		}
-		return advanceAlertInstance(store, hub, rule, "all", map[string]string{}, value, breached, now)
+		return advanceAlertInstance(writes, hub, rule, "all", map[string]string{}, value, breached, now)
 	}
 	if err := storage.ValidateReadOnlySQL(rule.QuerySQL); err != nil {
 		return fmt.Errorf("validate alert query: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
-	columns, values, _, err := store.ReadOnlyQueryArgs(ctx, rule.QuerySQL, alertQueryArgs(store, rule.QuerySQL), 1000)
+	columns, values, err := queries.read(ctx, store, rule.QuerySQL)
 	if err != nil {
 		return fmt.Errorf("execute alert query: %w", err)
 	}
@@ -177,13 +182,13 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 	}
 	rows := rowsForColumns(columns, values)
 	groups := alertGroupColumns(rule.GroupByJSON)
-	targets, err := discoverAlertInstanceTargets(ctx, store, rule, groups, now)
+	targets, err := discoverAlertInstanceTargets(ctx, store, writes, rule, groups, now)
 	if err != nil {
 		return err
 	}
 	if condition.Kind == "no_data" {
 		value := float64(len(rows))
-		return advanceAlertInstance(store, hub, rule, "all", map[string]string{}, value, len(rows) == 0, now)
+		return advanceAlertInstance(writes, hub, rule, "all", map[string]string{}, value, len(rows) == 0, now)
 	}
 	if condition.Kind == "log_match" {
 		type logOutcome struct {
@@ -218,7 +223,7 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 			if condition.Operator != "" {
 				breached = compareAlert(outcome.count, condition)
 			}
-			if err := advanceAlertInstance(store, hub, rule, key, outcome.labels, outcome.count, breached, now); err != nil {
+			if err := advanceAlertInstance(writes, hub, rule, key, outcome.labels, outcome.count, breached, now); err != nil {
 				return err
 			}
 		}
@@ -232,11 +237,11 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 			}
 			seen[target.GroupKey] = true
 			breached := condition.Operator != "" && compareAlert(0, condition)
-			if err := advanceAlertInstance(store, hub, rule, target.GroupKey, labels, 0, breached, now); err != nil {
+			if err := advanceAlertInstance(writes, hub, rule, target.GroupKey, labels, 0, breached, now); err != nil {
 				return err
 			}
 		}
-		return resolveMissingAlertInstances(store, hub, rule, seen, now)
+		return resolveMissingAlertInstances(writes, hub, rule, seen, now)
 	}
 
 	seen := make(map[string]bool, len(rows))
@@ -261,7 +266,7 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 			breached = compareAlert(value, condition)
 		}
 		seen[key] = true
-		if err := advanceAlertInstance(store, hub, rule, key, labels, value, breached, now); err != nil {
+		if err := advanceAlertInstance(writes, hub, rule, key, labels, value, breached, now); err != nil {
 			return err
 		}
 	}
@@ -274,19 +279,84 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, hub *ws.Hub, r
 			return err
 		}
 		seen[target.GroupKey] = true
-		if err := advanceAlertInstance(store, hub, rule, target.GroupKey, labels, 0, compareAlert(0, condition), now); err != nil {
+		if err := advanceAlertInstance(writes, hub, rule, target.GroupKey, labels, 0, compareAlert(0, condition), now); err != nil {
 			return err
 		}
 	}
 	// A group that disappeared is no longer breaching. Resolve it rather than
 	// leaving a stale firing alert behind.
-	return resolveMissingAlertInstances(store, hub, rule, seen, now)
+	return resolveMissingAlertInstances(writes, hub, rule, seen, now)
+}
+
+// alertQueryCache de-duplicates identical rule SQL for a single evaluator pass.
+// Alert query arguments are server-owned active-session scope, which stays
+// constant throughout one pass, so SQL text is a complete cache key here.
+type alertQueryCache struct {
+	results map[string]alertQueryResult
+}
+
+type alertQueryResult struct {
+	columns []string
+	values  [][]any
+}
+
+func (c *alertQueryCache) read(ctx context.Context, store *storage.DB, query string) ([]string, [][]any, error) {
+	if result, ok := c.results[query]; ok {
+		return result.columns, result.values, nil
+	}
+	columns, values, _, err := store.ReadOnlyQueryArgs(ctx, query, alertQueryArgs(store, query), 1000)
+	if err != nil {
+		return nil, nil, err
+	}
+	c.results[query] = alertQueryResult{columns: columns, values: values}
+	return columns, values, nil
+}
+
+type alertWriteBuffer struct {
+	store     *storage.DB
+	instances map[string]*storage.AlertInstance
+	events    []*storage.AlertEvent
+	rules     map[string]*storage.AlertRule
+}
+
+func (b *alertWriteBuffer) upsert(x *storage.AlertInstance) {
+	b.instances[x.RuleID+"\x00"+x.GroupKey] = x
+}
+func (b *alertWriteBuffer) event(e *storage.AlertEvent) { b.events = append(b.events, e) }
+func (b *alertWriteBuffer) recordEvaluation(rule *storage.AlertRule, evaluatedAt, durationNs, nextAt int64, evaluationErr error) {
+	rule.LastEvaluatedAt = evaluatedAt
+	rule.LastDurationNs = durationNs
+	rule.NextEvaluationAt = nextAt
+	if evaluationErr != nil {
+		rule.LastError = evaluationErr.Error()
+	} else {
+		rule.LastSuccessAt = evaluatedAt
+		rule.LastError = ""
+	}
+	b.rules[rule.ID] = rule
+}
+func (b *alertWriteBuffer) flush() error {
+	xs := make([]*storage.AlertInstance, 0, len(b.instances))
+	for _, x := range b.instances {
+		xs = append(xs, x)
+	}
+	if err := b.store.UpsertAlertInstances(xs); err != nil {
+		return err
+	}
+	if err := b.store.RecordAlertEvents(b.events); err != nil {
+		return err
+	}
+	rules := make([]*storage.AlertRule, 0, len(b.rules))
+	for _, rule := range b.rules {
+		rules = append(rules, rule)
+	}
+	return b.store.RecordAlertEvaluations(rules)
 }
 
 // discoverAlertInstanceTargets keeps the expected group universe separate from
 // the condition query. This lets a service that has stopped reporting receive a
 // zero-valued evaluation rather than falling out of the alert entirely.
-func discoverAlertInstanceTargets(ctx context.Context, store *storage.DB, rule *storage.AlertRule, groups []string, now time.Time) ([]*storage.AlertInstanceTarget, error) {
+func discoverAlertInstanceTargets(ctx context.Context, store *storage.DB, writes *alertWriteBuffer, rule *storage.AlertRule, groups []string, now time.Time) ([]*storage.AlertInstanceTarget, error) {
 	if rule.InstanceDiscoverySQL == "" {
 		return nil, nil
 	}
@@ -297,6 +367,14 @@ func discoverAlertInstanceTargets(ctx context.Context, store *storage.DB, rule *
 	if staleAfter <= 0 {
 		staleAfter = int64((24 * time.Hour).Nanoseconds())
 	}
+	existing, err := store.ListAlertInstanceTargets(rule.ID, 0)
+	if err != nil {
+		return nil, err
+	}
+	known := make(map[string]*storage.AlertInstanceTarget, len(existing))
+	for _, target := range existing {
+		known[target.GroupKey] = target
+	}
 	if rule.InstanceDiscoveryLastRunAt == 0 || rule.InstanceDiscoveryIntervalNs <= 0 || now.UnixNano()-rule.InstanceDiscoveryLastRunAt >= rule.InstanceDiscoveryIntervalNs {
 		columns, values, _, err := store.ReadOnlyQueryArgs(ctx, rule.InstanceDiscoverySQL, alertQueryArgs(store, rule.InstanceDiscoverySQL), 1000)
 		if err != nil {
@@ -305,14 +383,7 @@ func discoverAlertInstanceTargets(ctx context.Context, store *storage.DB, rule *
 		if err := validateAlertDiscoveryColumns(columns, groups); err != nil {
 			return nil, err
 		}
-		existing, err := store.ListAlertInstanceTargets(rule.ID, 0)
-		if err != nil {
-			return nil, err
-		}
-		known := make(map[string]*storage.AlertInstanceTarget, len(existing))
-		for _, target := range existing {
-			known[target.GroupKey] = target
-		}
+		upserts := make([]*storage.AlertInstanceTarget, 0, len(values))
 		for _, row := range rowsForColumns(columns, values) {
 			labels := make(map[string]string, len(groups))
 			for _, column := range groups {
@@ -320,19 +391,34 @@ func discoverAlertInstanceTargets(ctx context.Context, store *storage.DB, rule *
 			}
 			key := StableAlertGroupKey(labels)
 			encoded, _ := json.Marshal(labels)
+			if old := known[key]; old != nil && old.LabelsJSON == string(encoded) && old.LastSeenAt >= now.UnixNano()-staleAfter/2 {
+				// The target is already durable and comfortably inside its stale
+				// window. Rewriting it on every evaluator tick creates a needless
+				// delete/insert pair without changing alert semantics.
+				continue
+			}
 			discoveredAt := now.UnixNano()
 			if old := known[key]; old != nil {
 				discoveredAt = old.DiscoveredAt
 			}
-			if err := store.UpsertAlertInstanceTarget(&storage.AlertInstanceTarget{RuleID: rule.ID, GroupKey: key, LabelsJSON: string(encoded), DiscoveredAt: discoveredAt, LastSeenAt: now.UnixNano()}); err != nil {
-				return nil, err
-			}
+			target := &storage.AlertInstanceTarget{RuleID: rule.ID, GroupKey: key, LabelsJSON: string(encoded), DiscoveredAt: discoveredAt, LastSeenAt: now.UnixNano()}
+			upserts = append(upserts, target)
+			known[key] = target
 		}
-		if err := store.RecordAlertInstanceDiscoveryRun(rule.ID, now.UnixNano()); err != nil {
+		if err := store.UpsertAlertInstanceTargets(upserts); err != nil {
 			return nil, err
 		}
+		rule.InstanceDiscoveryLastRunAt = now.UnixNano()
 	}
-	return store.ListAlertInstanceTargets(rule.ID, now.UnixNano()-staleAfter)
+	activeSince := now.UnixNano() - staleAfter
+	active := make([]*storage.AlertInstanceTarget, 0, len(known))
+	for _, target := range known {
+		if target.LastSeenAt >= activeSince {
+			active = append(active, target)
+		}
+	}
+	sort.Slice(active, func(i, j int) bool { return active[i].GroupKey < active[j].GroupKey })
+	return active, nil
 }
 
 func alertTargetLabels(target *storage.AlertInstanceTarget) (map[string]string, error) {
@@ -359,7 +445,7 @@ func validateAlertDiscoveryColumns(columns, groups []string) error {
 	return nil
 }
 
-func resolveMissingAlertInstances(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, seen map[string]bool, now time.Time) error {
+func resolveMissingAlertInstances(writes *alertWriteBuffer, hub *ws.Hub, rule *storage.AlertRule, seen map[string]bool, now time.Time) error {
 	for _, instance := range rule.Instances {
 		if instance.GroupKey == "__evaluation_error__" || seen[instance.GroupKey] || instance.State == "resolved" {
 			continue
@@ -368,13 +454,8 @@ func resolveMissingAlertInstances(store *storage.DB, hub *ws.Hub, rule *storage.
 		instance.ResolvedAt = ptrInt64(now.UnixNano())
 		instance.LastEvaluatedAt = now.UnixNano()
 		instance.LastError = ""
-		if err := store.UpsertAlertInstance(instance); err != nil {
-			return err
-		}
+		writes.upsert(instance)
 		emitAlert(hub, rule, instance, "resolved", now, true)
-		if err := store.UpsertAlertInstance(instance); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -453,7 +534,7 @@ func validateAlertColumnsForCondition(columns, groups []string, rawCondition str
 	return validateAlertColumns(columns, groups)
 }
 
-func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRule, key string, labels map[string]string, value float64, breached bool, now time.Time) error {
+func advanceAlertInstance(writes *alertWriteBuffer, hub *ws.Hub, rule *storage.AlertRule, key string, labels map[string]string, value float64, breached bool, now time.Time) error {
 	var current *storage.AlertInstance
 	for _, instance := range rule.Instances {
 		if instance.GroupKey == key {
@@ -475,16 +556,11 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 			current.State = "resolved"
 			current.ResolvedAt = ptrInt64(now.UnixNano())
 		}
-		if err := store.UpsertAlertInstance(current); err != nil {
-			return err
-		}
-		_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
+		writes.upsert(current)
+		writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
 		if prior != "" && prior != "resolved" {
 			emitAlert(hub, rule, current, "resolved", now, true)
-			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "resolved", State: current.State, Value: current.Value})
-			if err := store.UpsertAlertInstance(current); err != nil {
-				return err
-			}
+			writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "resolved", State: current.State, Value: current.Value})
 		}
 		return nil
 	}
@@ -498,31 +574,25 @@ func advanceAlertInstance(store *storage.DB, hub *ws.Hub, rule *storage.AlertRul
 		current.State = "firing"
 		current.FiredAt = ptrInt64(now.UnixNano())
 	}
-	if err := store.UpsertAlertInstance(current); err != nil {
-		return err
-	}
-	_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
+	writes.upsert(current)
+	writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "evaluation", State: current.State, Value: current.Value})
 	if prior != "firing" && current.State == "firing" {
-		silenced, err := store.IsAlertSilenced(rule.ID, key, now.UnixNano())
+		silenced, err := writes.store.IsAlertSilenced(rule.ID, key, now.UnixNano())
 		if err != nil {
 			return err
 		}
 		if !silenced {
 			emitAlert(hub, rule, current, "firing", now, false)
-			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "firing", State: current.State, Value: current.Value})
+			writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "firing", State: current.State, Value: current.Value})
 		} else {
-			_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "notification_suppressed", State: current.State, Value: current.Value, Detail: "silenced"})
+			writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "notification_suppressed", State: current.State, Value: current.Value, Detail: "silenced"})
 		}
-		if err := store.UpsertAlertInstance(current); err != nil {
-			return err
-		}
+		writes.upsert(current)
 	}
 	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && alertRepeatDue(hub, rule, current, now) {
 		emitAlert(hub, rule, current, "repeat", now, true)
-		_ = store.RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "repeat", State: current.State, Value: current.Value})
-		if err := store.UpsertAlertInstance(current); err != nil {
-			return err
-		}
+		writes.event(&storage.AlertEvent{RuleID: rule.ID, GroupKey: key, Kind: "repeat", State: current.State, Value: current.Value})
+		writes.upsert(current)
 	}
 	return nil
 }

@@ -44,12 +44,13 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 		return nil, nil, false, err
 	}
 	// Internal callers such as catalog discovery can opt out to avoid making
-	// their own metadata probes appear as telemetry data. User-authored SQL
-	// still gets the explicit query name or a sanitized low-cardinality summary.
+	// their own metadata probes appear as telemetry data. Read-only execution is
+	// still Spaniel storage work, even when the SQL originated in an alert or
+	// dashboard, so its span name remains in the storage namespace.
 	if !skipTracing(ctx) {
 		name := queryNameFromContext(ctx)
 		if name == "" {
-			name = sqlSummary(query)
+			name = "storage.ReadOnlyQuery"
 		}
 		attrs := []attribute.KeyValue{
 			semconv.DBSystemKey.String("duckdb"),

@@ -541,7 +541,7 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 	}
 	ctx, cancel := context.WithTimeout(req.Context(), 30*time.Second)
 	defer cancel()
-	ctx = storage.WithQueryName(ctx, in.Name)
+	ctx = storage.WithQueryName(ctx, "storage.DashboardPanelQuery")
 	columns, valuesRows, truncated, err := r.store.ReadOnlyQueryArgs(ctx, in.QuerySQL, args, 128)
 	if err != nil {
 		respondErr(w, req, 400, err.Error())

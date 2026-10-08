@@ -17,16 +17,29 @@ type AlertEvent = model.AlertEvent
 type AlertSilence = model.AlertSilence
 
 func (d *DB) ListAlertRules() ([]*AlertRule, error) {
-	xs, err := d.query.AlertRule.Order(d.query.AlertRule.UpdatedAt.Desc()).Find()
+	rules := d.namedQuery("storage.ListAlertRules")
+	xs, err := rules.AlertRule.Order(rules.AlertRule.UpdatedAt.Desc()).Find()
 	if err != nil {
 		return nil, err
 	}
-	for _, x := range xs {
-		instances, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(x.ID)).Order(d.query.AlertInstance.LastEvaluatedAt.Desc()).Find()
-		if err != nil {
-			return nil, err
-		}
-		x.Instances = instances
+	if len(xs) == 0 {
+		return xs, nil
+	}
+	ruleIDs := make([]string, len(xs))
+	for i, x := range xs {
+		ruleIDs[i] = x.ID
+	}
+	instancesQuery := d.namedQuery("storage.ListAlertRuleInstances")
+	instances, err := instancesQuery.AlertInstance.Where(instancesQuery.AlertInstance.RuleID.In(ruleIDs...)).Order(instancesQuery.AlertInstance.LastEvaluatedAt.Desc()).Find()
+	if err != nil {
+		return nil, err
+	}
+	byRuleID := make(map[string][]*AlertInstance, len(xs))
+	for _, instance := range instances {
+		byRuleID[instance.RuleID] = append(byRuleID[instance.RuleID], instance)
+	}
+	for _, rule := range xs {
+		rule.Instances = byRuleID[rule.ID]
 	}
 	return xs, nil
 }
@@ -116,16 +129,27 @@ func (d *DB) RecordAlertEvaluation(ruleID string, evaluatedAt, durationNs, nextA
 	_, err := d.query.AlertRule.Where(d.query.AlertRule.ID.Eq(ruleID)).Updates(updates)
 	return err
 }
-func (d *DB) UpsertAlertInstance(x *AlertInstance) error {
-	// DuckDB's primary-key index can reject updates to a persisted composite-key
-	// row as a duplicate key. Delete and recreate in separate autocommitted
-	// statements instead; events retain the durable timeline during this tiny
-	// current-state replacement window.
-	if err := d.gorm.Exec("DELETE FROM alert_instances WHERE rule_id = ? AND group_key = ?", x.RuleID, x.GroupKey).Error; err != nil {
-		return fmt.Errorf("delete alert instance for replacement: %w", err)
+
+// RecordAlertEvaluations persists an evaluator pass in one GORM Gen batch.
+// Each rule was read at the start of the same pass, so Save preserves its
+// definition while atomically replacing its evaluator-owned fields.
+func (d *DB) RecordAlertEvaluations(rules []*AlertRule) error {
+	if len(rules) == 0 {
+		return nil
 	}
-	if err := d.query.AlertInstance.Create(x); err != nil {
-		return fmt.Errorf("create alert instance: %w", err)
+	return d.namedQuery("storage.RecordAlertEvaluations").AlertRule.Save(rules...)
+}
+func (d *DB) UpsertAlertInstance(x *AlertInstance) error {
+	return d.UpsertAlertInstances([]*AlertInstance{x})
+}
+
+func (d *DB) UpsertAlertInstances(instances []*AlertInstance) error {
+	if len(instances) == 0 {
+		return nil
+	}
+	q := d.namedQuery("storage.UpsertAlertInstances")
+	if err := q.AlertInstance.Save(instances...); err != nil {
+		return fmt.Errorf("upsert alert instances: %w", err)
 	}
 	return nil
 }
@@ -139,13 +163,22 @@ func (d *DB) ListAlertInstanceTargets(ruleID string, activeSince int64) ([]*Aler
 }
 
 func (d *DB) UpsertAlertInstanceTarget(target *AlertInstanceTarget) error {
-	if _, err := d.query.AlertInstanceTarget.Delete(&model.AlertInstanceTarget{
-		RuleID: target.RuleID, GroupKey: target.GroupKey,
-	}); err != nil {
-		return fmt.Errorf("delete alert instance target for replacement: %w", err)
+	return d.UpsertAlertInstanceTargets([]*AlertInstanceTarget{target})
+}
+
+// UpsertAlertInstanceTargets replaces a discovery batch through GORM Gen.
+// DuckDB rejects ON CONFLICT updates to last_seen_at while its composite
+// primary-key index is present, so deletion and batched creation are required.
+func (d *DB) UpsertAlertInstanceTargets(targets []*AlertInstanceTarget) error {
+	if len(targets) == 0 {
+		return nil
 	}
-	if err := d.query.AlertInstanceTarget.Create(target); err != nil {
-		return fmt.Errorf("create alert instance target: %w", err)
+	q := d.namedQuery("storage.UpsertAlertInstanceTargets")
+	if _, err := q.AlertInstanceTarget.Delete(targets...); err != nil {
+		return fmt.Errorf("delete alert instance targets for replacement: %w", err)
+	}
+	if err := q.AlertInstanceTarget.CreateInBatches(targets, len(targets)); err != nil {
+		return fmt.Errorf("create alert instance targets: %w", err)
 	}
 	return nil
 }
@@ -242,11 +275,20 @@ func (d *DB) DeleteAlertRule(id string) error {
 }
 
 func (d *DB) RecordAlertEvent(e *AlertEvent) error {
-	e.ID = uuid.NewString()
-	if e.CreatedAt == 0 {
-		e.CreatedAt = time.Now().UnixNano()
+	return d.RecordAlertEvents([]*AlertEvent{e})
+}
+
+func (d *DB) RecordAlertEvents(events []*AlertEvent) error {
+	if len(events) == 0 {
+		return nil
 	}
-	return d.query.AlertEvent.Create(e)
+	for _, e := range events {
+		e.ID = uuid.NewString()
+		if e.CreatedAt == 0 {
+			e.CreatedAt = time.Now().UnixNano()
+		}
+	}
+	return d.namedQuery("storage.RecordAlertEvents").AlertEvent.CreateInBatches(events, len(events))
 }
 
 type AlertEventFilter struct {

@@ -56,14 +56,14 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 	}
 
 	for _, span := range recorder.Ended() {
-		if span.Name() != "SELECT ? AS value · 1 args" {
+		if span.Name() != "storage.ReadOnlyQuery" {
 			continue
 		}
 		attrs := map[string]string{}
 		for _, attr := range span.Attributes() {
 			attrs[string(attr.Key)] = attr.Value.AsString()
 		}
-		if attrs["db.query.summary"] != "SELECT ? AS value · 1 args" {
+		if attrs["db.query.summary"] != "storage.ReadOnlyQuery" {
 			t.Errorf("summary = %q", attrs["db.query.summary"])
 		}
 		if attrs["db.query.text"] != "SELECT ? AS value" {
@@ -86,20 +86,20 @@ func TestReadOnlyQueryUsesExplicitUserName(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = d.Close() })
-	ctx := WithQueryName(context.Background(), "DashboardLatency")
+	ctx := WithQueryName(context.Background(), "storage.DashboardLatency")
 	if _, _, _, err := d.ReadOnlyQuery(ctx, "SELECT 'secret' AS value", 1); err != nil {
 		t.Fatalf("ReadOnlyQuery: %v", err)
 	}
 
 	for _, span := range recorder.Ended() {
-		if span.Name() != "DashboardLatency" {
+		if span.Name() != "storage.DashboardLatency" {
 			continue
 		}
 		foundSummary := false
 		for _, attr := range span.Attributes() {
 			if string(attr.Key) == "db.query.summary" {
 				foundSummary = true
-				if attr.Value.AsString() != "DashboardLatency" {
+				if attr.Value.AsString() != "storage.DashboardLatency" {
 					t.Errorf("summary = %q, want DashboardLatency", attr.Value.AsString())
 				}
 			}

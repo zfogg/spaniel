@@ -1,10 +1,10 @@
 package ingestion
 
-import (
-	"github.com/zfogg/spaniel/internal/storage"
-)
+import "github.com/zfogg/spaniel/internal/storage"
 
-// N1Detector fires when ≥ 10 spans share a SQL fingerprint under the same parent.
+// N1Detector fires when the same SQL fingerprint is executed more than once
+// under a single parent operation. Two executions are already an N+1: a loop
+// of one item is simply the smallest observable case.
 type N1Detector struct{}
 
 func (*N1Detector) Kind() string { return "n_plus_one" }
@@ -26,16 +26,19 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 			continue
 		}
 		fp := fingerprintSQL(raw)
-		if g, ok := groups[fp]; ok {
+		// SQL reused by independent operations is not an N+1. Keep the parent
+		// in the key so the issue points at the loop that issued it.
+		key := s.ParentSpanID + "\x00" + fp
+		if g, ok := groups[key]; ok {
 			g.spans = append(g.spans, s)
 		} else {
-			groups[fp] = &group{spans: []*storage.Span{s}, fp: fp}
+			groups[key] = &group{spans: []*storage.Span{s}, fp: fp}
 		}
 	}
 
 	var issues []*storage.TraceIssue
 	for _, g := range groups {
-		if len(g.spans) < 10 {
+		if len(g.spans) < 2 {
 			continue
 		}
 		var totalNs int64
