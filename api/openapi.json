@@ -280,9 +280,6 @@
                 "next_evaluation_at": {
                   "type": "number"
                 },
-                "owner": {
-                  "type": "string"
-                },
                 "pending_for_ns": {
                   "type": "number"
                 },
@@ -312,9 +309,6 @@
                 "source_hash": {
                   "type": "string"
                 },
-                "team": {
-                  "type": "string"
-                },
                 "updated_at": {
                   "type": "number"
                 }
@@ -330,8 +324,6 @@
                 "pending_for_ns",
                 "cooldown_ns",
                 "repeat_interval_ns",
-                "owner",
-                "team",
                 "severity",
                 "enabled",
                 "browser_enabled",
@@ -518,9 +510,6 @@
           "next_evaluation_at": {
             "type": "number"
           },
-          "owner": {
-            "type": "string"
-          },
           "pending_for_ns": {
             "type": "number"
           },
@@ -550,9 +539,6 @@
           "source_hash": {
             "type": "string"
           },
-          "team": {
-            "type": "string"
-          },
           "updated_at": {
             "type": "number"
           }
@@ -568,8 +554,6 @@
           "pending_for_ns",
           "cooldown_ns",
           "repeat_interval_ns",
-          "owner",
-          "team",
           "severity",
           "enabled",
           "browser_enabled",
@@ -703,6 +687,26 @@
             ],
             "type": "object"
           },
+          "quality": {
+            "additionalProperties": false,
+            "properties": {
+              "dynamic_route_spans": {
+                "type": "number"
+              },
+              "generic_route_spans": {
+                "type": "number"
+              },
+              "missing_route_spans": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "missing_route_spans",
+              "generic_route_spans",
+              "dynamic_route_spans"
+            ],
+            "type": "object"
+          },
           "services": {
             "items": {
               "additionalProperties": false,
@@ -715,6 +719,9 @@
                     "additionalProperties": false,
                     "properties": {
                       "hits": {
+                        "type": "number"
+                      },
+                      "last_seen_ns": {
                         "type": "number"
                       },
                       "method": {
@@ -747,6 +754,9 @@
                     "additionalProperties": false,
                     "properties": {
                       "hits": {
+                        "type": "number"
+                      },
+                      "last_seen_ns": {
                         "type": "number"
                       },
                       "method": {
@@ -798,7 +808,8 @@
         },
         "required": [
           "services",
-          "overall"
+          "overall",
+          "quality"
         ],
         "type": "object"
       },
@@ -807,6 +818,9 @@
         "additionalProperties": false,
         "properties": {
           "hits": {
+            "type": "number"
+          },
+          "last_seen_ns": {
             "type": "number"
           },
           "method": {
@@ -2714,6 +2728,9 @@
                 "hits": {
                   "type": "number"
                 },
+                "last_seen_ns": {
+                  "type": "number"
+                },
                 "method": {
                   "type": "string"
                 },
@@ -2744,6 +2761,9 @@
               "additionalProperties": false,
               "properties": {
                 "hits": {
+                  "type": "number"
+                },
+                "last_seen_ns": {
                   "type": "number"
                 },
                 "method": {
@@ -6042,6 +6062,16 @@
             },
             "description": "Successful response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request was invalid."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -6060,7 +6090,7 @@
                 }
               }
             },
-            "description": "The upstream notification provider failed."
+            "description": "Spaniel could not deliver the Pushover test notification."
           }
         },
         "summary": "test Alert Notification",
@@ -6096,6 +6126,11 @@
                           "dark_count": 1.5,
                           "observed_operations": 1.5,
                           "total_routes": 1.5
+                        },
+                        "quality": {
+                          "dynamic_route_spans": 1.5,
+                          "generic_route_spans": 1.5,
+                          "missing_route_spans": 1.5
                         },
                         "services": [
                           {

@@ -57,8 +57,12 @@ func applyErrorResponses(op map[string]any) {
 		}
 	}
 	for _, status := range errorResponses[operationID] {
+		description := errorResponseDescriptions[status]
+		if descriptions, ok := operationErrorDescriptions[operationID]; ok && descriptions[status] != "" {
+			description = descriptions[status]
+		}
 		responses[status] = map[string]any{
-			"description": errorResponseDescriptions[status],
+			"description": description,
 			"content": map[string]any{"application/json": map[string]any{
 				"schema": map[string]any{"$ref": "#/components/schemas/Error"},
 			}},
@@ -73,6 +77,12 @@ var errorResponseDescriptions = map[string]string{
 	"500": "Spaniel could not complete the request.",
 	"501": "This optional capability is not configured.",
 	"502": "The upstream notification provider failed.",
+}
+
+var operationErrorDescriptions = map[string]map[string]string{
+	"testAlertNotification": {
+		"502": "Spaniel could not deliver the Pushover test notification.",
+	},
 }
 
 // Kept next to the response schema mapping so a changed handler contract is a
@@ -102,7 +112,7 @@ var errorResponses = map[string][]string{
 	"patchSession": {"404", "500"}, "previewAlert": {"400", "404", "500"}, "previewAlertDraft": {"400"},
 	"previewDashboardQuery": {"400", "404"}, "pruneStorage": {"404", "500"}, "putSettings": {"400", "404", "500"},
 	"readNotification": {"500"}, "reloadAlertDefinitions": {"400", "501"}, "reorderDashboards": {"400", "409", "500"},
-	"searchTelemetry": {"500"}, "setSessionBaseline": {"500"}, "testAlertNotification": {"404", "502"},
+	"searchTelemetry": {"500"}, "setSessionBaseline": {"500"}, "testAlertNotification": {"400", "404", "502"},
 	"unacknowledgeAlertInstance": {"404"},
 }
 

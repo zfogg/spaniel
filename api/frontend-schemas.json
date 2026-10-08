@@ -148,12 +148,6 @@
             "repeat_interval_ns": {
               "type": "number"
             },
-            "owner": {
-              "type": "string"
-            },
-            "team": {
-              "type": "string"
-            },
             "severity": {
               "type": "string",
               "enum": [
@@ -292,8 +286,6 @@
             "pending_for_ns",
             "cooldown_ns",
             "repeat_interval_ns",
-            "owner",
-            "team",
             "severity",
             "enabled",
             "browser_enabled",
@@ -384,12 +376,6 @@
       },
       "repeat_interval_ns": {
         "type": "number"
-      },
-      "owner": {
-        "type": "string"
-      },
-      "team": {
-        "type": "string"
       },
       "severity": {
         "type": "string",
@@ -529,8 +515,6 @@
       "pending_for_ns",
       "cooldown_ns",
       "repeat_interval_ns",
-      "owner",
-      "team",
       "severity",
       "enabled",
       "browser_enabled",
@@ -657,6 +641,9 @@
                   },
                   "p95_ns": {
                     "type": "number"
+                  },
+                  "last_seen_ns": {
+                    "type": "number"
                   }
                 },
                 "required": [
@@ -682,6 +669,9 @@
                     "type": "number"
                   },
                   "p95_ns": {
+                    "type": "number"
+                  },
+                  "last_seen_ns": {
                     "type": "number"
                   }
                 },
@@ -729,11 +719,32 @@
           "coverage_pct"
         ],
         "additionalProperties": false
+      },
+      "quality": {
+        "type": "object",
+        "properties": {
+          "missing_route_spans": {
+            "type": "number"
+          },
+          "generic_route_spans": {
+            "type": "number"
+          },
+          "dynamic_route_spans": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "missing_route_spans",
+          "generic_route_spans",
+          "dynamic_route_spans"
+        ],
+        "additionalProperties": false
       }
     },
     "required": [
       "services",
-      "overall"
+      "overall",
+      "quality"
     ],
     "additionalProperties": false
   },
@@ -751,6 +762,9 @@
         "type": "number"
       },
       "p95_ns": {
+        "type": "number"
+      },
+      "last_seen_ns": {
         "type": "number"
       }
     },
@@ -2185,6 +2199,9 @@
             },
             "p95_ns": {
               "type": "number"
+            },
+            "last_seen_ns": {
+              "type": "number"
             }
           },
           "required": [
@@ -2210,6 +2227,9 @@
               "type": "number"
             },
             "p95_ns": {
+              "type": "number"
+            },
+            "last_seen_ns": {
               "type": "number"
             }
           },

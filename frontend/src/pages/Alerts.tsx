@@ -9,13 +9,14 @@ import {
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { BellRing, Search } from 'lucide-react'
+import { BellRing, CircleHelp, Search } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { api, type AlertRule, type AlertEvent, type AlertSilence } from '@/lib/api'
 import { qk } from '@/lib/query'
 import { useWS } from '@/lib/ws'
 import { SqlCode, SqlEditor, YamlEditor } from '@/components/ui/HighlightedCode'
 import PaginationControls from '@/components/PaginationControls'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const tone: Record<string, string> = {
   firing: 'bg-danger-bg text-danger-ink',
@@ -125,8 +126,6 @@ type Draft = {
   pendingFor: string
   cooldown: string
   repeatInterval: string
-  owner: string
-  team: string
   severity: string
   enabled: boolean
   browserEnabled: boolean
@@ -184,8 +183,6 @@ const draftFor = (rule: AlertRule): Draft => {
     pendingFor: durationInput(rule.pending_for_ns),
     cooldown: durationInput(rule.cooldown_ns),
     repeatInterval: durationInput(rule.repeat_interval_ns),
-    owner: rule.owner,
-    team: rule.team,
     severity: rule.severity,
     enabled: rule.enabled,
     browserEnabled: rule.browser_enabled,
@@ -211,8 +208,6 @@ const emptyRule = (): AlertRule => ({
   pending_for_ns: 0,
   cooldown_ns: 300000000000,
   repeat_interval_ns: 0,
-  owner: '',
-  team: '',
   severity: 'warning',
   enabled: true,
   browser_enabled: true,
@@ -275,8 +270,6 @@ const draftPayload = (draft: Draft) => {
     pending_for_ns: durationNS(draft.pendingFor, 'Pending for'),
     cooldown_ns: durationNS(draft.cooldown, 'Cooldown'),
     repeat_interval_ns: durationNS(draft.repeatInterval, 'Repeat interval'),
-    owner: draft.owner.trim(),
-    team: draft.team.trim(),
     severity: draft.severity,
     enabled: draft.enabled,
     browser_enabled: draft.browserEnabled,
@@ -582,15 +575,7 @@ export default function Alerts() {
       </section>
       <aside className="flex-1 overflow-auto bg-surface p-5">
         {state === 'notifications' ? (
-          <NotificationInspector
-            openSource={(link) => {
-              const id = new URLSearchParams(link.split('?')[1] ?? '').get('id')
-              if (id) setLocation(id, null)
-              setTab('board')
-              setState('attention')
-              setRulePage(1)
-            }}
-          />
+          <NotificationInspector />
         ) : creating ? (
           <CreateAlert
             close={() => setLocation(selectedId, null)}
@@ -707,7 +692,7 @@ function NotificationList() {
   )
 }
 
-function NotificationInspector({ openSource }: { openSource: (link: string) => void }) {
+function NotificationInspector() {
   const [params] = useSearchParams()
   const page = notificationPageFrom(params)
   const qc = useQueryClient()
@@ -725,6 +710,11 @@ function NotificationInspector({ openSource }: { openSource: (link: string) => v
   if (!notification) {
     return <p className="text-sm text-muted-foreground">Select a notification to inspect it.</p>
   }
+  const sourceParams = new URLSearchParams(notification.link?.split('?')[1] ?? '')
+  sourceParams.set('state', 'attention')
+  sourceParams.set('tab', 'board')
+  sourceParams.delete('notification')
+  const sourceHref = `/alerts?${sourceParams.toString()}`
   return (
     <div className="space-y-5">
       <header className="border-b border-border pb-4">
@@ -764,12 +754,9 @@ function NotificationInspector({ openSource }: { openSource: (link: string) => v
           </button>
         )}
         {notification.link && (
-          <button
-            onClick={() => openSource(notification.link)}
-            className="rounded border border-border px-3 py-1.5 text-xs"
-          >
+          <a href={sourceHref} className="rounded border border-border px-3 py-1.5 text-xs">
             Open source
-          </button>
+          </a>
         )}
       </div>
     </div>
@@ -1112,20 +1099,65 @@ function Inspector({
 
       <InspectorSection title="Condition">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-          <Field label="Type" value={condition.kind ?? 'threshold'} mono />
+          <Field
+            label={
+              <LabelWithHelp help="How Spaniel decides whether this rule is firing.">
+                Type
+              </LabelWithHelp>
+            }
+            value={condition.kind ?? 'threshold'}
+            mono
+          />
           {condition.kind === 'log_match' ? (
             <Field label="Message contains" value={condition.pattern ?? '—'} mono />
           ) : condition.kind === 'any_of' || condition.kind === 'all_of' ? (
             <Field label="Source rule IDs" value={condition.rule_ids?.join(', ') ?? '—'} mono />
           ) : (
             <>
-              <Field label="Operator" value={condition.operator ?? '—'} mono />
-              <Field label="Threshold" value={condition.value?.toLocaleString() ?? '—'} mono />
+              <Field
+                label={
+                  <LabelWithHelp help="Compares each numeric query result with the threshold.">
+                    Operator
+                  </LabelWithHelp>
+                }
+                value={condition.operator ?? '—'}
+                mono
+              />
+              <Field
+                label={
+                  <LabelWithHelp help="The numeric value a result must cross to become true.">
+                    Threshold
+                  </LabelWithHelp>
+                }
+                value={condition.value?.toLocaleString() ?? '—'}
+                mono
+              />
             </>
           )}
-          <Field label="Pending for" value={formatDuration(rule.pending_for_ns)} />
-          <Field label="Cooldown" value={formatDuration(rule.cooldown_ns)} />
-          <Field label="Repeat every" value={formatDuration(rule.repeat_interval_ns)} />
+          <Field
+            label={
+              <LabelWithHelp help="The condition must stay true this long before an instance fires.">
+                Pending for
+              </LabelWithHelp>
+            }
+            value={formatDuration(rule.pending_for_ns)}
+          />
+          <Field
+            label={
+              <LabelWithHelp help="After firing, suppresses a new firing notification for this long.">
+                Cooldown
+              </LabelWithHelp>
+            }
+            value={formatDuration(rule.cooldown_ns)}
+          />
+          <Field
+            label={
+              <LabelWithHelp help="While still firing, send another notification at this interval. Blank disables repeats.">
+                Repeat every
+              </LabelWithHelp>
+            }
+            value={formatDuration(rule.repeat_interval_ns)}
+          />
         </dl>
       </InspectorSection>
 
@@ -1138,19 +1170,39 @@ function Inspector({
       <InspectorSection title="Grouping and delivery">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
           <Field
-            label="Group by"
+            label={
+              <LabelWithHelp help="Each distinct combination of these result columns becomes its own alert instance.">
+                Group by
+              </LabelWithHelp>
+            }
             value={groupBy.length ? groupBy.join(', ') : 'All results'}
             mono
           />
-          <Field label="Browser" value={rule.browser_enabled ? 'Enabled' : 'Disabled'} />
-          <Field label="Pushover" value={rule.pushover_enabled ? 'Enabled' : 'Disabled'} />
-          <Field label="Owner" value={rule.owner || 'Unassigned'} />
-          <Field label="Team" value={rule.team || 'Unassigned'} />
+          <Field
+            label={
+              <LabelWithHelp help="Allow this rule to create in-app and native browser notifications.">
+                Browser
+              </LabelWithHelp>
+            }
+            value={rule.browser_enabled ? 'Enabled' : 'Disabled'}
+          />
+          <Field
+            label={
+              <LabelWithHelp help="Allow this rule to send Pushover delivery, subject to global settings.">
+                Pushover
+              </LabelWithHelp>
+            }
+            value={rule.pushover_enabled ? 'Enabled' : 'Disabled'}
+          />
           <Field label="Query version" value={String(rule.query_version)} mono />
           {rule.instance_discovery_sql && (
             <>
               <Field
-                label="Instance discovery"
+                label={
+                  <LabelWithHelp help="How often Spaniel runs the discovery query to find expected alert targets.">
+                    Instance discovery
+                  </LabelWithHelp>
+                }
                 value={
                   rule.instance_discovery_interval_ns
                     ? `Every ${formatDuration(rule.instance_discovery_interval_ns)}`
@@ -1158,7 +1210,11 @@ function Inspector({
                 }
               />
               <Field
-                label="Target expiry"
+                label={
+                  <LabelWithHelp help="A target is one expected group of labels from discovery. If discovery stops returning it for this long, Spaniel removes that target instead of keeping a stale instance forever.">
+                    Target expiry
+                  </LabelWithHelp>
+                }
                 value={
                   rule.instance_discovery_stale_after_ns
                     ? formatDuration(rule.instance_discovery_stale_after_ns)
@@ -1170,7 +1226,11 @@ function Inspector({
         </dl>
         {rule.instance_discovery_sql && (
           <div className="mt-3">
-            <p className="mb-1 text-xs text-muted-foreground">Discovery query</p>
+            <p className="mb-1 text-xs text-muted-foreground">
+              <LabelWithHelp help="Returns expected group labels, including services that have not emitted telemetry yet. It must return every Group by column.">
+                Discovery query
+              </LabelWithHelp>
+            </p>
             <SqlCode value={rule.instance_discovery_sql} />
           </div>
         )}
@@ -1860,7 +1920,9 @@ function AlertEditor({
 
       <section>
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Query
+          <LabelWithHelp help="Read-only DuckDB SQL. Return a numeric value column for numeric conditions; include every Group by column when grouping.">
+            Query
+          </LabelWithHelp>
         </h3>
         <SqlEditor
           value={draft.query}
@@ -1871,7 +1933,9 @@ function AlertEditor({
 
       <section className="grid grid-cols-2 gap-3">
         <label className="col-span-2 text-sm font-medium">
-          Condition type
+          <LabelWithHelp help="Choose how this rule interprets the query result: numeric threshold, absent data, matching log rows, or the state of other rules.">
+            Condition type
+          </LabelWithHelp>
           <select
             value={draft.conditionKind}
             onChange={(event) => set('conditionKind', event.target.value as Draft['conditionKind'])}
@@ -1906,7 +1970,9 @@ function AlertEditor({
           draft.conditionKind === 'log_match') && (
           <>
             <label className="text-sm font-medium">
-              Operator
+              <LabelWithHelp help="The comparison applied to the query result and threshold.">
+                Operator
+              </LabelWithHelp>
               <select
                 value={draft.operator}
                 onChange={(event) => set('operator', event.target.value)}
@@ -1923,7 +1989,15 @@ function AlertEditor({
           draft.conditionKind === 'count' ||
           draft.conditionKind === 'log_match') && (
           <label className="text-sm font-medium">
-            {draft.conditionKind === 'log_match' ? 'Matching rows' : 'Threshold'}
+            <LabelWithHelp
+              help={
+                draft.conditionKind === 'log_match'
+                  ? 'How many query rows must have a matching message before the condition is true.'
+                  : 'The numeric value the query result is compared against.'
+              }
+            >
+              {draft.conditionKind === 'log_match' ? 'Matching rows' : 'Threshold'}
+            </LabelWithHelp>
             <input
               inputMode="decimal"
               value={draft.threshold}
@@ -1955,7 +2029,9 @@ function AlertEditor({
           </label>
         )}
         <label className="text-sm font-medium">
-          Pending for
+          <LabelWithHelp help="The condition must stay true continuously for this long before firing. Leave blank to fire immediately.">
+            Pending for
+          </LabelWithHelp>
           <input
             value={draft.pendingFor}
             onChange={(event) => set('pendingFor', event.target.value)}
@@ -1964,7 +2040,9 @@ function AlertEditor({
           />
         </label>
         <label className="text-sm font-medium">
-          Cooldown
+          <LabelWithHelp help="The minimum time after firing before a new firing notification can be delivered. Leave blank for no cooldown.">
+            Cooldown
+          </LabelWithHelp>
           <input
             value={draft.cooldown}
             onChange={(event) => set('cooldown', event.target.value)}
@@ -1973,7 +2051,9 @@ function AlertEditor({
           />
         </label>
         <label className="text-sm font-medium">
-          Repeat notification
+          <LabelWithHelp help="How often to notify again while the same instance remains firing. Leave blank to notify only when it starts firing.">
+            Repeat notification
+          </LabelWithHelp>
           <input
             value={draft.repeatInterval}
             onChange={(event) => set('repeatInterval', event.target.value)}
@@ -1982,7 +2062,9 @@ function AlertEditor({
           />
         </label>
         <label className="col-span-2 text-sm font-medium">
-          Group by columns
+          <LabelWithHelp help="Comma-separated query-result columns that define independent alert instances, such as service_name and region.">
+            Group by columns
+          </LabelWithHelp>
           <input
             value={draft.groupBy}
             onChange={(event) => set('groupBy', event.target.value)}
@@ -1992,7 +2074,9 @@ function AlertEditor({
         </label>
         <div className="col-span-2 rounded border border-border bg-muted/30 p-3">
           <label className="block text-sm font-medium">
-            Instance discovery query
+            <LabelWithHelp help="Optional SQL that lists expected group labels, so Spaniel can create and retain instances even before those groups send telemetry.">
+              Instance discovery query
+            </LabelWithHelp>
             <span className="mt-1 block text-xs font-normal text-muted-foreground">
               Optional. Periodically discovers expected group labels, so a group remains an instance
               even while its telemetry is absent. It must return every Group by column.
@@ -2008,7 +2092,9 @@ function AlertEditor({
           {draft.discoveryQuery.trim() && (
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="text-sm font-medium">
-                Discovery interval
+                <LabelWithHelp help="How often to refresh the expected targets. Blank runs it with every alert evaluation.">
+                  Discovery interval
+                </LabelWithHelp>
                 <input
                   value={draft.discoveryEvery}
                   onChange={(event) => set('discoveryEvery', event.target.value)}
@@ -2017,7 +2103,9 @@ function AlertEditor({
                 />
               </label>
               <label className="text-sm font-medium">
-                Target stale after
+                <LabelWithHelp help="Remove an expected target after it has been absent from discovery for this long. The default is 24 hours.">
+                  Target stale after
+                </LabelWithHelp>
                 <input
                   value={draft.discoveryStaleAfter}
                   onChange={(event) => set('discoveryStaleAfter', event.target.value)}
@@ -2029,7 +2117,9 @@ function AlertEditor({
           )}
         </div>
         <label className="col-span-2 text-sm font-medium">
-          Severity
+          <LabelWithHelp help="Controls visual treatment and notification urgency; it does not change the rule condition.">
+            Severity
+          </LabelWithHelp>
           <select
             value={draft.severity}
             onChange={(event) => set('severity', event.target.value)}
@@ -2039,22 +2129,6 @@ function AlertEditor({
               <option key={severity}>{severity}</option>
             ))}
           </select>
-        </label>
-        <label className="text-sm font-medium">
-          Owner
-          <input
-            value={draft.owner}
-            onChange={(event) => set('owner', event.target.value)}
-            className="mt-1.5 w-full rounded border border-border bg-background px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Team
-          <input
-            value={draft.team}
-            onChange={(event) => set('team', event.target.value)}
-            className="mt-1.5 w-full rounded border border-border bg-background px-3 py-2 text-sm"
-          />
         </label>
       </section>
 
@@ -2069,7 +2143,9 @@ function AlertEditor({
               checked={draft.enabled}
               onChange={(event) => set('enabled', event.target.checked)}
             />
-            Rule enabled
+            <LabelWithHelp help="Disabled rules stay saved but are not evaluated and do not notify.">
+              Rule enabled
+            </LabelWithHelp>
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -2077,7 +2153,9 @@ function AlertEditor({
               checked={draft.browserEnabled}
               onChange={(event) => set('browserEnabled', event.target.checked)}
             />
-            Browser notifications
+            <LabelWithHelp help="Send this rule's deliveries to the browser/in-app notification path, subject to global notification settings.">
+              Browser notifications
+            </LabelWithHelp>
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -2085,13 +2163,17 @@ function AlertEditor({
               checked={draft.pushoverEnabled}
               onChange={(event) => set('pushoverEnabled', event.target.checked)}
             />
-            Pushover notifications
+            <LabelWithHelp help="Send this rule's deliveries to Pushover, subject to global credentials and settings.">
+              Pushover notifications
+            </LabelWithHelp>
           </label>
         </div>
       </section>
 
       <label className="block text-sm font-medium">
-        Annotations (JSON)
+        <LabelWithHelp help="Optional JSON metadata. Use it for a description, trace link, dashboard link, or runbook URL shown with the rule.">
+          Annotations (JSON)
+        </LabelWithHelp>
         <textarea
           value={draft.annotations}
           onChange={(event) => set('annotations', event.target.value)}
@@ -2240,7 +2322,7 @@ function Field({
   value,
   mono = false,
 }: {
-  label: string
+  label: ReactNode
   value: ReactNode
   mono?: boolean
 }) {
@@ -2249,6 +2331,25 @@ function Field({
       <dt className="mb-1 text-xs text-muted-foreground">{label}</dt>
       <dd className={mono ? 'font-mono text-xs' : ''}>{value}</dd>
     </div>
+  )
+}
+function LabelWithHelp({ children, help }: { children: ReactNode; help: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {children}
+      <Tooltip>
+        <TooltipTrigger
+          type="button"
+          aria-label={`Help: ${typeof children === 'string' ? children : 'field'}`}
+          className="inline-flex cursor-help text-muted-foreground hover:text-foreground"
+        >
+          <CircleHelp className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs border border-border bg-popover text-popover-foreground shadow-lg">
+          {help}
+        </TooltipContent>
+      </Tooltip>
+    </span>
   )
 }
 function Empty({ label }: { label: string }) {

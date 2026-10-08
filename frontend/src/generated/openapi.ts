@@ -1223,7 +1223,6 @@ export interface components {
         last_success_at: number
         name: string
         next_evaluation_at: number
-        owner: string
         pending_for_ns: number
         pushover_enabled: boolean
         query_sql: string
@@ -1233,7 +1232,6 @@ export interface components {
         severity: 'info' | 'warning' | 'critical'
         source_file: string
         source_hash: string
-        team: string
         updated_at: number
       }[]
       summary: {
@@ -1279,7 +1277,6 @@ export interface components {
       last_success_at: number
       name: string
       next_evaluation_at: number
-      owner: string
       pending_for_ns: number
       pushover_enabled: boolean
       query_sql: string
@@ -1289,7 +1286,6 @@ export interface components {
       severity: 'info' | 'warning' | 'critical'
       source_file: string
       source_hash: string
-      team: string
       updated_at: number
     }
     AlertSilence: {
@@ -1320,10 +1316,16 @@ export interface components {
         observed_operations: number
         total_routes: number
       }
+      quality: {
+        dynamic_route_spans: number
+        generic_route_spans: number
+        missing_route_spans: number
+      }
       services: {
         coverage_pct: number
         dark_routes: {
           hits: number
+          last_seen_ns?: number
           method: string
           p95_ns?: number
           path: string
@@ -1332,6 +1334,7 @@ export interface components {
         observed_operations: number
         observed_routes: {
           hits: number
+          last_seen_ns?: number
           method: string
           p95_ns?: number
           path: string
@@ -1344,6 +1347,7 @@ export interface components {
     }
     CoverageRoute: {
       hits: number
+      last_seen_ns?: number
       method: string
       p95_ns?: number
       path: string
@@ -1851,6 +1855,7 @@ export interface components {
       coverage_pct: number
       dark_routes: {
         hits: number
+        last_seen_ns?: number
         method: string
         p95_ns?: number
         path: string
@@ -1859,6 +1864,7 @@ export interface components {
       observed_operations: number
       observed_routes: {
         hits: number
+        last_seen_ns?: number
         method: string
         p95_ns?: number
         path: string
@@ -3141,6 +3147,15 @@ export interface operations {
           }
         }
       }
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -3150,7 +3165,7 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
-      /** @description The upstream notification provider failed. */
+      /** @description Spaniel could not deliver the Pushover test notification. */
       502: {
         headers: {
           [name: string]: unknown
