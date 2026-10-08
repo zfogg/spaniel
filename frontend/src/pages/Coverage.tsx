@@ -7,6 +7,7 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 
 type Filter = 'all' | 'dark' | 'observed'
+type Protocol = 'all' | 'http' | 'ws' | 'rpc' | 'server'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,29 @@ function methodTone(method: string): { fg: string; bg: string } {
       return { fg: 'var(--muted-foreground)', bg: 'var(--muted)' }
     default:
       return { fg: 'var(--muted-foreground)', bg: 'var(--muted)' }
+  }
+}
+
+function protocolFor(route: CoverageRoute): Exclude<Protocol, 'all'> {
+  if (route.path === '/ws' || route.path.startsWith('/ws/')) return 'ws'
+  if (route.method === 'RPC') return 'rpc'
+  if (route.method === '') return 'server'
+  return 'http'
+}
+
+function darkPriority(route: CoverageRoute): number {
+  switch (route.method) {
+    case 'DELETE':
+      return 5
+    case 'PATCH':
+    case 'PUT':
+      return 4
+    case 'POST':
+      return 3
+    case 'RPC':
+      return 2
+    default:
+      return 1
   }
 }
 
@@ -145,6 +169,7 @@ function BigStat({
 function ServiceSection({
   svc,
   filter,
+  protocol,
   selected,
   onSelect,
   expanded,
@@ -152,17 +177,27 @@ function ServiceSection({
 }: {
   svc: ServiceCoverage
   filter: Filter
+  protocol: Protocol
   selected: { svc: string; m: string; p: string } | null
   onSelect: (svc: string, r: CoverageRoute) => void
   expanded: boolean
   onToggle: () => void
 }) {
   const allRoutes = [...svc.observed_routes, ...svc.dark_routes]
-  const filtered = allRoutes.filter((r) => {
-    if (filter === 'dark') return r.hits === 0
-    if (filter === 'observed') return r.hits > 0
-    return true
-  })
+  const filtered = allRoutes
+    .filter((r) => {
+      if (filter === 'dark') return r.hits === 0
+      if (filter === 'observed') return r.hits > 0
+      return true
+    })
+    .filter((r) => protocol === 'all' || protocolFor(r) === protocol)
+    .sort((a, b) => {
+      if (a.hits === 0 && b.hits === 0)
+        return darkPriority(b) - darkPriority(a) || a.path.localeCompare(b.path)
+      if (a.hits === 0) return -1
+      if (b.hits === 0) return 1
+      return b.hits - a.hits
+    })
   const c = svcColor(svc.name).fg
 
   return (
@@ -354,6 +389,8 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
 
 export default function Coverage() {
   const [filter, setFilter] = useState<Filter>('all')
+  const [protocol, setProtocol] = useState<Protocol>('all')
+  const [sessionID, setSessionID] = useState<string | undefined>()
   const [selected, setSelected] = useState<{ svc: string; route: CoverageRoute } | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
@@ -364,11 +401,24 @@ export default function Coverage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.coverage(),
-    queryFn: () => api.coverage.get().then((r) => r.data),
+    queryKey: qk.coverage(sessionID),
+    queryFn: () => api.coverage.get(sessionID).then((r) => r.data),
+  })
+
+  const { data: sessions = [] } = useQuery({
+    queryKey: qk.sessions(),
+    queryFn: () => api.sessions.list().then((r) => r.data),
   })
 
   const totalDark = useMemo(() => report?.overall.dark_count ?? 0, [report])
+  const quality = useMemo(() => {
+    const observed = report?.services.flatMap((svc) => svc.observed_routes) ?? []
+    return {
+      generic: observed.filter((route) => route.path === '/api/' || route.path === '/').length,
+      fallback: observed.filter((route) => route.method === '').length,
+      noSpec: report?.services.filter((svc) => svc.source !== 'openapi').length ?? 0,
+    }
+  }, [report])
 
   if (loading) {
     return (
@@ -417,6 +467,30 @@ export default function Coverage() {
       {/* left rail */}
       <div className="w-[220px] border-r border-border bg-muted py-3.5 px-3 flex flex-col gap-4 shrink-0">
         <div>
+          <label
+            className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2 block"
+            htmlFor="coverage-session"
+          >
+            scope
+          </label>
+          <select
+            id="coverage-session"
+            value={sessionID ?? ''}
+            onChange={(event) => setSessionID(event.target.value || undefined)}
+            className="w-full rounded-md border border-border bg-background px-2 py-1.5 font-mono text-[10px] text-foreground"
+          >
+            <option value="">active session</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {session.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 font-mono text-[9px] leading-[1.4] text-muted-foreground">
+            Coverage is calculated for this session only.
+          </p>
+        </div>
+        <div>
           <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">
             filter
           </div>
@@ -452,6 +526,21 @@ export default function Coverage() {
             )
           })}
         </div>
+        <div>
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-2">
+            protocol
+          </div>
+          {(['all', 'http', 'ws', 'rpc', 'server'] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => setProtocol(kind)}
+              className={`w-full py-1 px-2 rounded-md cursor-pointer text-left font-mono text-[10px] ${protocol === kind ? 'bg-background border border-border text-foreground' : 'border border-transparent text-muted-foreground'}`}
+            >
+              {kind === 'all' ? 'all protocols' : kind}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* main */}
@@ -464,9 +553,26 @@ export default function Coverage() {
             Coverage
           </h1>
           <div className="font-sans text-[13px] text-muted-foreground mt-1 max-w-[720px]">
-            Which routes have we ever seen a trace for? Spaniel cross-references every{' '}
+            Routes seen in the selected session. Spaniel cross-references every{' '}
             <code className="font-mono text-xs bg-muted py-px px-[5px] rounded">http.route</code>{' '}
             against any declared specs to find the dark ones.
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 max-w-[720px]">
+            <div
+              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality.generic ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
+            >
+              {quality.generic} generic route{quality.generic === 1 ? '' : 's'}
+            </div>
+            <div
+              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality.fallback ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
+            >
+              {quality.fallback} server-name fallback{quality.fallback === 1 ? '' : 's'}
+            </div>
+            <div
+              className={`rounded-md border px-3 py-2 font-mono text-[10px] ${quality.noSpec ? 'border-warn text-warn' : 'border-border text-muted-foreground'}`}
+            >
+              {quality.noSpec} service{quality.noSpec === 1 ? '' : 's'} without a spec
+            </div>
           </div>
         </div>
 
@@ -525,6 +631,7 @@ export default function Coverage() {
               key={svc.name}
               svc={svc}
               filter={filter}
+              protocol={protocol}
               expanded={expanded[svc.name] ?? true}
               onToggle={() => setExpanded((p) => ({ ...p, [svc.name]: !(p[svc.name] ?? true) }))}
               selected={sel ? { svc: sel.svc, m: sel.route.method, p: sel.route.path } : null}
