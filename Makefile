@@ -59,8 +59,8 @@ run: build-server
 
 verify-generated:
 	$(MAKE) generate
-	git diff --exit-code -- api/openapi.json frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
-	test -z "$$(git ls-files --others --exclude-standard -- frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
+	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
+	test -z "$$(git ls-files --others --exclude-standard -- api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
 
 test: verify-generated
 	@set -e; \
@@ -90,8 +90,11 @@ generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema
 	cd frontend && pnpm exec oxfmt --write src/generated/schemaCatalog.ts
-	cd frontend && pnpm run export:openapi-schemas
-	go run ./cmd/enrichopenapi
+	$(MAKE) generate-openapi
+
+# OpenAPI is the canonical HTTP contract. Regenerate both server and browser
+# bindings together so neither side can silently drift from the document.
+generate-openapi:
 	go tool oapi-codegen --config api/oapi-codegen.yaml api/openapi.json
 	go run ./cmd/genopenapi
 	cd frontend && pnpm run generate:openapi

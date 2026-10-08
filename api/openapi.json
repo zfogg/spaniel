@@ -4352,7 +4352,66 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "annotations": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "browser_enabled": {
+                    "type": "boolean"
+                  },
+                  "condition": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "cooldown_ns": {
+                    "type": "integer"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "group_by": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "instance_discovery": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "pending_for_ns": {
+                    "type": "integer"
+                  },
+                  "pushover_enabled": {
+                    "type": "boolean"
+                  },
+                  "query_sql": {
+                    "type": "string"
+                  },
+                  "repeat_interval_ns": {
+                    "type": "integer"
+                  },
+                  "severity": {
+                    "enum": [
+                      "info",
+                      "warning",
+                      "critical"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "query_sql",
+                  "condition"
+                ],
                 "type": "object"
               }
             }
@@ -4580,7 +4639,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "yaml": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "yaml"
+                ],
                 "type": "object"
               }
             }
@@ -4667,7 +4734,66 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "annotations": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "browser_enabled": {
+                    "type": "boolean"
+                  },
+                  "condition": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "cooldown_ns": {
+                    "type": "integer"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "group_by": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "instance_discovery": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "pending_for_ns": {
+                    "type": "integer"
+                  },
+                  "pushover_enabled": {
+                    "type": "boolean"
+                  },
+                  "query_sql": {
+                    "type": "string"
+                  },
+                  "repeat_interval_ns": {
+                    "type": "integer"
+                  },
+                  "severity": {
+                    "enum": [
+                      "info",
+                      "warning",
+                      "critical"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "query_sql",
+                  "condition"
+                ],
                 "type": "object"
               }
             }
@@ -4751,7 +4877,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -4972,7 +5099,66 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "annotations": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "browser_enabled": {
+                    "type": "boolean"
+                  },
+                  "condition": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "cooldown_ns": {
+                    "type": "integer"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "group_by": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "instance_discovery": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "pending_for_ns": {
+                    "type": "integer"
+                  },
+                  "pushover_enabled": {
+                    "type": "boolean"
+                  },
+                  "query_sql": {
+                    "type": "string"
+                  },
+                  "repeat_interval_ns": {
+                    "type": "integer"
+                  },
+                  "severity": {
+                    "enum": [
+                      "info",
+                      "warning",
+                      "critical"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "query_sql",
+                  "condition"
+                ],
                 "type": "object"
               }
             }
@@ -5079,7 +5265,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -5200,7 +5387,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -5551,7 +5739,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -6249,7 +6438,50 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "panels": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "display_type": {
+                          "type": "string"
+                        },
+                        "layout_json": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "integer"
+                        },
+                        "query_sql": {
+                          "type": "string"
+                        },
+                        "settings_json": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "display_type",
+                        "query_sql"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
                 "type": "object"
               }
             }
@@ -6345,7 +6577,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "yaml": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "yaml"
+                ],
                 "type": "object"
               }
             }
@@ -6701,7 +6941,50 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "panels": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "display_type": {
+                          "type": "string"
+                        },
+                        "layout_json": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "integer"
+                        },
+                        "query_sql": {
+                          "type": "string"
+                        },
+                        "settings_json": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "display_type",
+                        "query_sql"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
                 "type": "object"
               }
             }
@@ -6868,7 +7151,32 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "display_type": {
+                    "type": "string"
+                  },
+                  "layout_json": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "integer"
+                  },
+                  "query_sql": {
+                    "type": "string"
+                  },
+                  "settings_json": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "display_type",
+                  "query_sql"
+                ],
                 "type": "object"
               }
             }
@@ -7068,7 +7376,32 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "display_type": {
+                    "type": "string"
+                  },
+                  "layout_json": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "integer"
+                  },
+                  "query_sql": {
+                    "type": "string"
+                  },
+                  "settings_json": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "display_type",
+                  "query_sql"
+                ],
                 "type": "object"
               }
             }
@@ -7284,7 +7617,27 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "display_type": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "query_sql": {
+                    "type": "string"
+                  },
+                  "variables": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "query_sql"
+                ],
                 "type": "object"
               }
             }
@@ -7388,7 +7741,29 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "default_value": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "options_json": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "kind",
+                  "source"
+                ],
                 "type": "object"
               }
             }
@@ -8337,6 +8712,20 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "description": "Indexed metric dimensions, encoded as attributes[key]=value. The legacy attr.key=value form remains supported.",
+            "explode": true,
+            "in": "query",
+            "name": "attributes",
+            "required": false,
+            "schema": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "deepObject"
           }
         ],
         "responses": {
@@ -8652,6 +9041,27 @@
           }
         },
         "summary": "get Open A P I Spec",
+        "tags": [
+          "Administration"
+        ]
+      }
+    },
+    "/api/openapi.yaml": {
+      "get": {
+        "operationId": "getOpenAPIYAML",
+        "responses": {
+          "200": {
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful response"
+          }
+        },
+        "summary": "get OpenAPI YAML",
         "tags": [
           "Administration"
         ]
@@ -9149,10 +9559,10 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "application/octet-stream": {
               "schema": {
-                "additionalProperties": true,
-                "type": "object"
+                "format": "binary",
+                "type": "string"
               }
             }
           },
@@ -9467,7 +9877,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -9732,7 +10143,78 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {
+                  "advance_session_on_start": {
+                    "type": "boolean"
+                  },
+                  "alerts_browser_enabled": {
+                    "type": "boolean"
+                  },
+                  "alerts_browser_template": {
+                    "type": "string"
+                  },
+                  "alerts_dir": {
+                    "type": "string"
+                  },
+                  "alerts_pushover_enabled": {
+                    "type": "boolean"
+                  },
+                  "alerts_pushover_template": {
+                    "type": "string"
+                  },
+                  "auto_prune": {
+                    "type": "boolean"
+                  },
+                  "bind_address_v4": {
+                    "type": "string"
+                  },
+                  "bind_address_v6": {
+                    "type": "string"
+                  },
+                  "db_path": {
+                    "type": "string"
+                  },
+                  "forward": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "forward_sample": {
+                    "type": "integer"
+                  },
+                  "max_db_size_mb": {
+                    "type": "integer"
+                  },
+                  "max_sessions": {
+                    "type": "integer"
+                  },
+                  "no_browser": {
+                    "type": "boolean"
+                  },
+                  "otlp_grpc_port": {
+                    "type": "integer"
+                  },
+                  "otlp_http_port": {
+                    "type": "integer"
+                  },
+                  "port": {
+                    "type": "integer"
+                  },
+                  "retention_days": {
+                    "type": "integer"
+                  },
+                  "self_monitor": {
+                    "type": "boolean"
+                  },
+                  "source_burst": {
+                    "type": "integer"
+                  },
+                  "source_rps": {
+                    "type": "integer"
+                  }
+                },
                 "type": "object"
               }
             }
@@ -9819,7 +10301,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -9885,7 +10368,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -9996,7 +10480,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
+                "additionalProperties": false,
+                "properties": {},
                 "type": "object"
               }
             }
@@ -10232,7 +10717,14 @@
                   "properties": {
                     "data": {
                       "items": {
-                        "$ref": "#/components/schemas/SpanRow"
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/SpanRow"
+                          },
+                          {
+                            "$ref": "#/components/schemas/SpanGroup"
+                          }
+                        ]
                       },
                       "type": "array"
                     },

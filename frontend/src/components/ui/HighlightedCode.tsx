@@ -158,6 +158,46 @@ function StaticCode({
   )
 }
 
+// The OpenAPI document is deliberately served as pretty-printed JSON. Keep
+// this renderer read-only and dependency-free: it retains the server's exact
+// bytes while adding enough syntax color to make a large contract pleasant to
+// scan (without turning the documentation page into an editor).
+export function JsonCode({ value }: { value: string }) {
+  const content = useMemo(() => {
+    const nodes: ReactNode[] = []
+    const token =
+      /("(?:\\.|[^"\\])*")(?=\s*:)|("(?:\\.|[^"\\])*"|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|\b(?:true|false|null)\b)/g
+    let end = 0
+    let match: RegExpExecArray | null
+    let key = 0
+    while ((match = token.exec(value))) {
+      if (match.index > end) nodes.push(value.slice(end, match.index))
+      const text = match[0]
+      const className = match[1]
+        ? 'font-semibold text-[var(--sql-keyword)]'
+        : text.startsWith('"')
+          ? 'text-[var(--sql-string)]'
+          : text === 'true' || text === 'false' || text === 'null'
+            ? 'font-semibold text-[var(--sql-operator)]'
+            : 'text-[var(--sql-number)]'
+      nodes.push(
+        <span key={`${match.index}-${key++}`} className={className}>
+          {text}
+        </span>,
+      )
+      end = token.lastIndex
+    }
+    if (end < value.length) nodes.push(value.slice(end))
+    return nodes
+  }, [value])
+
+  return (
+    <code className="block min-w-max whitespace-pre font-mono text-[11px] leading-[1.7] text-foreground">
+      {content}
+    </code>
+  )
+}
+
 export function SqlCode({ value }: { value: string }) {
   return (
     <StaticCode

@@ -113,6 +113,8 @@ func (r *Router) ListNotifications(w http.ResponseWriter, req *http.Request, _ a
 
 func (r *Router) GetOpenAPISpec(w http.ResponseWriter, req *http.Request) { r.openAPI(w, req) }
 
+func (r *Router) GetOpenAPIYAML(w http.ResponseWriter, req *http.Request) { r.openAPIYAML(w, req) }
+
 func (r *Router) ListQueryCatalog(w http.ResponseWriter, req *http.Request, _ apigen.ListQueryCatalogParams) {
 	r.queryCatalog(w, req)
 }

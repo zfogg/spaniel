@@ -20,6 +20,7 @@ import Dashboards, { DashboardEditor } from './pages/Dashboards'
 import Alerts from './pages/Alerts'
 import DatabaseSchema from './pages/DatabaseSchema'
 import OpenAPI from './pages/OpenAPI'
+import OpenAPIJSON from './pages/OpenAPIJSON'
 import BottomBar from './components/BottomBar'
 import IssueToast from './components/IssueToast'
 import AlertToast from './components/AlertToast'
@@ -124,7 +125,7 @@ function DocsMenu() {
         setVisible(false)
         setFading(false)
       }, 220)
-    }, 2000)
+    }, 300)
   }
 
   useEffect(() => clearTimers, [])
@@ -160,6 +161,18 @@ function DocsMenu() {
             }
           >
             OpenAPI schema
+          </NavLink>
+          <NavLink
+            to="/docs/openapi-json"
+            className={({ isActive }) =>
+              `block rounded px-2.5 py-2 text-xs transition-colors ${
+                isActive
+                  ? 'bg-muted font-medium text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`
+            }
+          >
+            OpenAPI spec files
           </NavLink>
           <NavLink
             to="/docs/database"
@@ -371,6 +384,7 @@ function AppShell() {
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/docs/database" element={<DatabaseSchema />} />
             <Route path="/docs/openapi" element={<OpenAPI />} />
+            <Route path="/docs/openapi-json" element={<OpenAPIJSON />} />
             <Route path="/coverage" element={<Coverage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/services" element={<ServiceMap />} />

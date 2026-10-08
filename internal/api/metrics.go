@@ -344,6 +344,9 @@ func metricDimensionFilters(q map[string][]string) map[string]string {
 		if strings.HasPrefix(k, "attr.") && len(v) > 0 {
 			out[strings.TrimPrefix(k, "attr.")] = v[0]
 		}
+		if strings.HasPrefix(k, "attributes[") && strings.HasSuffix(k, "]") && len(v) > 0 {
+			out[strings.TrimSuffix(strings.TrimPrefix(k, "attributes["), "]")] = v[0]
+		}
 	}
 	return out
 }

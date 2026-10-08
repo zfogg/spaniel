@@ -1,690 +1,33 @@
-import { z } from 'zod'
-
 import { openapiClient } from './openapi'
-import type { components } from './openapi'
+import type { components, operations } from './openapi'
 
 type APIModels = components['schemas']
-type Meta = APIModels['Meta'] & { total: number; page?: number }
+type CreateAlertInput = NonNullable<
+  operations['createAlert']['requestBody']
+>['content']['application/json']
+type PatchAlertInput = NonNullable<
+  operations['patchAlert']['requestBody']
+>['content']['application/json']
+type Meta = APIModels['Meta']
 interface Envelope<T> {
   data: T
   meta?: Meta
 }
 
-// Validate a response payload against its schema at the network boundary.
-// Drift between the backend and these schemas surfaces as a loud, specific
-// console error (which endpoint, which fields) instead of an `undefined.map`
-// crash deep inside a component. We pass the raw value through on failure so a
-// single unexpected/extra field can't blank a whole view — the schema is the
-// type contract, resilience is the runtime behaviour.
-function parse<S extends z.ZodTypeAny>(schema: S, data: unknown, where: string): z.infer<S> {
-  const r = schema.safeParse(data)
-  if (r.success) return r.data
-  console.error(`[api] response validation failed: ${where}`, r.error.issues)
-  return data as z.infer<S>
+type GeneratedResponse<T> = {
+  data?: Envelope<T>
+  error?: APIModels['Error']
+  response: Response
 }
 
-async function get<S extends z.ZodTypeAny>(
-  path: string,
-  schema: S,
-  signal?: AbortSignal,
-): Promise<Envelope<z.infer<S>>> {
-  const { data, error, response } = await openapiClient.GET(path as never, { signal } as never)
-  if (error || !response.ok) throw new Error(`${response.status} ${response.statusText}`)
-  const json = data as Envelope<unknown>
-  return { data: parse(schema, json.data, `GET ${path}`), meta: json.meta }
-}
-
-async function post<S extends z.ZodTypeAny>(
-  path: string,
-  body: unknown,
-  schema: S,
-  signal?: AbortSignal,
-): Promise<Envelope<z.infer<S>>> {
-  const { data, error, response } = await openapiClient.POST(
-    path as never,
-    { body, signal } as never,
-  )
+async function unwrap<T>(call: Promise<GeneratedResponse<T>>): Promise<Envelope<T>> {
+  const { data, error, response } = await call
   if (error || !response.ok) {
-    const detail = error as { error?: unknown } | undefined
-    throw new Error(
-      typeof detail?.error === 'string'
-        ? detail.error
-        : `${response.status} ${response.statusText}`,
-    )
+    throw new Error(error?.error ?? `${response.status} ${response.statusText}`)
   }
-  const json = data as Envelope<unknown>
-  return { data: parse(schema, json.data, `POST ${path}`), meta: json.meta }
+  if (!data) throw new Error(`${response.status} ${response.statusText}`)
+  return data
 }
-
-async function del<S extends z.ZodTypeAny>(path: string, schema: S): Promise<Envelope<z.infer<S>>> {
-  const { data, error, response } = await openapiClient.DELETE(path as never)
-  if (error || !response.ok) throw new Error(`${response.status} ${response.statusText}`)
-  const json = data as Envelope<unknown>
-  return { data: parse(schema, json.data, `DELETE ${path}`), meta: json.meta }
-}
-
-async function patch<S extends z.ZodTypeAny>(
-  path: string,
-  body: unknown,
-  schema: S,
-): Promise<Envelope<z.infer<S>>> {
-  const { data, error, response } = await openapiClient.PATCH(path as never, { body } as never)
-  if (error || !response.ok) throw new Error(`${response.status} ${response.statusText}`)
-  const json = data as Envelope<unknown>
-  return { data: parse(schema, json.data, `PATCH ${path}`), meta: json.meta }
-}
-
-// ── schemas (single source of truth; types are inferred below) ────────────────
-// Unknown/extra keys are stripped by default, so new backend fields are
-// forward-compatible. Optional (`?`) fields use `.optional()`.
-
-export const TraceRowSchema = z.object({
-  trace_id: z.string(),
-  service_name: z.string(),
-  name: z.string(),
-  attributes: z.string(),
-  status_code: z.number(),
-  start_ns: z.number(),
-  end_ns: z.number(),
-  duration_ns: z.number(),
-  session_id: z.string(),
-  session_label: z.string(),
-  has_n1: z.boolean(),
-  span_count: z.number(),
-  issue_kinds: z.array(z.string()).optional(),
-})
-
-export const TraceIssueSchema = z.object({
-  id: z.string(),
-  trace_id: z.string(),
-  session_id: z.string(),
-  kind: z.string(),
-  fingerprint: z.string(),
-  count: z.number(),
-  wasted_ns: z.number(),
-  parent_span_id: z.string(),
-  example_span_id: z.string(),
-  created_at: z.number(),
-})
-
-export const SpanEventSchema = z.object({
-  span_id: z.string(),
-  trace_id: z.string(),
-  session_id: z.string(),
-  time_ns: z.number(),
-  name: z.string(),
-  attributes: z.string(),
-})
-
-export const SpanLinkSchema = z.object({
-  span_id: z.string(),
-  trace_id: z.string(),
-  session_id: z.string(),
-  linked_trace_id: z.string(),
-  linked_span_id: z.string(),
-  trace_state: z.string(),
-  attributes: z.string(),
-})
-
-export const SpanSchema = z.object({
-  trace_id: z.string(),
-  span_id: z.string(),
-  parent_span_id: z.string(),
-  service_name: z.string(),
-  name: z.string(),
-  kind: z.number(),
-  start_ns: z.number(),
-  end_ns: z.number(),
-  duration_ns: z.number(),
-  status_code: z.number(),
-  status_message: z.string(),
-  attributes: z.string(),
-  resource: z.string(),
-  session_id: z.string(),
-  session_label: z.string(),
-  received_at: z.number(),
-  events: z.array(SpanEventSchema),
-  links: z.array(SpanLinkSchema),
-})
-
-export const SpanRowSchema = SpanSchema.extend({
-  tag: z.string().optional(),
-})
-
-export const SpanGroupSchema = z.object({
-  service_name: z.string(),
-  name: z.string(),
-  kind: z.number(),
-  count: z.number(),
-  latest_start_ns: z.number(),
-  error_count: z.number(),
-  p50_duration_ns: z.number(),
-  p95_duration_ns: z.number(),
-  max_duration_ns: z.number(),
-  attribute_variants: z.number(),
-})
-
-export const LogSchema = z.object({
-  timestamp_ns: z.number(),
-  trace_id: z.string(),
-  span_id: z.string(),
-  severity: z.number(),
-  body: z.string(),
-  attributes: z.string(),
-  service_name: z.string(),
-  session_id: z.string(),
-  received_at: z.number(),
-})
-
-export const SessionSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  created_at: z.number(),
-  is_baseline: z.boolean(),
-  is_imported: z.boolean(),
-  span_count: z.number(),
-  trace_count: z.number(),
-  services: z.string(),
-  note: z.string(),
-  last_activity_ns: z.number(),
-  p95_ns: z.number(),
-  size_bytes: z.number(),
-  n1_count: z.number(),
-  error_count: z.number(),
-})
-
-export const ImportResultSchema = z.object({
-  session: SessionSchema,
-  span_count: z.number(),
-  trace_count: z.number(),
-})
-
-export const SearchResultSchema = z.object({
-  kind: z.enum(['trace', 'span', 'session', 'service', 'log']),
-  trace_id: z.string(),
-  span_id: z.string().optional(),
-  title: z.string(),
-  subtitle: z.string(),
-  session_id: z.string(),
-})
-
-export const MetricCatalogEntrySchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  unit: z.string(),
-  type: z.string(),
-  aggregation_temporality: z.string().optional(),
-  is_monotonic: z.boolean().optional(),
-  service_name: z.string(),
-  sample_count: z.number(),
-  last_timestamp_ns: z.number(),
-})
-
-export const MetricSeriesExemplarSchema = z.object({
-  trace_id: z.string(),
-  span_id: z.string(),
-})
-
-export const MetricSeriesPointSchema = z.object({
-  start_timestamp_ns: z.number().optional(),
-  timestamp_ns: z.number(),
-  flags: z.number().optional(),
-  value: z.number(),
-  percentile: z.enum(['p50', 'p95', 'p99']).optional(),
-  count: z.number().optional(),
-  sum: z.number().optional(),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  bounds: z.array(z.number()).optional(),
-  buckets: z.array(z.number()).optional(),
-  quantiles: z.record(z.string(), z.number()).optional(),
-  exp_scale: z.number().optional(),
-  exp_zero_count: z.number().optional(),
-  exp_zero_threshold: z.number().optional(),
-  exp_positive_offset: z.number().optional(),
-  exp_positive_counts: z.array(z.number()).optional(),
-  exp_negative_offset: z.number().optional(),
-  exp_negative_counts: z.array(z.number()).optional(),
-  scope_name: z.string().optional(),
-  scope_version: z.string().optional(),
-  scope_schema_url: z.string().optional(),
-  scope_attributes: z.record(z.string(), z.unknown()).optional(),
-  exemplars: z.array(MetricSeriesExemplarSchema).optional(),
-})
-
-export const TraceOverlaySchema = z.object({
-  trace_id: z.string(),
-  op: z.string(),
-  service: z.string(),
-  status_code: z.number(),
-  start_ns: z.number(),
-  end_ns: z.number(),
-  duration_ns: z.number(),
-})
-
-export const MetricSeriesSchema = z.object({
-  name: z.string(),
-  service_name: z.string(),
-  type: z.string(),
-  unit: z.string(),
-  description: z.string(),
-  aggregation_temporality: z.string().optional(),
-  is_monotonic: z.boolean().optional(),
-  operation: z.string().optional(),
-  points: z.array(MetricSeriesPointSchema),
-  series: z
-    .array(
-      z.object({
-        key: z.string(),
-        attributes: z.record(z.string(), z.unknown()),
-        points: z.array(MetricSeriesPointSchema),
-      }),
-    )
-    .optional(),
-  dimensions: z.record(z.string(), z.array(z.string())).optional(),
-  aggregation: z.string().optional(),
-  // Populated only when ?with_traces=1 is requested. Always an array (server
-  // returns [] when none) so the type stays non-optional.
-  traces: z.array(TraceOverlaySchema),
-})
-
-export const MetricCardinalityStreamSchema = z.object({
-  service_name: z.string(),
-  name: z.string(),
-  active_series: z.number(),
-  limit: z.number(),
-})
-
-export const CoverageRouteSchema = z.object({
-  method: z.string(),
-  path: z.string(),
-  hits: z.number(),
-  p95_ns: z.number().optional(),
-  last_seen_ns: z.number().optional(),
-})
-
-export const ServiceCoverageSchema = z.object({
-  name: z.string(),
-  source: z.enum(['openapi', 'observed']),
-  spec: z.string().optional(),
-  observed_operations: z.number(),
-  total_routes: z.number(),
-  coverage_pct: z.number(),
-  dark_routes: z.array(CoverageRouteSchema),
-  observed_routes: z.array(CoverageRouteSchema),
-})
-
-export const CoverageReportSchema = z.object({
-  services: z.array(ServiceCoverageSchema),
-  overall: z.object({
-    observed_operations: z.number(),
-    total_routes: z.number(),
-    dark_count: z.number(),
-    coverage_pct: z.number(),
-  }),
-  quality: z.object({
-    missing_route_spans: z.number(),
-    generic_route_spans: z.number(),
-    dynamic_route_spans: z.number(),
-  }),
-})
-
-export const SettingsRuntimeSchema = z.object({
-  pid: z.number(),
-  uptime_ns: z.number(),
-  version: z.string(),
-  channel: z.string(),
-  config_path: z.string(),
-  otlp_grpc_port: z.number(),
-  otlp_http_port: z.number(),
-  db_size_bytes: z.number(),
-})
-
-export const UpdateCheckResultSchema = z.object({
-  current: z.string(),
-  latest: z.string(),
-  channel: z.string(),
-  is_outdated: z.boolean(),
-  release_notes_url: z.string(),
-  checked_at_ns: z.number(),
-  error: z.string().optional(),
-})
-
-export const SettingsSchema = z.object({
-  port: z.number(),
-  db_path: z.string(),
-  alerts_dir: z.string(),
-  retention_days: z.number(),
-  max_sessions: z.number(),
-  max_db_size_mb: z.number(),
-  auto_prune: z.boolean(),
-  advance_session_on_start: z.boolean(),
-  otlp_grpc_port: z.number(),
-  otlp_http_port: z.number(),
-  no_browser: z.boolean(),
-  forward: z.array(z.string()),
-  bind_address_v4: z.string(),
-  bind_address_v6: z.string(),
-  forward_sample: z.number(),
-  source_rps: z.number(),
-  source_burst: z.number(),
-  tls_enabled: z.boolean(),
-  bearer_token_set: z.boolean(),
-  self_monitor: z.boolean(),
-  mcp_enabled: z.boolean(),
-  mcp_allow_writes: z.boolean(),
-  alerts_browser_enabled: z.boolean(),
-  alerts_pushover_enabled: z.boolean(),
-  alerts_pushover_configured: z.boolean(),
-  alerts_browser_template: z.string(),
-  alerts_pushover_template: z.string(),
-  runtime: SettingsRuntimeSchema,
-})
-
-// Older Spaniel daemons predate auto_prune. Keep the form schema strict while
-// accepting their read responses with the safe default retention policy.
-export const SettingsResponseSchema = SettingsSchema.extend({
-  auto_prune: z.boolean().default(true),
-})
-
-export const SourceStatsSchema = z.object({
-  service: z.string(),
-  accepted_per_sec: z.number(),
-  rejected_per_sec: z.number(),
-  error_rate: z.number(),
-  bytes_per_sec: z.number(),
-  last_seen_ns: z.number(),
-})
-
-export const ForwarderStatusSchema = z.object({
-  url: z.string(),
-  sent: z.number(),
-  errors: z.number(),
-  last_error: z.string().optional(),
-  pending_bytes: z.number().optional(),
-  dropped_spool: z.number().optional(),
-})
-
-export const LintWarningSchema = z.object({
-  span_id: z.string(),
-  trace_id: z.string(),
-  session_id: z.string(),
-  rule_id: z.string(),
-  message: z.string(),
-  severity: z.string(),
-  created_at: z.number(),
-})
-
-export const StatsSchema = z.object({
-  span_count: z.number(),
-  trace_count: z.number(),
-  log_count: z.number(),
-  db_size: z.number(),
-  spans_per_sec: z.number(),
-  logs_per_sec: z.number(),
-  metrics_per_sec: z.number(),
-  peak_spans_per_sec: z.number(),
-  dropped_spans: z.number(),
-  dropped_logs: z.number(),
-  dropped_metric_points: z.number(),
-  last_drop_at: z.number(),
-  storage_full: z.boolean().optional().default(false),
-})
-
-export const ServiceMapOpStatSchema = z.object({
-  name: z.string(),
-  count: z.number(),
-  p95_ns: z.number(),
-})
-
-export const ServiceMapNodeSchema = z.object({
-  id: z.string(),
-  span_count: z.number(),
-  error_count: z.number(),
-  p95_ns: z.number(),
-  top_operations: z.array(ServiceMapOpStatSchema),
-})
-
-export const ServiceMapEdgeSchema = z.object({
-  from: z.string(),
-  to: z.string(),
-  call_count: z.number(),
-  avg_duration_ns: z.number(),
-  error_count: z.number(),
-})
-
-export const ServiceMapDataSchema = z.object({
-  nodes: z.array(ServiceMapNodeSchema),
-  edges: z.array(ServiceMapEdgeSchema),
-})
-
-export const TableStatSchema = z.object({
-  name: z.string(),
-  row_count: z.number(),
-  approx_bytes: z.number(),
-})
-
-export const SessionSizeSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  approx_bytes: z.number(),
-  span_count: z.number(),
-})
-
-export const StorageBreakdownSchema = z.object({
-  tables: z.array(TableStatSchema),
-  // v0.2.2 emitted null when no session sizes were available.
-  sessions: z
-    .array(SessionSizeSchema)
-    .nullish()
-    .transform((value) => value ?? []),
-  wal_bytes: z.number(),
-  main_bytes: z.number(),
-  last_checkpoint_at: z.number(),
-})
-
-export const DashboardVariableSchema = z.object({
-  dashboard_id: z.string(),
-  name: z.string(),
-  kind: z.enum([
-    'attribute',
-    'string',
-    'number',
-    'boolean',
-    'duration',
-    'time',
-    'enum',
-    'service',
-    'operation',
-    'trace_id',
-    'span_id',
-    'log_id',
-  ]),
-  source: z.string(),
-  options_json: z.string(),
-  default_value: z.string(),
-})
-export const DashboardPanelSchema = z.object({
-  id: z.string(),
-  dashboard_id: z.string(),
-  title: z.string(),
-  display_type: z.enum([
-    'single_value',
-    'time_series',
-    'table',
-    'heatmap',
-    'entity_list',
-    'trace_list',
-    'span_list',
-    'log_list',
-    'deploy_correlation',
-  ]),
-  query_sql: z.string(),
-  query_version: z.number(),
-  settings_json: z.string(),
-  layout_json: z.string(),
-  position: z.number(),
-  updated_at: z.number(),
-})
-export const DashboardSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  created_at: z.number(),
-  updated_at: z.number(),
-  variables: z.array(DashboardVariableSchema).default([]),
-  panels: z.array(DashboardPanelSchema).default([]),
-})
-export const QueryPreviewSchema = z.object({
-  display_type: z.string().optional(),
-  columns: z.array(z.string()),
-  rows: z.array(z.record(z.string(), z.unknown())),
-  truncated: z.boolean().optional(),
-  query_version: z.number().optional(),
-  warnings: z.array(z.string()).default([]),
-  notification_preview: z
-    .array(
-      z.object({
-        destination: z.string(),
-        status: z.string(),
-        reason: z.string().optional(),
-      }),
-    )
-    .optional(),
-  condition: z
-    .object({
-      kind: z.string().optional(),
-      operator: z.string().optional(),
-      value: z.number().optional(),
-      pattern: z.string().optional(),
-    })
-    .optional(),
-})
-export const DatabaseSchemaCatalogSchema = z.object({
-  version: z.string(),
-  fingerprint: z.string(),
-  views: z.array(
-    z.object({
-      name: z.string(),
-      purpose: z.string(),
-      columns: z.array(
-        z.object({
-          name: z.string(),
-          type: z.string(),
-          description: z.string(),
-          use_it_for: z.string(),
-          sensitivity: z.string().optional(),
-        }),
-      ),
-      samples: z
-        .array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-            display_type: z.string(),
-            sql: z.string(),
-            explanation: z.string(),
-          }),
-        )
-        .default([]),
-    }),
-  ),
-  parameters: z.array(z.string()).default([]),
-})
-export const QueryCatalogEntrySchema = z.object({
-  signal: z.string(),
-  name: z.string(),
-  query: z.string(),
-  display_type: z.string(),
-  attributes: z.record(z.string(), z.unknown()).optional(),
-})
-export const AlertInstanceSchema = z.object({
-  rule_id: z.string(),
-  group_key: z.string(),
-  labels_json: z.string(),
-  state: z.string(),
-  value: z.number().nullable().optional(),
-  first_pending_at: z.number().nullable().optional(),
-  fired_at: z.number().nullable().optional(),
-  resolved_at: z.number().nullable().optional(),
-  acknowledged_at: z.number().nullable().optional(),
-  acknowledgement_note: z.string(),
-  last_evaluated_at: z.number(),
-  last_error: z.string(),
-})
-export const AlertEventSchema = z.object({
-  id: z.string(),
-  rule_id: z.string(),
-  group_key: z.string(),
-  kind: z.string(),
-  state: z.string(),
-  value: z.number().nullable().optional(),
-  detail: z.string(),
-  created_at: z.number(),
-})
-export const AlertSilenceSchema = z.object({
-  id: z.string(),
-  rule_id: z.string(),
-  group_key: z.string(),
-  comment: z.string(),
-  starts_at: z.number(),
-  ends_at: z.number(),
-  created_at: z.number(),
-})
-export const AlertRuleSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  query_sql: z.string(),
-  query_version: z.number(),
-  condition_json: z.string(),
-  group_by_json: z.string(),
-  annotations_json: z.string(),
-  pending_for_ns: z.number(),
-  cooldown_ns: z.number(),
-  repeat_interval_ns: z.number(),
-  severity: z.enum(['info', 'warning', 'critical']),
-  enabled: z.boolean(),
-  browser_enabled: z.boolean(),
-  pushover_enabled: z.boolean(),
-  instance_discovery_sql: z.string(),
-  instance_discovery_interval_ns: z.number(),
-  instance_discovery_stale_after_ns: z.number(),
-  instance_discovery_last_run_at: z.number(),
-  last_evaluated_at: z.number(),
-  last_success_at: z.number(),
-  last_duration_ns: z.number(),
-  next_evaluation_at: z.number(),
-  last_error: z.string(),
-  source_file: z.string(),
-  source_hash: z.string(),
-  created_at: z.number(),
-  updated_at: z.number(),
-  instances: z.array(AlertInstanceSchema).default([]),
-})
-
-export const CompactResultSchema = z.object({
-  bytes_before: z.number(),
-  bytes_after: z.number(),
-  reclaimed: z.number(),
-})
-
-// Mirrors storage.PruneResult (Go json tags).
-export const PruneResultSchema = z.object({
-  deleted_by_age: z.number(),
-  deleted_by_count: z.number(),
-  deleted_by_size: z.number(),
-  final_sessions: z.number(),
-  final_db_size_bytes: z.number(),
-})
-
-// Small ad-hoc response shapes.
-const OkSchema = z.object({ ok: z.boolean() })
-const AlertTestNotificationSchema = z.object({
-  destination: z.enum(['browser', 'pushover']),
-  status: z.enum(['sent', 'suppressed']),
-  body: z.string().optional(),
-})
-const ActiveSessionSchema = z.object({ id: z.string(), label: z.string() })
 
 // ── inferred types (same names callers already import) ────────────────────────
 
@@ -732,27 +75,7 @@ export type QueryCatalogEntry = APIModels['QueryCatalogEntry']
 export type AlertRule = APIModels['AlertRule']
 export type AlertEvent = APIModels['AlertEvent']
 export type AlertSilence = APIModels['AlertSilence']
-export const NotificationRecordSchema = z.object({
-  id: z.string(),
-  source: z.string(),
-  source_id: z.string(),
-  severity: z.string(),
-  title: z.string(),
-  body: z.string(),
-  link: z.string(),
-  dedupe_key: z.string(),
-  created_at: z.number(),
-  read_at: z.number().nullable(),
-  acknowledged_at: z.number().nullable(),
-})
 export type NotificationRecord = APIModels['NotificationRecord']
-export const AlertListSchema = z.object({
-  items: z.array(AlertRuleSchema),
-  summary: z.object({
-    rule_counts: z.record(z.string(), z.number()),
-    instance_counts: z.record(z.string(), z.number()),
-  }),
-})
 export type AlertList = APIModels['AlertList']
 
 // Request payload — not a response, so no runtime validation needed.
@@ -781,21 +104,26 @@ export interface SettingsUpdate {
   alerts_pushover_template?: string
 }
 
+const isSpanRow = (row: SpanRow | SpanGroup): row is SpanRow => 'span_id' in row
+const isSpanGroup = (row: SpanRow | SpanGroup): row is SpanGroup => 'count' in row
+
 export const api = {
   databaseSchema: {
-    get: () => get('/api/database-schema', DatabaseSchemaCatalogSchema),
+    get: () => unwrap(openapiClient.GET('/api/database-schema')),
   },
   dashboards: {
-    list: () => get('/api/dashboards', z.array(DashboardSchema)),
-    get: (id: string) => get(`/api/dashboards/${id}`, DashboardSchema),
+    list: () => unwrap(openapiClient.GET('/api/dashboards')),
+    get: (id: string) =>
+      unwrap(openapiClient.GET('/api/dashboards/{id}', { params: { path: { id } } })),
     create: (body: {
       name: string
       description?: string
       panels?: Array<Pick<DashboardPanel, 'title' | 'display_type' | 'query_sql'>>
-    }) => post('/api/dashboards', body, DashboardSchema),
+    }) => unwrap(openapiClient.POST('/api/dashboards', { body })),
     update: (id: string, body: { name: string; description?: string }) =>
-      patch(`/api/dashboards/${id}`, body, DashboardSchema),
-    remove: (id: string) => del(`/api/dashboards/${id}`, OkSchema),
+      unwrap(openapiClient.PATCH('/api/dashboards/{id}', { params: { path: { id } }, body })),
+    remove: (id: string) =>
+      unwrap(openapiClient.DELETE('/api/dashboards/{id}', { params: { path: { id } } })),
     config: async (id: string) => {
       const response = await fetch(`/api/dashboards/${id}/config`)
       if (!response.ok) throw new Error(await response.text())
@@ -819,15 +147,20 @@ export const api = {
         variables?: Record<string, string>
       },
       signal?: AbortSignal,
-    ) => post(`/api/dashboards/${id}/query-preview`, body, QueryPreviewSchema, signal),
+    ) =>
+      unwrap(
+        openapiClient.POST('/api/dashboards/{id}/query-preview', {
+          params: { path: { id } },
+          body,
+          signal,
+        }),
+      ),
     catalog: (signal?: string, search?: string, abortSignal?: AbortSignal) => {
-      const query = new URLSearchParams()
-      if (signal) query.set('signal', signal)
-      if (search) query.set('q', search)
-      return get(
-        `/api/query-catalog${query.size ? `?${query}` : ''}`,
-        z.array(QueryCatalogEntrySchema),
-        abortSignal,
+      return unwrap(
+        openapiClient.GET('/api/query-catalog', {
+          params: { query: { signal, q: search } },
+          signal: abortSignal,
+        }),
       )
     },
     panel: (
@@ -840,7 +173,13 @@ export const api = {
         layout_json?: string
         position: number
       },
-    ) => post(`/api/dashboards/${id}/panels`, body, DashboardPanelSchema),
+    ) =>
+      unwrap(
+        openapiClient.POST('/api/dashboards/{id}/panels', {
+          params: { path: { id } },
+          body,
+        }),
+      ),
     updatePanel: (
       id: string,
       panelId: string,
@@ -852,11 +191,26 @@ export const api = {
         layout_json?: string
         position: number
       },
-    ) => patch(`/api/dashboards/${id}/panels/${panelId}`, body, DashboardPanelSchema),
+    ) =>
+      unwrap(
+        openapiClient.PATCH('/api/dashboards/{id}/panels/{panelId}', {
+          params: { path: { id, panelId } },
+          body,
+        }),
+      ),
     removePanel: (id: string, panelId: string) =>
-      del(`/api/dashboards/${id}/panels/${panelId}`, OkSchema),
+      unwrap(
+        openapiClient.DELETE('/api/dashboards/{id}/panels/{panelId}', {
+          params: { path: { id, panelId } },
+        }),
+      ),
     movePanel: (id: string, panelId: string, direction: -1 | 1) =>
-      post(`/api/dashboards/${id}/panels/${panelId}/move`, { direction }, OkSchema),
+      unwrap(
+        openapiClient.POST('/api/dashboards/{id}/panels/{panelId}/move', {
+          params: { path: { id, panelId } },
+          body: { direction },
+        }),
+      ),
     variable: (
       id: string,
       body: {
@@ -866,10 +220,21 @@ export const api = {
         options_json?: string
         default_value?: string
       },
-    ) => post(`/api/dashboards/${id}/variables`, body, DashboardVariableSchema),
+    ) =>
+      unwrap(
+        openapiClient.POST('/api/dashboards/{id}/variables', {
+          params: { path: { id } },
+          body,
+        }),
+      ),
     deleteVariable: (id: string, name: string) =>
-      del(`/api/dashboards/${id}/variables/${encodeURIComponent(name)}`, OkSchema),
-    reorder: (ids: string[]) => post('/api/dashboards/reorder', { ids }, OkSchema),
+      unwrap(
+        openapiClient.DELETE('/api/dashboards/{id}/variables/{name}', {
+          params: { path: { id, name } },
+        }),
+      ),
+    reorder: (ids: string[]) =>
+      unwrap(openapiClient.POST('/api/dashboards/reorder', { body: { ids } })),
   },
   alerts: {
     list: ({
@@ -878,35 +243,55 @@ export const api = {
       state,
       search,
     }: { page?: number; limit?: number; state?: string; search?: string } = {}) => {
-      const query = new URLSearchParams({ page: String(page), limit: String(limit) })
-      if (state) query.set('state', state)
-      if (search) query.set('search', search)
-      return get(`/api/alerts?${query}`, AlertListSchema)
+      return unwrap(
+        openapiClient.GET('/api/alerts', { params: { query: { page, limit, state, search } } }),
+      )
     },
-    get: (id: string) => get(`/api/alerts/${id}`, AlertRuleSchema),
-    create: (body: Record<string, unknown>) => post('/api/alerts', body, AlertRuleSchema),
-    update: (id: string, body: Record<string, unknown>) =>
-      patch(`/api/alerts/${id}`, body, AlertRuleSchema),
-    duplicate: (id: string) => post(`/api/alerts/${id}/duplicate`, {}, AlertRuleSchema),
+    get: (id: string) =>
+      unwrap(openapiClient.GET('/api/alerts/{id}', { params: { path: { id } } })),
+    create: (body: CreateAlertInput) => unwrap(openapiClient.POST('/api/alerts', { body })),
+    update: (id: string, body: PatchAlertInput) =>
+      unwrap(openapiClient.PATCH('/api/alerts/{id}', { params: { path: { id } }, body })),
+    duplicate: (id: string) =>
+      unwrap(
+        openapiClient.POST('/api/alerts/{id}/duplicate', { params: { path: { id } }, body: {} }),
+      ),
     testNotification: (id: string, destination: 'browser' | 'pushover') =>
-      post(`/api/alerts/${id}/test-notification`, { destination }, AlertTestNotificationSchema),
-    remove: (id: string) => del(`/api/alerts/${id}`, OkSchema),
-    acknowledge: (id: string) => post(`/api/alerts/${id}/acknowledge`, {}, OkSchema),
+      unwrap(
+        openapiClient.POST('/api/alerts/{id}/test-notification', {
+          params: { path: { id } },
+          body: { destination },
+        }),
+      ),
+    remove: (id: string) =>
+      unwrap(openapiClient.DELETE('/api/alerts/{id}', { params: { path: { id } } })),
+    acknowledge: (id: string) =>
+      unwrap(
+        openapiClient.POST('/api/alerts/{id}/acknowledge', { params: { path: { id } }, body: {} }),
+      ),
     acknowledgeInstance: (id: string, groupKey: string, note = '') =>
-      post(
-        `/api/alerts/${id}/instances/acknowledge`,
-        { group_key: groupKey, note },
-        AlertInstanceSchema,
+      unwrap(
+        openapiClient.POST('/api/alerts/{id}/instances/acknowledge', {
+          params: { path: { id } },
+          body: { group_key: groupKey, note },
+        }),
       ),
     unacknowledgeInstance: (id: string, groupKey: string) =>
-      post(
-        `/api/alerts/${id}/instances/unacknowledge`,
-        { group_key: groupKey },
-        AlertInstanceSchema,
+      unwrap(
+        openapiClient.POST('/api/alerts/{id}/instances/unacknowledge', {
+          params: { path: { id } },
+          body: { group_key: groupKey },
+        }),
       ),
-    preview: (id: string) => post(`/api/alerts/${id}/preview`, {}, QueryPreviewSchema),
-    previewDraft: (body: Record<string, unknown>) =>
-      post('/api/alerts/preview', body, QueryPreviewSchema),
+    preview: (id: string) =>
+      unwrap(
+        openapiClient.POST('/api/alerts/{id}/preview', { params: { path: { id } }, body: {} }),
+      ),
+    previewDraft: (
+      body: NonNullable<
+        operations['previewAlertDraft']['requestBody']
+      >['content']['application/json'],
+    ) => unwrap(openapiClient.POST('/api/alerts/preview', { body })),
     config: async (id: string) => {
       const r = await fetch(`/api/alerts/${id}/config`)
       if (!r.ok) throw new Error(await r.text())
@@ -921,14 +306,16 @@ export const api = {
       if (!r.ok) throw new Error(await r.text())
       return r.json()
     },
-    reload: () => post('/api/alerts/reload', {}, OkSchema),
+    reload: () => unwrap(openapiClient.POST('/api/alerts/reload', { body: {} })),
     events: (
       id: string,
       { groupKey, page = 1, limit = 15 }: { groupKey?: string; page?: number; limit?: number } = {},
     ) => {
-      const query = new URLSearchParams({ page: String(page), limit: String(limit) })
-      if (groupKey) query.set('group_key', groupKey)
-      return get(`/api/alerts/${id}/events?${query}`, z.array(AlertEventSchema))
+      return unwrap(
+        openapiClient.GET('/api/alerts/{id}/events', {
+          params: { path: { id }, query: { group_key: groupKey, page, limit } },
+        }),
+      )
     },
     history: (
       filters: {
@@ -944,28 +331,32 @@ export const api = {
         to?: number
       } = {},
     ) => {
-      const query = new URLSearchParams()
-      for (const [key, value] of Object.entries(filters)) {
-        if (value !== undefined && value !== '') query.set(key, String(value))
-      }
-      const suffix = query.size ? `?${query}` : ''
-      return get(
-        `/api/alerts/history${suffix}`,
-        z.array(AlertEventSchema.extend({ rule_name: z.string().optional() })),
-      )
+      return unwrap(openapiClient.GET('/api/alerts/history', { params: { query: filters } }))
     },
-    silences: (id: string) => get(`/api/alerts/${id}/silences`, z.array(AlertSilenceSchema)),
+    silences: (id: string) =>
+      unwrap(openapiClient.GET('/api/alerts/{id}/silences', { params: { path: { id } } })),
     silence: (
       id: string,
       body: { ends_at: number; comment: string; group_key?: string; starts_at?: number },
-    ) => post(`/api/alerts/${id}/silences`, body, AlertSilenceSchema),
+    ) =>
+      unwrap(openapiClient.POST('/api/alerts/{id}/silences', { params: { path: { id } }, body })),
     updateSilence: (
       id: string,
       silenceID: string,
       body: { ends_at: number; comment: string; group_key?: string; starts_at: number },
-    ) => patch(`/api/alerts/${id}/silences/${silenceID}`, body, AlertSilenceSchema),
+    ) =>
+      unwrap(
+        openapiClient.PATCH('/api/alerts/{id}/silences/{silenceID}', {
+          params: { path: { id, silenceID } },
+          body,
+        }),
+      ),
     removeSilence: (id: string, silenceID: string) =>
-      del(`/api/alerts/${id}/silences/${silenceID}`, OkSchema),
+      unwrap(
+        openapiClient.DELETE('/api/alerts/{id}/silences/{silenceID}', {
+          params: { path: { id, silenceID } },
+        }),
+      ),
   },
   notifications: {
     list: ({
@@ -973,26 +364,26 @@ export const api = {
       limit = 30,
       source,
     }: { page?: number; limit?: number; source?: string } = {}) =>
-      get(
-        `/api/notifications?page=${page}&limit=${limit}${source ? `&source=${encodeURIComponent(source)}` : ''}`,
-        z.array(NotificationRecordSchema),
+      unwrap(
+        openapiClient.GET('/api/notifications', { params: { query: { page, limit, source } } }),
       ),
-    read: (id: string) => post(`/api/notifications/${id}/read`, {}, OkSchema),
-    acknowledge: (id: string) => post(`/api/notifications/${id}/acknowledge`, {}, OkSchema),
+    read: (id: string) =>
+      unwrap(openapiClient.POST('/api/notifications/{id}/read', { params: { path: { id } } })),
+    acknowledge: (id: string) =>
+      unwrap(
+        openapiClient.POST('/api/notifications/{id}/acknowledge', {
+          params: { path: { id } },
+        }),
+      ),
   },
   traces: {
     list: (
       params: { sessionId?: string; service?: string; page?: number; limit?: number } = {},
     ) => {
-      const search = new URLSearchParams()
-      if (params.sessionId) search.set('sessionId', params.sessionId)
-      if (params.service) search.set('service', params.service)
-      if (params.page) search.set('page', String(params.page))
-      if (params.limit) search.set('limit', String(params.limit))
-      const query = search.toString()
-      return get(`/api/traces${query ? `?${query}` : ''}`, z.array(TraceRowSchema))
+      return unwrap(openapiClient.GET('/api/traces', { params: { query: params } }))
     },
-    get: (traceId: string) => get(`/api/traces/${traceId}`, z.array(SpanSchema)),
+    get: (traceId: string) =>
+      unwrap(openapiClient.GET('/api/traces/{traceId}', { params: { path: { traceId } } })),
     exportUrl: (traceId: string) => `/api/traces/${traceId}/export`,
   },
   spans: {
@@ -1004,26 +395,18 @@ export const api = {
       service?: string
       name?: string
       kind?: number
-    }) => {
-      const q = new URLSearchParams()
-      if (params?.sort) q.set('sort', params.sort)
-      if (params?.sessionId) q.set('sessionId', params.sessionId)
-      if (params?.limit) q.set('limit', String(params.limit))
-      if (params?.page) q.set('page', String(params.page))
-      if (params?.service) q.set('service', params.service)
-      if (params?.name) q.set('name', params.name)
-      if (params?.kind !== undefined) q.set('kind', String(params.kind))
-      const qs = q.toString()
-      return get(`/api/spans${qs ? `?${qs}` : ''}`, z.array(SpanRowSchema))
-    },
+    }) =>
+      unwrap(openapiClient.GET('/api/spans', { params: { query: params } })).then((response) => ({
+        ...response,
+        data: response.data.filter(isSpanRow),
+      })),
     groups: (params?: { sessionId?: string; limit?: number; page?: number }) => {
-      const q = new URLSearchParams({ view: 'grouped' })
-      if (params?.sessionId) q.set('sessionId', params.sessionId)
-      if (params?.limit) q.set('limit', String(params.limit))
-      if (params?.page) q.set('page', String(params.page))
-      return get(`/api/spans?${q}`, z.array(SpanGroupSchema))
+      return unwrap(
+        openapiClient.GET('/api/spans', { params: { query: { ...params, view: 'grouped' } } }),
+      ).then((response) => ({ ...response, data: response.data.filter(isSpanGroup) }))
     },
-    get: (spanId: string) => get(`/api/spans/${spanId}`, SpanSchema),
+    get: (spanId: string) =>
+      unwrap(openapiClient.GET('/api/spans/{spanId}', { params: { path: { spanId } } })),
   },
   logs: {
     list: (params?: {
@@ -1035,135 +418,104 @@ export const api = {
       page?: number
       limit?: number
     }) => {
-      const q = new URLSearchParams()
-      if (params?.sessionId) q.set('sessionId', params.sessionId)
-      if (params?.traceId) q.set('traceId', params.traceId)
-      if (params?.spanId) q.set('spanId', params.spanId)
-      if (params?.severity) q.set('severity', params.severity)
-      if (params?.service) q.set('service', params.service)
-      if (params?.page) q.set('page', String(params.page))
-      if (params?.limit) q.set('limit', String(params.limit))
-      const qs = q.toString()
-      return get(`/api/logs${qs ? `?${qs}` : ''}`, z.array(LogSchema))
+      return unwrap(openapiClient.GET('/api/logs', { params: { query: params } }))
     },
   },
   services: {
-    list: () => get('/api/services', z.array(z.string())),
+    list: () => unwrap(openapiClient.GET('/api/services')),
   },
   sessions: {
-    list: () => get('/api/sessions', z.array(SessionSchema)),
-    get: (id: string) => get(`/api/sessions/${id}`, SessionSchema),
-    getActive: () => get('/api/sessions/active', ActiveSessionSchema),
-    create: (label?: string) => post('/api/sessions', { label }, SessionSchema),
-    activate: (id: string) => post(`/api/sessions/${id}/activate`, {}, SessionSchema),
+    list: () => unwrap(openapiClient.GET('/api/sessions')),
+    get: (id: string) =>
+      unwrap(
+        openapiClient.GET('/api/sessions/{sessionId}', { params: { path: { sessionId: id } } }),
+      ),
+    getActive: () => unwrap(openapiClient.GET('/api/sessions/active')),
+    create: (label?: string) => unwrap(openapiClient.POST('/api/sessions', { body: { label } })),
+    activate: (id: string) =>
+      unwrap(
+        openapiClient.POST('/api/sessions/{sessionId}/activate', {
+          params: { path: { sessionId: id } },
+          body: {},
+        }),
+      ),
     baseline: (id: string, isBaseline: boolean) =>
-      post(`/api/sessions/${id}/baseline`, { is_baseline: isBaseline }, OkSchema),
+      unwrap(
+        openapiClient.POST('/api/sessions/{sessionId}/baseline', {
+          params: { path: { sessionId: id } },
+          body: { is_baseline: isBaseline },
+        }),
+      ),
     patch: (id: string, body: { label?: string; note?: string }) =>
-      patch(`/api/sessions/${id}`, body, SessionSchema),
-    delete: (id: string) => del(`/api/sessions/${id}`, OkSchema),
-    import: async (
-      label: string,
-      format: string,
-      data: string,
-    ): Promise<Envelope<ImportResult>> => {
-      const q = new URLSearchParams({ label, format })
-      const r = await fetch(`/api/sessions/import?${q}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: data,
-      })
-      if (!r.ok) throw new Error(await r.text())
-      const json = await r.json()
-      return {
-        data: parse(ImportResultSchema, json.data, 'POST /api/sessions/import'),
-        meta: json.meta,
-      }
-    },
+      unwrap(
+        openapiClient.PATCH('/api/sessions/{sessionId}', {
+          params: { path: { sessionId: id } },
+          body,
+        }),
+      ),
+    delete: (id: string) =>
+      unwrap(
+        openapiClient.DELETE('/api/sessions/{sessionId}', { params: { path: { sessionId: id } } }),
+      ),
+    import: (label: string, format: string, data: string) =>
+      unwrap(
+        openapiClient.POST('/api/sessions/import', {
+          params: { query: { label, format } },
+          body: data,
+        }),
+      ),
   },
   lint: {
     list: (sessionId?: string) =>
-      get(`/api/lint${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(LintWarningSchema)),
+      unwrap(openapiClient.GET('/api/lint', { params: { query: { sessionId } } })),
   },
   stats: {
     get: (sessionId?: string) =>
-      get(`/api/stats${sessionId ? `?sessionId=${sessionId}` : ''}`, StatsSchema),
+      unwrap(openapiClient.GET('/api/stats', { params: { query: { sessionId } } })),
   },
   serviceMap: {
     get: (sessionId?: string) =>
-      get(`/api/service-map${sessionId ? `?sessionId=${sessionId}` : ''}`, ServiceMapDataSchema),
+      unwrap(openapiClient.GET('/api/service-map', { params: { query: { sessionId } } })),
   },
   issues: {
-    get: (traceId: string) => get(`/api/issues?traceId=${traceId}`, z.array(TraceIssueSchema)),
+    get: (traceId: string) =>
+      unwrap(openapiClient.GET('/api/issues', { params: { query: { traceId } } })),
     list: (sessionId?: string) =>
-      get(`/api/issues${sessionId ? `?sessionId=${sessionId}` : ''}`, z.array(TraceIssueSchema)),
+      unwrap(openapiClient.GET('/api/issues', { params: { query: { sessionId } } })),
   },
   health: {
-    get: () => get('/api/health', OkSchema),
+    get: () => unwrap(openapiClient.GET('/api/health')),
     // Presents the bearer token to /api/health so the server sets the auth cookie.
     seed: (token: string): Promise<void> =>
       fetch('/api/health', { headers: { Authorization: `Bearer ${token}` } }).then(() => undefined),
   },
   sources: {
-    list: () => get('/api/sources', z.array(SourceStatsSchema)),
+    list: () => unwrap(openapiClient.GET('/api/sources')),
   },
   forwarders: {
-    list: () => get('/api/forwarders', z.array(ForwarderStatusSchema)),
+    list: () => unwrap(openapiClient.GET('/api/forwarders')),
   },
   settings: {
-    get: () => get('/api/settings', SettingsResponseSchema),
-    update: async (patchBody: SettingsUpdate): Promise<Envelope<Settings>> => {
-      const r = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patchBody),
-      })
-      if (!r.ok) throw new Error(await r.text())
-      const json = await r.json()
-      return { data: parse(SettingsSchema, json.data, 'PUT /api/settings'), meta: json.meta }
-    },
-    dropAllData: async () => {
-      const r = await fetch('/api/settings/data', { method: 'DELETE' })
-      if (!r.ok) throw new Error(await r.text())
-      return r.json()
-    },
-    compact: async (): Promise<Envelope<CompactResult>> => {
-      const r = await fetch('/api/settings/compact', { method: 'POST' })
-      if (!r.ok) throw new Error(await r.text())
-      const json = await r.json()
-      return {
-        data: parse(CompactResultSchema, json.data, 'POST /api/settings/compact'),
-        meta: json.meta,
-      }
-    },
-    prune: async (): Promise<Envelope<PruneResult>> => {
-      const r = await fetch('/api/settings/prune', { method: 'POST' })
-      if (!r.ok) throw new Error(await r.text())
-      const json = await r.json()
-      return {
-        data: parse(PruneResultSchema, json.data, 'POST /api/settings/prune'),
-        meta: json.meta,
-      }
-    },
-    checkUpdates: () => post('/api/settings/check-updates', {}, UpdateCheckResultSchema),
+    get: () => unwrap(openapiClient.GET('/api/settings')),
+    update: (patchBody: SettingsUpdate) =>
+      unwrap(openapiClient.PUT('/api/settings', { body: patchBody })),
+    dropAllData: () => unwrap(openapiClient.DELETE('/api/settings/data')),
+    compact: () => unwrap(openapiClient.POST('/api/settings/compact', { body: {} })),
+    prune: () => unwrap(openapiClient.POST('/api/settings/prune', { body: {} })),
+    checkUpdates: () => unwrap(openapiClient.POST('/api/settings/check-updates', { body: {} })),
   },
   storage: {
-    get: () => get('/api/storage', StorageBreakdownSchema),
+    get: () => unwrap(openapiClient.GET('/api/storage')),
   },
   coverage: {
     get: (sessionId?: string) =>
-      get(`/api/coverage${sessionId ? `?sessionId=${sessionId}` : ''}`, CoverageReportSchema),
+      unwrap(openapiClient.GET('/api/coverage', { params: { query: { sessionId } } })),
   },
   metrics: {
     list: (sessionId?: string) =>
-      get(
-        `/api/metrics${sessionId ? `?sessionId=${sessionId}` : ''}`,
-        z.array(MetricCatalogEntrySchema),
-      ),
+      unwrap(openapiClient.GET('/api/metrics', { params: { query: { sessionId } } })),
     cardinality: (sessionId?: string) =>
-      get(
-        `/api/metrics/cardinality${sessionId ? `?sessionId=${sessionId}` : ''}`,
-        z.array(MetricCardinalityStreamSchema),
-      ),
+      unwrap(openapiClient.GET('/api/metrics/cardinality', { params: { query: { sessionId } } })),
     series: (params: {
       name: string
       service?: string
@@ -1173,24 +525,26 @@ export const api = {
       operation?: string
       withTraces?: boolean
       dimensionFilters?: Record<string, string>
-    }) => {
-      const q = new URLSearchParams({ name: params.name })
-      if (params.service) q.set('service', params.service)
-      if (params.sessionId) q.set('sessionId', params.sessionId)
-      if (params.from) q.set('from', String(params.from))
-      if (params.to) q.set('to', String(params.to))
-      if (params.operation) q.set('operation', params.operation)
-      if (params.withTraces) q.set('with_traces', '1')
-      for (const [key, value] of Object.entries(params.dimensionFilters ?? {}))
-        q.set(`attr.${key}`, value)
-      return get(`/api/metrics/series?${q}`, MetricSeriesSchema)
-    },
+    }) =>
+      unwrap(
+        openapiClient.GET('/api/metrics/series', {
+          params: {
+            query: {
+              name: params.name,
+              service: params.service,
+              sessionId: params.sessionId,
+              from: params.from,
+              to: params.to,
+              operation: params.operation,
+              with_traces: params.withTraces,
+              attributes: params.dimensionFilters,
+            },
+          },
+        }),
+      ),
   },
   search: {
-    query: (q: string, sessionId?: string) => {
-      const params = new URLSearchParams({ q, limit: '20' })
-      if (sessionId) params.set('sessionId', sessionId)
-      return get(`/api/search?${params}`, z.array(SearchResultSchema))
-    },
+    query: (q: string, sessionId?: string) =>
+      unwrap(openapiClient.GET('/api/search', { params: { query: { q, limit: 20, sessionId } } })),
   },
 }

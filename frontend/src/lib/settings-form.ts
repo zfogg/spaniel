@@ -1,9 +1,8 @@
 import { z } from 'zod'
-import { SettingsSchema, type Settings } from './api'
+import type { Settings } from './api'
 
-// Validation for the editable settings fields. Built by reusing the response
-// SettingsSchema (#78) and tightening the editable subset with the same ranges
-// the inputs and backend enforce. Validation is advisory: the UI shows inline
+// Validation for local editable settings. The generated HTTP contract owns API
+// response types; this schema only owns browser form feedback. Validation is advisory: the UI shows inline
 // errors, but the server stays authoritative (values are still sent, so a
 // backend rejection — e.g. a port clash — still surfaces).
 
@@ -20,25 +19,7 @@ const isV4 = (v: string): boolean =>
   v === '' || (/^(\d{1,3})(\.\d{1,3}){3}$/.test(v) && v.split('.').every((o) => Number(o) <= 255))
 const isV6 = (v: string): boolean => v === '' || (v.includes(':') && /^[0-9a-fA-F:]+$/.test(v))
 
-export const SettingsFormSchema = SettingsSchema.pick({
-  port: true,
-  db_path: true,
-  retention_days: true,
-  max_sessions: true,
-  max_db_size_mb: true,
-  auto_prune: true,
-  advance_session_on_start: true,
-  otlp_grpc_port: true,
-  otlp_http_port: true,
-  no_browser: true,
-  forward: true,
-  bind_address_v4: true,
-  bind_address_v6: true,
-  forward_sample: true,
-  source_rps: true,
-  source_burst: true,
-  self_monitor: true,
-}).extend({
+export const SettingsFormSchema = z.object({
   port: z.number().int().min(1, 'Port must be 1–65535').max(65535, 'Port must be 1–65535'),
   otlp_grpc_port: z.number().int().min(0).max(65535, 'Port must be 0–65535'),
   otlp_http_port: z.number().int().min(0).max(65535, 'Port must be 0–65535'),
@@ -52,6 +33,10 @@ export const SettingsFormSchema = SettingsSchema.pick({
   forward: z.array(z.string().refine(isUrl, 'Each endpoint must be a valid URL')),
   bind_address_v4: z.string().refine(isV4, 'Invalid IPv4 address'),
   bind_address_v6: z.string().refine(isV6, 'Invalid IPv6 address'),
+  auto_prune: z.boolean(),
+  advance_session_on_start: z.boolean(),
+  no_browser: z.boolean(),
+  self_monitor: z.boolean(),
 })
 
 export type SettingsFormValues = z.infer<typeof SettingsFormSchema>

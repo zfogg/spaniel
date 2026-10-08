@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type operation struct {
@@ -31,6 +33,11 @@ func main() {
 	must(err)
 	var doc document
 	must(json.Unmarshal(spec, &doc))
+	var source any
+	must(json.Unmarshal(spec, &source))
+	yamlSpec, err := yaml.Marshal(source)
+	must(err)
+	must(os.WriteFile("api/openapi.yaml", yamlSpec, 0o644))
 	handlers := map[string]string{}
 	// These two routes deliberately adapt a shared implementation with a fixed mode.
 	handlers["POST /api/dashboards/{id}/panels"] = "r.savePanel(w, req, false)"
@@ -64,6 +71,8 @@ func main() {
 			handler = "r.health(w, req)"
 		case "getOpenAPISpec":
 			handler = "r.openAPI(w, req)"
+		case "getOpenAPIYAML":
+			handler = "r.openAPIYAML(w, req)"
 		case "getDatabaseSchema":
 			handler = "r.databaseSchema(w, req)"
 		case "setSessionBaseline":

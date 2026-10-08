@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTheme } from 'next-themes'
+import { Braces } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 declare global {
   interface Window {
@@ -108,6 +110,20 @@ export default function OpenAPI() {
   }, [resolvedTheme])
   return (
     <main className="flex-1 overflow-y-auto bg-background p-4">
+      <header className="mx-auto mb-4 flex max-w-[1280px] items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 shadow-sm">
+        <div>
+          <p className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground">
+            OPENAPI REFERENCE
+          </p>
+          <h1 className="mt-0.5 font-serif text-lg font-semibold">Spaniel API</h1>
+        </div>
+        <Link
+          to="/docs/openapi-json"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <Braces size={14} /> View OpenAPI JSON
+        </Link>
+      </header>
       <div
         ref={ref}
         className="mx-auto max-w-[1280px] overflow-hidden rounded-lg border border-border bg-surface"

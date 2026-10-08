@@ -10,6 +10,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"gopkg.in/yaml.v3"
 )
 
 // TestOpenAPIContract verifies that the public, pretty-printed document is the
@@ -73,5 +74,28 @@ func TestOpenAPIContract(t *testing.T) {
 	}
 	if len(generated.Tags) == 0 {
 		t.Fatal("OpenAPI document has no Redoc group definitions")
+	}
+}
+
+func TestOpenAPIYAMLContract(t *testing.T) {
+	handler, _ := setupRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/openapi.yaml", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/openapi.yaml = %d", res.Code)
+	}
+	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "application/yaml") {
+		t.Fatalf("content type = %q", got)
+	}
+	if !strings.Contains(res.Body.String(), "openapi:") {
+		t.Fatal("YAML spec is missing its OpenAPI version")
+	}
+	var served map[string]any
+	if err := yaml.Unmarshal(res.Body.Bytes(), &served); err != nil {
+		t.Fatalf("served OpenAPI is invalid YAML: %v", err)
+	}
+	if served["openapi"] == nil || served["paths"] == nil {
+		t.Fatal("served YAML spec is missing OpenAPI fields")
 	}
 }

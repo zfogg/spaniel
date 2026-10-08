@@ -48,6 +48,8 @@ and DuckDB maintenance; user SQL remains read-only and is separately traced.
 Run `make generate` after changing a storage model, a GORM Gen named-query
 interface, the OpenAPI specification, or any other generator input—and before
 building, testing, or committing the change. The command regenerates typed
-storage query code, schema-derived artifacts, and the OpenAPI server/client
-adapter so checked-in generated code stays aligned with its sources. Do not
-hand-edit those generated outputs; update their inputs and regenerate instead.
+storage query code, schema-derived artifacts, the oapi-codegen Go server
+contracts/adapter, and the `openapi-typescript` browser contract at
+`frontend/src/generated/openapi.ts`. OpenAPI is the canonical HTTP contract:
+do not hand-edit generated outputs; update its source schemas and regenerate
+both server and TypeScript bindings together instead.

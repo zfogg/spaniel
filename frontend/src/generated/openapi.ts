@@ -727,6 +727,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/openapi.yaml': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** get OpenAPI YAML */
+    get: operations['getOpenAPIYAML']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/query-catalog': {
     parameters: {
       query?: never
@@ -2289,7 +2306,26 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          annotations?: {
+            [key: string]: string
+          }
+          browser_enabled?: boolean
+          condition: {
+            [key: string]: unknown
+          }
+          cooldown_ns?: number
+          enabled?: boolean
+          group_by?: string[]
+          instance_discovery?: {
+            [key: string]: unknown
+          }
+          name: string
+          pending_for_ns?: number
+          pushover_enabled?: boolean
+          query_sql: string
+          repeat_interval_ns?: number
+          /** @enum {string} */
+          severity?: 'info' | 'warning' | 'critical'
         }
       }
     }
@@ -2378,7 +2414,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          yaml: string
         }
       }
     }
@@ -2433,7 +2469,26 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          annotations?: {
+            [key: string]: string
+          }
+          browser_enabled?: boolean
+          condition: {
+            [key: string]: unknown
+          }
+          cooldown_ns?: number
+          enabled?: boolean
+          group_by?: string[]
+          instance_discovery?: {
+            [key: string]: unknown
+          }
+          name: string
+          pending_for_ns?: number
+          pushover_enabled?: boolean
+          query_sql: string
+          repeat_interval_ns?: number
+          /** @enum {string} */
+          severity?: 'info' | 'warning' | 'critical'
         }
       }
     }
@@ -2469,9 +2524,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -2602,7 +2655,26 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          annotations?: {
+            [key: string]: string
+          }
+          browser_enabled?: boolean
+          condition: {
+            [key: string]: unknown
+          }
+          cooldown_ns?: number
+          enabled?: boolean
+          group_by?: string[]
+          instance_discovery?: {
+            [key: string]: unknown
+          }
+          name: string
+          pending_for_ns?: number
+          pushover_enabled?: boolean
+          query_sql: string
+          repeat_interval_ns?: number
+          /** @enum {string} */
+          severity?: 'info' | 'warning' | 'critical'
         }
       }
     }
@@ -2667,9 +2739,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -2746,9 +2816,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -2902,9 +2970,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -3250,7 +3316,16 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          description?: string
+          name: string
+          panels?: {
+            display_type: string
+            layout_json?: string
+            position?: number
+            query_sql: string
+            settings_json?: string
+            title: string
+          }[]
         }
       }
     }
@@ -3296,7 +3371,7 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          yaml: string
         }
       }
     }
@@ -3483,7 +3558,16 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          description?: string
+          name: string
+          panels?: {
+            display_type: string
+            layout_json?: string
+            position?: number
+            query_sql: string
+            settings_json?: string
+            title: string
+          }[]
         }
       }
     }
@@ -3580,7 +3664,12 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          display_type: string
+          layout_json?: string
+          position?: number
+          query_sql: string
+          settings_json?: string
+          title: string
         }
       }
     }
@@ -3699,7 +3788,12 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          display_type: string
+          layout_json?: string
+          position?: number
+          query_sql: string
+          settings_json?: string
+          title: string
         }
       }
     }
@@ -3824,7 +3918,12 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          display_type?: string
+          name?: string
+          query_sql: string
+          variables?: {
+            [key: string]: string
+          }
         }
       }
     }
@@ -3872,7 +3971,11 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          default_value?: string
+          kind: string
+          name: string
+          options_json?: string
+          source: string
         }
       }
     }
@@ -4297,6 +4400,10 @@ export interface operations {
         to?: number
         operation?: string
         with_traces?: boolean
+        /** @description Indexed metric dimensions, encoded as attributes[key]=value. The legacy attr.key=value form remains supported. */
+        attributes?: {
+          [key: string]: string
+        }
       }
       header?: never
       path?: never
@@ -4453,6 +4560,26 @@ export interface operations {
         }
         content: {
           'application/vnd.oai.openapi+json;version=3.1': string
+        }
+      }
+    }
+  }
+  getOpenAPIYAML: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/yaml': string
         }
       }
     }
@@ -4701,9 +4828,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/octet-stream': string
       }
     }
     responses: {
@@ -4873,9 +4998,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -5030,7 +5153,28 @@ export interface operations {
     requestBody?: {
       content: {
         'application/json': {
-          [key: string]: unknown
+          advance_session_on_start?: boolean
+          alerts_browser_enabled?: boolean
+          alerts_browser_template?: string
+          alerts_dir?: string
+          alerts_pushover_enabled?: boolean
+          alerts_pushover_template?: string
+          auto_prune?: boolean
+          bind_address_v4?: string
+          bind_address_v6?: string
+          db_path?: string
+          forward?: string[]
+          forward_sample?: number
+          max_db_size_mb?: number
+          max_sessions?: number
+          no_browser?: boolean
+          otlp_grpc_port?: number
+          otlp_http_port?: number
+          port?: number
+          retention_days?: number
+          self_monitor?: boolean
+          source_burst?: number
+          source_rps?: number
         }
       }
     }
@@ -5084,9 +5228,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -5121,9 +5263,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -5189,9 +5329,7 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': {
-          [key: string]: unknown
-        }
+        'application/json': Record<string, never>
       }
     }
     responses: {
@@ -5284,7 +5422,7 @@ export interface operations {
         }
         content: {
           'application/json': {
-            data: components['schemas']['SpanRow'][]
+            data: (components['schemas']['SpanRow'] | components['schemas']['SpanGroup'])[]
             meta: components['schemas']['Meta']
           }
         }

@@ -126,7 +126,7 @@ type Draft = {
   pendingFor: string
   cooldown: string
   repeatInterval: string
-  severity: string
+  severity: 'info' | 'warning' | 'critical'
   enabled: boolean
   browserEnabled: boolean
   pushoverEnabled: boolean
@@ -156,6 +156,8 @@ const emptyHistoryFilters = (): HistoryFilters => ({
   to: '',
 })
 const durationInput = (ns: number) => (ns ? `${ns / 1e9}s` : '')
+const alertSeverity = (value: string): Draft['severity'] =>
+  value === 'info' || value === 'critical' || value === 'warning' ? value : 'warning'
 const durationNS = (value: string, field: string) => {
   if (!value.trim()) return 0
   const match = value.trim().match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/)
@@ -183,7 +185,7 @@ const draftFor = (rule: AlertRule): Draft => {
     pendingFor: durationInput(rule.pending_for_ns),
     cooldown: durationInput(rule.cooldown_ns),
     repeatInterval: durationInput(rule.repeat_interval_ns),
-    severity: rule.severity,
+    severity: alertSeverity(rule.severity),
     enabled: rule.enabled,
     browserEnabled: rule.browser_enabled,
     pushoverEnabled: rule.pushover_enabled,
@@ -2122,7 +2124,7 @@ function AlertEditor({
           </LabelWithHelp>
           <select
             value={draft.severity}
-            onChange={(event) => set('severity', event.target.value)}
+            onChange={(event) => set('severity', alertSeverity(event.target.value))}
             className="mt-1.5 w-full rounded border border-border bg-background px-3 py-2 text-sm"
           >
             {['info', 'warning', 'critical'].map((severity) => (
