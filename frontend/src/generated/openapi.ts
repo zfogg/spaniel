@@ -1417,6 +1417,108 @@ export interface components {
         }[]
       }[]
     }
+    DiffResult: {
+      baseline: {
+        db_calls: number
+        label: string
+        session_id: string
+        span_count: number
+        total_duration_ns: number
+      }
+      baseline_spans: {
+        attributes: string
+        duration_ns: number
+        end_ns: number
+        events: {
+          attributes: string
+          name: string
+          session_id: string
+          span_id: string
+          time_ns: number
+          trace_id: string
+        }[]
+        kind: number
+        links: {
+          attributes: string
+          linked_span_id: string
+          linked_trace_id: string
+          session_id: string
+          span_id: string
+          trace_id: string
+          trace_state: string
+        }[]
+        name: string
+        parent_span_id: string
+        received_at: number
+        resource: string
+        service_name: string
+        session_id: string
+        session_label: string
+        span_id: string
+        start_ns: number
+        status_code: number
+        status_message: string
+        trace_id: string
+      }[]
+      compare: {
+        db_calls: number
+        label: string
+        session_id: string
+        span_count: number
+        total_duration_ns: number
+      }
+      compare_spans: {
+        attributes: string
+        duration_ns: number
+        end_ns: number
+        events: {
+          attributes: string
+          name: string
+          session_id: string
+          span_id: string
+          time_ns: number
+          trace_id: string
+        }[]
+        kind: number
+        links: {
+          attributes: string
+          linked_span_id: string
+          linked_trace_id: string
+          session_id: string
+          span_id: string
+          trace_id: string
+          trace_state: string
+        }[]
+        name: string
+        parent_span_id: string
+        received_at: number
+        resource: string
+        service_name: string
+        session_id: string
+        session_label: string
+        span_id: string
+        start_ns: number
+        status_code: number
+        status_message: string
+        trace_id: string
+      }[]
+      spans: {
+        baseline_duration_ns: number
+        compare_duration_ns: number
+        delta_pct: number
+        depth: number
+        name: string
+        service_name: string
+        status: string
+      }[]
+      summary: {
+        db_call_delta: number
+        duration_delta_ns: number
+        duration_delta_pct: number
+        spans_added: number
+        spans_removed: number
+      }
+    }
     Envelope: {
       data: components['schemas']['JSONValue']
       meta: components['schemas']['Meta']
@@ -3173,7 +3275,10 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Envelope']
+          'application/json': {
+            data: components['schemas']['DiffResult']
+            meta: components['schemas']['Meta']
+          }
         }
       }
       400: components['responses']['BadRequest']

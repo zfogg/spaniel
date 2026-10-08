@@ -3581,5 +3581,445 @@
       "checked_at_ns"
     ],
     "additionalProperties": false
+  },
+  "DiffResult": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "baseline": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "total_duration_ns": {
+            "type": "number"
+          },
+          "span_count": {
+            "type": "number"
+          },
+          "db_calls": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "session_id",
+          "label",
+          "total_duration_ns",
+          "span_count",
+          "db_calls"
+        ],
+        "additionalProperties": false
+      },
+      "compare": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "total_duration_ns": {
+            "type": "number"
+          },
+          "span_count": {
+            "type": "number"
+          },
+          "db_calls": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "session_id",
+          "label",
+          "total_duration_ns",
+          "span_count",
+          "db_calls"
+        ],
+        "additionalProperties": false
+      },
+      "summary": {
+        "type": "object",
+        "properties": {
+          "duration_delta_ns": {
+            "type": "number"
+          },
+          "duration_delta_pct": {
+            "type": "number"
+          },
+          "spans_added": {
+            "type": "number"
+          },
+          "spans_removed": {
+            "type": "number"
+          },
+          "db_call_delta": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "duration_delta_ns",
+          "duration_delta_pct",
+          "spans_added",
+          "spans_removed",
+          "db_call_delta"
+        ],
+        "additionalProperties": false
+      },
+      "spans": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "service_name": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "baseline_duration_ns": {
+              "type": "number"
+            },
+            "compare_duration_ns": {
+              "type": "number"
+            },
+            "delta_pct": {
+              "type": "number"
+            },
+            "depth": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "name",
+            "service_name",
+            "status",
+            "baseline_duration_ns",
+            "compare_duration_ns",
+            "delta_pct",
+            "depth"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "baseline_spans": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "trace_id": {
+              "type": "string"
+            },
+            "span_id": {
+              "type": "string"
+            },
+            "parent_span_id": {
+              "type": "string"
+            },
+            "service_name": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "number"
+            },
+            "start_ns": {
+              "type": "number"
+            },
+            "end_ns": {
+              "type": "number"
+            },
+            "duration_ns": {
+              "type": "number"
+            },
+            "status_code": {
+              "type": "number"
+            },
+            "status_message": {
+              "type": "string"
+            },
+            "attributes": {
+              "type": "string"
+            },
+            "resource": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "session_label": {
+              "type": "string"
+            },
+            "received_at": {
+              "type": "number"
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "span_id": {
+                    "type": "string"
+                  },
+                  "trace_id": {
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "time_ns": {
+                    "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "attributes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "span_id",
+                  "trace_id",
+                  "session_id",
+                  "time_ns",
+                  "name",
+                  "attributes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "span_id": {
+                    "type": "string"
+                  },
+                  "trace_id": {
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "linked_trace_id": {
+                    "type": "string"
+                  },
+                  "linked_span_id": {
+                    "type": "string"
+                  },
+                  "trace_state": {
+                    "type": "string"
+                  },
+                  "attributes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "span_id",
+                  "trace_id",
+                  "session_id",
+                  "linked_trace_id",
+                  "linked_span_id",
+                  "trace_state",
+                  "attributes"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "trace_id",
+            "span_id",
+            "parent_span_id",
+            "service_name",
+            "name",
+            "kind",
+            "start_ns",
+            "end_ns",
+            "duration_ns",
+            "status_code",
+            "status_message",
+            "attributes",
+            "resource",
+            "session_id",
+            "session_label",
+            "received_at",
+            "events",
+            "links"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "compare_spans": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "trace_id": {
+              "type": "string"
+            },
+            "span_id": {
+              "type": "string"
+            },
+            "parent_span_id": {
+              "type": "string"
+            },
+            "service_name": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "number"
+            },
+            "start_ns": {
+              "type": "number"
+            },
+            "end_ns": {
+              "type": "number"
+            },
+            "duration_ns": {
+              "type": "number"
+            },
+            "status_code": {
+              "type": "number"
+            },
+            "status_message": {
+              "type": "string"
+            },
+            "attributes": {
+              "type": "string"
+            },
+            "resource": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "session_label": {
+              "type": "string"
+            },
+            "received_at": {
+              "type": "number"
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "span_id": {
+                    "type": "string"
+                  },
+                  "trace_id": {
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "time_ns": {
+                    "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "attributes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "span_id",
+                  "trace_id",
+                  "session_id",
+                  "time_ns",
+                  "name",
+                  "attributes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "span_id": {
+                    "type": "string"
+                  },
+                  "trace_id": {
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "linked_trace_id": {
+                    "type": "string"
+                  },
+                  "linked_span_id": {
+                    "type": "string"
+                  },
+                  "trace_state": {
+                    "type": "string"
+                  },
+                  "attributes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "span_id",
+                  "trace_id",
+                  "session_id",
+                  "linked_trace_id",
+                  "linked_span_id",
+                  "trace_state",
+                  "attributes"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "trace_id",
+            "span_id",
+            "parent_span_id",
+            "service_name",
+            "name",
+            "kind",
+            "start_ns",
+            "end_ns",
+            "duration_ns",
+            "status_code",
+            "status_message",
+            "attributes",
+            "resource",
+            "session_id",
+            "session_label",
+            "received_at",
+            "events",
+            "links"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "baseline",
+      "compare",
+      "summary",
+      "spans",
+      "baseline_spans",
+      "compare_spans"
+    ],
+    "additionalProperties": false
   }
 }

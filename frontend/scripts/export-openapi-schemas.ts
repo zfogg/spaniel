@@ -102,6 +102,35 @@ const schemas = {
   TraceOverlay: TraceOverlaySchema,
   TraceRow: TraceRowSchema,
   UpdateCheckResult: UpdateCheckResultSchema,
+  DiffResult: z.object({
+    baseline: z.object({
+      session_id: z.string(),
+      label: z.string(),
+      total_duration_ns: z.number(),
+      span_count: z.number(),
+      db_calls: z.number(),
+    }),
+    compare: z.object({
+      session_id: z.string(),
+      label: z.string(),
+      total_duration_ns: z.number(),
+      span_count: z.number(),
+      db_calls: z.number(),
+    }),
+    summary: z.object({
+      duration_delta_ns: z.number(),
+      duration_delta_pct: z.number(),
+      spans_added: z.number(),
+      spans_removed: z.number(),
+      db_call_delta: z.number(),
+    }),
+    spans: z.array(z.object({
+      name: z.string(), service_name: z.string(), status: z.string(),
+      baseline_duration_ns: z.number(), compare_duration_ns: z.number(), delta_pct: z.number(), depth: z.number(),
+    })),
+    baseline_spans: z.array(SpanSchema),
+    compare_spans: z.array(SpanSchema),
+  }),
 } satisfies Record<string, z.ZodType>
 
 const jsonSchemas = Object.fromEntries(

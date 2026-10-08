@@ -1186,6 +1186,446 @@
         ],
         "type": "object"
       },
+      "DiffResult": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "baseline": {
+            "additionalProperties": false,
+            "properties": {
+              "db_calls": {
+                "type": "number"
+              },
+              "label": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "span_count": {
+                "type": "number"
+              },
+              "total_duration_ns": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "session_id",
+              "label",
+              "total_duration_ns",
+              "span_count",
+              "db_calls"
+            ],
+            "type": "object"
+          },
+          "baseline_spans": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "attributes": {
+                  "type": "string"
+                },
+                "duration_ns": {
+                  "type": "number"
+                },
+                "end_ns": {
+                  "type": "number"
+                },
+                "events": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "attributes": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "session_id": {
+                        "type": "string"
+                      },
+                      "span_id": {
+                        "type": "string"
+                      },
+                      "time_ns": {
+                        "type": "number"
+                      },
+                      "trace_id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "span_id",
+                      "trace_id",
+                      "session_id",
+                      "time_ns",
+                      "name",
+                      "attributes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "type": "number"
+                },
+                "links": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "attributes": {
+                        "type": "string"
+                      },
+                      "linked_span_id": {
+                        "type": "string"
+                      },
+                      "linked_trace_id": {
+                        "type": "string"
+                      },
+                      "session_id": {
+                        "type": "string"
+                      },
+                      "span_id": {
+                        "type": "string"
+                      },
+                      "trace_id": {
+                        "type": "string"
+                      },
+                      "trace_state": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "span_id",
+                      "trace_id",
+                      "session_id",
+                      "linked_trace_id",
+                      "linked_span_id",
+                      "trace_state",
+                      "attributes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "parent_span_id": {
+                  "type": "string"
+                },
+                "received_at": {
+                  "type": "number"
+                },
+                "resource": {
+                  "type": "string"
+                },
+                "service_name": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "session_label": {
+                  "type": "string"
+                },
+                "span_id": {
+                  "type": "string"
+                },
+                "start_ns": {
+                  "type": "number"
+                },
+                "status_code": {
+                  "type": "number"
+                },
+                "status_message": {
+                  "type": "string"
+                },
+                "trace_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "trace_id",
+                "span_id",
+                "parent_span_id",
+                "service_name",
+                "name",
+                "kind",
+                "start_ns",
+                "end_ns",
+                "duration_ns",
+                "status_code",
+                "status_message",
+                "attributes",
+                "resource",
+                "session_id",
+                "session_label",
+                "received_at",
+                "events",
+                "links"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "compare": {
+            "additionalProperties": false,
+            "properties": {
+              "db_calls": {
+                "type": "number"
+              },
+              "label": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "span_count": {
+                "type": "number"
+              },
+              "total_duration_ns": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "session_id",
+              "label",
+              "total_duration_ns",
+              "span_count",
+              "db_calls"
+            ],
+            "type": "object"
+          },
+          "compare_spans": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "attributes": {
+                  "type": "string"
+                },
+                "duration_ns": {
+                  "type": "number"
+                },
+                "end_ns": {
+                  "type": "number"
+                },
+                "events": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "attributes": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "session_id": {
+                        "type": "string"
+                      },
+                      "span_id": {
+                        "type": "string"
+                      },
+                      "time_ns": {
+                        "type": "number"
+                      },
+                      "trace_id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "span_id",
+                      "trace_id",
+                      "session_id",
+                      "time_ns",
+                      "name",
+                      "attributes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "type": "number"
+                },
+                "links": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "attributes": {
+                        "type": "string"
+                      },
+                      "linked_span_id": {
+                        "type": "string"
+                      },
+                      "linked_trace_id": {
+                        "type": "string"
+                      },
+                      "session_id": {
+                        "type": "string"
+                      },
+                      "span_id": {
+                        "type": "string"
+                      },
+                      "trace_id": {
+                        "type": "string"
+                      },
+                      "trace_state": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "span_id",
+                      "trace_id",
+                      "session_id",
+                      "linked_trace_id",
+                      "linked_span_id",
+                      "trace_state",
+                      "attributes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "parent_span_id": {
+                  "type": "string"
+                },
+                "received_at": {
+                  "type": "number"
+                },
+                "resource": {
+                  "type": "string"
+                },
+                "service_name": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "session_label": {
+                  "type": "string"
+                },
+                "span_id": {
+                  "type": "string"
+                },
+                "start_ns": {
+                  "type": "number"
+                },
+                "status_code": {
+                  "type": "number"
+                },
+                "status_message": {
+                  "type": "string"
+                },
+                "trace_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "trace_id",
+                "span_id",
+                "parent_span_id",
+                "service_name",
+                "name",
+                "kind",
+                "start_ns",
+                "end_ns",
+                "duration_ns",
+                "status_code",
+                "status_message",
+                "attributes",
+                "resource",
+                "session_id",
+                "session_label",
+                "received_at",
+                "events",
+                "links"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "spans": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "baseline_duration_ns": {
+                  "type": "number"
+                },
+                "compare_duration_ns": {
+                  "type": "number"
+                },
+                "delta_pct": {
+                  "type": "number"
+                },
+                "depth": {
+                  "type": "number"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "service_name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "service_name",
+                "status",
+                "baseline_duration_ns",
+                "compare_duration_ns",
+                "delta_pct",
+                "depth"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "additionalProperties": false,
+            "properties": {
+              "db_call_delta": {
+                "type": "number"
+              },
+              "duration_delta_ns": {
+                "type": "number"
+              },
+              "duration_delta_pct": {
+                "type": "number"
+              },
+              "spans_added": {
+                "type": "number"
+              },
+              "spans_removed": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "duration_delta_ns",
+              "duration_delta_pct",
+              "spans_added",
+              "spans_removed",
+              "db_call_delta"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "baseline",
+          "compare",
+          "summary",
+          "spans",
+          "baseline_spans",
+          "compare_spans"
+        ],
+        "type": "object"
+      },
       "Envelope": {
         "properties": {
           "data": {
@@ -6375,7 +6815,19 @@
                   }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DiffResult"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
                 }
               }
             },
