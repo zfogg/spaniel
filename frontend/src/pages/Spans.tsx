@@ -18,6 +18,9 @@ import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 import PaginationControls from '@/components/PaginationControls'
 import { fmtDuration, fmtClock } from '@/lib/fmt-relative'
+import { AnimatePresence, motion } from 'motion/react'
+import { TelemetryArrival } from '@/components/TelemetryArrival'
+import { useNewItemIDs } from '@/lib/use-new-item-ids'
 
 // Global search: matches a span on its name, service, trace/span id, or any
 // attribute key/value. Used as the react-table globalFilterFn.
@@ -380,6 +383,7 @@ export default function Spans() {
     placeholderData: keepPreviousData,
   })
   const spans = useMemo(() => spanResponse?.data ?? [], [spanResponse])
+  const arrivingSpanIDs = useNewItemIDs(spans, (span) => span.span_id)
   const spanTotal = spanResponse?.meta?.total ?? 0
   const { data: selectedSpan } = useQuery({
     queryKey: ['span', selectedId],
@@ -828,50 +832,53 @@ export default function Spans() {
               const isSlow = s.duration_ns > SLOW_NS
               const kindLabel = KIND_LABELS[s.kind] ?? 'unknown'
               return (
-                <button
-                  key={s.span_id}
-                  type="button"
-                  data-testid={`span-row-${s.span_id}`}
-                  onClick={() => (isSel ? clearSelectedSpan() : selectSpan(s.span_id))}
-                  className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
-                  style={{
-                    gridTemplateColumns: 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
-                    background: isSel
-                      ? 'color-mix(in oklch, var(--accent, #6366f1) 14%, var(--background))'
-                      : undefined,
-                  }}
-                >
-                  <div
-                    title={httpDisplayName(s)}
-                    className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                <TelemetryArrival key={s.span_id} arriving={arrivingSpanIDs.has(s.span_id)}>
+                  <button
+                    type="button"
+                    data-testid={`span-row-${s.span_id}`}
+                    onClick={() => (isSel ? clearSelectedSpan() : selectSpan(s.span_id))}
+                    className={`grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border outline-none border-l-2 transition-colors ${isSel ? 'border-l-[var(--accent,#6366f1)]' : 'border-l-transparent bg-transparent'}`}
+                    style={{
+                      gridTemplateColumns: 'minmax(0,1.5fr) 130px 70px 70px 100px 130px 60px',
+                      background: isSel
+                        ? 'color-mix(in oklch, var(--accent, #6366f1) 14%, var(--background))'
+                        : undefined,
+                    }}
                   >
-                    {httpDisplayName(s)}
-                  </div>
-                  <div>
-                    <SvcChip name={s.service_name} />
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
-                    {kindLabel}
-                  </div>
-                  <div
-                    className="text-right font-mono text-[11.5px] font-semibold"
-                    style={{ color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)' }}
-                  >
-                    {fmtDuration(s.duration_ns)}
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-                    {fmtClock(s.start_ns)}
-                  </div>
-                  <div
-                    title={s.trace_id}
-                    className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
-                  >
-                    {s.trace_id}
-                  </div>
-                  <div className="text-right">
-                    <TagBadge tag={s.tag} />
-                  </div>
-                </button>
+                    <div
+                      title={httpDisplayName(s)}
+                      className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                    >
+                      {httpDisplayName(s)}
+                    </div>
+                    <div>
+                      <SvcChip name={s.service_name} />
+                    </div>
+                    <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
+                      {kindLabel}
+                    </div>
+                    <div
+                      className="text-right font-mono text-[11.5px] font-semibold"
+                      style={{
+                        color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)',
+                      }}
+                    >
+                      {fmtDuration(s.duration_ns)}
+                    </div>
+                    <div className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                      {fmtClock(s.start_ns)}
+                    </div>
+                    <div
+                      title={s.trace_id}
+                      className="font-mono text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                    >
+                      {s.trace_id}
+                    </div>
+                    <div className="text-right">
+                      <TagBadge tag={s.tag} />
+                    </div>
+                  </button>
+                </TelemetryArrival>
               )
             })
           )}
@@ -894,7 +901,20 @@ export default function Spans() {
       </div>
 
       {/* Inspector */}
-      {selected && <SpanInspector span={selected} onClose={clearSelectedSpan} />}
+      <AnimatePresence mode="wait" initial={false}>
+        {selected && (
+          <motion.div
+            key={selected.span_id}
+            className="shrink-0"
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
+          >
+            <SpanInspector span={selected} onClose={clearSelectedSpan} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

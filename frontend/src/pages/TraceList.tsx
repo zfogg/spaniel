@@ -12,6 +12,8 @@ import { fmtRelative, fmtDateTime } from '../lib/fmt-relative'
 import { SEARCH_PALETTE_EVENT } from '../lib/shortcuts'
 import { useLiveActivity } from '../lib/live-activity'
 import PaginationControls from '@/components/PaginationControls'
+import { TelemetryArrival } from '@/components/TelemetryArrival'
+import { useNewItemIDs } from '@/lib/use-new-item-ids'
 
 const GRID_COLS = 'minmax(0,1fr) 90px 80px 200px 70px 140px'
 const SLOW_NS = 250_000_000
@@ -464,6 +466,7 @@ export default function TraceList() {
       (filterSession === null || t.session_id === filterSession) &&
       matchesQuick(t),
   )
+  const arrivingTraceIDs = useNewItemIDs(traces, (trace) => trace.trace_id)
 
   useEffect(() => {
     setPage(1)
@@ -624,14 +627,15 @@ export default function TraceList() {
             </div>
 
             {filtered.map((t, i) => (
-              <TraceRowItem
-                key={t.trace_id}
-                trace={t}
-                maxNs={maxNs}
-                isFirst={i === 0}
-                baselineSessionId={baselineSessionId}
-                onClick={() => navigate(`/traces/${t.trace_id}`)}
-              />
+              <TelemetryArrival key={t.trace_id} arriving={arrivingTraceIDs.has(t.trace_id)}>
+                <TraceRowItem
+                  trace={t}
+                  maxNs={maxNs}
+                  isFirst={i === 0}
+                  baselineSessionId={baselineSessionId}
+                  onClick={() => navigate(`/traces/${t.trace_id}`)}
+                />
+              </TelemetryArrival>
             ))}
           </div>
         )}

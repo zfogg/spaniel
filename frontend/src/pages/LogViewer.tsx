@@ -10,6 +10,9 @@ import JsonView from '@/components/JsonView'
 import { fmtClock, fmtRelative } from '@/lib/fmt-relative'
 import { matchesSevFilter, sevLabel, type SevFilter } from './log-severity-filter'
 import PaginationControls from '@/components/PaginationControls'
+import { AnimatePresence, motion } from 'motion/react'
+import { TelemetryArrival } from '@/components/TelemetryArrival'
+import { useNewItemIDs } from '@/lib/use-new-item-ids'
 
 const PAGE_SIZE = 100
 
@@ -397,6 +400,7 @@ export default function LogViewer() {
       }),
   })
   const logs = logResponse?.data ?? []
+  const arrivingLogKeys = useNewItemIDs(logs, logKey)
   const logTotal = logResponse?.meta?.total ?? 0
   const { data: services = [] } = useQuery({
     queryKey: qk.services(),
@@ -623,15 +627,16 @@ export default function LogViewer() {
                 {filtered.map((log, i) => {
                   const k = logKey(log)
                   return (
-                    <LogRow
-                      key={k}
-                      log={log}
-                      i={i}
-                      nowMs={nowMs}
-                      selected={selectedKey === k}
-                      onSelect={() => setSelectedKey((prev) => (prev === k ? null : k))}
-                      navigate={navigate}
-                    />
+                    <TelemetryArrival key={k} arriving={arrivingLogKeys.has(k)}>
+                      <LogRow
+                        log={log}
+                        i={i}
+                        nowMs={nowMs}
+                        selected={selectedKey === k}
+                        onSelect={() => setSelectedKey((prev) => (prev === k ? null : k))}
+                        navigate={navigate}
+                      />
+                    </TelemetryArrival>
                   )
                 })}
               </div>
@@ -639,13 +644,28 @@ export default function LogViewer() {
           )}
         </div>
 
-        {selectedKey &&
-          (() => {
-            const sel = filtered.find((l) => logKey(l) === selectedKey)
-            return sel ? (
-              <LogInspector log={sel} onClose={() => setSelectedKey(null)} navigate={navigate} />
-            ) : null
-          })()}
+        <AnimatePresence mode="wait" initial={false}>
+          {selectedKey &&
+            (() => {
+              const sel = filtered.find((l) => logKey(l) === selectedKey)
+              return sel ? (
+                <motion.div
+                  key={selectedKey}
+                  className="shrink-0"
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 8 }}
+                  transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
+                >
+                  <LogInspector
+                    log={sel}
+                    onClose={() => setSelectedKey(null)}
+                    navigate={navigate}
+                  />
+                </motion.div>
+              ) : null
+            })()}
+        </AnimatePresence>
       </div>
     </div>
   )
