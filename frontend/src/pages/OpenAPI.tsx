@@ -39,6 +39,7 @@ function options(dark: boolean) {
         ink: '#edf5fb',
         muted: '#a8bdcc',
         accent: '#75b9e6',
+        success: '#96dfae',
       }
     : {
         bg: '#f5f9fc',
@@ -47,6 +48,7 @@ function options(dark: boolean) {
         ink: '#1f2937',
         muted: '#54616e',
         accent: '#176d9c',
+        success: '#14532d',
       }
   return {
     theme: {
@@ -54,7 +56,7 @@ function options(dark: boolean) {
         primary: { main: c.accent },
         text: { primary: c.ink, secondary: c.muted },
         border: { dark: c.edge, light: c.edge },
-        responses: { success: { color: c.ink, backgroundColor: c.bg } },
+        responses: { success: { color: c.ink, backgroundColor: c.success } },
       },
       sidebar: { backgroundColor: c.side, textColor: c.muted, activeTextColor: c.ink },
       rightPanel: { backgroundColor: c.bg, textColor: c.ink },
@@ -76,6 +78,8 @@ function applyThemeOverrides(dark: boolean) {
   const side = dark ? '#152536' : '#edf3f7'
   const ink = dark ? '#edf5fb' : '#1f2937'
   const selected = dark ? '#29445b' : '#dbe8f1'
+  const success = dark ? '#96dfae' : '#14532d'
+  const additionalProperty = dark ? '#a8d8f0' : '#0f4c78'
   const styleID = 'spaniel-redoc-contrast'
   const style = document.getElementById(styleID) ?? document.createElement('style')
   style.id = styleID
@@ -94,6 +98,8 @@ function applyThemeOverrides(dark: boolean) {
     .redoc-json .property.token.string,.redoc-json .collapser{color:${ink}!important}
     .redoc-wrap [role="tab"]{background:${side}!important;color:${ink}!important}
     .redoc-wrap [role="tab"][aria-selected="true"]{background:${selected}!important;color:${ink}!important}
+    .redoc-wrap button.sc-kzqdkY:not(.kokIwB){background:${success}!important;color:${dark ? '#102318' : '#effcf3'}!important}
+    .redoc-wrap span.sc-Nxspf{color:${additionalProperty}!important}
   `
   if (!style.parentNode) document.head.appendChild(style)
 }

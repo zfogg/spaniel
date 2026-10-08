@@ -77,6 +77,38 @@ function SpanielLogo({ size = 22 }: { size?: number }) {
   )
 }
 
+function NotFound() {
+  return (
+    <section
+      className="flex flex-1 items-center justify-center px-6 text-center"
+      aria-labelledby="not-found-title"
+    >
+      <div className="flex max-w-sm flex-col items-center">
+        <div className="grid h-32 w-32 place-items-center rounded-full border border-border bg-surface shadow-[0_18px_45px_-28px_rgba(30,70,100,.55)]">
+          <SpanielLogo size={96} />
+        </div>
+        <p className="mt-7 font-mono text-xs text-muted-foreground">404</p>
+        <h1
+          id="not-found-title"
+          className="mt-2 font-serif text-3xl font-semibold tracking-[-.04em] text-foreground"
+        >
+          This trail ends here.
+        </h1>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          The page you requested does not exist, or it has moved somewhere new.
+        </p>
+        <NavLink
+          to="/"
+          end
+          className="mt-6 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Return to traces
+        </NavLink>
+      </div>
+    </section>
+  )
+}
+
 // ── Nav link pill ─────────────────────────────────────────────────────────────
 
 function NavPill({ to, end, label }: { to: string; end?: boolean; label: string }) {
@@ -151,7 +183,7 @@ function DocsMenu() {
           }`}
         >
           <NavLink
-            to="/docs/openapi"
+            to="/openapi-docs"
             className={({ isActive }) =>
               `block rounded px-2.5 py-2 text-xs transition-colors ${
                 isActive
@@ -160,10 +192,10 @@ function DocsMenu() {
               }`
             }
           >
-            OpenAPI schema
+            OpenAPI docs
           </NavLink>
           <NavLink
-            to="/docs/openapi-json"
+            to="/docs/openapi-spec"
             className={({ isActive }) =>
               `block rounded px-2.5 py-2 text-xs transition-colors ${
                 isActive
@@ -172,7 +204,7 @@ function DocsMenu() {
               }`
             }
           >
-            OpenAPI spec files
+            OpenAPI spec file
           </NavLink>
           <NavLink
             to="/docs/database"
@@ -370,7 +402,7 @@ function AppShell() {
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       <Chrome />
       <StorageFullBanner />
-      <main className="flex-1 overflow-hidden flex flex-col">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <RouteErrorBoundary>
           <Routes>
             <Route path="/" element={<TraceList />} />
@@ -383,14 +415,15 @@ function AppShell() {
             <Route path="/dashboards/:dashboardId" element={<DashboardEditor />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/docs/database" element={<DatabaseSchema />} />
-            <Route path="/docs/openapi" element={<OpenAPI />} />
-            <Route path="/docs/openapi-json" element={<OpenAPIJSON />} />
+            <Route path="/openapi-docs" element={<OpenAPI />} />
+            <Route path="/docs/openapi-spec" element={<OpenAPIJSON />} />
             <Route path="/coverage" element={<Coverage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/services" element={<ServiceMap />} />
             <Route path="/lint" element={<LintPage />} />
             <Route path="/sessions" element={<Sessions />} />
             <Route path="/diff" element={<DiffPage />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </RouteErrorBoundary>
       </main>
