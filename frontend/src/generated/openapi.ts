@@ -2172,7 +2172,12 @@ export type $defs = Record<string, never>
 export interface operations {
   listAlerts: {
     parameters: {
-      query?: never
+      query?: {
+        page?: number
+        limit?: number
+        state?: string
+        search?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -2204,7 +2209,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2226,7 +2233,18 @@ export interface operations {
   }
   listAlertHistory: {
     parameters: {
-      query?: never
+      query?: {
+        page?: number
+        limit?: number
+        rule_id?: string
+        state?: string
+        kind?: string
+        severity?: string
+        group_key?: string
+        search?: string
+        from?: number
+        to?: number
+      }
       header?: never
       path?: never
       cookie?: never
@@ -2258,7 +2276,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2287,7 +2307,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2316,7 +2338,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2401,7 +2425,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2432,7 +2458,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2487,7 +2515,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2509,7 +2539,11 @@ export interface operations {
   }
   listAlertEvents: {
     parameters: {
-      query?: never
+      query?: {
+        group_key?: string
+        page?: number
+        limit?: number
+      }
       header?: never
       path: {
         id: string
@@ -2545,7 +2579,10 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          group_key: string
+          note?: string
+        }
       }
     }
     responses: {
@@ -2576,7 +2613,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          group_key: string
+        }
       }
     }
     responses: {
@@ -2607,7 +2646,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2665,7 +2706,12 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          comment: string
+          ends_at: number
+          group_key?: string
+          starts_at?: number
+        }
       }
     }
     responses: {
@@ -2725,7 +2771,12 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          comment: string
+          ends_at: number
+          group_key?: string
+          starts_at: number
+        }
       }
     }
     responses: {
@@ -2756,7 +2807,10 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          /** @enum {string} */
+          destination: 'browser' | 'pushover'
+        }
       }
     }
     responses: {
@@ -2778,7 +2832,9 @@ export interface operations {
   }
   getCoverage: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -2835,7 +2891,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2864,7 +2922,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -2893,7 +2953,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          ids: string[]
+        }
       }
     }
     responses: {
@@ -2978,7 +3040,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3033,7 +3097,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3093,7 +3159,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3125,7 +3193,10 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          /** @enum {integer} */
+          direction: -1 | 1
+        }
       }
     }
     responses: {
@@ -3156,7 +3227,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3187,7 +3260,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3262,7 +3337,10 @@ export interface operations {
   }
   getDiff: {
     parameters: {
-      query?: never
+      query: {
+        baseline: string
+        compare: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3337,7 +3415,10 @@ export interface operations {
   }
   listIssues: {
     parameters: {
-      query?: never
+      query?: {
+        traceId?: string
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3362,7 +3443,9 @@ export interface operations {
   }
   listLint: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3387,7 +3470,15 @@ export interface operations {
   }
   listLogs: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+        traceId?: string
+        spanId?: string
+        severity?: string
+        service?: string
+        page?: number
+        limit?: number
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3412,7 +3503,9 @@ export interface operations {
   }
   listMetrics: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3437,7 +3530,9 @@ export interface operations {
   }
   getMetricCardinality: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3462,7 +3557,15 @@ export interface operations {
   }
   getMetricSeries: {
     parameters: {
-      query?: never
+      query: {
+        name: string
+        service?: string
+        sessionId?: string
+        from?: number
+        to?: number
+        operation?: string
+        with_traces?: boolean
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3509,7 +3612,10 @@ export interface operations {
   }
   listQueryCatalog: {
     parameters: {
-      query?: never
+      query?: {
+        signal?: string
+        q?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3534,7 +3640,11 @@ export interface operations {
   }
   searchTelemetry: {
     parameters: {
-      query?: never
+      query: {
+        q: string
+        sessionId?: string
+        limit?: number
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3559,7 +3669,9 @@ export interface operations {
   }
   getServiceMap: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -3641,7 +3753,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          label?: string
+        }
       }
     }
     responses: {
@@ -3688,14 +3802,19 @@ export interface operations {
   }
   importSession: {
     parameters: {
-      query?: never
+      query: {
+        label: string
+        format: string
+      }
       header?: never
       path?: never
       cookie?: never
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3780,7 +3899,10 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          label?: string
+          note?: string
+        }
       }
     }
     responses: {
@@ -3811,7 +3933,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3842,7 +3966,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          is_baseline: boolean
+        }
       }
     }
     responses: {
@@ -3920,7 +4046,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3949,7 +4077,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -3978,7 +4108,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -4032,7 +4164,9 @@ export interface operations {
     }
     requestBody?: {
       content: {
-        'application/json': components['schemas']['JSONValue']
+        'application/json': {
+          [key: string]: unknown
+        }
       }
     }
     responses: {
@@ -4054,7 +4188,9 @@ export interface operations {
   }
   listSources: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -4079,7 +4215,16 @@ export interface operations {
   }
   listSpans: {
     parameters: {
-      query?: never
+      query?: {
+        view?: string
+        sort?: string
+        sessionId?: string
+        limit?: number
+        page?: number
+        service?: string
+        name?: string
+        kind?: number
+      }
       header?: never
       path?: never
       cookie?: never
@@ -4131,7 +4276,9 @@ export interface operations {
   }
   getStats: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -4181,7 +4328,12 @@ export interface operations {
   }
   listTraces: {
     parameters: {
-      query?: never
+      query?: {
+        sessionId?: string
+        service?: string
+        page?: number
+        limit?: number
+      }
       header?: never
       path?: never
       cookie?: never

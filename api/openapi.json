@@ -4154,6 +4154,40 @@
     "/api/alerts": {
       "get": {
         "operationId": "listAlerts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4162,14 +4196,24 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
+                      "data": {
+                        "items": [
+                          {
+                            "annotations_json": "…",
+                            "condition_json": "…",
+                            "enabled": "…",
+                            "group_by_json": "…",
+                            "id": "…",
+                            "name": "…",
+                            "query_sql": "…",
+                            "query_version": "…"
+                          }
+                        ],
+                        "summary": {
+                          "instance_counts": {},
+                          "rule_counts": {}
                         }
-                      ],
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4214,7 +4258,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -4228,14 +4273,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "annotations_json": "example",
+                        "condition_json": "example",
+                        "enabled": true,
+                        "group_by_json": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "query_sql": "example",
+                        "query_version": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4278,6 +4325,88 @@
     "/api/alerts/history": {
       "get": {
         "operationId": "listAlertHistory",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rule_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4288,10 +4417,14 @@
                     "value": {
                       "data": [
                         {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
+                          "created_at": 1.5,
+                          "detail": "Representative Spaniel response",
+                          "group_key": "example",
+                          "id": "session_2026-10-07_1200",
+                          "kind": "example",
+                          "rule_id": "example",
+                          "state": "example",
+                          "value": 1.5
                         }
                       ],
                       "meta": {
@@ -4343,7 +4476,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -4357,14 +4491,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "annotations_json": "example",
+                        "condition_json": "example",
+                        "enabled": true,
+                        "group_by_json": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "query_sql": "example",
+                        "query_version": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4411,7 +4547,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -4425,14 +4562,31 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "columns": [
+                          "example"
+                        ],
+                        "condition": {
+                          "kind": "example",
+                          "operator": "example",
+                          "pattern": "example",
+                          "value": 1.5
+                        },
+                        "display_type": "example",
+                        "notification_preview": [
+                          {
+                            "destination": "…",
+                            "reason": "…",
+                            "status": "…"
+                          }
+                        ],
+                        "rows": [
+                          {}
+                        ],
+                        "warnings": [
+                          "example"
+                        ]
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4479,7 +4633,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -4493,14 +4648,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4561,14 +4711,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4627,14 +4772,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "annotations_json": "example",
+                        "condition_json": "example",
+                        "enabled": true,
+                        "group_by_json": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "query_sql": "example",
+                        "query_version": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4689,7 +4836,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -4703,14 +4851,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "annotations_json": "example",
+                        "condition_json": "example",
+                        "enabled": true,
+                        "group_by_json": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "query_sql": "example",
+                        "query_version": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4767,7 +4917,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -4781,14 +4932,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4882,7 +5028,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -4896,14 +5043,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "annotations_json": "example",
+                        "condition_json": "example",
+                        "enabled": true,
+                        "group_by_json": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "query_sql": "example",
+                        "query_version": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -4954,6 +5103,30 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "group_key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -4966,10 +5139,14 @@
                     "value": {
                       "data": [
                         {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
+                          "created_at": 1.5,
+                          "detail": "Representative Spaniel response",
+                          "group_key": "example",
+                          "id": "session_2026-10-07_1200",
+                          "kind": "example",
+                          "rule_id": "example",
+                          "state": "example",
+                          "value": 1.5
                         }
                       ],
                       "meta": {
@@ -5031,7 +5208,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "group_key": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "group_key"
+                ],
+                "type": "object"
               }
             }
           },
@@ -5045,14 +5233,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "acknowledgement_note": "example",
+                        "group_key": "example",
+                        "labels_json": "example",
+                        "last_error": "example",
+                        "last_evaluated_at": 1.5,
+                        "rule_id": "example",
+                        "state": "example",
+                        "value": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5109,7 +5299,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "group_key": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "group_key"
+                ],
+                "type": "object"
               }
             }
           },
@@ -5123,14 +5321,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "acknowledgement_note": "example",
+                        "group_key": "example",
+                        "labels_json": "example",
+                        "last_error": "example",
+                        "last_evaluated_at": 1.5,
+                        "rule_id": "example",
+                        "state": "example",
+                        "value": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5187,7 +5387,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -5201,14 +5402,31 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "columns": [
+                          "example"
+                        ],
+                        "condition": {
+                          "kind": "example",
+                          "operator": "example",
+                          "pattern": "example",
+                          "value": 1.5
+                        },
+                        "display_type": "example",
+                        "notification_preview": [
+                          {
+                            "destination": "…",
+                            "reason": "…",
+                            "status": "…"
+                          }
+                        ],
+                        "rows": [
+                          {}
+                        ],
+                        "warnings": [
+                          "example"
+                        ]
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5271,10 +5489,13 @@
                     "value": {
                       "data": [
                         {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
+                          "comment": "example",
+                          "created_at": 1.5,
+                          "ends_at": 1.5,
+                          "group_key": "example",
+                          "id": "session_2026-10-07_1200",
+                          "rule_id": "example",
+                          "starts_at": 1.5
                         }
                       ],
                       "meta": {
@@ -5334,7 +5555,25 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "comment": {
+                    "type": "string"
+                  },
+                  "ends_at": {
+                    "type": "integer"
+                  },
+                  "group_key": {
+                    "type": "string"
+                  },
+                  "starts_at": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ends_at",
+                  "comment"
+                ],
+                "type": "object"
               }
             }
           },
@@ -5348,14 +5587,15 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "comment": "example",
+                        "created_at": 1.5,
+                        "ends_at": 1.5,
+                        "group_key": "example",
+                        "id": "session_2026-10-07_1200",
+                        "rule_id": "example",
+                        "starts_at": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5424,14 +5664,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5494,7 +5729,26 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "comment": {
+                    "type": "string"
+                  },
+                  "ends_at": {
+                    "type": "integer"
+                  },
+                  "group_key": {
+                    "type": "string"
+                  },
+                  "starts_at": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ends_at",
+                  "comment",
+                  "starts_at"
+                ],
+                "type": "object"
               }
             }
           },
@@ -5508,14 +5762,15 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "comment": "example",
+                        "created_at": 1.5,
+                        "ends_at": 1.5,
+                        "group_key": "example",
+                        "id": "session_2026-10-07_1200",
+                        "rule_id": "example",
+                        "starts_at": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5572,7 +5827,19 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "destination": {
+                    "enum": [
+                      "browser",
+                      "pushover"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "destination"
+                ],
+                "type": "object"
               }
             }
           },
@@ -5586,14 +5853,11 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "enabled": true,
-                          "id": "slow-checkout",
-                          "name": "Slow checkout",
-                          "severity": "warning"
-                        }
-                      ],
+                      "data": {
+                        "body": "Representative Spaniel response",
+                        "destination": "browser",
+                        "status": "sent"
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5636,6 +5900,16 @@
     "/api/coverage": {
       "get": {
         "operationId": "getCoverage",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5645,9 +5919,24 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "coverage_percent": 77.4,
-                        "covered_routes": 24,
-                        "total_routes": 31
+                        "overall": {
+                          "coverage_pct": 1.5,
+                          "dark_count": 1.5,
+                          "observed_operations": 1.5,
+                          "total_routes": 1.5
+                        },
+                        "services": [
+                          {
+                            "coverage_pct": "…",
+                            "dark_routes": "…",
+                            "name": "…",
+                            "observed_operations": "…",
+                            "observed_routes": "…",
+                            "source": "…",
+                            "spec": "…",
+                            "total_routes": "…"
+                          }
+                        ]
                       },
                       "meta": {
                         "page": 1,
@@ -5701,9 +5990,17 @@
                     "value": {
                       "data": [
                         {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
+                          "created_at": 1.5,
+                          "description": "example",
+                          "id": "session_2026-10-07_1200",
+                          "name": "POST /checkout",
+                          "panels": [
+                            "…"
+                          ],
+                          "updated_at": 1.5,
+                          "variables": [
+                            "…"
+                          ]
                         }
                       ],
                       "meta": {
@@ -5753,7 +6050,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -5767,13 +6065,35 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "description": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "panels": [
+                          {
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
+                          }
+                        ],
+                        "updated_at": 1.5,
+                        "variables": [
+                          {
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
+                          }
+                        ]
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5820,7 +6140,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -5834,13 +6155,35 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "description": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "panels": [
+                          {
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
+                          }
+                        ],
+                        "updated_at": 1.5,
+                        "variables": [
+                          {
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
+                          }
+                        ]
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5887,7 +6230,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "ids"
+                ],
+                "type": "object"
               }
             }
           },
@@ -5901,13 +6255,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -5968,13 +6318,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6033,13 +6379,35 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "description": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "panels": [
+                          {
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
+                          }
+                        ],
+                        "updated_at": 1.5,
+                        "variables": [
+                          {
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
+                          }
+                        ]
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6094,7 +6462,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -6108,13 +6477,35 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "description": "example",
+                        "id": "session_2026-10-07_1200",
+                        "name": "POST /checkout",
+                        "panels": [
+                          {
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
+                          }
+                        ],
+                        "updated_at": 1.5,
+                        "variables": [
+                          {
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
+                          }
+                        ]
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6208,7 +6599,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -6222,13 +6614,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "dashboard_id": "example",
+                        "display_type": "single_value",
+                        "id": "session_2026-10-07_1200",
+                        "layout_json": "example",
+                        "query_sql": "example",
+                        "query_version": 1.5,
+                        "settings_json": "example",
+                        "title": "example"
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6297,13 +6692,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6366,7 +6757,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -6380,13 +6772,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "dashboard_id": "example",
+                        "display_type": "single_value",
+                        "id": "session_2026-10-07_1200",
+                        "layout_json": "example",
+                        "query_sql": "example",
+                        "query_version": 1.5,
+                        "settings_json": "example",
+                        "title": "example"
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6451,7 +6846,19 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "direction": {
+                    "enum": [
+                      -1,
+                      1
+                    ],
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "direction"
+                ],
+                "type": "object"
               }
             }
           },
@@ -6465,13 +6872,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6528,7 +6931,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -6542,13 +6946,31 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "columns": [
+                          "example"
+                        ],
+                        "condition": {
+                          "kind": "example",
+                          "operator": "example",
+                          "pattern": "example",
+                          "value": 1.5
+                        },
+                        "display_type": "example",
+                        "notification_preview": [
+                          {
+                            "destination": "…",
+                            "reason": "…",
+                            "status": "…"
+                          }
+                        ],
+                        "rows": [
+                          {}
+                        ],
+                        "warnings": [
+                          "example"
+                        ]
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6605,7 +7027,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -6619,13 +7042,14 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "dashboard_id": "example",
+                        "default_value": "example",
+                        "kind": "attribute",
+                        "name": "POST /checkout",
+                        "options_json": "example",
+                        "source": "example"
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6694,13 +7118,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "service-overview",
-                          "name": "Service overview",
-                          "panels": []
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6752,7 +7172,19 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "ok": true
+                        "fingerprint": "example",
+                        "parameters": [
+                          "example"
+                        ],
+                        "version": "example",
+                        "views": [
+                          {
+                            "columns": "…",
+                            "name": "…",
+                            "purpose": "…",
+                            "samples": "…"
+                          }
+                        ]
                       },
                       "meta": {
                         "page": 1,
@@ -6796,6 +7228,24 @@
     "/api/diff": {
       "get": {
         "operationId": "getDiff",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "baseline",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "compare",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6805,7 +7255,62 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "ok": true
+                        "baseline": {
+                          "db_calls": 1.5,
+                          "label": "checkout regression",
+                          "session_id": "session_2026-10-07_1200",
+                          "span_count": 1.5,
+                          "total_duration_ns": 1.5
+                        },
+                        "baseline_spans": [
+                          {
+                            "duration_ns": "…",
+                            "name": "…",
+                            "parent_span_id": "…",
+                            "service_name": "…",
+                            "session_id": "…",
+                            "span_id": "…",
+                            "start_ns": "…",
+                            "trace_id": "…"
+                          }
+                        ],
+                        "compare": {
+                          "db_calls": 1.5,
+                          "label": "checkout regression",
+                          "session_id": "session_2026-10-07_1200",
+                          "span_count": 1.5,
+                          "total_duration_ns": 1.5
+                        },
+                        "compare_spans": [
+                          {
+                            "duration_ns": "…",
+                            "name": "…",
+                            "parent_span_id": "…",
+                            "service_name": "…",
+                            "session_id": "…",
+                            "span_id": "…",
+                            "start_ns": "…",
+                            "trace_id": "…"
+                          }
+                        ],
+                        "spans": [
+                          {
+                            "baseline_duration_ns": "…",
+                            "compare_duration_ns": "…",
+                            "delta_pct": "…",
+                            "depth": "…",
+                            "name": "…",
+                            "service_name": "…",
+                            "status": "…"
+                          }
+                        ],
+                        "summary": {
+                          "db_call_delta": 1.5,
+                          "duration_delta_ns": 1.5,
+                          "duration_delta_pct": 1.5,
+                          "spans_added": 1.5,
+                          "spans_removed": 1.5
+                        }
                       },
                       "meta": {
                         "page": 1,
@@ -6857,9 +7362,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": {
-                        "ok": true
-                      },
+                      "data": [
+                        {
+                          "dropped_spool": 1.5,
+                          "errors": 1.5,
+                          "last_error": "example",
+                          "pending_bytes": 1.5,
+                          "sent": 1.5,
+                          "url": "example"
+                        }
+                      ],
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -6958,6 +7470,24 @@
     "/api/issues": {
       "get": {
         "operationId": "listIssues",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "traceId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6966,9 +7496,18 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": {
-                        "ok": true
-                      },
+                      "data": [
+                        {
+                          "count": 1.5,
+                          "fingerprint": "example",
+                          "id": "session_2026-10-07_1200",
+                          "kind": "example",
+                          "parent_span_id": "example",
+                          "session_id": "session_2026-10-07_1200",
+                          "trace_id": "6d8f4a9c2e1b7f30",
+                          "wasted_ns": 1.5
+                        }
+                      ],
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7014,6 +7553,16 @@
     "/api/lint": {
       "get": {
         "operationId": "listLint",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7022,9 +7571,17 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": {
-                        "ok": true
-                      },
+                      "data": [
+                        {
+                          "created_at": 1.5,
+                          "message": "Representative Spaniel response",
+                          "rule_id": "example",
+                          "session_id": "session_2026-10-07_1200",
+                          "severity": "example",
+                          "span_id": "19ab3f8e",
+                          "trace_id": "6d8f4a9c2e1b7f30"
+                        }
+                      ],
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7070,6 +7627,64 @@
     "/api/logs": {
       "get": {
         "operationId": "listLogs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "traceId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "spanId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7080,10 +7695,14 @@
                     "value": {
                       "data": [
                         {
-                          "body": "payment authorization failed",
+                          "attributes": "example",
+                          "body": "Representative Spaniel response",
                           "service_name": "checkout",
-                          "severity": "ERROR",
-                          "timestamp_ns": 1730000000000000000
+                          "session_id": "session_2026-10-07_1200",
+                          "severity": 1.5,
+                          "span_id": "19ab3f8e",
+                          "timestamp_ns": 1.5,
+                          "trace_id": "6d8f4a9c2e1b7f30"
                         }
                       ],
                       "meta": {
@@ -7131,6 +7750,16 @@
     "/api/metrics": {
       "get": {
         "operationId": "listMetrics",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7141,9 +7770,14 @@
                     "value": {
                       "data": [
                         {
-                          "name": "http.server.duration",
+                          "aggregation_temporality": "example",
+                          "description": "example",
+                          "last_timestamp_ns": 1.5,
+                          "name": "POST /checkout",
+                          "sample_count": 1.5,
                           "service_name": "checkout",
-                          "unit": "ms"
+                          "type": "example",
+                          "unit": "example"
                         }
                       ],
                       "meta": {
@@ -7191,6 +7825,16 @@
     "/api/metrics/cardinality": {
       "get": {
         "operationId": "getMetricCardinality",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7201,9 +7845,10 @@
                     "value": {
                       "data": [
                         {
-                          "name": "http.server.duration",
-                          "service_name": "checkout",
-                          "unit": "ms"
+                          "active_series": 1.5,
+                          "limit": 1.5,
+                          "name": "POST /checkout",
+                          "service_name": "checkout"
                         }
                       ],
                       "meta": {
@@ -7251,6 +7896,64 @@
     "/api/metrics/series": {
       "get": {
         "operationId": "getMetricSeries",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_traces",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7259,13 +7962,37 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "name": "http.server.duration",
-                          "service_name": "checkout",
-                          "unit": "ms"
-                        }
-                      ],
+                      "data": {
+                        "aggregation": "example",
+                        "description": "example",
+                        "name": "POST /checkout",
+                        "points": [
+                          {
+                            "bounds": "…",
+                            "buckets": "…",
+                            "count": "…",
+                            "exemplars": "…",
+                            "exp_negative_counts": "…",
+                            "exp_negative_offset": "…",
+                            "timestamp_ns": "…",
+                            "value": "…"
+                          }
+                        ],
+                        "service_name": "checkout",
+                        "traces": [
+                          {
+                            "duration_ns": "…",
+                            "end_ns": "…",
+                            "op": "…",
+                            "service": "…",
+                            "start_ns": "…",
+                            "status_code": "…",
+                            "trace_id": "…"
+                          }
+                        ],
+                        "type": "example",
+                        "unit": "example"
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7335,6 +8062,24 @@
     "/api/query-catalog": {
       "get": {
         "operationId": "listQueryCatalog",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "signal",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7343,9 +8088,15 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": {
-                        "ok": true
-                      },
+                      "data": [
+                        {
+                          "attributes": {},
+                          "display_type": "example",
+                          "name": "POST /checkout",
+                          "query": "example",
+                          "signal": "example"
+                        }
+                      ],
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7391,6 +8142,32 @@
     "/api/search": {
       "get": {
         "operationId": "searchTelemetry",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7399,9 +8176,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": {
-                        "ok": true
-                      },
+                      "data": [
+                        {
+                          "kind": "trace",
+                          "session_id": "session_2026-10-07_1200",
+                          "span_id": "19ab3f8e",
+                          "subtitle": "example",
+                          "title": "example",
+                          "trace_id": "6d8f4a9c2e1b7f30"
+                        }
+                      ],
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7447,6 +8231,16 @@
     "/api/service-map": {
       "get": {
         "operationId": "getServiceMap",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7456,7 +8250,24 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "ok": true
+                        "edges": [
+                          {
+                            "avg_duration_ns": "…",
+                            "call_count": "…",
+                            "error_count": "…",
+                            "from": "…",
+                            "to": "…"
+                          }
+                        ],
+                        "nodes": [
+                          {
+                            "error_count": "…",
+                            "id": "…",
+                            "p95_ns": "…",
+                            "span_count": "…",
+                            "top_operations": "…"
+                          }
+                        ]
                       },
                       "meta": {
                         "page": 1,
@@ -7508,9 +8319,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": {
-                        "ok": true
-                      },
+                      "data": [
+                        "example"
+                      ],
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7566,9 +8377,14 @@
                     "value": {
                       "data": [
                         {
+                          "created_at": 1.5,
                           "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
+                          "is_baseline": true,
+                          "is_imported": true,
+                          "label": "checkout regression",
+                          "services": "example",
+                          "span_count": 1.5,
+                          "trace_count": 1.5
                         }
                       ],
                       "meta": {
@@ -7618,7 +8434,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -7632,13 +8453,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "id": "session_2026-10-07_1200",
+                        "is_baseline": true,
+                        "is_imported": true,
+                        "label": "checkout regression",
+                        "services": "example",
+                        "span_count": 1.5,
+                        "trace_count": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7689,13 +8513,10 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                      "data": {
+                        "id": "session_2026-10-07_1200",
+                        "label": "checkout regression"
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7738,11 +8559,30 @@
     "/api/sessions/import": {
       "post": {
         "operationId": "importSession",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "label",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -7756,13 +8596,20 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
+                      "data": {
+                        "session": {
+                          "created_at": 1.5,
                           "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                          "is_baseline": true,
+                          "is_imported": true,
+                          "label": "checkout regression",
+                          "services": "example",
+                          "span_count": 1.5,
+                          "trace_count": 1.5
+                        },
+                        "span_count": 1.5,
+                        "trace_count": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7823,13 +8670,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7888,13 +8731,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "id": "session_2026-10-07_1200",
+                        "is_baseline": true,
+                        "is_imported": true,
+                        "label": "checkout regression",
+                        "services": "example",
+                        "span_count": 1.5,
+                        "trace_count": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -7949,7 +8795,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -7963,13 +8817,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "id": "session_2026-10-07_1200",
+                        "is_baseline": true,
+                        "is_imported": true,
+                        "label": "checkout regression",
+                        "services": "example",
+                        "span_count": 1.5,
+                        "trace_count": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -8026,7 +8883,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -8040,13 +8898,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                      "data": {
+                        "created_at": 1.5,
+                        "id": "session_2026-10-07_1200",
+                        "is_baseline": true,
+                        "is_imported": true,
+                        "label": "checkout regression",
+                        "services": "example",
+                        "span_count": 1.5,
+                        "trace_count": 1.5
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -8103,7 +8964,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "properties": {
+                  "is_baseline": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "is_baseline"
+                ],
+                "type": "object"
               }
             }
           },
@@ -8117,13 +8986,9 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "id": "session_2026-10-07_1200",
-                          "is_baseline": false,
-                          "label": "checkout regression"
-                        }
-                      ],
+                      "data": {
+                        "ok": true
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -8180,6 +9045,12 @@
           "200": {
             "content": {
               "application/json": {
+                "examples": {
+                  "example": {
+                    "summary": "Representative Spaniel response",
+                    "value": "example"
+                  }
+                },
                 "schema": {
                   "type": "string"
                 }
@@ -8212,8 +9083,14 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "http_port": 8080,
-                        "retention_days": 7
+                        "advance_session_on_start": true,
+                        "alerts_dir": "example",
+                        "auto_prune": true,
+                        "db_path": "example",
+                        "max_db_size_mb": 1.5,
+                        "max_sessions": 1.5,
+                        "port": 1.5,
+                        "retention_days": 1.5
                       },
                       "meta": {
                         "page": 1,
@@ -8259,7 +9136,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -8274,8 +9152,14 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "http_port": 8080,
-                        "retention_days": 7
+                        "advance_session_on_start": true,
+                        "alerts_dir": "example",
+                        "auto_prune": true,
+                        "db_path": "example",
+                        "max_db_size_mb": 1.5,
+                        "max_sessions": 1.5,
+                        "port": 1.5,
+                        "retention_days": 1.5
                       },
                       "meta": {
                         "page": 1,
@@ -8323,7 +9207,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -8338,8 +9223,13 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "http_port": 8080,
-                        "retention_days": 7
+                        "channel": "example",
+                        "checked_at_ns": 1.5,
+                        "current": "example",
+                        "error": "example",
+                        "is_outdated": true,
+                        "latest": "example",
+                        "release_notes_url": "example"
                       },
                       "meta": {
                         "page": 1,
@@ -8387,7 +9277,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -8402,8 +9293,9 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "http_port": 8080,
-                        "retention_days": 7
+                        "bytes_after": 1.5,
+                        "bytes_before": 1.5,
+                        "reclaimed": 1.5
                       },
                       "meta": {
                         "page": 1,
@@ -8456,8 +9348,7 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "http_port": 8080,
-                        "retention_days": 7
+                        "ok": true
                       },
                       "meta": {
                         "page": 1,
@@ -8505,7 +9396,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JSONValue"
+                "additionalProperties": true,
+                "type": "object"
               }
             }
           },
@@ -8520,8 +9412,11 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "http_port": 8080,
-                        "retention_days": 7
+                        "deleted_by_age": 1.5,
+                        "deleted_by_count": 1.5,
+                        "deleted_by_size": 1.5,
+                        "final_db_size_bytes": 1.5,
+                        "final_sessions": 1.5
                       },
                       "meta": {
                         "page": 1,
@@ -8565,6 +9460,16 @@
     "/api/sources": {
       "get": {
         "operationId": "listSources",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -8573,9 +9478,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": {
-                        "ok": true
-                      },
+                      "data": [
+                        {
+                          "accepted_per_sec": 1.5,
+                          "bytes_per_sec": 1.5,
+                          "error_rate": 1.5,
+                          "last_seen_ns": 1.5,
+                          "rejected_per_sec": 1.5,
+                          "service": "example"
+                        }
+                      ],
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -8621,6 +9533,72 @@
     "/api/spans": {
       "get": {
         "operationId": "listSpans",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -8631,10 +9609,13 @@
                     "value": {
                       "data": [
                         {
-                          "duration_ns": 12000000,
-                          "name": "SELECT orders",
-                          "service_name": "postgres",
+                          "duration_ns": 1.5,
+                          "name": "POST /checkout",
+                          "parent_span_id": "example",
+                          "service_name": "checkout",
+                          "session_id": "session_2026-10-07_1200",
                           "span_id": "19ab3f8e",
+                          "start_ns": 1.5,
                           "trace_id": "6d8f4a9c2e1b7f30"
                         }
                       ],
@@ -8701,15 +9682,16 @@
                   "example": {
                     "summary": "Representative Spaniel response",
                     "value": {
-                      "data": [
-                        {
-                          "duration_ns": 12000000,
-                          "name": "SELECT orders",
-                          "service_name": "postgres",
-                          "span_id": "19ab3f8e",
-                          "trace_id": "6d8f4a9c2e1b7f30"
-                        }
-                      ],
+                      "data": {
+                        "duration_ns": 1.5,
+                        "name": "POST /checkout",
+                        "parent_span_id": "example",
+                        "service_name": "checkout",
+                        "session_id": "session_2026-10-07_1200",
+                        "span_id": "19ab3f8e",
+                        "start_ns": 1.5,
+                        "trace_id": "6d8f4a9c2e1b7f30"
+                      },
                       "meta": {
                         "page": 1,
                         "total": 1
@@ -8752,6 +9734,16 @@
     "/api/stats": {
       "get": {
         "operationId": "getStats",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -8761,7 +9753,14 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "ok": true
+                        "db_size": 1.5,
+                        "log_count": 1.5,
+                        "logs_per_sec": 1.5,
+                        "metrics_per_sec": 1.5,
+                        "peak_spans_per_sec": 1.5,
+                        "span_count": 1.5,
+                        "spans_per_sec": 1.5,
+                        "trace_count": 1.5
                       },
                       "meta": {
                         "page": 1,
@@ -8814,7 +9813,17 @@
                     "summary": "Representative Spaniel response",
                     "value": {
                       "data": {
-                        "ok": true
+                        "last_checkpoint_at": 1.5,
+                        "main_bytes": 1.5,
+                        "sessions": {},
+                        "tables": [
+                          {
+                            "approx_bytes": "…",
+                            "name": "…",
+                            "row_count": "…"
+                          }
+                        ],
+                        "wal_bytes": 1.5
                       },
                       "meta": {
                         "page": 1,
@@ -8858,6 +9867,40 @@
     "/api/traces": {
       "get": {
         "operationId": "listTraces",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -8868,10 +9911,13 @@
                     "value": {
                       "data": [
                         {
-                          "duration_ns": 182000000,
+                          "attributes": "example",
+                          "duration_ns": 1.5,
                           "name": "POST /checkout",
                           "service_name": "checkout",
-                          "status_code": 1,
+                          "session_id": "session_2026-10-07_1200",
+                          "start_ns": 1.5,
+                          "status_code": 1.5,
                           "trace_id": "6d8f4a9c2e1b7f30"
                         }
                       ],
@@ -8940,10 +9986,13 @@
                     "value": {
                       "data": [
                         {
-                          "duration_ns": 182000000,
+                          "duration_ns": 1.5,
                           "name": "POST /checkout",
+                          "parent_span_id": "example",
                           "service_name": "checkout",
-                          "status_code": 1,
+                          "session_id": "session_2026-10-07_1200",
+                          "span_id": "19ab3f8e",
+                          "start_ns": 1.5,
                           "trace_id": "6d8f4a9c2e1b7f30"
                         }
                       ],
@@ -9006,6 +10055,12 @@
           "200": {
             "content": {
               "application/json": {
+                "examples": {
+                  "example": {
+                    "summary": "Representative Spaniel response",
+                    "value": "example"
+                  }
+                },
                 "schema": {
                   "type": "string"
                 }
@@ -9049,10 +10104,13 @@
                     "value": {
                       "data": [
                         {
-                          "duration_ns": 182000000,
+                          "duration_ns": 1.5,
                           "name": "POST /checkout",
+                          "parent_span_id": "example",
                           "service_name": "checkout",
-                          "status_code": 1,
+                          "session_id": "session_2026-10-07_1200",
+                          "span_id": "19ab3f8e",
+                          "start_ns": 1.5,
                           "trace_id": "6d8f4a9c2e1b7f30"
                         }
                       ],
