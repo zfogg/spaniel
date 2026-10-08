@@ -93,7 +93,9 @@ function HeatCell({
   onClick: () => void
 }) {
   const dark = route.hits === 0
-  const intensity = dark ? 0 : Math.min(1, 0.18 + Math.log10(route.hits + 1) / 3)
+  // Keep heat cells in the readable tint range. The filled method badge carries
+  // the strong colour; route text must remain legible at the busiest volume.
+  const intensity = dark ? 0 : Math.min(0.32, 0.08 + Math.log10(route.hits + 1) / 10)
   const m = methodTone(route.method)
   return (
     <button
