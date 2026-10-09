@@ -1,8 +1,19 @@
-import { describe, it, expect } from 'vitest'
-import { sevLabel, matchesSevFilter } from './log-severity-filter'
+import { describe, expect, it } from 'vitest'
+import type { Log } from '@/lib/api'
+import { logKey } from '@/lib/log-key'
+import { matchesSevFilter, sevLabel } from './log-severity-filter'
 
-// OTLP severity number boundaries:
-//   1–4 TRACE, 5–8 DEBUG, 9–12 INFO, 13–16 WARN, 17–20 ERROR, 21+ FATAL.
+const baseLog: Log = {
+  attributes: '{"http.route":"/api/logs"}',
+  body: 'HTTP request completed',
+  received_at: 1_791_548_867_665_099_000,
+  service_name: 'spaniel',
+  session_id: 'session',
+  severity: 9,
+  span_id: '',
+  timestamp_ns: 1_791_548_867_665_099_000,
+  trace_id: '',
+}
 
 describe('sevLabel', () => {
   it.each([
@@ -41,5 +52,13 @@ describe('matchesSevFilter', () => {
     expect(matchesSevFilter(21, 'ERROR')).toBe(false)
     expect(matchesSevFilter(22, 'FATAL')).toBe(true)
     expect(matchesSevFilter(20, 'FATAL')).toBe(false)
+  })
+})
+
+describe('logKey', () => {
+  it('keeps same-timestamp access logs with different attributes distinct', () => {
+    expect(logKey(baseLog)).not.toBe(
+      logKey({ ...baseLog, attributes: '{"http.route":"/api/sources"}' }),
+    )
   })
 })

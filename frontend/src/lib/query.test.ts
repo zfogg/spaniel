@@ -157,4 +157,71 @@ describe('useLiveInvalidation', () => {
       meta: { page: 1, total: 1 },
     })
   })
+
+  it('patches self spans and logs without invalidating either list', () => {
+    const qc = new QueryClient()
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children)
+    const span = {
+      trace_id: 'trace',
+      span_id: 'span',
+      parent_span_id: '',
+      service_name: 'spaniel',
+      name: 'storage.AppendSpan',
+      kind: 1,
+      start_ns: 1,
+      end_ns: 2,
+      duration_ns: 1,
+      status_code: 0,
+      status_message: '',
+      attributes: '{}',
+      resource: '{}',
+      session_id: 'session',
+      session_label: 'session',
+      received_at: 2,
+      events: [],
+      links: [],
+    }
+    const log = {
+      timestamp_ns: 3,
+      trace_id: 'trace',
+      span_id: 'span',
+      severity: 9,
+      body: 'stored',
+      attributes: '{}',
+      service_name: 'spaniel',
+      session_id: 'session',
+      received_at: 3,
+    }
+    qc.setQueryData(['spans', { sort: 'time', page: 1, drilldown: null }], {
+      data: [],
+      meta: { page: 1, total: 0 },
+    })
+    qc.setQueryData(
+      ['logs', { severity: undefined, traceId: undefined, service: 'all', page: 1 }],
+      {
+        data: [],
+        meta: { page: 1, total: 0 },
+      },
+    )
+
+    renderHook(() => useLiveInvalidation(), { wrapper })
+    captured!({ type: 'self_span', timestamp_ns: 0, payload: span })
+    captured!({ type: 'self_log', timestamp_ns: 0, payload: log })
+
+    expect(
+      qc.getQueryData<{ data: (typeof span)[] }>([
+        'spans',
+        { sort: 'time', page: 1, drilldown: null },
+      ]),
+    ).toMatchObject({ data: [span] })
+    expect(
+      qc.getQueryData<{ data: (typeof log)[] }>([
+        'logs',
+        { severity: undefined, traceId: undefined, service: 'all', page: 1 },
+      ]),
+    ).toMatchObject({ data: [log] })
+    expect(spy).not.toHaveBeenCalled()
+  })
 })

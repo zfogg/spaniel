@@ -429,6 +429,28 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 						IssueKinds:   []string{},
 					}))
 				}
+				if self {
+					p.hub.Broadcast(ws.NewSelfSpanEvent(&ws.SelfSpanPayload{
+						TraceID:       s.TraceID,
+						SpanID:        s.SpanID,
+						ParentSpanID:  s.ParentSpanID,
+						ServiceName:   s.ServiceName,
+						Name:          s.Name,
+						Kind:          s.Kind,
+						StartNs:       s.StartNs,
+						EndNs:         s.EndNs,
+						DurationNs:    s.DurationNs,
+						StatusCode:    s.StatusCode,
+						StatusMessage: s.StatusMessage,
+						Attributes:    s.Attributes,
+						Resource:      s.Resource,
+						SessionID:     s.SessionID,
+						SessionLabel:  s.SessionLabel,
+						ReceivedAt:    s.ReceivedAt,
+						Events:        []any{},
+						Links:         []any{},
+					}))
+				}
 				if !self {
 					p.scheduleLint(s)
 				}
@@ -536,6 +558,19 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 				}
 				telemetry.Catalog().RecordStorageAppend(ctx, "logs", float64(time.Since(t0).Microseconds())/1000)
 				logsSeen++
+				if self {
+					p.hub.Broadcast(ws.NewSelfLogEvent(&ws.SelfLogPayload{
+						TimestampNs: l.TimestampNs,
+						TraceID:     l.TraceID,
+						SpanID:      l.SpanID,
+						Severity:    l.Severity,
+						Body:        l.Body,
+						Attributes:  l.Attributes,
+						ServiceName: l.ServiceName,
+						SessionID:   l.SessionID,
+						ReceivedAt:  l.ReceivedAt,
+					}))
+				}
 				if !self {
 					p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
 						TraceID:     l.TraceID,

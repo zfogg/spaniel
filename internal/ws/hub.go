@@ -58,6 +58,42 @@ type SelfTracePayload struct {
 	IssueKinds   []string `json:"issue_kinds"`
 }
 
+// SelfSpanPayload is a span-list row sent directly to clients so self
+// observability can update the Span view without causing a read/write loop.
+type SelfSpanPayload struct {
+	TraceID       string `json:"trace_id"`
+	SpanID        string `json:"span_id"`
+	ParentSpanID  string `json:"parent_span_id"`
+	ServiceName   string `json:"service_name"`
+	Name          string `json:"name"`
+	Kind          int    `json:"kind"`
+	StartNs       int64  `json:"start_ns"`
+	EndNs         int64  `json:"end_ns"`
+	DurationNs    int64  `json:"duration_ns"`
+	StatusCode    int    `json:"status_code"`
+	StatusMessage string `json:"status_message"`
+	Attributes    string `json:"attributes"`
+	Resource      string `json:"resource"`
+	SessionID     string `json:"session_id"`
+	SessionLabel  string `json:"session_label"`
+	ReceivedAt    int64  `json:"received_at"`
+	Events        []any  `json:"events"`
+	Links         []any  `json:"links"`
+}
+
+// SelfLogPayload is the complete log-list row for a self-observability log.
+type SelfLogPayload struct {
+	TimestampNs int64  `json:"timestamp_ns"`
+	TraceID     string `json:"trace_id"`
+	SpanID      string `json:"span_id"`
+	Severity    int    `json:"severity"`
+	Body        string `json:"body"`
+	Attributes  string `json:"attributes"`
+	ServiceName string `json:"service_name"`
+	SessionID   string `json:"session_id"`
+	ReceivedAt  int64  `json:"received_at"`
+}
+
 type LogPayload struct {
 	TraceID     string `json:"traceId"`
 	SpanID      string `json:"spanId"`
@@ -132,6 +168,14 @@ func NewSpanEvent(p *SpanPayload) *Event {
 
 func NewSelfTraceEvent(p *SelfTracePayload) *Event {
 	return &Event{Type: "self_trace", Timestamp: time.Now().UnixNano(), Payload: p}
+}
+
+func NewSelfSpanEvent(p *SelfSpanPayload) *Event {
+	return &Event{Type: "self_span", Timestamp: time.Now().UnixNano(), Payload: p}
+}
+
+func NewSelfLogEvent(p *SelfLogPayload) *Event {
+	return &Event{Type: "self_log", Timestamp: time.Now().UnixNano(), Payload: p}
 }
 
 func NewLogEvent(p *LogPayload) *Event {

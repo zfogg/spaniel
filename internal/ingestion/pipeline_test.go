@@ -482,6 +482,64 @@ func TestPipeline_BroadcastsSelfTraceSnapshot(t *testing.T) {
 	if ev.Payload.SessionID != sess.ID || ev.Payload.SessionLabel != sess.Label {
 		t.Errorf("event session = %q/%q, want %q/%q", ev.Payload.SessionID, ev.Payload.SessionLabel, sess.ID, sess.Label)
 	}
+	_, msg, err = conn.Read(readCtx)
+	if err != nil {
+		t.Fatalf("read self span event: %v", err)
+	}
+	if err := json.Unmarshal(msg, &ev); err != nil {
+		t.Fatalf("unmarshal self span event: %v", err)
+	}
+	if ev.Type != "self_span" {
+		t.Fatalf("event type = %q, want self_span", ev.Type)
+	}
+}
+
+func TestPipeline_BroadcastsSelfLogSnapshot(t *testing.T) {
+	db := openTestDB(t)
+	sess, _ := db.CreateSession("self-log-ws-session", false)
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	hub := ws.NewHub()
+	conn, srv := dialPipelineHub(t, hub)
+	defer srv.Close()
+	defer conn.CloseNow() //nolint:errcheck
+
+	p := NewPipeline(db, hub)
+	p.SetSelfService("spaniel")
+	ld := makeLogs("spaniel", func(rl plog.ResourceLogs) {
+		sl := rl.ScopeLogs().AppendEmpty()
+		lr := sl.LogRecords().AppendEmpty()
+		lr.SetSeverityNumber(plog.SeverityNumberInfo)
+		lr.Body().SetStr("self log")
+		lr.SetTimestamp(pcommon.Timestamp(1_000_000_000))
+	})
+	if err := p.IngestLogs(context.Background(), ld); err != nil {
+		t.Fatalf("IngestLogs: %v", err)
+	}
+
+	readCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, msg, err := conn.Read(readCtx)
+	if err != nil {
+		t.Fatalf("read self log event: %v", err)
+	}
+	var ev struct {
+		Type    string `json:"type"`
+		Payload struct {
+			Body        string `json:"body"`
+			ServiceName string `json:"service_name"`
+			SessionID   string `json:"session_id"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(msg, &ev); err != nil {
+		t.Fatalf("unmarshal self log event: %v", err)
+	}
+	if ev.Type != "self_log" || ev.Payload.Body != "self log" || ev.Payload.ServiceName != "spaniel" {
+		t.Errorf("unexpected self log event: %+v", ev)
+	}
+	if ev.Payload.SessionID != sess.ID {
+		t.Errorf("event session = %q, want %q", ev.Payload.SessionID, sess.ID)
+	}
 }
 
 func TestPipeline_BroadcastsMetric(t *testing.T) {

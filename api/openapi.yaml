@@ -6087,6 +6087,20 @@ paths:
                   required: false
                   schema:
                     type: string
+                - description: Sets the inclusive start of the log timestamp range as Unix nanoseconds.
+                  in: query
+                  name: fromNs
+                  required: false
+                  schema:
+                    format: int64
+                    type: integer
+                - description: Sets the inclusive end of the log timestamp range as Unix nanoseconds.
+                  in: query
+                  name: toNs
+                  required: false
+                  schema:
+                    format: int64
+                    type: integer
                 - description: Selects which result page to return. Pair it with limit to walk a large result set.
                   in: query
                   name: page

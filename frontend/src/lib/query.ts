@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
-import type { ForwarderStatus, SourceStats, Stats, TraceRow } from './api'
+import type { ForwarderStatus, Log, SourceStats, SpanRow, Stats, TraceRow } from './api'
 import { onWSEvent } from './ws'
 
 // Single shared client. This is a local dev tool talking to localhost, so we
@@ -70,6 +70,7 @@ const INVALIDATIONS: Record<string, string[]> = {
 }
 
 type TraceListData = { data: TraceRow[]; meta?: { page?: number; total?: number } }
+type ListData<T> = { data: T[]; meta?: { page?: number; total?: number } }
 
 export function patchSelfTrace(
   old: TraceListData | undefined,
@@ -80,6 +81,19 @@ export function patchSelfTrace(
   return {
     ...old,
     data: [trace, ...old.data].slice(0, Math.max(old.data.length, 100)),
+    meta: old.meta ? { ...old.meta, total: (old.meta.total ?? 0) + 1 } : old.meta,
+  }
+}
+
+function patchFirstPage<T>(
+  old: ListData<T> | undefined,
+  item: T,
+  exists: (current: T) => boolean,
+): ListData<T> | undefined {
+  if (!old || old.data.some(exists)) return old
+  return {
+    ...old,
+    data: [item, ...old.data].slice(0, Math.max(old.data.length, 100)),
     meta: old.meta ? { ...old.meta, total: (old.meta.total ?? 0) + 1 } : old.meta,
   }
 }
@@ -115,7 +129,9 @@ export function useLiveInvalidation() {
               const { page, service, sessionId } = params as Record<string, unknown>
               return (
                 (page === 1 || page === undefined) &&
-                (service === 'all' || service === undefined) &&
+                (service === 'all' ||
+                  service === undefined ||
+                  service === ev.payload.service_name) &&
                 (sessionId === undefined ||
                   sessionId === null ||
                   sessionId === ev.payload.session_id)
@@ -123,6 +139,52 @@ export function useLiveInvalidation() {
             },
           },
           (old) => patchSelfTrace(old, ev.payload),
+        )
+        return
+      }
+      if (ev.type === 'self_span') {
+        qc.setQueriesData<ListData<SpanRow>>(
+          {
+            predicate: (query) => {
+              const [prefix, params] = query.queryKey
+              if (prefix !== 'spans' || !params || typeof params !== 'object') return false
+              const { page, sort, drilldown, view } = params as Record<string, unknown>
+              return (
+                (page === 1 || page === undefined) &&
+                sort === 'time' &&
+                drilldown === null &&
+                view === undefined
+              )
+            },
+          },
+          (old) => patchFirstPage(old, ev.payload, (span) => span.span_id === ev.payload.span_id),
+        )
+        return
+      }
+      if (ev.type === 'self_log') {
+        qc.setQueriesData<ListData<Log>>(
+          {
+            predicate: (query) => {
+              const [prefix, params] = query.queryKey
+              if (prefix !== 'logs' || !params || typeof params !== 'object') return false
+              const { page, severity, traceId, service } = params as Record<string, unknown>
+              return (
+                (page === 1 || page === undefined) &&
+                severity === undefined &&
+                traceId === undefined &&
+                (service === 'all' || service === undefined || service === ev.payload.service_name)
+              )
+            },
+          },
+          (old) =>
+            patchFirstPage(
+              old,
+              ev.payload,
+              (log) =>
+                log.timestamp_ns === ev.payload.timestamp_ns &&
+                log.span_id === ev.payload.span_id &&
+                log.body === ev.payload.body,
+            ),
         )
         return
       }

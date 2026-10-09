@@ -74,6 +74,45 @@ func TestListLogs_BySpan(t *testing.T) {
 	}
 }
 
+func TestListLogs_TimeRangePaginatesTheFilteredSet(t *testing.T) {
+	handler, store := setupRouter(t)
+	const sessionID = "sess"
+	for _, timestamp := range []int64{100, 200, 300} {
+		if err := store.InsertLog(&storage.Log{
+			TimestampNs: timestamp,
+			TraceID:     "trace",
+			SpanID:      "span",
+			Body:        "range",
+			ServiceName: "svc",
+			SessionID:   sessionID,
+			ReceivedAt:  timestamp,
+			Attributes:  "{}",
+		}); err != nil {
+			t.Fatalf("InsertLog: %v", err)
+		}
+	}
+
+	w := do(t, handler, http.MethodGet, "/api/logs?sessionId=sess&fromNs=150&toNs=250&page=1&limit=100", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var response struct {
+		Data []storage.Log `json:"data"`
+		Meta struct {
+			Total int `json:"total"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(response.Data) != 1 || response.Data[0].TimestampNs != 200 {
+		t.Fatalf("expected only the in-range log, got %+v", response.Data)
+	}
+	if response.Meta.Total != 1 {
+		t.Fatalf("expected total 1 for the filtered range, got %d", response.Meta.Total)
+	}
+}
+
 func TestListLogs_BySeverity(t *testing.T) {
 	handler, store := setupRouter(t)
 	now := int64(1_000_000_000)

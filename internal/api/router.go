@@ -164,14 +164,6 @@ func accessLogMiddleware(next http.Handler) http.Handler {
 		if rctx := chi.RouteContext(req.Context()); rctx != nil && rctx.RoutePattern() != "" {
 			route = rctx.RoutePattern()
 		}
-		// Successful read-only UI polling is not operator-significant. Recording
-		// it as INFO floods the Logs view (and /api/logs can trigger a feedback
-		// loop), hiding the Spaniel lifecycle and receiver records this view is
-		// meant to expose. Failed reads and every state-changing request remain
-		// visible below.
-		if req.Method == http.MethodGet && wrapped.Status() < http.StatusBadRequest {
-			return
-		}
 		slog.InfoContext(req.Context(), "HTTP request completed",
 			"spaniel.log.source", "access",
 			"http.request.method", req.Method,
@@ -524,6 +516,8 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, http.StatusBadRequest, "invalid severity")
 		return
 	}
+	fromNs, _ := strconv.ParseInt(q.Get("fromNs"), 10, 64)
+	toNs, _ := strconv.ParseInt(q.Get("toNs"), 10, 64)
 
 	filter := storage.LogFilter{
 		SessionID:   r.scopeSession(q.Get("sessionId")),
@@ -532,6 +526,8 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 		SpanID:      q.Get("spanId"),
 		MinSeverity: minSeverity,
 		MaxSeverity: maxSeverity,
+		FromNs:      fromNs,
+		ToNs:        toNs,
 		Limit:       limit,
 		Page:        page,
 	}

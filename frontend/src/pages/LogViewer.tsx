@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -13,6 +13,7 @@ import PaginationControls from '@/components/PaginationControls'
 import { AnimatePresence, motion } from 'motion/react'
 import { TelemetryArrival } from '@/components/TelemetryArrival'
 import { useNewItemIDs } from '@/lib/use-new-item-ids'
+import { logKey } from '@/lib/log-key'
 
 const PAGE_SIZE = 100
 
@@ -378,6 +379,22 @@ export default function LogViewer() {
   const navigate = useNavigate()
   const traceId = searchParams.get('traceId') ?? undefined
 
+  // Time bounds must be part of the request: filtering after pagination can
+  // leave a visible page short or empty while its total still counts old rows.
+  // Freeze the bound for this filter selection so relative-time repainting
+  // does not refetch the list every second.
+  const fromNs = useMemo(() => {
+    const rangeMs =
+      timeFilter === '15m'
+        ? 900_000
+        : timeFilter === '1h'
+          ? 3_600_000
+          : timeFilter === '24h'
+            ? 86_400_000
+            : 0
+    return rangeMs > 0 ? (Date.now() - rangeMs) * 1_000_000 : undefined
+  }, [timeFilter])
+
   // Logs + services come from queries; live log events refresh them via
   // useLiveInvalidation() in App.tsx (throttled), replacing the old initial
   // load + 3s poll + WebSocket-push + client-side dedup machinery.
@@ -389,12 +406,13 @@ export default function LogViewer() {
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.logs({ severity, traceId, service: filterService, page }),
+    queryKey: qk.logs({ severity, traceId, service: filterService, fromNs, page }),
     queryFn: () =>
       api.logs.list({
         severity,
         traceId,
         service: filterService === 'all' ? undefined : filterService,
+        fromNs,
         page,
         limit: PAGE_SIZE,
       }),
@@ -426,16 +444,6 @@ export default function LogViewer() {
     if (filterService !== 'all' && l.service_name !== filterService) return false
     if (!matchesSevFilter(l.severity, filterSev)) return false
     if (filterSource !== 'all' && logSource(l) !== filterSource) return false
-    const ageMs = Date.now() - l.timestamp_ns / 1_000_000
-    const limitMs =
-      timeFilter === '15m'
-        ? 900_000
-        : timeFilter === '1h'
-          ? 3_600_000
-          : timeFilter === '24h'
-            ? 86_400_000
-            : Infinity
-    if (ageMs > limitMs) return false
     if (search) {
       const q = search.toLowerCase()
       if (!l.body.toLowerCase().includes(q) && !l.service_name.toLowerCase().includes(q))
@@ -625,9 +633,12 @@ export default function LogViewer() {
               {/* rows */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {filtered.map((log, i) => {
-                  const k = logKey(log)
+                  // The backend may legitimately retain byte-for-byte
+                  // identical LogRecords. The position suffix gives React a
+                  // unique sibling key without pretending the records differ.
+                  const k = `${logKey(log)}:${i}`
                   return (
-                    <TelemetryArrival key={k} arriving={arrivingLogKeys.has(k)}>
+                    <TelemetryArrival key={k} arriving={arrivingLogKeys.has(logKey(log))}>
                       <LogRow
                         log={log}
                         i={i}
@@ -669,8 +680,4 @@ export default function LogViewer() {
       </div>
     </div>
   )
-}
-
-function logKey(l: Log): string {
-  return `${l.timestamp_ns}:${l.span_id}:${l.body.slice(0, 40)}`
 }

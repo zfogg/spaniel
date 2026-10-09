@@ -4634,6 +4634,10 @@ export interface operations {
         severity?: string
         /** @description Restricts results to telemetry emitted by the named service. */
         service?: string
+        /** @description Sets the inclusive start of the log timestamp range as Unix nanoseconds. */
+        fromNs?: number
+        /** @description Sets the inclusive end of the log timestamp range as Unix nanoseconds. */
+        toNs?: number
         /** @description Selects which result page to return. Pair it with limit to walk a large result set. */
         page?: number
         /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */

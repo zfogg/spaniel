@@ -10,6 +10,8 @@ export interface SpanPayload {
   sessionId: string
 }
 export type SelfTracePayload = import('./api').TraceRow
+export type SelfSpanPayload = import('./api').SpanRow
+export type SelfLogPayload = import('./api').Log
 export interface LogPayload {
   traceId: string
   spanId: string
@@ -80,6 +82,8 @@ export interface NotificationPayload {
 export type WsEvent =
   | { type: 'span'; timestamp_ns: number; payload: SpanPayload }
   | { type: 'self_trace'; timestamp_ns: number; payload: SelfTracePayload }
+  | { type: 'self_span'; timestamp_ns: number; payload: SelfSpanPayload }
+  | { type: 'self_log'; timestamp_ns: number; payload: SelfLogPayload }
   | { type: 'log'; timestamp_ns: number; payload: LogPayload }
   | { type: 'metric'; timestamp_ns: number; payload: MetricPayload }
   | { type: 'issue'; timestamp_ns: number; payload: IssuePayload }

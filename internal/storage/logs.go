@@ -18,6 +18,8 @@ type LogFilter struct {
 	SpanID      string
 	MinSeverity int
 	MaxSeverity int
+	FromNs      int64
+	ToNs        int64
 	Limit       int
 	Page        int
 }
@@ -50,6 +52,12 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	if f.MaxSeverity > 0 {
 		q = q.Where(d.query.Log.Severity.Lte(f.MaxSeverity))
 	}
+	if f.FromNs > 0 {
+		q = q.Where(d.query.Log.TimestampNs.Gte(f.FromNs))
+	}
+	if f.ToNs > 0 {
+		q = q.Where(d.query.Log.TimestampNs.Lte(f.ToNs))
+	}
 	return q.Order(d.query.Log.TimestampNs.Desc()).Limit(f.Limit).Offset(offset).Find()
 }
 
@@ -72,6 +80,12 @@ func (d *DB) CountLogs(f LogFilter) (int, error) {
 	}
 	if f.MaxSeverity > 0 {
 		q = q.Where(d.query.Log.Severity.Lte(f.MaxSeverity))
+	}
+	if f.FromNs > 0 {
+		q = q.Where(d.query.Log.TimestampNs.Gte(f.FromNs))
+	}
+	if f.ToNs > 0 {
+		q = q.Where(d.query.Log.TimestampNs.Lte(f.ToNs))
 	}
 	count, err := q.Count()
 	return int(count), err
