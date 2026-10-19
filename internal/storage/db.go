@@ -97,7 +97,7 @@ func Open(path string) (*DB, error) {
 	// Hot-path inserts (spans, logs, metrics) go through the columnar Appender
 	// API rather than per-row INSERTs. Must run after migrate() so the tables
 	// exist for the appenders to bind to.
-	b, err := newBatcher(sqlDB)
+	b, err := newBatcher(sqlDB, path, d.checkpointWithRetry)
 	if err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("init batcher: %w", err)
@@ -115,6 +115,12 @@ func duckDBDSN(path string, readOnly bool) string {
 		sep = "&"
 	}
 	settings := fmt.Sprintf("threads=%d&memory_limit=%s", duckDBWorkerThreads, duckDBMemoryLimit)
+	if !readOnly {
+		// Commit-triggered checkpoints bypass Batcher.Maintenance and can run
+		// while another table still has a live native appender. The batcher's
+		// WAL watcher performs checkpoints with all appenders closed instead.
+		settings += "&debug_skip_checkpoint_on_commit=true"
+	}
 	if readOnly {
 		// User-authored dashboard and alert SQL runs on this connection. Keep
 		// DuckDB from reaching the network/filesystem or loading extensions even

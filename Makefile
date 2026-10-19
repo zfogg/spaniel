@@ -98,7 +98,7 @@ test-extensive: test
 # Focused backend verification for storage work when the embedded frontend
 # artifact has not been built in an isolated worktree.
 test-storage: verify-generated
-	go test ./internal/storage
+	go test ./internal/storage $(TEST_ARGS)
 
 generate:
 	go run ./cmd/genquery

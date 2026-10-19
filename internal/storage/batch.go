@@ -6,6 +6,8 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -29,6 +31,11 @@ const (
 	// least this often. Ingest calls flush at their end (see Pipeline), so in
 	// practice this only fires for unusually long-running requests.
 	batchInterval = 200 * time.Millisecond
+
+	// Replace DuckDB's commit-triggered checkpoints with bounded, guarded
+	// maintenance. Committed writes remain durable in the WAL between checks.
+	checkpointInterval = 5 * time.Second
+	checkpointWALBytes = 16 * 1024 * 1024
 )
 
 var errBatcherClosed = errors.New("storage: batcher is closed")
@@ -66,17 +73,22 @@ type Batcher struct {
 	stop   chan struct{}
 	done   chan struct{}
 	closed bool
+
+	path       string
+	checkpoint func() error
 }
 
 // newBatcher pins one appender per hot-path table and starts the interval
 // flusher. The pinned connections share the same DuckDB instance as the GORM
 // pool, so appended rows are visible to GORM reads after a flush.
-func newBatcher(db *sql.DB) (*Batcher, error) {
+func newBatcher(db *sql.DB, path string, checkpoint func() error) (*Batcher, error) {
 	b := &Batcher{
-		db:   db,
-		apps: make(map[string]*tableAppender, len(batchTables)),
-		stop: make(chan struct{}),
-		done: make(chan struct{}),
+		db:         db,
+		apps:       make(map[string]*tableAppender, len(batchTables)),
+		stop:       make(chan struct{}),
+		done:       make(chan struct{}),
+		path:       path,
+		checkpoint: checkpoint,
 	}
 	for _, t := range batchTables {
 		ta, err := newTableAppender(db, t)
@@ -122,14 +134,39 @@ func (b *Batcher) loop() {
 	defer close(b.done)
 	t := time.NewTicker(batchInterval)
 	defer t.Stop()
+	checkpoints := time.NewTicker(checkpointInterval)
+	defer checkpoints.Stop()
 	for {
 		select {
 		case <-b.stop:
 			return
 		case <-t.C:
 			_ = b.Flush()
+		case <-checkpoints.C:
+			if err := b.checkpointIfNeeded(checkpointWALBytes); err != nil {
+				slog.Error("storage checkpoint failed", "err", err)
+			}
 		}
 	}
+}
+
+// checkpointIfNeeded is also used by tests with a small WAL threshold. It
+// always enters the same maintenance gate as retention and manual compaction.
+func (b *Batcher) checkpointIfNeeded(threshold int64) error {
+	if b.path == "" || b.path == ":memory:" {
+		return nil
+	}
+	info, err := os.Stat(b.path + ".wal")
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("stat checkpoint WAL: %w", err)
+	}
+	if info.Size() < threshold {
+		return nil
+	}
+	return b.Maintenance(b.checkpoint)
 }
 
 // append adds one row to the named table's appender, flushing eagerly once the
@@ -272,7 +309,7 @@ func (b *Batcher) Maintenance(fn func() error) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
-		return fn()
+		return errBatcherClosed
 	}
 
 	closeErr := b.closeAllLocked()
