@@ -53,7 +53,12 @@ func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {
 
 func TestStorageGuardEnabledPrunesAt95PercentTo65Percent(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 95, activeID: "active"}
+	store := &fakeStorageGuardStore{size: 94, activeID: "active"}
+	checkStorageGuard(store, policy)
+	if store.pruneCalls != 0 || store.full {
+		t.Fatal("storage below the high-water mark should retain telemetry and remain writable")
+	}
+	store.size = 95
 
 	checkStorageGuard(store, policy)
 
@@ -70,7 +75,7 @@ func TestStorageGuardEnabledPrunesAt95PercentTo65Percent(t *testing.T) {
 
 func TestStorageGuardEnabledPausesBeforeCapWhenPruneFails(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 85, pruneErr: errors.New("boom")}
+	store := &fakeStorageGuardStore{size: 95, pruneErr: errors.New("boom")}
 
 	checkStorageGuard(store, policy)
 
