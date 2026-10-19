@@ -97,7 +97,9 @@ func Open(path string) (*DB, error) {
 	// Hot-path inserts (spans, logs, metrics) go through the columnar Appender
 	// API rather than per-row INSERTs. Must run after migrate() so the tables
 	// exist for the appenders to bind to.
-	b, err := newBatcher(sqlDB, path, d.checkpointWithRetry)
+	b, err := newBatcher(sqlDB, path, func() error {
+		return d.exclusiveSQLMaintenance(func(d *DB) error { return d.checkpointWithRetry() })
+	})
 	if err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("init batcher: %w", err)

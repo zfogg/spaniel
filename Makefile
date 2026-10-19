@@ -100,6 +100,10 @@ test-extensive: test
 test-storage: verify-generated
 	go test ./internal/storage $(TEST_ARGS)
 
+# Collector liveness and native storage regressions, using the same toolchain.
+test-collector: verify-generated
+	go test ./internal/storage ./internal/ingestion ./internal/receiver $(TEST_ARGS)
+
 generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema
