@@ -45,7 +45,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 		telemetry.Catalog().RecordStoragePrune(context.Background(), result, float64(time.Since(started).Microseconds())/1000)
 	}()
 
-	err := d.withMaintenance(func() error {
+	err := d.withMaintenance(func(d *DB) error {
 		if cfg.MaxAge > 0 {
 			n, err := d.deleteByAge(cfg.MaxAge, activeID)
 			if err != nil {
@@ -95,7 +95,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 // Reset wipes all telemetry data (spans, logs, lint warnings, trace issues, sessions).
 // The active session pointer in memory is cleared.
 func (d *DB) Reset() error {
-	err := d.withMaintenance(func() error {
+	err := d.withMaintenance(func(d *DB) error {
 		if err := d.resetTelemetry(); err != nil {
 			return err
 		}

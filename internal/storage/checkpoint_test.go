@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,7 +95,7 @@ func TestCheckpointConcurrentIngestionAndRetention(t *testing.T) {
 	})
 	seedSession(t, db, "expired", "expired", time.Now().Add(-48*time.Hour).UnixNano(), false, 10)
 	var wg sync.WaitGroup
-	errs := make(chan error, 4)
+	errs := make(chan error, 5)
 	for writer := range 3 {
 		wg.Go(func() {
 			for i := range 500 {
@@ -119,6 +120,27 @@ func TestCheckpointConcurrentIngestionAndRetention(t *testing.T) {
 				return
 			}
 			if err := db.batcher.checkpointIfNeeded(1); err != nil {
+				errs <- err
+				return
+			}
+		}
+	})
+	// Metadata transactions/read prepares must drain before maintenance too;
+	// appender-only concurrency misses the native commit stall seen on Pi5.
+	wg.Go(func() {
+		for range 40 {
+			tx, err := db.SQL().BeginTx(context.Background(), nil)
+			if err != nil {
+				errs <- err
+				return
+			}
+			var count int
+			if err := tx.QueryRow("SELECT count(*) FROM spans").Scan(&count); err != nil {
+				_ = tx.Rollback()
+				errs <- err
+				return
+			}
+			if err := tx.Commit(); err != nil {
 				errs <- err
 				return
 			}

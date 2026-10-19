@@ -2,13 +2,16 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/zfogg/spaniel/internal/model"
+	"github.com/zfogg/spaniel/internal/storage/querygen"
 	"github.com/zfogg/spaniel/internal/telemetry"
+	"gorm.io/gorm"
 )
 
 // Checkpoint flushes pending appender work and makes a subsequent storage-size
@@ -111,7 +114,7 @@ func (d *DB) Compact() (*CompactResult, error) {
 			res.BytesBefore = fi.Size()
 		}
 	}
-	if err := d.withMaintenance(func() error {
+	if err := d.withMaintenance(func(d *DB) error {
 		if err := d.checkpointWithRetry(); err != nil {
 			return fmt.Errorf("checkpoint: %w", err)
 		}
@@ -137,18 +140,52 @@ func (d *DB) Compact() (*CompactResult, error) {
 // CHECKPOINT. This prevents DuckDB internal state corruption that occurs when
 // CHECKPOINT interacts with unflushed appender data in the CGo layer.
 func (d *DB) flushBeforeCheckpoint() error {
-	return d.withMaintenance(func() error {
+	return d.withMaintenance(func(d *DB) error {
 		return d.checkpointWithRetry()
 	})
 }
 
-func (d *DB) withMaintenance(fn func() error) error {
+func (d *DB) withMaintenance(fn func(*DB) error) error {
 	telemetry.Catalog().SetStorageMaintenanceInFlight(1)
 	defer telemetry.Catalog().SetStorageMaintenanceInFlight(0)
 	if d.batcher == nil {
-		return fn()
+		return d.exclusiveSQLMaintenance(fn)
 	}
-	return d.batcher.Maintenance(fn)
+	return d.batcher.Maintenance(func() error { return d.exclusiveSQLMaintenance(fn) })
+}
+
+// exclusiveSQLMaintenance runs only after appenders have released their pinned
+// connections. Reserve the complete bounded pool to drain readers and metadata
+// transactions before retention commits or checkpoints enter DuckDB. Closing
+// appenders alone leaves native prepares running concurrently with maintenance,
+// which wedged a retention commit and all ingestion on Pi5 (2026-10-19).
+// New queries wait in database/sql, where their contexts remain cancellable.
+func (d *DB) exclusiveSQLMaintenance(fn func(*DB) error) error {
+	ctx, cancel := context.WithTimeout(d.gorm.Statement.Context, 30*time.Second)
+	defer cancel()
+	pool := d.SQL()
+	limit := pool.Stats().MaxOpenConnections
+	if limit <= 0 {
+		return fmt.Errorf("maintenance requires a bounded SQL pool")
+	}
+	var conns []*sql.Conn
+	defer func() {
+		for _, conn := range conns {
+			_ = conn.Close()
+		}
+	}()
+	for range limit {
+		conn, err := pool.Conn(ctx)
+		if err != nil {
+			return fmt.Errorf("drain SQL pool for maintenance: %w", err)
+		}
+		conns = append(conns, conn)
+	}
+	maintenance := *d
+	maintenance.gorm = d.gorm.Session(&gorm.Session{NewDB: true, Context: ctx})
+	maintenance.gorm.Statement.ConnPool = conns[0]
+	maintenance.query = querygen.Use(maintenance.gorm)
+	return fn(&maintenance)
 }
 
 // checkpointWithRetry lets auxiliary GORM writes from requests accepted just
