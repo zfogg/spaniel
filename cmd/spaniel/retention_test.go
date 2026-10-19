@@ -51,17 +51,17 @@ func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {
 	}
 }
 
-func TestStorageGuardEnabledPrunesBeforeCap(t *testing.T) {
+func TestStorageGuardEnabledPrunesAt95PercentTo65Percent(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 80, activeID: "active"}
+	store := &fakeStorageGuardStore{size: 95, activeID: "active"}
 
 	checkStorageGuard(store, policy)
 
 	if store.pruneCalls != 1 {
 		t.Fatalf("got %d prune calls, want 1", store.pruneCalls)
 	}
-	if store.pruneLimit != 70 {
-		t.Fatalf("prune target = %d, want 70", store.pruneLimit)
+	if store.pruneLimit != 65 {
+		t.Fatalf("prune target = %d, want 65", store.pruneLimit)
 	}
 	if store.full {
 		t.Fatal("successful proactive prune should leave storage writable")

@@ -133,6 +133,38 @@ func TestPrune_DeleteBySize_ShrinksToCap(t *testing.T) {
 	}
 }
 
+func TestPrune_DeleteBySize_RemovesWholeOldSessionsBeforeFinalSessionTelemetry(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "spaniel.duckdb")
+	d, err := Open(tmp)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { d.Close() })
+
+	base := time.Now().UnixNano()
+	for i := range 3 {
+		seedSession(t, d, fmt.Sprintf("s%d", i), "x", base-int64((3-i)*int(time.Hour)), false, 200)
+	}
+	d.checkpoint()
+
+	// A one-byte target cannot be met without trimming the active session. The
+	// two older sessions must still be removed as complete units first.
+	res, err := d.Prune(RetentionConfig{MaxDBSizeBytes: 1}, "s2")
+	if err != nil {
+		t.Fatalf("Prune: %v", err)
+	}
+	if res.DeletedBySize < 2 {
+		t.Fatalf("DeletedBySize = %d, want at least the two complete old sessions", res.DeletedBySize)
+	}
+	sessions, err := d.ListSessions()
+	if err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].ID != "s2" {
+		t.Fatalf("sessions after size prune = %#v, want only active s2", sessions)
+	}
+}
+
 func TestPrune_NoLimits_NoOp(t *testing.T) {
 	d := openTestDB(t)
 	seedSession(t, d, "s1", "s1", time.Now().UnixNano(), false, 1)
