@@ -10,13 +10,13 @@ import (
 
 func clientSpan(id, parentID string, startMs, endMs int) *storage.Span {
 	return &storage.Span{
-		SpanID:     id,
+		SpanID:       id,
 		ParentSpanID: parentID,
-		Kind:       3, // CLIENT
-		Attributes: `{"http.method":"GET"}`,
-		StartNs:    int64(startMs) * int64(time.Millisecond),
-		EndNs:      int64(endMs) * int64(time.Millisecond),
-		SessionID:  "sess",
+		Kind:         3, // CLIENT
+		Attributes:   `{"http.method":"GET"}`,
+		StartNs:      int64(startMs) * int64(time.Millisecond),
+		EndNs:        int64(endMs) * int64(time.Millisecond),
+		SessionID:    "sess",
 	}
 }
 
@@ -70,5 +70,18 @@ func TestSerialPromise_OverlappingChildren_NoFire(t *testing.T) {
 	d := &SerialPromiseDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("overlapping children should not fire, got %d issues", len(got))
+	}
+}
+
+func TestSerialPromise_SequentialSQLDoesNotRecommendParallelism(t *testing.T) {
+	parent := &storage.Span{SpanID: "transaction", StartNs: 0, EndNs: int64(400 * time.Millisecond)}
+	spans := []*storage.Span{parent}
+	for i := range 4 {
+		s := clientSpan(fmt.Sprintf("sql-%d", i), parent.SpanID, i*90, i*90+80)
+		s.Attributes = `{"db.system.name":"postgresql","db.operation.name":"UPDATE","db.query.text":"UPDATE orders SET status = ?"}`
+		spans = append(spans, s)
+	}
+	if got := (&SerialPromiseDetector{}).Analyze("sql-trace", "session", spans, 0); len(got) != 0 {
+		t.Fatalf("transaction SQL labelled parallelisable: %+v", got)
 	}
 }

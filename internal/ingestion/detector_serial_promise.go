@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	serialPromiseMinChildren    = 3
-	serialPromiseMinChildFrac   = 0.8 // children must account for ≥ 80% of parent duration
+	serialPromiseMinChildren  = 3
+	serialPromiseMinChildFrac = 0.8 // children must account for ≥ 80% of parent duration
 )
 
 // SerialPromiseDetector fires when ≥ 3 sequential outbound calls under one
@@ -21,7 +21,9 @@ func (*SerialPromiseDetector) Analyze(traceID, sessionID string, spans []*storag
 	// Build parent → outbound-children index.
 	kids := map[string][]*storage.Span{}
 	for _, s := range spans {
-		if s.ParentSpanID != "" && isClientSpan(s) {
+		// SQL calls within a transaction are ordered intentionally. Their client
+		// kind is not evidence that they are parallelisable HTTP/RPC promises.
+		if s.ParentSpanID != "" && isClientSpan(s) && !isDBSpan(s) {
 			kids[s.ParentSpanID] = append(kids[s.ParentSpanID], s)
 		}
 	}

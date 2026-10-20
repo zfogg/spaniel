@@ -48,6 +48,9 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 	now := time.Now().UnixNano()
 
 	for _, d := range registry {
+		if !detectorSupportsTrace(d, spans) {
+			continue
+		}
 		for _, issue := range d.Analyze(traceID, sessID, spans, now) {
 			if err := store.UpsertTraceIssue(issue); err == nil {
 				telemetry.Catalog().RecordDetectorIssue(context.Background(), issue.Kind)
@@ -63,4 +66,19 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 			}
 		}
 	}
+}
+
+// Complete-tree heuristics cannot infer missing work or total repetition from
+// representative span samples. Error/slow-span checks still use the evidence
+// actually received. Clients opt in with a boolean on their operation root.
+func detectorSupportsTrace(d Detector, spans []*storage.Span) bool {
+	for _, s := range spans {
+		if partial, ok := extractAttrBool(s.Attributes, "spaniel.trace.partial"); ok && partial {
+			switch d.Kind() {
+			case "n_plus_one", "tracing_gap", "serial_promise", "synchronous_io":
+				return false
+			}
+		}
+	}
+	return true
 }
