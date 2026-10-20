@@ -61,7 +61,7 @@ func TestSQLSummary(t *testing.T) {
 		{"UPDATE sessions SET label = ?", "UPDATE sessions SET …"},
 		{"DELETE FROM spans WHERE trace_id = $1", "DELETE FROM spans WHERE …"},
 		{"EXPLAIN SELECT * FROM spans", "EXPLAIN SELECT … FROM spans"},
-		{"SELECT * FROM spans s LEFT JOIN LATERAL (SELECT * FROM logs WHERE trace_id=s.trace_id LIMIT 1) l ON true LIMIT ?", "SELECT … FROM spans LEFT JOIN LATERAL (SELECT … FROM logs WHERE … LIMIT 1) LIMIT ?"},
+		{"SELECT * FROM spans s LEFT JOIN LATERAL (SELECT * FROM logs WHERE trace_id=s.trace_id LIMIT 1) l ON true LIMIT ?", "SELECT … FROM spans AS s LEFT JOIN LATERAL (SELECT … FROM logs WHERE … LIMIT 1) AS l ON ? LIMIT ?"},
 	} {
 		if got := sqlSummary(tt.sql); got != tt.want {
 			t.Errorf("sqlSummary(%q) = %q, want %q", tt.sql, got, tt.want)
@@ -171,13 +171,13 @@ func TestReadOnlyQueryStructuralSummary(t *testing.T) {
 	const sql = `WITH recent AS MATERIALIZED (
 		SELECT trace_id FROM spans ORDER BY start_ns DESC LIMIT 1
 	) SELECT r.trace_id FROM recent r LEFT JOIN LATERAL (
-		SELECT trace_id FROM logs WHERE trace_id=r.trace_id LIMIT 1
-	) l ON true UNION ALL SELECT trace_id FROM spans LIMIT CAST(5 AS BIGINT)`
+		SELECT trace_id FROM logs LIMIT 1
+	) l ON l.trace_id=r.trace_id AND l.trace_id <> 'private-token' UNION ALL SELECT trace_id FROM spans LIMIT CAST(5 AS BIGINT)`
 	ctx := WithQueryName(context.Background(), "VerifyStructuralSummary")
 	if _, _, _, err := d.ReadOnlyQuery(ctx, sql, 10); err != nil {
 		t.Fatal(err)
 	}
-	const want = "WITH recent AS MATERIALIZED (SELECT … FROM spans ORDER BY … LIMIT 1) SELECT … FROM recent LEFT JOIN LATERAL (SELECT … FROM logs WHERE … LIMIT 1) UNION ALL SELECT … FROM spans LIMIT ?"
+	const want = "WITH recent AS MATERIALIZED (SELECT … FROM spans ORDER BY … LIMIT 1) SELECT … FROM recent AS r LEFT JOIN LATERAL (SELECT … FROM logs LIMIT 1) AS l ON l.trace_id=r.trace_id AND l.trace_id <> ? UNION ALL SELECT … FROM spans LIMIT ?"
 	for _, span := range recorder.Ended() {
 		if span.Name() != "spaniel.storage.VerifyStructuralSummary" {
 			continue
