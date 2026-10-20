@@ -25,6 +25,12 @@ func (*TracingGapDetector) Analyze(traceID, sessionID string, spans []*storage.S
 
 	var issues []*storage.TraceIssue
 	for _, s := range spans {
+		// HTTP 101 transfers this handler to a long-lived upgraded protocol.
+		// Time between WebSocket messages is connection idle time, not missing
+		// request work. Analyze its child operations normally below.
+		if isHTTPSpan(s) && (extractAttrFloat64(s.Attributes, "http.response.status_code") == 101 || extractAttrFloat64(s.Attributes, "http.status_code") == 101) {
+			continue
+		}
 		kids := children[s.SpanID]
 		if len(kids) == 0 {
 			continue

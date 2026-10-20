@@ -107,6 +107,12 @@ RETENTION_TEST_RUN ?= TestPrune|TestRetention|TestCompact|TestMaintenance|TestSt
 test-retention:
 	go test ./internal/storage ./cmd/spaniel -run '$(RETENTION_TEST_RUN)' -count=1 -timeout=10m -v
 
+.PHONY: test-tracing-gap
+test-tracing-gap:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/tracing-gap.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/tracing-gap.test$(EXE) -test.run 'TestTracingGap' -test.count=1 -test.v
+
 generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema

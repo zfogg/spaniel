@@ -9,11 +9,11 @@ import (
 
 func gapSpan(id, parentID string, startMs, endMs int) *storage.Span {
 	return &storage.Span{
-		SpanID:      id,
+		SpanID:       id,
 		ParentSpanID: parentID,
-		StartNs:     int64(startMs) * int64(time.Millisecond),
-		EndNs:       int64(endMs) * int64(time.Millisecond),
-		SessionID:   "sess",
+		StartNs:      int64(startMs) * int64(time.Millisecond),
+		EndNs:        int64(endMs) * int64(time.Millisecond),
+		SessionID:    "sess",
 	}
 }
 
@@ -80,5 +80,29 @@ func TestTracingGap_NoChildren(t *testing.T) {
 	d := &TracingGapDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("leaf span should not fire, got %d", len(got))
+	}
+}
+
+func TestTracingGap_UpgradedConnectionIdleDoesNotHideChildGaps(t *testing.T) {
+	for _, attrs := range []string{`{"http.response.status_code":101}`, `{"http.status_code":101}`} {
+		t.Run(attrs, func(t *testing.T) {
+			connection := gapSpan("connection", "", 0, 10000)
+			connection.Name, connection.Kind, connection.Attributes = "GET", 2, attrs
+			operation := gapSpan("message", "connection", 100, 500)
+			query := gapSpan("query", "message", 200, 250)
+			got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{connection, operation, query}, 0)
+			if len(got) != 1 || got[0].ExampleSpanID != "message" || got[0].WastedNs != int64(350*time.Millisecond) {
+				t.Fatalf("expected only the real child operation gap, got %+v", got)
+			}
+		})
+	}
+}
+
+func TestTracingGap_OrdinaryHTTPRequestStillReportsUncoveredTime(t *testing.T) {
+	request := gapSpan("request", "", 0, 10000)
+	request.Name, request.Kind, request.Attributes = "GET", 2, `{"http.response.status_code":200}`
+	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{request, gapSpan("work", "request", 100, 500)}, 0)
+	if len(got) != 1 || got[0].ExampleSpanID != "request" {
+		t.Fatalf("ordinary HTTP request gap was hidden: %+v", got)
 	}
 }
