@@ -152,16 +152,35 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 	return p
 }
 
-func (p *Pipeline) beginIngest(ctx context.Context) func() {
+func (p *Pipeline) beginIngest(ctx context.Context) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	started := time.Now()
 	depth := p.ingestPending.Add(1)
 	telemetry.Catalog().SetIngestQueue(depth, maxConcurrentIngests)
-	p.ingestSlots <- struct{}{}
-	telemetry.Catalog().RecordIngestQueueWait(ctx, float64(time.Since(started).Microseconds())/1000)
-	return func() {
-		<-p.ingestSlots
+	decrement := func() {
 		depth := p.ingestPending.Add(-1)
 		telemetry.Catalog().SetIngestQueue(depth, maxConcurrentIngests)
+	}
+	defer func() {
+		telemetry.Catalog().RecordIngestQueueWait(ctx, float64(time.Since(started).Microseconds())/1000)
+	}()
+	select {
+	case p.ingestSlots <- struct{}{}:
+		// Cancellation and an available slot may become ready together.
+		if err := ctx.Err(); err != nil {
+			<-p.ingestSlots
+			decrement()
+			return nil, err
+		}
+		return func() {
+			<-p.ingestSlots
+			decrement()
+		}, nil
+	case <-ctx.Done():
+		decrement()
+		return nil, ctx.Err()
 	}
 }
 
@@ -219,7 +238,11 @@ func (p *Pipeline) classifyFlush(err error) error {
 }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
-	defer p.beginIngest(ctx)()
+	finish, admissionErr := p.beginIngest(ctx)
+	if admissionErr != nil {
+		return admissionErr
+	}
+	defer finish()
 	// Spaniel's own self-telemetry is stored "quietly" — no instrumentation
 	// span, linter, or detectors — so self-monitoring doesn't generate new spans
 	// from ingesting its own spans (which would feed back on itself).
@@ -501,7 +524,11 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 }
 
 func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
-	defer p.beginIngest(ctx)()
+	finish, admissionErr := p.beginIngest(ctx)
+	if admissionErr != nil {
+		return admissionErr
+	}
+	defer finish()
 	self := p.isSelfLogs(logs)
 	if !self && p.store.Full() {
 		telemetry.Catalog().RecordIngestStorageFull(ctx, "logs")
@@ -597,7 +624,11 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 }
 
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
-	defer p.beginIngest(ctx)()
+	finish, admissionErr := p.beginIngest(ctx)
+	if admissionErr != nil {
+		return admissionErr
+	}
+	defer finish()
 	self := p.isSelfMetrics(md)
 	if !self && p.store.Full() {
 		telemetry.Catalog().RecordIngestStorageFull(ctx, "metrics")

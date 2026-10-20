@@ -113,6 +113,12 @@ test-tracing-gap:
 	go test -c -o $(BIN_DIR)/tracing-gap.test$(EXE) ./internal/ingestion
 	./$(BIN_DIR)/tracing-gap.test$(EXE) -test.run 'TestTracingGap' -test.count=1 -test.v
 
+.PHONY: test-ingest-admission
+test-ingest-admission:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/ingest-admission.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/ingest-admission.test$(EXE) -test.run 'TestIngestAdmission|TestTracingGap|TestHTTP|TestDB' -test.count=1 -test.v
+
 generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema
