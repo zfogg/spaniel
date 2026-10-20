@@ -1,47 +1,85 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { act, render, cleanup } from '@testing-library/react'
+import { afterEach, expect, it, vi } from 'vitest'
+import type { WsEvent } from '@/lib/ws'
 
-// Capture the WS handler IssueToast registers.
-let captured: ((ev: unknown) => void) | null = null
+const mocks = vi.hoisted(() => ({
+  notify: vi.fn(),
+  receive: null as null | ((ev: WsEvent) => void),
+}))
 vi.mock('@/lib/ws', () => ({
-  useWS: (onEvent: (ev: unknown) => void) => {
-    captured = onEvent
+  useWS: (fn: (ev: WsEvent) => void) => {
+    mocks.receive = fn
   },
 }))
-
-const toastCustom = vi.fn()
-vi.mock('sonner', () => ({
-  toast: { custom: (...a: unknown[]) => toastCustom(...a), dismiss: vi.fn() },
-}))
-
+vi.mock('./NotificationToast', () => ({ showNotification: mocks.notify }))
 import IssueToast from './IssueToast'
 
-describe('IssueToast', () => {
-  beforeEach(() => {
-    captured = null
-    toastCustom.mockClear()
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  mocks.notify.mockClear()
+})
+
+function issue(index: number) {
+  mocks.receive?.({
+    type: 'issue',
+    timestamp_ns: index,
+    payload: {
+      traceId: `trace-${index}`,
+      kind: 'error_chain',
+      count: 1,
+      fingerprint: 'error',
+      wastedNs: 0,
+    },
   })
-  afterEach(cleanup)
+}
 
-  it('fires a sonner toast on an issue event and ignores others', () => {
-    render(
-      <MemoryRouter>
-        <IssueToast />
-      </MemoryRouter>,
-    )
-    expect(captured).toBeTypeOf('function')
-
-    captured!({ type: 'span', timestamp_ns: 0, payload: {} })
-    expect(toastCustom).not.toHaveBeenCalled()
-
-    captured!({
-      type: 'issue',
-      timestamp_ns: 0,
-      payload: { traceId: 't1', kind: 'n_plus_one', count: 47, fingerprint: 'fp', wastedNs: 1 },
-    })
-    expect(toastCustom).toHaveBeenCalledTimes(1)
-    expect(toastCustom.mock.calls[0][1]).toMatchObject({ duration: 5000 })
+it('coalesces a burst across traces and replaces the same toast in later windows', () => {
+  vi.useFakeTimers()
+  render(<IssueToast />)
+  act(() => {
+    mocks.receive?.({ type: 'heartbeat', timestamp_ns: 0 })
+    vi.advanceTimersByTime(10_000)
   })
+  expect(mocks.notify).not.toHaveBeenCalled()
+  act(() => {
+    for (let i = 0; i < 500; i++) issue(i)
+  })
+  expect(mocks.notify).not.toHaveBeenCalled()
+  act(() => {
+    vi.advanceTimersByTime(10_000)
+  })
+  expect(mocks.notify).toHaveBeenCalledTimes(1)
+  expect(mocks.notify).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      dedupeKey: 'live-performance-issues',
+      link: '/traces/trace-499',
+      detail: '500 issue updates · latest: error chain (1)',
+    }),
+  )
+  act(() => {
+    issue(500)
+    vi.advanceTimersByTime(10_000)
+  })
+  expect(mocks.notify).toHaveBeenCalledTimes(2)
+  expect(mocks.notify).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      dedupeKey: 'live-performance-issues',
+      detail: '1 issue update · latest: error chain (1)',
+    }),
+  )
+})
+
+it('cancels pending notifications when unmounted', () => {
+  vi.useFakeTimers()
+  const view = render(<IssueToast />)
+  act(() => {
+    issue(1)
+  })
+  view.unmount()
+  act(() => {
+    vi.advanceTimersByTime(10_000)
+  })
+  expect(mocks.notify).not.toHaveBeenCalled()
 })
