@@ -2,33 +2,27 @@ package storage
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/zfogg/gotel/sqltrace"
 )
 
-var storageNamer = sqltrace.Namer{Prefix: "spaniel.storage"}
+var storageNamer = sqltrace.MustNamer("spaniel.storage")
 
-// storageQueryName retains Spaniel's stricter historical requirement that a
-// query name contain at least two characters. gotel owns the shared syntax and
-// prefixing contract.
-func storageQueryName(name string) string {
-	name = strings.TrimSpace(name)
-	if len(name) < 2 {
-		panic(fmt.Sprintf("storage query name must match [A-Za-z][A-Za-z0-9_]+: %q", name))
-	}
-	return storageNamer.Name(name)
-}
+// storageQueryName qualifies and validates a stable storage operation name.
+func storageQueryName(name string) string { return storageNamer.MustName(name) }
 
-// WithQueryName attaches a stable simple name to one database operation.
+// WithQueryName attaches a stable storage operation name to one database call.
 func WithQueryName(ctx context.Context, name string) context.Context {
-	_ = storageQueryName(name)
-	return storageNamer.WithName(ctx, strings.TrimSpace(name))
+	return storageNamer.WithName(ctx, name)
 }
 
 func queryNameFromContext(ctx context.Context) string { return sqltrace.NameFromContext(ctx) }
 
+// sqlSummary returns a bounded, parameter-free description of DuckDB SQL.
 func sqlSummary(query string) string { return sqltrace.Summary(sqltrace.DialectDuckDB, query) }
 
-func sanitizeSQL(query string) (string, bool) { return sqltrace.Sanitize(query) }
+// sanitizeSQL delegates the privacy boundary to gotel's DuckDB policy.
+func sanitizeSQL(query string) (string, bool) {
+	result, ok := sqltrace.SanitizeDialect(sqltrace.DialectDuckDB, query)
+	return result.Text, ok
+}

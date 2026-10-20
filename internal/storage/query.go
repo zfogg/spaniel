@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 
-	"github.com/zfogg/gotel"
 	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -48,17 +49,20 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	// still Spaniel storage work, even when the SQL originated in an alert or
 	// dashboard, so its span name remains in the storage namespace.
 	if !skipTracing(ctx) {
-		name := queryNameFromContext(ctx)
-		if name == "" {
-			name = storageQueryName("ReadOnlyQuery")
+		name := "ReadOnlyQuery"
+		if qualified := queryNameFromContext(ctx); qualified != "" {
+			name = qualified
 		}
-		metadata := sqltrace.Inspect(storageNamer, "", query, args)
-		attrs := metadata.Attributes("duckdb", d.path)
-		attrs = append(attrs, sqltrace.QuerySummaryKey.String(name))
-		var span trace.Span
-		ctx, span = otel.Tracer("spaniel/storage").Start(ctx, name,
-			trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
-		defer func() { gotel.End(span, err) }()
+		var dbSpan *sqltrace.DBSpan
+		ctx, dbSpan = sqltrace.StartSpan(ctx, sqltrace.SpanConfig{
+			Tracer: otel.Tracer("spaniel/storage"), Namer: storageNamer, Name: name,
+			Statement: query, Args: args, Dialect: sqltrace.DialectDuckDB,
+			System: "duckdb", Namespace: "spaniel", Kind: trace.SpanKindInternal,
+			Observe: func(ctx context.Context, _ string, result string, elapsed time.Duration) {
+				telemetry.Catalog().RecordStorage(ctx, "query", result, 0, float64(elapsed.Microseconds())/1000)
+			},
+		})
+		defer func() { dbSpan.End(ctx, err, int64(len(rows))) }()
 	}
 
 	var ro *sql.DB

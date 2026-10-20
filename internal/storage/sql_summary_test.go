@@ -11,12 +11,12 @@ import (
 )
 
 func TestStorageQueryNameValidation(t *testing.T) {
-	for _, name := range []string{"Ab", "z0", "ListAlertRules", "Query_123", "a_", "Z09_a"} {
+	for _, name := range []string{"A", "z", "Ab", "z0", "ListAlertRules", "Query_123", "a_", "Z09_a"} {
 		if got, want := storageQueryName(name), "spaniel.storage."+name; got != want {
 			t.Errorf("storageQueryName(%q) = %q, want %q", name, got, want)
 		}
 	}
-	for _, name := range []string{"", " ", "A", "z", "0", "1Query", "_Query", "Query.Name", "Query-Name", "Query Name", "Query/Name", "Query\tName", "Query\nName", "Query!", "Query\x00", "éQuery", "Queryé", "Query１"} {
+	for _, name := range []string{"", " ", "0", "1Query", "_Query", "Query.Name", "Query-Name", "Query Name", "Query/Name", "Query\tName", "Query\nName", "Query!", "Query\x00", "éQuery", "Queryé", "Query１"} {
 		t.Run(name, func(t *testing.T) {
 			defer func() {
 				if recover() == nil {
