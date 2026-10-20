@@ -18,7 +18,8 @@ import (
 // raw errors; those remain on the point but cannot create a query series.
 var indexedMetricAttributes = map[string]struct{}{
 	"http.request.method": {}, "http.response.status_code": {}, "http.route": {},
-	"rpc.method": {}, "rpc.service": {}, "db.system": {}, "messaging.system": {},
+	"rpc.method": {}, "rpc.service": {}, "db.system.name": {}, "db.system": {},
+	"db.operation.name": {}, "messaging.system": {},
 	"signal": {}, "result": {}, "reason": {}, "operation": {},
 }
 

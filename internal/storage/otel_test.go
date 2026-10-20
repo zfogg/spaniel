@@ -13,7 +13,7 @@ import (
 
 // TestWithContext_NestsDBSpans proves the core of issue #108: a DuckDB query run
 // via store.WithContext(ctx) produces a source-named storage span nested under
-// the caller's span, with the SQL and db.system recorded by the GORM OTel
+// the caller's span, with the SQL and db.system.name recorded by gotel.
 // plugin.
 func TestWithContext_NestsDBSpans(t *testing.T) {
 	sr := tracetest.NewSpanRecorder()
@@ -54,18 +54,18 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 		}
 	}
 
-	// The plugin should record db.system=duckdb and the SQL text.
+	// The plugin should record db.system.name=duckdb and the SQL text.
 	var hasSystem, hasSQL bool
 	for _, a := range dbSpan.Attributes() {
 		switch a.Key {
-		case "db.system":
+		case "db.system.name":
 			hasSystem = a.Value.AsString() == "duckdb"
 		case "db.query.text":
 			hasSQL = strings.Contains(strings.ToLower(a.Value.AsString()), "select")
 		}
 	}
 	if !hasSystem {
-		t.Errorf("db span missing db.system=duckdb; attrs=%v", dbSpan.Attributes())
+		t.Errorf("db span missing db.system.name=duckdb; attrs=%v", dbSpan.Attributes())
 	}
 	if !hasSQL {
 		t.Errorf("db span missing SQL text; attrs=%v", dbSpan.Attributes())
@@ -172,11 +172,11 @@ func TestNamedHelpersPrefixSimpleNames(t *testing.T) {
 			switch attr.Key {
 			case "db.query.text", "db.query.summary":
 				attrs[string(attr.Key)] = attr.Value.AsString()
-			case "db.query.parameter.count":
+			case "gotel.db.query.bind_count":
 				attrs[string(attr.Key)] = attr.Value.AsInt64()
 			}
 		}
-		if attrs["db.query.text"] != "SELECT ?" || attrs["db.query.summary"] != "spaniel.storage.SelectOne" || attrs["db.query.parameter.count"] != int64(1) {
+		if attrs["db.query.text"] != "SELECT ?" || attrs["db.query.summary"] != "spaniel.storage.SelectOne" || attrs["gotel.db.query.bind_count"] != int64(1) {
 			t.Errorf("SelectOne safe query attrs = %#v", attrs)
 		}
 		break

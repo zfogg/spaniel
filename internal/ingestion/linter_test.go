@@ -161,6 +161,22 @@ func TestDBMissingSystem_WithSystem_DoesNotFire(t *testing.T) {
 	}
 }
 
+func TestDBCurrentSemanticConventionsDoNotFire(t *testing.T) {
+	missingSystem := findRule("db.missing_system")
+	missingText := findRule("db.missing_statement")
+	s := buildSpan(0, "svc", map[string]string{
+		"db.system.name":    "postgresql",
+		"db.operation.name": "SELECT",
+		"db.query.text":     "SELECT ?",
+	})
+	if _, fired := missingSystem.Check(s); fired {
+		t.Error("db.system.name was not recognized")
+	}
+	if _, fired := missingText.Check(s); fired {
+		t.Error("db.query.text was not recognized")
+	}
+}
+
 // --- db.missing_statement ---
 
 func TestDBMissingStatement_WithSystemNoStatement_Fires(t *testing.T) {

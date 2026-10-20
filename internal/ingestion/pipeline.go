@@ -196,7 +196,7 @@ func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
 	}
 	_, span := p.tracer.Start(ctx, "db.flush",
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(attribute.String("db.system", "duckdb")),
+		trace.WithAttributes(attribute.String("db.system.name", "duckdb")),
 	)
 	defer span.End()
 	if err := p.classifyFlush(p.store.FlushBatch()); err != nil {

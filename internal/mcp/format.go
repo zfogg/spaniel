@@ -113,7 +113,7 @@ func parseAttrs(raw string) map[string]string {
 var keyAttrOrder = []string{
 	"http.request.method", "http.method", "http.route", "url.path", "http.target",
 	"http.response.status_code", "http.status_code",
-	"db.system", "db.statement", "db.operation",
+	"db.system.name", "db.system", "db.query.text", "db.statement", "db.operation.name", "db.operation",
 	"rpc.method", "rpc.service",
 	"messaging.system", "messaging.destination.name",
 	"exception.type", "exception.message", "error",

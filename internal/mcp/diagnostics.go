@@ -19,7 +19,7 @@ func (h *handler) registerDiagnosticTools(s *mcpsdk.Server) {
 
 	mcpsdk.AddTool(s, &mcpsdk.Tool{
 		Name:        "list_lint_warnings",
-		Description: "List OpenTelemetry semantic-convention lint warnings (e.g. missing db.system, missing service.name) plus detector findings projected as lint entries. Defaults to the active session; pass trace_id to scope to one trace. Use this to find instrumentation gaps.",
+		Description: "List OpenTelemetry semantic-convention lint warnings (e.g. missing db.system.name, missing service.name) plus detector findings projected as lint entries. Defaults to the active session; pass trace_id to scope to one trace. Use this to find instrumentation gaps.",
 		Annotations: readOnly,
 	}, h.listLintWarnings)
 }

@@ -16,8 +16,11 @@ func issueID(traceID, kind, discriminator string) string {
 
 // isDBSpan returns true when the span carries database attributes.
 func isDBSpan(s *storage.Span) bool {
-	return findSubstr(s.Attributes, `"db.system"`) ||
+	return findSubstr(s.Attributes, `"db.system.name"`) ||
+		findSubstr(s.Attributes, `"db.system"`) ||
+		findSubstr(s.Attributes, `"db.query.text"`) ||
 		findSubstr(s.Attributes, `"db.statement"`) ||
+		findSubstr(s.Attributes, `"db.operation.name"`) ||
 		findSubstr(s.Attributes, `"db.operation"`)
 }
 
@@ -67,7 +70,11 @@ func httpHost(attrsJSON string) string {
 // isCacheSpan returns true for spans that look like cache operations
 // (Redis, Memcached, etc.).
 func isCacheSpan(s *storage.Span) bool {
-	sys := strings.ToLower(extractAttrString(s.Attributes, "db.system"))
+	sys := extractAttrString(s.Attributes, "db.system.name")
+	if sys == "" {
+		sys = extractAttrString(s.Attributes, "db.system")
+	}
+	sys = strings.ToLower(sys)
 	return sys == "redis" || sys == "memcache" || sys == "memcached" ||
 		strings.Contains(strings.ToLower(s.Name), "cache") ||
 		findSubstr(s.Attributes, `"cache.hit"`)

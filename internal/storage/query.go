@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/zfogg/gotel/sqltrace"
-	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -44,27 +42,6 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	if err := validateReadOnlySQL(query); err != nil {
 		return nil, nil, false, err
 	}
-	// Internal callers such as catalog discovery can opt out to avoid making
-	// their own metadata probes appear as telemetry data. Read-only execution is
-	// still Spaniel storage work, even when the SQL originated in an alert or
-	// dashboard, so its span name remains in the storage namespace.
-	if !skipTracing(ctx) {
-		name := "ReadOnlyQuery"
-		if qualified := queryNameFromContext(ctx); qualified != "" {
-			name = qualified
-		}
-		var dbSpan *sqltrace.DBSpan
-		ctx, dbSpan = sqltrace.StartSpan(ctx, sqltrace.SpanConfig{
-			Tracer: otel.Tracer("spaniel/storage"), Namer: storageNamer, Name: name,
-			Statement: query, Args: args, Dialect: sqltrace.DialectDuckDB,
-			System: "duckdb", Namespace: "spaniel", Kind: trace.SpanKindInternal,
-			Observe: func(ctx context.Context, _ string, result string, elapsed time.Duration) {
-				telemetry.Catalog().RecordStorage(ctx, "query", result, 0, float64(elapsed.Microseconds())/1000)
-			},
-		})
-		defer func() { dbSpan.End(ctx, err, int64(len(rows))) }()
-	}
-
 	var ro *sql.DB
 	if runtime.GOOS == "windows" {
 		ro = d.SQL()
@@ -77,7 +54,14 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 		ro.SetMaxOpenConns(1)
 	}
 
-	rs, err := ro.QueryContext(ctx, query, args...)
+	// Internal callers such as catalog discovery can opt out through
+	// WithoutTracing. Explicit WithQueryName contexts win; otherwise the stable
+	// ReadOnlyQuery fallback is used for user-authored dashboard and alert SQL.
+	rs, err := sqltrace.QueryContext(ctx, ro, sqltrace.SpanConfig{
+		Tracer: otel.Tracer("spaniel/storage"), Namer: storageNamer, Name: "ReadOnlyQuery",
+		Dialect: sqltrace.DialectDuckDB, System: "duckdb", Namespace: "spaniel",
+		Kind: trace.SpanKindInternal, Observe: storageObserver,
+	}, query, args...)
 	if err != nil {
 		return nil, nil, false, err
 	}

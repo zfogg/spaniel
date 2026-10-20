@@ -152,12 +152,12 @@ func TestCompute_SmallDeltaUnchanged(t *testing.T) {
 func TestCompute_DBCallDelta(t *testing.T) {
 	baseSpans := []*storage.Span{
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
-		span("api", "db.query", "s2", "s1", 10_000_000, `{"db.system":"postgresql"}`),
+		span("api", "db.query", "s2", "s1", 10_000_000, `{"db.system.name":"postgresql"}`),
 	}
 	cmpSpans := []*storage.Span{
 		rootSpan("api", "GET /cart", "s1", 100_000_000),
 		span("api", "db.query", "s2", "s1", 10_000_000, `{"db.system":"postgresql"}`),
-		span("api", "db.query2", "s3", "s1", 8_000_000, `{"db.statement":"SELECT 1"}`),
+		span("api", "db.query2", "s3", "s1", 8_000_000, `{"db.query.text":"SELECT ?"}`),
 	}
 
 	result := Compute(sess("a", "base"), sess("b", "cmp"), baseSpans, cmpSpans)

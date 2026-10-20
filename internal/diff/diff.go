@@ -54,8 +54,11 @@ func isRoot(s *storage.Span) bool {
 }
 
 func isDB(s *storage.Span) bool {
-	return strings.Contains(s.Attributes, `"db.system"`) ||
+	return strings.Contains(s.Attributes, `"db.system.name"`) ||
+		strings.Contains(s.Attributes, `"db.system"`) ||
+		strings.Contains(s.Attributes, `"db.query.text"`) ||
 		strings.Contains(s.Attributes, `"db.statement"`) ||
+		strings.Contains(s.Attributes, `"db.operation.name"`) ||
 		strings.Contains(s.Attributes, `"db.operation"`)
 }
 

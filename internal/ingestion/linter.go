@@ -48,11 +48,12 @@ var rules = []LintRule{
 		ID:       "db.missing_system",
 		Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if !hasAttr(s.Attributes, "db.statement") && !hasAttr(s.Attributes, "db.operation") {
+			if !hasAttr(s.Attributes, "db.query.text") && !hasAttr(s.Attributes, "db.statement") &&
+				!hasAttr(s.Attributes, "db.operation.name") && !hasAttr(s.Attributes, "db.operation") {
 				return "", false
 			}
-			if !hasAttr(s.Attributes, "db.system") {
-				return "DB span missing db.system attribute", true
+			if !hasAttr(s.Attributes, "db.system.name") && !hasAttr(s.Attributes, "db.system") {
+				return "DB span missing db.system.name attribute", true
 			}
 			return "", false
 		},
@@ -61,11 +62,11 @@ var rules = []LintRule{
 		ID:       "db.missing_statement",
 		Severity: "info",
 		Check: func(s *storage.Span) (string, bool) {
-			if !hasAttr(s.Attributes, "db.system") {
+			if !hasAttr(s.Attributes, "db.system.name") && !hasAttr(s.Attributes, "db.system") {
 				return "", false
 			}
-			if !hasAttr(s.Attributes, "db.statement") {
-				return "DB span missing db.statement attribute", true
+			if !hasAttr(s.Attributes, "db.query.text") && !hasAttr(s.Attributes, "db.statement") {
+				return "DB span missing db.query.text attribute", true
 			}
 			return "", false
 		},
