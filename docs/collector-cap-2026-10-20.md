@@ -58,3 +58,10 @@ exports cannot bypass maintenance once it owns the gate.
 Bounded size cleanup now amortizes checkpoint/index I/O across 10,000 trace
 groups per batch, matching the existing per-signal 10,000-record limit, rather
 than repeatedly checkpointing the whole live database for 1,000 trace groups.
+
+A populated-fixture retention cycle accepted 363 exports/probes without errors
+(maximum latency 4.693 seconds). A subsequent live-database burst still exposed
+large trace exports interleaving with continuously arriving small exports.
+Because the native appender is already a single write lane, complete exports
+now queue on that lane instead of competing row by row. A regression verifies
+that a second export cannot interleave and can cancel without blocking the next.

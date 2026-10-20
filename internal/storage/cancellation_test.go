@@ -134,3 +134,30 @@ func TestMaintenanceWaitsForCompleteExport(t *testing.T) {
 		t.Fatal("maintenance failed to release after the complete export")
 	}
 }
+
+func TestCompleteExportsQueueWithoutInterleaving(t *testing.T) {
+	d, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	finish, err := d.BeginIngest(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
+	defer cancel()
+	release, err := d.BeginIngest(ctx)
+	if release != nil {
+		release()
+	}
+	finish()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("second export interleaved with the active export: %v", err)
+	}
+	release, err = d.BeginIngest(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+}

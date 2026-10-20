@@ -112,11 +112,13 @@ func Open(path string) (*DB, error) {
 	return d, nil
 }
 
-const ingestGateCapacity int64 = 1 << 20
+// DuckDB's appenders share one native write lane. Queue complete exports,
+// rather than interleaving their rows and flushing each other's partial batches.
+const ingestGateCapacity int64 = 1
 
 // BeginIngest protects a complete export, rather than just one appended row.
-// Maintenance waits for existing exports to finish before closing appenders;
-// new exports queue behind that writer and remain cancellable.
+// Other exports and maintenance wait for the active export to finish. Waiting
+// exports remain cancellable and cannot monopolize the native appender queue.
 func (d *DB) BeginIngest(ctx context.Context) (func(), error) {
 	if err := d.ingestGate.Acquire(ctx, 1); err != nil {
 		return nil, err
