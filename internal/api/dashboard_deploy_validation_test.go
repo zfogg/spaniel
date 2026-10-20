@@ -2,10 +2,54 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+func TestDashboardYAMLExportEditImportUpdatesStableID(t *testing.T) {
+	handler, db := setupRouter(t)
+	dashboard, err := db.CreateDashboardWithPanels("Before", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported := do(t, handler, http.MethodGet, "/api/dashboards/"+dashboard.ID+"/config", nil)
+	if exported.Code != http.StatusOK {
+		t.Fatalf("export status=%d body=%s", exported.Code, exported.Body.String())
+	}
+	if !strings.Contains(exported.Body.String(), "id: "+dashboard.ID) {
+		t.Fatalf("export omitted stable id:\n%s", exported.Body.String())
+	}
+	edited := strings.Replace(exported.Body.String(), "name: Before", "name: After", 1)
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", bytes.NewBufferString(edited))
+	req.Header.Set("Content-Type", "application/yaml")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("import status=%d body=%s", response.Code, response.Body.String())
+	}
+	var envelope struct {
+		Data struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.ID != dashboard.ID || envelope.Data.Name != "After" {
+		t.Fatalf("imported dashboard = %#v, want same id and edited name", envelope.Data)
+	}
+	all, err := db.ListDashboards()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("dashboard count = %d, want update rather than copy", len(all))
+	}
+}
 
 func TestFileManagedDashboardMutationsAreRejected(t *testing.T) {
 	handler, _ := setupRouter(t)

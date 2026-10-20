@@ -11,13 +11,13 @@ import (
 func (h *handler) registerDiagnosticTools(s *mcpsdk.Server) {
 	readOnly := &mcpsdk.ToolAnnotations{ReadOnlyHint: true}
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_issues",
 		Description: "List performance issues Spaniel detected (n_plus_one, error_chain, chatty_http, slow DB, etc.), ordered by time wasted. Pass trace_id to scope to one trace, otherwise lists the session's issues (defaults to the active session). Each issue includes how many times it occurred, the time wasted, and an example span to jump to.",
 		Annotations: readOnly,
 	}, h.listIssues)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_lint_warnings",
 		Description: "List OpenTelemetry semantic-convention lint warnings (e.g. missing db.system, missing service.name) plus detector findings projected as lint entries. Defaults to the active session; pass trace_id to scope to one trace. Use this to find instrumentation gaps.",
 		Annotations: readOnly,

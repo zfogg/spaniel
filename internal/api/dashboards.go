@@ -190,6 +190,10 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 		respondErr(w, req, 400, "invalid dashboard YAML: "+err.Error())
 		return
 	}
+	if strings.HasPrefix(dashboard.ID, "file-") {
+		respondErr(w, req, http.StatusConflict, "file-managed dashboards are read-only; remove id to import a local copy")
+		return
+	}
 	for _, panel := range dashboard.Panels {
 		if err := storage.ValidateReadOnlySQL(panel.QuerySQL); err != nil {
 			respondErr(w, req, 400, fmt.Sprintf("panel %q: %v", panel.Title, err))
@@ -346,23 +350,7 @@ func (r *Router) dashboardQueryArgs(dashboard *model.Dashboard, query string) []
 }
 
 func validateDeployAnnotationResult(columns []string) error {
-	has := func(names ...string) bool {
-		for _, candidate := range names {
-			for _, column := range columns {
-				if strings.EqualFold(column, candidate) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	if !has("timestamp", "timestamp_ns", "time_ns") {
-		return &dslError{"deploy annotation_query requires a timestamp, timestamp_ns, or time_ns column"}
-	}
-	if !has("label", "release", "version") {
-		return &dslError{"deploy annotation_query requires a label, release, or version column"}
-	}
-	return nil
+	return dashboardconfig.ValidateDeployAnnotationResult(columns)
 }
 
 type dslError struct{ s string }
@@ -555,63 +543,7 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 }
 
 func validatePanelResult(display string, columns []string) error {
-	if display == "" || display == "table" {
-		return nil
-	}
-	has := func(names ...string) bool {
-		for _, candidate := range names {
-			for _, column := range columns {
-				if strings.EqualFold(column, candidate) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	switch display {
-	case "single_value":
-		if !has("value") {
-			return &dslError{"single value panels require a value column"}
-		}
-	case "time_series", "deploy_correlation":
-		if !has("value") || !has("timestamp", "timestamp_ns", "time_ns") {
-			return &dslError{"time series panels require timestamp and value columns"}
-		}
-	case "heatmap":
-		// Accept both the semantic dashboard shape and generic Cartesian data.
-		// Older panels commonly alias the time axis as timestamp/time rather
-		// than timestamp_ns; HeatmapPanel renders all of these forms.
-		axisColumns := []string{"timestamp_ns", "timestamp", "time_ns", "time", "x"}
-		axisCount := 0
-		for _, axis := range axisColumns {
-			if has(axis) {
-				axisCount++
-			}
-		}
-		if !has("value") || axisCount == 0 {
-			return &dslError{"heatmap panels require value and a time/x column (timestamp_ns, timestamp, time_ns, time, or x); include bucket_ms (or y) for a two-dimensional heatmap"}
-		}
-		if axisCount > 1 {
-			return &dslError{"heatmap panels require exactly one time/x column; choose one of timestamp_ns, timestamp, time_ns, time, or x"}
-		}
-	case "entity_list":
-		if !has("label", "service_name", "name") || !has("primary_value", "value", "duration_ns") {
-			return &dslError{"entity list panels require a label and primary_value (or value) column"}
-		}
-	case "trace_list":
-		if !has("trace_id") {
-			return &dslError{"trace list panels require a trace_id column"}
-		}
-	case "span_list":
-		if !has("span_id", "trace_id") {
-			return &dslError{"span list panels require a span_id or trace_id column"}
-		}
-	case "log_list":
-		if !has("body", "message") {
-			return &dslError{"log list panels require a body or message column"}
-		}
-	}
-	return nil
+	return dashboardconfig.ValidatePanelResult(display, columns)
 }
 func rowsForColumns(columns []string, values [][]any) []map[string]any {
 	out := make([]map[string]any, 0, len(values))

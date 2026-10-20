@@ -94,6 +94,7 @@ type MetricSeriesFilter struct {
 	SessionID string
 	FromNs    int64 // inclusive; 0 = no lower bound
 	ToNs      int64 // inclusive; 0 = no upper bound
+	Limit     int   // most recent points; 0 = all
 }
 
 // GetMetricSeries returns every data point matching the filter, ordered by
@@ -115,6 +116,16 @@ func (d *DB) GetMetricSeries(f MetricSeriesFilter) ([]*Metric, error) {
 	}
 	if f.ToNs > 0 {
 		q = q.Where(d.query.Metric.TimestampNs.Lte(f.ToNs))
+	}
+	if f.Limit > 0 {
+		points, err := q.Order(d.query.Metric.TimestampNs.Desc()).Limit(f.Limit).Find()
+		if err != nil {
+			return nil, err
+		}
+		for left, right := 0, len(points)-1; left < right; left, right = left+1, right-1 {
+			points[left], points[right] = points[right], points[left]
+		}
+		return points, nil
 	}
 	return q.Order(d.query.Metric.TimestampNs).Find()
 }

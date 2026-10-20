@@ -20,7 +20,10 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/zfogg/spaniel/internal/coverage"
+	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/ws"
 )
 
 // Options configures the MCP server.
@@ -32,7 +35,25 @@ type Options struct {
 	// session, set baseline, prune). When false, those tools are not registered
 	// at all — they do not appear in tools/list and cannot be called.
 	AllowWrites bool
+	// Runtime dependencies are optional so tests and storage-only embeddings can
+	// still construct the MCP server. When supplied they enrich operational
+	// tools and preserve the same live behavior as the HTTP API.
+	Hub        *ws.Hub
+	Manifests  *coverage.Manifests
+	Forwarder  *forwarder.Forwarder
+	Throughput ThroughputProvider
+	Drops      DropCounterProvider
+	Sources    SourcesProvider
 }
+
+type ThroughputProvider interface{ Throughput() storage.Throughput }
+type DropCounterProvider interface {
+	DroppedSpansTotal() int64
+	DroppedLogsTotal() int64
+	DroppedMetricPointsTotal() int64
+	LastDropAt() int64
+}
+type SourcesProvider interface{ Sources() []storage.SourceStats }
 
 // handler holds the dependencies shared by every tool handler.
 type handler struct {
@@ -81,7 +102,7 @@ func NewHandler(store *storage.DB, opts Options) http.Handler {
 // tools are added by registerWriteTools only when AllowWrites is set. Tool
 // groups are split across files in this package; this is the single entry point.
 func (h *handler) registerTools(s *mcpsdk.Server) {
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_server_info",
 		Description: "Get Spaniel server version and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection and see how much data is available.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
@@ -93,6 +114,11 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	h.registerTopologyTools(s)
 	h.registerSessionTools(s)
 	h.registerSQLTool(s)
+	h.registerDashboardTools(s)
+	h.registerAlertTools(s)
+	h.registerCoverageTools(s)
+	h.registerNotificationTools(s)
+	h.registerIngestionTools(s)
 	h.registerResourcesAndPrompts(s)
 
 	if h.opts.AllowWrites {

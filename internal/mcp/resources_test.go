@@ -34,7 +34,10 @@ func TestResource_Schema(t *testing.T) {
 	}
 	text := out.Contents[0].Text
 	// Tables exist from migrations even with no data.
-	for _, want := range []string{"spans:", "trace_id", "logs:"} {
+	if out.Contents[0].MIMEType != "text/toon" {
+		t.Errorf("schema MIME type = %q, want text/toon", out.Contents[0].MIMEType)
+	}
+	for _, want := range []string{"table_name", "spans", "trace_id", "logs"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("schema missing %q:\n%s", want, text)
 		}
@@ -62,18 +65,21 @@ func TestPrompts_Listed(t *testing.T) {
 	for _, p := range res.Prompts {
 		names[p.Name] = true
 	}
-	for _, want := range []string{"debug_latest_trace", "diff_against_baseline", "find_bottlenecks"} {
+	for _, want := range []string{"investigate_incident", "compare_session_to_baseline", "draft_observability_pack"} {
 		if !names[want] {
 			t.Errorf("prompt %q not listed; have %v", want, names)
 		}
 	}
+	if len(res.Prompts) != 3 {
+		t.Errorf("listed %d prompts, want exactly 3", len(res.Prompts))
+	}
 }
 
-func TestPrompt_DebugLatestTrace_ServiceArg(t *testing.T) {
+func TestPrompt_InvestigateIncidentFocus(t *testing.T) {
 	cs, _ := connect(t, Options{Version: "t"})
 	out, err := cs.GetPrompt(context.Background(), &mcpsdk.GetPromptParams{
-		Name:      "debug_latest_trace",
-		Arguments: map[string]string{"service": "checkout"},
+		Name:      "investigate_incident",
+		Arguments: map[string]string{"focus": "checkout"},
 	})
 	if err != nil {
 		t.Fatalf("get prompt: %v", err)
@@ -93,14 +99,14 @@ func TestPrompt_DebugLatestTrace_ServiceArg(t *testing.T) {
 	}
 }
 
-func TestPrompt_FindBottlenecks(t *testing.T) {
+func TestPrompt_DraftObservabilityPack(t *testing.T) {
 	cs, _ := connect(t, Options{Version: "t"})
-	out, err := cs.GetPrompt(context.Background(), &mcpsdk.GetPromptParams{Name: "find_bottlenecks"})
+	out, err := cs.GetPrompt(context.Background(), &mcpsdk.GetPromptParams{Name: "draft_observability_pack", Arguments: map[string]string{"goal": "catch checkout regressions"}})
 	if err != nil {
 		t.Fatalf("get prompt: %v", err)
 	}
 	tc := out.Messages[0].Content.(*mcpsdk.TextContent)
-	if !strings.Contains(tc.Text, "list_issues") {
-		t.Errorf("expected list_issues reference:\n%s", tc.Text)
+	if !strings.Contains(tc.Text, "validate_dashboard") || !strings.Contains(tc.Text, "guidance, not permission") {
+		t.Errorf("expected validation and safety guidance:\n%s", tc.Text)
 	}
 }

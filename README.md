@@ -239,9 +239,26 @@ All tools are **read-only** unless you start spaniel with `--mcp-allow-writes`.
 | `get_metrics` / `get_metric_series` | metric catalog and time series |
 | `list_sessions` / `diff_sessions` | sessions; before/after comparison |
 | `query_sql` | **read-only** raw SQL over the DuckDB tables (engine-enforced) |
-| `create_session` / `activate_session` / `set_baseline` / `prune_data` | **write** — only registered with `--mcp-allow-writes` |
+| `list_dashboards` / `get_dashboard` / `run_dashboard_panel` / `validate_dashboard` | inspect, execute, and validate dashboard definitions |
+| `export_dashboard_yaml` / `import_dashboard_yaml` / `apply_dashboard` / `delete_dashboard` | portable dashboard YAML and structured dashboard lifecycle; imports with an ID update that dashboard, while imports without an ID create a copy |
+| `list_alerts` / `get_alert` / `list_alert_history` / `preview_alert` / `validate_alert` | alert definitions, state, history, query previews, and validation |
+| `export_alert_yaml` / `import_alert_yaml` / `apply_alert` / alert operator actions | portable alert YAML, structured lifecycle, acknowledge/unacknowledge, and bounded silences |
+| `get_coverage` / `list_coverage_specs` / `get_coverage_spec` / coverage-spec mutations | route coverage and managed OpenAPI specifications |
+| `list_notifications` / notification actions | durable operator inbox, read state, and acknowledgement |
+| `get_ingestion_health` | live ingest rates, source health, drops, storage pressure, and forwarding health |
+| `create_session` / `activate_session` / `set_baseline` / `prune_data` | session lifecycle and retention |
 
-It also exposes **resources** (`spaniel://schema`, `spaniel://guide`) and **prompts** (`debug_latest_trace`, `diff_against_baseline`, `find_bottlenecks`).
+Mutating tools are only registered with `--mcp-allow-writes`. Tool results use
+[TOON](https://github.com/toon-format/toon-go) text to avoid duplicating large
+telemetry results as JSON; YAML export tools intentionally return YAML.
+
+It also exposes static resources (`spaniel://schema`, `spaniel://guide`) and
+dynamic resources for dashboards, alerts, spans, traces, logs, and metric
+series. Three user-selectable prompts guide complete workflows:
+`investigate_incident`, `compare_session_to_baseline`, and
+`draft_observability_pack`. Prompts are guidance, not authorization: the last
+prompt only applies its validated draft when the user explicitly asks and MCP
+writes are enabled.
 
 Config: `mcp_enabled` (default `true`), `mcp_allow_writes` (default `false`), or the `--mcp-enabled` / `--mcp-allow-writes` flags.
 

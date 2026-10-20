@@ -16,7 +16,7 @@ const sqlQueryTimeout = 30 * time.Second
 
 // registerSQLTool adds the read-only raw-SQL tool.
 func (h *handler) registerSQLTool(s *mcpsdk.Server) {
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name: "query_sql",
 		Description: "Run SQL directly against Spaniel's DuckDB (read-only) and get back columns + rows. " +
 			"Use this for ad-hoc analysis the other tools don't cover — custom aggregations, joins, group-bys, window functions. " +

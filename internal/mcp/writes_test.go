@@ -4,7 +4,12 @@ import (
 	"testing"
 )
 
-var writeToolNames = []string{"create_session", "activate_session", "set_baseline", "prune_data"}
+var writeToolNames = []string{
+	"create_session", "activate_session", "set_baseline", "prune_data",
+	"apply_dashboard", "import_dashboard_yaml", "delete_dashboard",
+	"acknowledge_alert_instance", "unacknowledge_alert_instance", "silence_alert", "remove_alert_silence", "apply_alert", "import_alert_yaml", "delete_alert",
+	"apply_coverage_spec", "delete_coverage_spec", "mark_notification_read", "acknowledge_notification",
+}
 
 // Without AllowWrites the mutating tools must NOT be registered — they must not
 // appear in tools/list and cannot be called.

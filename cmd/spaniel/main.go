@@ -952,6 +952,12 @@ func run(cfg runConfig) error {
 		mcpHandler := mcp.NewHandler(store, mcp.Options{
 			Version:     version,
 			AllowWrites: cfg.MCPAllowWrites,
+			Hub:         hub,
+			Manifests:   manifests,
+			Forwarder:   fwd,
+			Throughput:  pipeline,
+			Drops:       pipeline.DropCounters(),
+			Sources:     pipeline,
 		})
 		mainMux.Handle("/mcp", mcpHandler)
 		mainMux.Handle("/mcp/", mcpHandler)

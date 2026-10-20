@@ -13,13 +13,13 @@ import (
 func (h *handler) registerSessionTools(s *mcpsdk.Server) {
 	readOnly := &mcpsdk.ToolAnnotations{ReadOnlyHint: true}
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_sessions",
 		Description: "List all sessions (recording runs) with span/trace/error counts, p95 latency, and which one is active or marked as a baseline. Sessions are how Spaniel groups telemetry; use the ids here with the session_id argument of other tools or with diff_sessions.",
 		Annotations: readOnly,
 	}, h.listSessions)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "diff_sessions",
 		Description: "Compare two sessions (typically a baseline vs. a current run) and report what changed: overall duration delta, spans added/removed, DB-call delta, and per-(service, operation) timing changes. Use this to see whether a code change made things faster or slower.",
 		Annotations: readOnly,

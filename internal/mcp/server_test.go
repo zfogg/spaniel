@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -66,23 +65,7 @@ func TestListToolsReadOnly(t *testing.T) {
 func TestGetServerInfo(t *testing.T) {
 	cs, _ := connect(t, Options{Version: "test-1.0", AllowWrites: true})
 
-	res, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "get_server_info"})
-	if err != nil {
-		t.Fatalf("call get_server_info: %v", err)
-	}
-	if res.IsError {
-		t.Fatalf("get_server_info returned tool error: %+v", res.Content)
-	}
-
-	// StructuredContent round-trips as a generic map; re-decode into ServerInfo.
-	raw, err := json.Marshal(res.StructuredContent)
-	if err != nil {
-		t.Fatalf("marshal structured content: %v", err)
-	}
-	var info ServerInfo
-	if err := json.Unmarshal(raw, &info); err != nil {
-		t.Fatalf("unmarshal ServerInfo: %v", err)
-	}
+	info := callStructured[ServerInfo](t, cs, "get_server_info", nil)
 
 	if info.Version != "test-1.0" {
 		t.Errorf("version = %q, want test-1.0", info.Version)

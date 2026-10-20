@@ -13,13 +13,13 @@ import (
 func (h *handler) registerLogTools(s *mcpsdk.Server) {
 	readOnly := &mcpsdk.ToolAnnotations{ReadOnlyHint: true}
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "query_logs",
 		Description: "Query stored log records, most recent first. Filter by trace_id or span_id to see logs correlated with a trace, by service, and by minimum severity (e.g. \"WARN\" to see warnings and above). Defaults to the active session.",
 		Annotations: readOnly,
 	}, h.queryLogs)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "search",
 		Description: "Full-text search across traces, spans, logs, sessions, and services. Supports field filters like \"lint:db.system_required\" or \"n+1\" to find traces flagged by the linter/detectors. Leave session_id empty to search all sessions. Returns mixed-kind results; use the trace_id/span_id to drill in with get_trace/get_span.",
 		Annotations: readOnly,

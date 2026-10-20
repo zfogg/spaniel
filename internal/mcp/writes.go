@@ -18,25 +18,25 @@ func (h *handler) registerWriteTools(s *mcpsdk.Server) {
 	idempotent := &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false), IdempotentHint: true}
 	destructive := &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(true)}
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "create_session",
 		Description: "Create a new session (a recording bucket for telemetry). Optionally mark it as a baseline and/or activate it so incoming spans are recorded into it. Returns the new session.",
 		Annotations: additive,
 	}, h.createSession)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "activate_session",
 		Description: "Make a session the active one, so newly received telemetry is recorded into it. Use list_sessions to find ids.",
 		Annotations: idempotent,
 	}, h.activateSession)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "set_baseline",
 		Description: "Set or clear the baseline flag on a session. Baselines are the 'before' side for diff_sessions.",
 		Annotations: idempotent,
 	}, h.setBaseline)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "prune_data",
 		Description: "Apply a retention policy now, deleting old sessions to free space. Provide any of retention_days, max_sessions, max_db_size_mb (omitted/0 = no limit for that dimension). The active session is never deleted. Returns what was removed. This is destructive.",
 		Annotations: destructive,
