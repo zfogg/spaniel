@@ -14,7 +14,7 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 
-	_ "github.com/duckdb/duckdb-go/v2"
+	_ "github.com/marcboeker/go-duckdb"
 )
 
 func setupRouter(t *testing.T) (http.Handler, *storage.DB) {

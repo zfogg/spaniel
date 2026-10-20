@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	_ "github.com/duckdb/duckdb-go/v2"
+	_ "github.com/marcboeker/go-duckdb"
 )
 
 // TestSplitSQLStatements covers the cases a naive Split(s, ";") gets wrong:

@@ -34,6 +34,12 @@ func (h *handler) registerResourcesAndPrompts(s *mcpsdk.Server) {
 
 	h.registerDynamicResources(s)
 
+	addTOONTool(s, &mcpsdk.Tool{
+		Name:        "compare_session_to_baseline",
+		Description: "Return the complete read-only workflow for comparing a Spaniel session to its baseline. This tool mirrors the MCP prompt so clients that do not expose prompts can still invoke the workflow natively.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, h.compareSessionToBaseline)
+
 	s.AddPrompt(&mcpsdk.Prompt{
 		Name:        "investigate_incident",
 		Description: "Run a cross-signal incident investigation using alerts, notifications, ingestion health, traces, spans, logs, and metrics.",
@@ -142,6 +148,21 @@ func userPrompt(desc, text string) (*mcpsdk.GetPromptResult, error) {
 	}, nil
 }
 
+type CompareSessionToBaselineInput struct {
+	Baseline string `json:"baseline,omitempty" jsonschema:"baseline session id or label; omit to use the session marked as baseline"`
+	Compare  string `json:"compare,omitempty" jsonschema:"comparison session id or label; omit to use the active session"`
+}
+
+type WorkflowPromptOutput struct {
+	Description  string `json:"description"`
+	Instructions string `json:"instructions"`
+}
+
+func (h *handler) compareSessionToBaseline(_ context.Context, _ *mcpsdk.CallToolRequest, in CompareSessionToBaselineInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {
+	description, instructions := compareSessionToBaselineWorkflow(in.Baseline, in.Compare)
+	return nil, WorkflowPromptOutput{Description: description, Instructions: instructions}, nil
+}
+
 func promptInvestigateIncident(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
 	focus := ""
 	if req != nil && req.Params != nil {
@@ -166,6 +187,11 @@ func promptCompareSessionToBaseline(_ context.Context, req *mcpsdk.GetPromptRequ
 		baseline = req.Params.Arguments["baseline"]
 		compare = req.Params.Arguments["compare"]
 	}
+	description, instructions := compareSessionToBaselineWorkflow(baseline, compare)
+	return userPrompt(description, instructions)
+}
+
+func compareSessionToBaselineWorkflow(baseline, compare string) (string, string) {
 	pickBaseline := "find the session marked as a baseline"
 	if baseline != "" {
 		pickBaseline = fmt.Sprintf("use baseline %q", baseline)
@@ -174,12 +200,12 @@ func promptCompareSessionToBaseline(_ context.Context, req *mcpsdk.GetPromptRequ
 	if compare != "" {
 		pickCompare = fmt.Sprintf("use comparison session %q", compare)
 	}
-	return userPrompt("Compare a session to a baseline",
+	return "Compare a session to a baseline",
 		fmt.Sprintf("Produce a regression report grounded in Spaniel evidence.\n\n"+
 			"1. Call list_sessions; %s and %s.\n"+
 			"2. Call diff_sessions, then inspect the most regressed traces/spans and relevant logs and metric series.\n"+
 			"3. Call get_coverage for both session scopes when possible; distinguish newly dark routes from routes that simply received no traffic.\n"+
-			"4. Report improvements as well as regressions. Rank changes by user impact and absolute time, and call out sampling or ingestion-health differences that weaken the comparison.", pickBaseline, pickCompare))
+			"4. Report improvements as well as regressions. Rank changes by user impact and absolute time, and call out sampling or ingestion-health differences that weaken the comparison.", pickBaseline, pickCompare)
 }
 
 func promptDraftObservabilityPack(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {

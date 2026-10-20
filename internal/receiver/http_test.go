@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/duckdb/duckdb-go/v2"
+	_ "github.com/marcboeker/go-duckdb"
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/ingestion"
 	"github.com/zfogg/spaniel/internal/storage"

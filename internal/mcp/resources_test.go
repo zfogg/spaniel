@@ -75,6 +75,34 @@ func TestPrompts_Listed(t *testing.T) {
 	}
 }
 
+func TestCompareSessionToBaselineToolMirrorsPrompt(t *testing.T) {
+	cs, _ := connect(t, Options{Version: "t"})
+	out := callStructured[WorkflowPromptOutput](t, cs, "compare_session_to_baseline", map[string]any{
+		"baseline": "before",
+		"compare":  "after",
+	})
+	if out.Description != "Compare a session to a baseline" {
+		t.Fatalf("description = %q", out.Description)
+	}
+	for _, want := range []string{"use baseline \"before\"", "use comparison session \"after\"", "diff_sessions", "get_coverage"} {
+		if !strings.Contains(out.Instructions, want) {
+			t.Errorf("tool instructions missing %q:\n%s", want, out.Instructions)
+		}
+	}
+
+	prompt, err := cs.GetPrompt(context.Background(), &mcpsdk.GetPromptParams{
+		Name:      "compare_session_to_baseline",
+		Arguments: map[string]string{"baseline": "before", "compare": "after"},
+	})
+	if err != nil {
+		t.Fatalf("get prompt: %v", err)
+	}
+	promptText := prompt.Messages[0].Content.(*mcpsdk.TextContent).Text
+	if promptText != out.Instructions {
+		t.Fatalf("tool and prompt diverged:\ntool:\n%s\nprompt:\n%s", out.Instructions, promptText)
+	}
+}
+
 func TestPrompt_InvestigateIncidentFocus(t *testing.T) {
 	cs, _ := connect(t, Options{Version: "t"})
 	out, err := cs.GetPrompt(context.Background(), &mcpsdk.GetPromptParams{

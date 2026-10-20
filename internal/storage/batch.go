@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	duckdb "github.com/duckdb/duckdb-go/v2"
+	"github.com/marcboeker/go-duckdb"
 	"github.com/zfogg/spaniel/internal/telemetry"
 )
 
