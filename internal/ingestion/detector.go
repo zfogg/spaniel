@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -41,7 +42,11 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 	defer dspan.End()
 
 	spans, err := store.GetTrace(traceID)
-	if err != nil || len(spans) == 0 {
+	if err != nil {
+		slog.Warn("trace detector read failed", "trace_id", traceID, "error", err)
+		return
+	}
+	if len(spans) == 0 {
 		return
 	}
 	sessID := store.ActiveSessionID()
@@ -64,6 +69,8 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 						WastedNs:    issue.WastedNs,
 					}))
 				}, "subsystem", "detectors")
+			} else {
+				slog.Warn("trace detector finding write failed", "trace_id", traceID, "kind", issue.Kind, "error", err)
 			}
 		}
 	}

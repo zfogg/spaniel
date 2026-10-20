@@ -35,8 +35,8 @@ type Pipeline struct {
 	// Linting and post-ingest detectors are best-effort diagnostics. Bound
 	// their concurrency so an OTLP burst cannot create one DB-blocked goroutine
 	// per span/trace and retain gigabytes of request state.
-	lintSlots     chan struct{}
-	detectorSlots chan struct{}
+	lintSlots chan struct{}
+	detectors detectorQueue
 
 	tracer trace.Tracer
 
@@ -133,17 +133,16 @@ func NewPipelineWithSampler(store *storage.DB, hub *ws.Hub, s *Sampler) *Pipelin
 
 func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimiter) *Pipeline {
 	p := &Pipeline{
-		store:         store,
-		hub:           hub,
-		tp:            newThroughputCounter(),
-		sampler:       s,
-		limiter:       lim,
-		debounce:      make(map[string]*time.Timer),
-		lintSlots:     make(chan struct{}, maxConcurrentLinters),
-		detectorSlots: make(chan struct{}, maxConcurrentDetectors),
-		tracer:        otel.Tracer("spaniel/ingestion"),
-		metricSeries:  newMetricSeriesLimiter(2000),
-		ingestSlots:   make(chan struct{}, maxConcurrentIngests),
+		store:        store,
+		hub:          hub,
+		tp:           newThroughputCounter(),
+		sampler:      s,
+		limiter:      lim,
+		debounce:     make(map[string]*time.Timer),
+		lintSlots:    make(chan struct{}, maxConcurrentLinters),
+		tracer:       otel.Tracer("spaniel/ingestion"),
+		metricSeries: newMetricSeriesLimiter(2000),
+		ingestSlots:  make(chan struct{}, maxConcurrentIngests),
 	}
 	if persisted, err := store.MetricSeriesCatalog(); err == nil {
 		for _, row := range persisted {
@@ -747,7 +746,6 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	// the appended spans here to make them durable and queryable.
 	_ = p.store.FlushBatch()
 	p.notifyLiveState()
-
 	// Buffered sampling bypasses runDetectors. Audit the persisted tree here
 	// too, including earlier batches of this trace, after accepted spans flush.
 	if persisted, err := p.store.GetTrace(traceID); err == nil {
@@ -781,15 +779,9 @@ func (p *Pipeline) scheduleLint(s *storage.Span) {
 }
 
 func (p *Pipeline) scheduleDetectorRun(traceID string) {
-	select {
-	case p.detectorSlots <- struct{}{}:
-		goroutine.Go(func() {
-			defer func() { <-p.detectorSlots }()
-			runDetectors(traceID, p.store, p.hub, p.tracer)
-		}, "subsystem", "detectors")
-	default:
-		// The trace is already durable; skip best-effort analysis under load.
-	}
+	p.detectors.enqueue(traceID, func(id string) {
+		runDetectors(id, p.store, p.hub, p.tracer)
+	})
 }
 
 func serviceNameFromAttrs(attrs pcommon.Map) string {

@@ -1,6 +1,9 @@
 package storage
 
-import "github.com/zfogg/spaniel/internal/model"
+import (
+	"github.com/zfogg/spaniel/internal/model"
+	"gorm.io/gorm/clause"
+)
 
 type LintWarning = model.LintWarning
 
@@ -70,7 +73,13 @@ func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 }
 
 func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
-	return d.namedQuery("UpsertTraceIssue").TraceIssue.Save(issue)
+	// DuckDB rejects ON CONFLICT assignments to indexed columns even when
+	// their values do not change. A finding's identity is immutable; only its
+	// accumulated evidence changes when late spans trigger another analysis.
+	return d.namedQuery("UpsertTraceIssue").TraceIssue.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
+	}).Create(issue)
 }
 
 func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {

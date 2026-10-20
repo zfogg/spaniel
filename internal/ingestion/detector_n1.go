@@ -1,6 +1,11 @@
 package ingestion
 
-import "github.com/zfogg/spaniel/internal/storage"
+import (
+	"crypto/sha256"
+	"fmt"
+
+	"github.com/zfogg/spaniel/internal/storage"
+)
 
 // N1Detector fires when the same SQL fingerprint is executed more than once
 // under a single parent operation. Two executions are already an N+1: a loop
@@ -15,7 +20,15 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 		fp    string
 	}
 	groups := map[string]*group{}
+	seen := map[string]bool{}
 	for _, s := range spans {
+		// Retransmitting an exported span is not another query execution.
+		if s.SpanID != "" {
+			if seen[s.SpanID] {
+				continue
+			}
+			seen[s.SpanID] = true
+		}
 		// Check both db.statement (older OTel convention) and db.query.text
 		// (newer convention used by otelpgx and other modern instrumentations).
 		raw := extractAttrString(s.Attributes, "db.statement")
@@ -58,7 +71,9 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 			}
 		}
 		issues = append(issues, &storage.TraceIssue{
-			ID:            issueID(traceID, "n_plus_one", g.fp),
+			// SQL templates commonly share their first 12 characters. Hash
+			// the full parent/template key instead of truncating the SQL.
+			ID:            fmt.Sprintf("%s-n_plus_one-%x", traceID, sha256.Sum256([]byte(loopSpanID+"\x00"+g.fp))),
 			TraceID:       traceID,
 			SessionID:     sessionID,
 			Kind:          "n_plus_one",
