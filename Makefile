@@ -100,6 +100,13 @@ test-extensive: test
 test-storage: verify-generated
 	go test ./internal/storage
 
+# Retention/reclamation regressions without unrelated code generation. No
+# generator inputs change in this storage-only check; use test for the full suite.
+.PHONY: test-retention
+RETENTION_TEST_RUN ?= TestPrune|TestRetention|TestCompact|TestMaintenance|TestStorageGuard|TestGetStorage|TestSession
+test-retention:
+	go test ./internal/storage ./cmd/spaniel -run '$(RETENTION_TEST_RUN)' -count=1 -timeout=10m -v
+
 generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema

@@ -20,9 +20,10 @@ func compactSubcommand() *cobra.Command {
 	var apiBase string
 	cmd := &cobra.Command{
 		Use:   "compact",
-		Short: "Run CHECKPOINT + VACUUM on the Spaniel database",
-		Long: `Triggers a CHECKPOINT followed by a VACUUM on the local DuckDB file.
-This returns free pages to the OS and removes WAL overhead.`,
+		Short: "Reclaim deleted rows and rebuild affected database indexes",
+		Long: `Checkpoints the database and rebuilds tables containing deleted rows.
+Live telemetry, schemas and indexes are preserved. Free blocks may remain in
+the database file for subsequent writes; reported sizes are physical file bytes.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			resp, err := http.Post(apiBase+"/api/settings/compact", "application/json", http.NoBody)
 			if err != nil {

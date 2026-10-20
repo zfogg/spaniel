@@ -22,8 +22,9 @@ type DB struct {
 	path               string
 	activeSessionID    string
 	activeSessionLabel string
-	full               *atomic.Bool // writes rejected when true (see full.go); shared across WithContext copies
-	traceLintMu        *sync.Mutex  // shared by WithContext copies; serializes incremental trace lint insertion
+	full               *atomic.Bool  // writes rejected when true (see full.go); shared across WithContext copies
+	traceLintMu        *sync.Mutex   // shared by WithContext copies; serializes incremental trace lint insertion
+	retentionFloor     *atomic.Int64 // failed reclamation floor; prevents repeated destructive retries
 }
 
 // WithContext returns a shallow copy of DB whose GORM queries carry ctx, so the
@@ -85,7 +86,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}}
+	d := &DB{gorm: g, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}}
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}

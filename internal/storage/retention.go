@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	pruneTraceBatch  = 1000
-	pruneRecordBatch = 10000
+	pruneTraceBatch = 1000
 )
 
 // RetentionConfig describes the retention policy applied by Prune.
@@ -63,10 +62,10 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 
 		if cfg.MaxDBSizeBytes > 0 && d.path != "" && d.path != ":memory:" {
 			n, err := d.deleteBySize(cfg.MaxDBSizeBytes, activeID)
+			res.DeletedBySize = n
 			if err != nil {
 				return fmt.Errorf("delete by size: %w", err)
 			}
-			res.DeletedBySize = n
 		}
 		return d.checkpointWithRetry()
 	})
@@ -147,8 +146,17 @@ func (d *DB) deleteByCount(maxSessions int, activeID string) (int, error) {
 }
 
 func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
+	// A stale WAL or deleted indexed tuples must never trigger live-data
+	// eviction. Reclaim first, then measure the remaining live allocation.
+	if err := d.reclaimRetentionSpace(); err != nil {
+		return 0, err
+	}
+	if floor := d.retentionFloor.Load(); floor > maxBytes && d.UsedSize() >= floor {
+		return 0, fmt.Errorf("retention size limit is below the unreclaimable storage floor; refusing further telemetry deletion")
+	}
 	deleted := 0
 	for d.UsedSize() > maxBytes {
+		before := d.UsedSize()
 		n, err := d.deleteOldestTelemetryBatch(activeID)
 		if err != nil {
 			return deleted, err
@@ -160,45 +168,51 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
 		if err := d.reclaimRetentionSpace(); err != nil {
 			return deleted, err
 		}
+		if d.UsedSize() >= before {
+			d.retentionFloor.Store(before)
+			return deleted, fmt.Errorf("retention reclaimed no storage; refusing further telemetry deletion")
+		}
 	}
+	d.retentionFloor.Store(0)
 	return deleted, nil
 }
 
-// reclaimRetentionSpace makes the size measurement authoritative after a
-// deletion. DuckDB keeps freed blocks in the database allocation until VACUUM;
-// checkpointing alone therefore leaves UsedSize unchanged and makes the
-// storage guard believe pruning failed. Run this while maintenance has closed
-// all appenders, and re-check the cap before deleting another batch.
+// reclaimRetentionSpace makes the size measurement authoritative before and
+// after deletion, including indexed row groups that CHECKPOINT cannot compact.
 func (d *DB) reclaimRetentionSpace() error {
 	if err := d.checkpointWithRetry(); err != nil {
 		return err
 	}
-	if err := d.gorm.Exec("VACUUM").Error; err != nil {
-		return fmt.Errorf("vacuum retention: %w", err)
-	}
-	return d.checkpointWithRetry()
+	return d.rebuildTelemetry()
 }
 
-// deleteOldestTelemetryBatch removes coherent oldest trace groups first, then
-// independently aged logs and metrics. Auxiliary trace rows are deleted before
-// their spans. It returns the number of primary telemetry rows removed.
+// deleteOldestTelemetryBatch selects coherent trace groups and independent logs
+// and metrics in global age order. Auxiliary trace rows leave before their spans.
+// It returns the number of primary telemetry rows removed.
 func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
-	oldestTraces := fmt.Sprintf(`
-		SELECT session_id, trace_id
-		FROM spans
-		GROUP BY session_id, trace_id
-		ORDER BY MIN(start_ns), session_id, trace_id
-		LIMIT %d`, pruneTraceBatch)
-	// Freeze this pass's coherent trace set once. Re-running the GROUP BY in
-	// every child-table delete needlessly scans the entire span store and can
-	// exhaust maintenance time while ingestion waits for the SQL pool.
-	if err := d.namedGORM("RetentionTraceBatchCreate").Exec("CREATE OR REPLACE TEMP TABLE retention_trace_batch AS " + oldestTraces).Error; err != nil {
-		return 0, fmt.Errorf("materialize retention trace batch: %w", err)
+	// Use one age-ordered queue across all signals. Small proportional batches
+	// avoid discarding 1,000 traces (or all logs) to free a few database blocks.
+	// Correlated logs leave with their trace rather than being pruned early.
+	candidates := `
+		SELECT 'trace' AS kind, session_id, trace_id, 0::BIGINT AS record_id, MIN(start_ns) AS age
+		FROM spans GROUP BY session_id, trace_id
+		UNION ALL SELECT 'log', session_id, '', rowid, timestamp_ns FROM logs l
+		WHERE NOT EXISTS (SELECT 1 FROM spans s WHERE s.session_id = l.session_id AND s.trace_id = l.trace_id)
+		UNION ALL SELECT 'metric', session_id, '', rowid, timestamp_ns FROM metrics`
+	var groups int64
+	if err := d.namedGORM("RetentionCandidateCount").Raw(`SELECT COUNT(*) FROM (` + candidates + `) candidates`).Scan(&groups).Error; err != nil {
+		return 0, err
+	}
+	batch := min(int64(pruneTraceBatch), max(int64(1), (groups+99)/100))
+	if err := d.namedGORM("RetentionTraceBatchCreate").Exec(fmt.Sprintf(`
+		CREATE OR REPLACE TEMP TABLE retention_trace_batch AS
+		SELECT * FROM (%s) candidates ORDER BY age, kind, session_id, trace_id, record_id LIMIT %d`, candidates, batch)).Error; err != nil {
+		return 0, fmt.Errorf("materialize retention batch: %w", err)
 	}
 	defer func() {
 		_ = d.namedGORM("RetentionTraceBatchDrop").Exec("DROP TABLE IF EXISTS retention_trace_batch").Error
 	}()
-	oldestTraces = "SELECT session_id, trace_id FROM retention_trace_batch"
+	oldestTraces := "SELECT session_id, trace_id FROM retention_trace_batch WHERE kind = 'trace'"
 	traceMatch := func(table string) string {
 		return fmt.Sprintf(`EXISTS (
 			SELECT 1 FROM (%s) oldest
@@ -219,17 +233,10 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
 			return fmt.Errorf("delete old spans: %w", result.Error)
 		}
 		deleted += int(result.RowsAffected)
-		for _, spec := range []struct {
-			table string
-			order string
-		}{
-			{"logs", "timestamp_ns"},
-			{"metrics", "timestamp_ns"},
-		} {
-			q := fmt.Sprintf(`DELETE FROM %s WHERE rowid IN (
-			SELECT rowid FROM %s ORDER BY %s LIMIT %d
-		)`, spec.table, spec.table, spec.order, pruneRecordBatch)
-			result = tx.Exec(q)
+		for _, spec := range []struct{ table, kind string }{{"logs", "log"}, {"metrics", "metric"}} {
+			result = tx.Exec(`DELETE FROM `+spec.table+` WHERE rowid IN (
+				SELECT record_id FROM retention_trace_batch WHERE kind = ?
+			)`, spec.kind)
 			if result.Error != nil {
 				return fmt.Errorf("delete old %s: %w", spec.table, result.Error)
 			}

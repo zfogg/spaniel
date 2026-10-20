@@ -302,7 +302,7 @@ alerts_dir: ~/.spaniel/alerts
 retention_days: 7
 max_sessions: 50
 max_db_size_mb: 500
-auto_prune: true      # prune oldest sessions at 80%; false = preserve data and stop ingest at cap
+auto_prune: true      # prune oldest telemetry at 80%; false = preserve data and stop ingest at cap
 no_browser: false
 mcp_enabled: true        # serve the MCP endpoint at /mcp
 mcp_allow_writes: false  # let MCP clients mutate state (sessions, prune)
@@ -382,7 +382,7 @@ spaniel trace <id|short-id>          interactive waterfall for one trace
 spaniel config [show|path|set]       show / locate / edit configuration
 spaniel doctor                       diagnose ports, DB, config, embed, upstreams
 spaniel prune                        apply the retention policy now
-spaniel compact                      CHECKPOINT + VACUUM the database
+spaniel compact                      reclaim deleted rows and rebuild affected indexes
 spaniel reset --yes                  wipe all data and start fresh
 ```
 

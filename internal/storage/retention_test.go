@@ -17,7 +17,7 @@ func seedSession(t *testing.T, d *DB, id, label string, createdNs int64, isBasel
 		t.Fatalf("seed session %s: %v", id, err)
 	}
 	for i := range spanCount {
-		if err := d.InsertSpan(&Span{
+		if err := d.AppendSpan(&Span{
 			TraceID:     fmt.Sprintf("%s-t%d", id, i),
 			SpanID:      fmt.Sprintf("%s-s%d", id, i),
 			ServiceName: "svc",
@@ -31,6 +31,9 @@ func seedSession(t *testing.T, d *DB, id, label string, createdNs int64, isBasel
 		}); err != nil {
 			t.Fatalf("insert span: %v", err)
 		}
+	}
+	if err := d.FlushBatch(); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -99,7 +102,7 @@ func TestPrune_DeleteByCount_OldestFirstPreserveBaselineAndActive(t *testing.T) 
 	}
 }
 
-func TestPrune_DeleteBySize_ShrinksToCap(t *testing.T) {
+func TestPrune_SizeBelowStorageFloorStopsWithoutErasingRecentTraces(t *testing.T) {
 	// File-backed DB so file-size measurement works.
 	tmp := filepath.Join(t.TempDir(), "spaniel.duckdb")
 	d, err := Open(tmp)
@@ -109,7 +112,7 @@ func TestPrune_DeleteBySize_ShrinksToCap(t *testing.T) {
 	t.Cleanup(func() { d.Close() })
 
 	base := time.Now().UnixNano()
-	// 5 sessions of 200 spans each — meaningful weight on disk.
+	// A tiny payload with metadata overhead larger than the requested cap.
 	for i := range 5 {
 		seedSession(t, d, fmt.Sprintf("s%d", i), "x", base-int64((5-i)*int(time.Hour)), false, 200)
 	}
@@ -120,16 +123,23 @@ func TestPrune_DeleteBySize_ShrinksToCap(t *testing.T) {
 	if before == 0 {
 		t.Fatalf("file size unexpectedly 0")
 	}
-	// Cap to half of current — forces deletion of some oldest sessions.
+	// The metadata floor cannot be reached by deleting additional live traces.
 	res, err := d.Prune(RetentionConfig{MaxDBSizeBytes: before / 2}, "s4")
-	if err != nil {
-		t.Fatalf("Prune: %v", err)
+	if err == nil {
+		t.Fatal("expected an unreachable-cap error")
 	}
 	if res.DeletedBySize == 0 {
 		t.Errorf("expected at least one deletion by size, got 0 (before=%d after=%d)", before, d.FileSize())
 	}
 	if s, _ := d.GetSession("s4"); s == nil {
 		t.Errorf("active session was deleted — must always be preserved")
+	}
+	var remaining int
+	if err := d.SQL().QueryRow(`SELECT COUNT(*) FROM spans`).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining < 990 {
+		t.Fatalf("storage overhead erased live telemetry: %d spans remain", remaining)
 	}
 }
 

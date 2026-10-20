@@ -65,27 +65,8 @@ func (d *DB) ListSessions() ([]*Session, error) {
 			SizeBytes: r.SizeBytes, N1Count: r.N1Count, ErrorCount: r.ErrorCount,
 		}
 	}
-	// DuckDB packs values from several sessions into the same compressed blocks,
-	// so it has no intrinsic "file bytes owned by session" value. Allocate the
-	// real database footprint across the sessions by their complete telemetry
-	// payload (spans, logs, metrics, events, links, and telemetry findings).
-	// This deliberately leaves alerts and dashboards out of the allocation.
-	var payloadTotal int64
-	for _, s := range result {
-		payloadTotal += s.SizeBytes
-	}
-	// Allocate the live DuckDB footprint to sessions so this total reconciles
-	// with the usage shown in Stats after deletes.
-	if dbBytes := d.UsedSize(); dbBytes > 0 && payloadTotal > 0 {
-		var allocated int64
-		for _, s := range result {
-			s.SizeBytes = s.SizeBytes * dbBytes / payloadTotal
-			allocated += s.SizeBytes
-		}
-		// Keep the allocations exact in aggregate despite integer division. The
-		// newest session is the stable recipient of the rounding remainder.
-		result[0].SizeBytes += dbBytes - allocated
-	}
+	// Report live telemetry payload estimates. Shared indexes, free blocks and
+	// deleted tuples have no session owner and must not inflate these values.
 	return result, nil
 }
 

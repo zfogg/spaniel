@@ -42,9 +42,8 @@ type SessionSize = model.SessionSize
 func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	out := &StorageBreakdown{}
 
-	// DuckDB does not expose per-table compressed sizes in this version.
-	// Checkpoint first to flush the WAL, then distribute the actual on-disk
-	// file size proportionally using uncompressed payload lengths as weights.
+	// Table sizes are live payload estimates. Physical allocation, indexes and
+	// deleted tuples are reported separately in MainBytes/WALBytes.
 	if d.path != "" && d.path != ":memory:" {
 		_ = d.flushBeforeCheckpoint()
 	}
@@ -58,12 +57,6 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
 	sizes, _ := d.query.Span.StorageTableSizes()
 
-	// Sum total payload to use as denominator for proportioning.
-	var totalPayload int64
-	for _, s := range sizes {
-		totalPayload += s.PayloadBytes
-	}
-
 	byTable := make(map[string]model.TableSizeRow, len(sizes))
 	for _, s := range sizes {
 		byTable[s.Name] = s
@@ -71,11 +64,6 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	for _, name := range tableNames {
 		s := byTable[name]
 		approxBytes := s.PayloadBytes
-		// If we have a real file size, scale proportionally so values reflect
-		// actual on-disk bytes rather than uncompressed payload lengths.
-		if fileBytes > 0 && totalPayload > 0 {
-			approxBytes = fileBytes * s.PayloadBytes / totalPayload
-		}
 		out.Tables = append(out.Tables, TableStat{
 			Name:        name,
 			RowCount:    s.RowCount,
@@ -99,14 +87,15 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	return out, nil
 }
 
-// CompactResult reports bytes before and after a CHECKPOINT + VACUUM cycle.
+// CompactResult reports physical bytes before and after reclaiming deleted rows.
 type CompactResult struct {
 	BytesBefore int64 `json:"bytes_before"`
 	BytesAfter  int64 `json:"bytes_after"`
 	Reclaimed   int64 `json:"reclaimed"`
 }
 
-// Compact runs CHECKPOINT followed by VACUUM to return free pages to the OS.
+// Compact rebuilds tables containing deleted tuples, preserving live rows,
+// constraints and indexes. DuckDB may retain free blocks for future writes.
 func (d *DB) Compact() (*CompactResult, error) {
 	res := &CompactResult{}
 	if d.path != "" && d.path != ":memory:" {
@@ -118,10 +107,7 @@ func (d *DB) Compact() (*CompactResult, error) {
 		if err := d.checkpointWithRetry(); err != nil {
 			return fmt.Errorf("checkpoint: %w", err)
 		}
-		if err := d.gorm.Exec("VACUUM").Error; err != nil {
-			return fmt.Errorf("vacuum: %w", err)
-		}
-		return d.checkpointWithRetry()
+		return d.rebuildTelemetry()
 	}); err != nil {
 		return res, err
 	}
