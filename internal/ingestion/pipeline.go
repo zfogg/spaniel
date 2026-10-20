@@ -748,6 +748,12 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	_ = p.store.FlushBatch()
 	p.notifyLiveState()
 
+	// Buffered sampling bypasses runDetectors. Audit the persisted tree here
+	// too, including earlier batches of this trace, after accepted spans flush.
+	if persisted, err := p.store.GetTrace(traceID); err == nil {
+		persistStorageQueryNameLints(traceID, p.store, persisted, time.Now().UnixNano())
+	}
+
 	// Store N+1 issues and broadcast.
 	for _, issue := range issues {
 		if err := p.store.UpsertTraceIssue(issue); err == nil {

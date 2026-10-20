@@ -44,7 +44,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 		telemetry.Catalog().RecordStoragePrune(context.Background(), result, float64(time.Since(started).Microseconds())/1000)
 	}()
 
-	err := d.withMaintenance(func() error {
+	err := d.withMaintenance(func(d *DB) error {
 		if cfg.MaxAge > 0 {
 			n, err := d.deleteByAge(cfg.MaxAge, activeID)
 			if err != nil {
@@ -94,7 +94,7 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 // Reset wipes all telemetry data (spans, logs, lint warnings, trace issues, sessions).
 // The active session pointer in memory is cleared.
 func (d *DB) Reset() error {
-	err := d.withMaintenance(func() error {
+	err := d.withMaintenance(func(d *DB) error {
 		if err := d.resetTelemetry(); err != nil {
 			return err
 		}
@@ -189,6 +189,16 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
 		GROUP BY session_id, trace_id
 		ORDER BY MIN(start_ns), session_id, trace_id
 		LIMIT %d`, pruneTraceBatch)
+	// Freeze this pass's coherent trace set once. Re-running the GROUP BY in
+	// every child-table delete needlessly scans the entire span store and can
+	// exhaust maintenance time while ingestion waits for the SQL pool.
+	if err := d.namedGORM("RetentionTraceBatchCreate").Exec("CREATE OR REPLACE TEMP TABLE retention_trace_batch AS " + oldestTraces).Error; err != nil {
+		return 0, fmt.Errorf("materialize retention trace batch: %w", err)
+	}
+	defer func() {
+		_ = d.namedGORM("RetentionTraceBatchDrop").Exec("DROP TABLE IF EXISTS retention_trace_batch").Error
+	}()
+	oldestTraces = "SELECT session_id, trace_id FROM retention_trace_batch"
 	traceMatch := func(table string) string {
 		return fmt.Sprintf(`EXISTS (
 			SELECT 1 FROM (%s) oldest

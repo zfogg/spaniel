@@ -121,7 +121,13 @@ setup:
 test-ingestion:
 	mkdir -p $(BIN_DIR)
 	go test -c -o $(BIN_DIR)/ingestion.test$(EXE) ./internal/ingestion
-	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace' -test.v
+	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName' -test.v
+
+.PHONY: test-query-name-race
+test-query-name-race:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/querynames.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/querynames.test$(EXE) -test.run 'TestStorageQueryName' -test.v
 
 # Exercise the real Streamable HTTP boundary with the reference MCP Inspector
 # CLI. Inspector requires Node.js 22.19.0 or newer; npx caches the pinned package.

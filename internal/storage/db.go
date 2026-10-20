@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/alifiroozi80/duckdb"
@@ -22,6 +23,7 @@ type DB struct {
 	activeSessionID    string
 	activeSessionLabel string
 	full               *atomic.Bool // writes rejected when true (see full.go); shared across WithContext copies
+	traceLintMu        *sync.Mutex  // shared by WithContext copies; serializes incremental trace lint insertion
 }
 
 // WithContext returns a shallow copy of DB whose GORM queries carry ctx, so the
@@ -83,7 +85,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, path: path, full: &atomic.Bool{}}
+	d := &DB{gorm: g, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}}
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -114,7 +116,10 @@ func duckDBDSN(path string) string {
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
-	settings := fmt.Sprintf("threads=%d&memory_limit=%s", duckDBWorkerThreads, duckDBMemoryLimit)
+	// Avoid the legacy ART-index serialization path during checkpoint. The
+	// bundled engine can read its current format; legacy conversion can fail
+	// with TransformToDeprecated after sustained indexed ingestion/deletion.
+	settings := fmt.Sprintf("threads=%d&memory_limit=%s&storage_compatibility_version=latest", duckDBWorkerThreads, duckDBMemoryLimit)
 	// User SQL shares this instance with ingestion. Disable external I/O and
 	// extension loading on the instance so SELECT table functions cannot bypass
 	// the read-only SQL gate. All connections inherit the same configuration.

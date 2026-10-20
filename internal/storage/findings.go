@@ -17,6 +17,46 @@ func (d *DB) InsertLintWarning(w *LintWarning) error {
 	})
 }
 
+// InsertMissingTraceLints makes repeated analysis and late-arriving spans
+// idempotent. One notification summarizes the rule; every offending span still
+// gets its own lint record.
+func (d *DB) InsertMissingTraceLints(traceID, ruleID string, warnings []*LintWarning) (int, error) {
+	if len(warnings) == 0 {
+		return 0, nil
+	}
+	d.traceLintMu.Lock()
+	defer d.traceLintMu.Unlock()
+	q := d.namedQuery("TraceLintExisting")
+	existing, err := q.LintWarning.Where(q.LintWarning.TraceID.Eq(traceID), q.LintWarning.RuleID.Eq(ruleID)).Find()
+	if err != nil {
+		return 0, err
+	}
+	seen := make(map[string]bool, len(existing))
+	for _, w := range existing {
+		seen[w.SpanID] = true
+	}
+	missing := make([]*LintWarning, 0, len(warnings))
+	for _, w := range warnings {
+		if !seen[w.SpanID] {
+			missing = append(missing, w)
+			seen[w.SpanID] = true
+		}
+	}
+	if len(missing) == 0 {
+		return 0, nil
+	}
+	if err = d.namedQuery("TraceLintInsertMissing").LintWarning.Create(missing...); err != nil {
+		return 0, err
+	}
+	w := missing[0]
+	err = d.RecordNotification(&NotificationRecord{
+		Source: "lint", SourceID: traceID + ":" + ruleID, Severity: w.Severity,
+		Title: "Lint: " + ruleID, Body: w.Message, Link: "/traces/" + traceID,
+		DedupeKey: "trace-lint:" + traceID + ":" + ruleID,
+	})
+	return len(missing), err
+}
+
 func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 	rows, err := d.query.LintWarning.ListWithTraceIssues(sessionID)
 	if err != nil {
