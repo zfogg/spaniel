@@ -131,7 +131,10 @@ func TestSynchronousIO_PostMethod_NoFire(t *testing.T) {
 	}
 	spans := []*storage.Span{root}
 	for i := range 3 {
-		spans = append(spans, inlineDBSpan(fmt.Sprintf("db%d", i), "root"))
+		child := inlineDBSpan(fmt.Sprintf("db%d", i), "root")
+		child.StartNs = int64(i*20) * int64(time.Millisecond)
+		child.EndNs = int64((i+1)*20) * int64(time.Millisecond)
+		spans = append(spans, child)
 	}
 	d := &SynchronousIODetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
@@ -148,7 +151,10 @@ func TestSynchronousIO_ClientSpan_NoFire(t *testing.T) {
 	}
 	spans := []*storage.Span{root}
 	for i := range 3 {
-		spans = append(spans, inlineDBSpan(fmt.Sprintf("db%d", i), "root"))
+		child := inlineDBSpan(fmt.Sprintf("db%d", i), "root")
+		child.StartNs = int64(i*20) * int64(time.Millisecond)
+		child.EndNs = int64((i+1)*20) * int64(time.Millisecond)
+		spans = append(spans, child)
 	}
 	d := &SynchronousIODetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
