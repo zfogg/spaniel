@@ -148,10 +148,12 @@ func (d *DB) flushBeforeCheckpoint() error {
 func (d *DB) withMaintenance(fn func(*DB) error) error {
 	telemetry.Catalog().SetStorageMaintenanceInFlight(1)
 	defer telemetry.Catalog().SetStorageMaintenanceInFlight(0)
-	if d.batcher == nil {
-		return d.exclusiveSQLMaintenance(fn)
-	}
-	return d.batcher.Maintenance(func() error { return d.exclusiveSQLMaintenance(fn) })
+	return d.pauseIngest(func() error {
+		if d.batcher == nil {
+			return d.exclusiveSQLMaintenance(fn)
+		}
+		return d.batcher.Maintenance(func() error { return d.exclusiveSQLMaintenance(fn) })
+	})
 }
 
 // exclusiveSQLMaintenance runs only after appenders have released their pinned

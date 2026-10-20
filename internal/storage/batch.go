@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	duckdb "github.com/duckdb/duckdb-go/v2"
 	"github.com/zfogg/spaniel/internal/telemetry"
 )
@@ -67,7 +69,7 @@ func (ta *tableAppender) close() error {
 // Batcher buffers hot-path rows and flushes them via the DuckDB Appender API.
 type Batcher struct {
 	db   *sql.DB
-	mu   sync.Mutex
+	mu   batchMutex
 	apps map[string]*tableAppender
 
 	stop   chan struct{}
@@ -78,8 +80,24 @@ type Batcher struct {
 	checkpoint func() error
 }
 
-// newBatcher pins one appender per hot-path table and starts the interval
-// flusher. The pinned connections share the same DuckDB instance as the GORM
+// batchMutex lets abandoned exports leave the write queue immediately, even
+// while a native flush/checkpoint cannot be interrupted safely. Internal
+// maintenance and shutdown retain ordinary non-cancelable Lock semantics.
+type batchMutex struct {
+	once sync.Once
+	gate *semaphore.Weighted
+}
+
+func (m *batchMutex) lock(ctx context.Context) error {
+	m.once.Do(func() { m.gate = semaphore.NewWeighted(1) })
+	return m.gate.Acquire(ctx, 1)
+}
+
+func (m *batchMutex) Lock()   { _ = m.lock(context.Background()) }
+func (m *batchMutex) Unlock() { m.gate.Release(1) }
+
+// newBatcher pins one appender per hot-path table. Open starts the interval
+// flusher after wiring the owning DB. The connections share the DuckDB instance as the GORM
 // pool, so appended rows are visible to GORM reads after a flush.
 func newBatcher(db *sql.DB, path string, checkpoint func() error) (*Batcher, error) {
 	b := &Batcher{
@@ -98,7 +116,6 @@ func newBatcher(db *sql.DB, path string, checkpoint func() error) (*Batcher, err
 		}
 		b.apps[t] = ta
 	}
-	go b.loop()
 	return b, nil
 }
 
@@ -166,7 +183,7 @@ func (b *Batcher) checkpointIfNeeded(threshold int64) error {
 	if info.Size() < threshold {
 		return nil
 	}
-	return b.Maintenance(b.checkpoint)
+	return b.checkpoint()
 }
 
 // append adds one row to the named table's appender, flushing eagerly once the
@@ -174,13 +191,18 @@ func (b *Batcher) checkpointIfNeeded(threshold int64) error {
 // recreated before returning the error; the row that triggered the failure is
 // lost (callers account for it via drop counters), but the appender stays
 // usable for subsequent rows.
-func (b *Batcher) append(table string, args ...driver.Value) error {
+func (b *Batcher) append(ctx context.Context, table string, args ...driver.Value) error {
 	started := time.Now()
 	defer func() {
 		telemetry.Catalog().RecordStorageAppend(context.Background(), table, float64(time.Since(started).Microseconds())/1000)
 	}()
-	b.mu.Lock()
+	if err := b.mu.lock(ctx); err != nil {
+		return err
+	}
 	defer b.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if b.closed {
 		return errBatcherClosed
 	}
@@ -285,8 +307,17 @@ func estimateRowBytes(args []driver.Value) int64 {
 // Flush flushes every appender's buffered rows so they become visible to
 // readers. It is safe to call concurrently with append.
 func (b *Batcher) Flush() error {
-	b.mu.Lock()
+	return b.flush(context.Background())
+}
+
+func (b *Batcher) flush(ctx context.Context) error {
+	if err := b.mu.lock(ctx); err != nil {
+		return err
+	}
 	defer b.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if b.closed {
 		return nil
 	}
@@ -363,10 +394,14 @@ func (b *Batcher) closeAllLocked() error {
 
 // AppendSpan buffers a span for batched insertion.
 func (b *Batcher) AppendSpan(s *Span) error {
+	return b.appendSpan(context.Background(), s)
+}
+
+func (b *Batcher) appendSpan(ctx context.Context, s *Span) error {
 	if s.DurationNs == 0 {
 		s.DurationNs = s.EndNs - s.StartNs
 	}
-	return b.append("spans",
+	return b.append(ctx, "spans",
 		s.TraceID, s.SpanID, s.ParentSpanID, s.ServiceName, s.Name,
 		s.Kind, s.StartNs, s.EndNs, s.DurationNs,
 		s.StatusCode, s.StatusMessage, s.Attributes, s.Resource,
@@ -376,7 +411,11 @@ func (b *Batcher) AppendSpan(s *Span) error {
 
 // AppendLog buffers a log record for batched insertion.
 func (b *Batcher) AppendLog(l *Log) error {
-	return b.append("logs",
+	return b.appendLog(context.Background(), l)
+}
+
+func (b *Batcher) appendLog(ctx context.Context, l *Log) error {
+	return b.append(ctx, "logs",
 		l.TimestampNs, l.TraceID, l.SpanID, l.Severity, l.Body,
 		l.Attributes, l.ServiceName, l.SessionID, l.ReceivedAt,
 	)
@@ -384,7 +423,11 @@ func (b *Batcher) AppendLog(l *Log) error {
 
 // AppendMetric buffers a metric data point for batched insertion.
 func (b *Batcher) AppendMetric(m *Metric) error {
-	return b.append("metrics",
+	return b.appendMetric(context.Background(), m)
+}
+
+func (b *Batcher) appendMetric(ctx context.Context, m *Metric) error {
+	return b.append(ctx, "metrics",
 		m.Name, m.Description, m.Unit, m.Type, m.AggregationTemporality, nullableBool(m.IsMonotonic),
 		m.StartTimestampNs, m.TimestampNs, m.Flags, m.Value,
 		nullableUint64(m.HistogramCount), nullableFloat64(m.HistogramSum), nullableFloat64(m.HistogramMin), nullableFloat64(m.HistogramMax), m.ExplicitBounds, m.BucketCounts,

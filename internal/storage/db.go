@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/alifiroozi80/duckdb"
 	"github.com/zfogg/spaniel/internal/storage/querygen"
 	"github.com/zfogg/spaniel/internal/telemetry"
+	"golang.org/x/sync/semaphore"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -22,13 +24,14 @@ type DB struct {
 	activeSessionID    string
 	activeSessionLabel string
 	full               *atomic.Bool // writes rejected when true (see full.go); shared across WithContext copies
+	ingestGate         *semaphore.Weighted
 }
 
 // WithContext returns a shallow copy of DB whose GORM queries carry ctx, so the
 // OTel plugin (see otel.go) nests DuckDB query spans under the caller's span.
 // Use it on request paths: store.WithContext(req.Context()).ListTraces(...).
-// Batcher (Appender) writes bypass GORM and are unaffected; instrument those
-// with an explicit span at the call site.
+// Batcher writes bypass GORM instrumentation, but honor ctx while queued for
+// their native write/flush. Native work already executing finishes safely.
 func (d *DB) WithContext(ctx context.Context) *DB {
 	cp := *d
 	cp.gorm = d.gorm.WithContext(ctx)
@@ -83,7 +86,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, path: path, full: &atomic.Bool{}}
+	d := &DB{gorm: g, path: path, full: &atomic.Bool{}, ingestGate: semaphore.NewWeighted(ingestGateCapacity)}
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -98,14 +101,37 @@ func Open(path string) (*DB, error) {
 	// API rather than per-row INSERTs. Must run after migrate() so the tables
 	// exist for the appenders to bind to.
 	b, err := newBatcher(sqlDB, path, func() error {
-		return d.exclusiveSQLMaintenance(func(d *DB) error { return d.checkpointWithRetry() })
+		return d.flushBeforeCheckpoint()
 	})
 	if err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("init batcher: %w", err)
 	}
 	d.batcher = b
+	go b.loop()
 	return d, nil
+}
+
+const ingestGateCapacity int64 = 1 << 20
+
+// BeginIngest protects a complete export, rather than just one appended row.
+// Maintenance waits for existing exports to finish before closing appenders;
+// new exports queue behind that writer and remain cancellable.
+func (d *DB) BeginIngest(ctx context.Context) (func(), error) {
+	if err := d.ingestGate.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	return func() { d.ingestGate.Release(1) }, nil
+}
+
+func (d *DB) pauseIngest(fn func() error) error {
+	ctx, cancel := context.WithTimeout(d.gorm.Statement.Context, 30*time.Second)
+	defer cancel()
+	if err := d.ingestGate.Acquire(ctx, ingestGateCapacity); err != nil {
+		return fmt.Errorf("drain ingestion for maintenance: %w", err)
+	}
+	defer d.ingestGate.Release(ingestGateCapacity)
+	return fn()
 }
 
 // duckDBDSN places resource limits in the connector configuration rather than
@@ -135,7 +161,7 @@ func duckDBDSN(path string, readOnly bool) string {
 // FlushBatch flushes all buffered hot-path rows so they are visible to readers.
 // Ingest paths call this at the end of a request and before running detectors.
 func (d *DB) FlushBatch() error {
-	err := d.batcher.Flush()
+	err := d.batcher.flush(d.gorm.Statement.Context)
 	if err == nil {
 		registerDBSizeGauge(d.path)
 	}

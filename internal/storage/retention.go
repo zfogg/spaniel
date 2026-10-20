@@ -11,7 +11,9 @@ import (
 )
 
 const (
-	pruneTraceBatch  = 1000
+	// Amortize checkpoint/index I/O across a meaningful amount of reclaimed
+	// telemetry; 1,000 trace groups rewrote the live DB faster than it pruned it.
+	pruneTraceBatch  = 10000
 	pruneRecordBatch = 10000
 )
 

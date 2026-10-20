@@ -14,7 +14,9 @@ type Metric = model.Metric
 type MetricCatalogEntry = model.MetricCatalogEntry
 
 // AppendMetric buffers a metric data point for batched insertion.
-func (d *DB) AppendMetric(m *Metric) error { return d.batcher.AppendMetric(m) }
+func (d *DB) AppendMetric(m *Metric) error {
+	return d.batcher.appendMetric(d.gorm.Statement.Context, m)
+}
 
 // MetricSeriesCatalog is the ingestion-facing view of durable admitted series.
 type MetricSeriesCatalog struct {

@@ -37,10 +37,11 @@ var (
 // storageGuardPolicy is updated live by the settings API and read by both
 // background retention loops without racing on viper.
 type storageGuardPolicy struct {
-	maxBytes  atomic.Int64
-	autoPrune atomic.Bool
-	pruning   atomic.Bool
-	retrySoon atomic.Bool
+	maxBytes   atomic.Int64
+	autoPrune  atomic.Bool
+	pruning    atomic.Bool
+	retrySoon  atomic.Bool
+	batchNanos atomic.Int64
 }
 
 func newStorageGuardPolicy(maxBytes int64, autoPrune bool) *storageGuardPolicy {
@@ -54,11 +55,16 @@ func (p *storageGuardPolicy) Update(maxBytes int64, autoPrune bool) {
 	p.autoPrune.Store(autoPrune)
 	p.pruning.Store(false)
 	p.retrySoon.Store(false)
+	p.batchNanos.Store(0)
 }
 
 func (p *storageGuardPolicy) CheckInterval() time.Duration {
 	if p.autoPrune.Load() && p.retrySoon.Load() {
-		return storageGuardCatchUpInterval
+		// Give batches queued behind a slow native checkpoint enough time to
+		// finish before acquiring maintenance again. Keep the window bounded
+		// so deletion throughput can still overtake incoming telemetry.
+		interval := time.Duration(p.batchNanos.Load())
+		return min(time.Second, max(storageGuardCatchUpInterval, interval))
 	}
 	return storageGuardInterval
 }
@@ -209,7 +215,9 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) erro
 	}
 	policy.pruning.Store(true)
 
+	started := time.Now()
 	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxSizeBatches: 1}, store.ActiveSessionID())
+	policy.batchNanos.Store(time.Since(started).Nanoseconds())
 	after := store.UsedSize()
 	policy.pruning.Store(after > target)
 	// Progress is measured by deleted records, not allocated blocks: DuckDB

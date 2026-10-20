@@ -19,6 +19,7 @@ type fakeStorageGuardStore struct {
 	retainSize   bool
 	pruneStep    int64
 	noProgress   bool
+	pruneDelay   time.Duration
 }
 
 func (f *fakeStorageGuardStore) UsedSize() int64         { return f.size }
@@ -28,6 +29,7 @@ func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID stri
 	f.pruneCalls++
 	f.pruneLimit = cfg.MaxDBSizeBytes
 	f.pruneBatches = cfg.MaxSizeBatches
+	time.Sleep(f.pruneDelay)
 	if f.pruneErr != nil {
 		return storage.PruneResult{}, f.pruneErr
 	}
@@ -152,6 +154,17 @@ func TestStorageGuardCatchUpUsesDeletedRowsAndBacksOffWithoutProgress(t *testing
 	policy.Update(100, false)
 	if policy.CheckInterval() != 5*time.Second || policy.pruning.Load() {
 		t.Fatal("disabling auto-prune must cancel catch-up")
+	}
+}
+
+func TestStorageGuardSlowBatchAllowsExporterProgress(t *testing.T) {
+	store := &fakeStorageGuardStore{size: 90, retainSize: true, pruneDelay: 250 * time.Millisecond}
+	policy := newStorageGuardPolicy(100, true)
+	if err := checkStorageGuard(store, policy); err != nil {
+		t.Fatal(err)
+	}
+	if interval := policy.CheckInterval(); interval < 250*time.Millisecond || interval > time.Second {
+		t.Fatalf("slow native maintenance must yield a bounded exporter window, got %s", interval)
 	}
 }
 

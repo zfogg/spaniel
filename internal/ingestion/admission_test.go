@@ -6,6 +6,8 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/zfogg/spaniel/internal/storage"
+
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -14,8 +16,13 @@ import (
 func TestQueuedIngestHonorsCancellation(t *testing.T) {
 	for _, signal := range []string{"traces", "logs", "metrics"} {
 		t.Run(signal, func(t *testing.T) {
+			store, err := storage.Open(":memory:")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { store.Close() })
 			synctest.Test(t, func(t *testing.T) {
-				p := &Pipeline{ingestSlots: make(chan struct{}, 1)}
+				p := &Pipeline{store: store, ingestSlots: make(chan struct{}, 1)}
 				p.ingestSlots <- struct{}{}
 				ctx, cancel := context.WithCancel(t.Context())
 				done := make(chan error, 1)

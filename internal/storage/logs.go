@@ -5,7 +5,7 @@ import "github.com/zfogg/spaniel/internal/model"
 type Log = model.Log
 
 // AppendLog buffers a log record for batched insertion.
-func (d *DB) AppendLog(l *Log) error { return d.batcher.AppendLog(l) }
+func (d *DB) AppendLog(l *Log) error { return d.batcher.appendLog(d.gorm.Statement.Context, l) }
 
 func (d *DB) InsertLog(l *Log) error {
 	return d.namedQuery("InsertLog").Log.Create(l)

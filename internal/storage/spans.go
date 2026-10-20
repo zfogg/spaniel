@@ -21,7 +21,7 @@ const spanCols = `trace_id, span_id, parent_span_id, service_name, name, kind,
 // AppendSpan buffers a span for batched insertion via the columnar Appender.
 // Rows become durable on the next flush; ingest callers flush at the end of
 // each request, so reads-after-ingest within a request observe the row.
-func (d *DB) AppendSpan(s *Span) error { return d.batcher.AppendSpan(s) }
+func (d *DB) AppendSpan(s *Span) error { return d.batcher.appendSpan(d.gorm.Statement.Context, s) }
 
 func (d *DB) InsertSpan(s *Span) error {
 	if s.DurationNs == 0 {

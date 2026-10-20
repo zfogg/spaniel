@@ -171,8 +171,20 @@ func (p *Pipeline) beginIngest(ctx context.Context) (func(), error) {
 		releasePending()
 		return nil, ctx.Err()
 	}
+	if err := ctx.Err(); err != nil {
+		<-p.ingestSlots
+		releasePending()
+		return nil, err
+	}
+	finishWrite, err := p.store.BeginIngest(ctx)
+	if err != nil {
+		<-p.ingestSlots
+		releasePending()
+		return nil, err
+	}
 	telemetry.Catalog().RecordIngestQueueWait(ctx, float64(time.Since(started).Microseconds())/1000)
 	return func() {
+		finishWrite()
 		<-p.ingestSlots
 		releasePending()
 	}, nil
@@ -198,7 +210,7 @@ func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
 	defer inFlight.AddFlushInFlight(-1)
 	started := time.Now()
 	if !instrument {
-		err := p.classifyFlush(p.store.FlushBatch())
+		err := p.classifyFlush(p.store.WithContext(ctx).FlushBatch())
 		result := "ok"
 		if err != nil {
 			result = "error"
@@ -211,7 +223,7 @@ func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
 		trace.WithAttributes(attribute.String("db.system", "duckdb")),
 	)
 	defer span.End()
-	if err := p.classifyFlush(p.store.FlushBatch()); err != nil {
+	if err := p.classifyFlush(p.store.WithContext(ctx).FlushBatch()); err != nil {
 		telemetry.Catalog().RecordFlush(ctx, "error", float64(time.Since(started).Microseconds())/1000)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -537,6 +549,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 			trace.WithAttributes(attribute.Int("otel.log_record_count", logs.LogRecordCount())))
 	}
 	defer ingestSpan.End()
+	store := p.store.WithContext(ctx)
 
 	sessionID := p.store.ActiveSessionID()
 
@@ -571,7 +584,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 				}
 
 				t0 := time.Now()
-				if err := p.store.AppendLog(l); err != nil {
+				if err := store.AppendLog(l); err != nil {
 					ingestSpan.RecordError(err)
 					ingestSpan.SetStatus(codes.Error, err.Error())
 					return err
@@ -717,6 +730,11 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	if len(entries) == 0 {
 		return
 	}
+	done, err := p.beginIngest(context.Background())
+	if err != nil {
+		return
+	}
+	defer done()
 
 	spans := make([]*storage.Span, len(entries))
 	for i, e := range entries {
