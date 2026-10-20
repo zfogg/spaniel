@@ -127,7 +127,7 @@ func TestPipelineIngestTraces_LintWarningsCreated(t *testing.T) {
 	p := NewPipeline(db, ws.NewHub())
 	td := makeTraces("svc", func(ss ptrace.ScopeSpans) {
 		// HTTP client span missing both method and status_code → should fire two warnings.
-		putSpan(ss, "b", "2", "", "outgoing", ptrace.SpanKindClient, map[string]string{})
+		putSpan(ss, "b", "2", "", "outgoing", ptrace.SpanKindClient, map[string]string{"url.full": "https://example.test/checkout"})
 	})
 	if err := p.IngestTraces(context.Background(), td); err != nil {
 		t.Fatalf("IngestTraces: %v", err)

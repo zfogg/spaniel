@@ -35,10 +35,22 @@ func (h *handler) registerResourcesAndPrompts(s *mcpsdk.Server) {
 	h.registerDynamicResources(s)
 
 	addTOONTool(s, &mcpsdk.Tool{
+		Name:        "investigate_incident",
+		Description: "Return the complete read-only workflow for investigating an incident across Spaniel signals. This tool mirrors the MCP prompt for clients that do not expose prompts.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, h.investigateIncident)
+
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "compare_session_to_baseline",
 		Description: "Return the complete read-only workflow for comparing a Spaniel session to its baseline. This tool mirrors the MCP prompt so clients that do not expose prompts can still invoke the workflow natively.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, h.compareSessionToBaseline)
+
+	addTOONTool(s, &mcpsdk.Tool{
+		Name:        "draft_observability_pack",
+		Description: "Return the workflow for drafting and validating a dashboard and alert pack from observed telemetry. This tool mirrors the MCP prompt for clients that do not expose prompts; it grants no permission to write.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, h.draftObservabilityPack)
 
 	s.AddPrompt(&mcpsdk.Prompt{
 		Name:        "investigate_incident",
@@ -148,9 +160,18 @@ func userPrompt(desc, text string) (*mcpsdk.GetPromptResult, error) {
 	}, nil
 }
 
+type InvestigateIncidentInput struct {
+	Focus string `json:"focus,omitempty" jsonschema:"optional alert id, service name, symptom, or error text"`
+}
+
 type CompareSessionToBaselineInput struct {
 	Baseline string `json:"baseline,omitempty" jsonschema:"baseline session id or label; omit to use the session marked as baseline"`
 	Compare  string `json:"compare,omitempty" jsonschema:"comparison session id or label; omit to use the active session"`
+}
+
+type DraftObservabilityPackInput struct {
+	Goal    string `json:"goal" jsonschema:"what the dashboard and alerts should help observe"`
+	Service string `json:"service,omitempty" jsonschema:"optional service to focus on"`
 }
 
 type WorkflowPromptOutput struct {
@@ -158,8 +179,18 @@ type WorkflowPromptOutput struct {
 	Instructions string `json:"instructions"`
 }
 
+func (h *handler) investigateIncident(_ context.Context, _ *mcpsdk.CallToolRequest, in InvestigateIncidentInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {
+	description, instructions := investigateIncidentWorkflow(in.Focus)
+	return nil, WorkflowPromptOutput{Description: description, Instructions: instructions}, nil
+}
+
 func (h *handler) compareSessionToBaseline(_ context.Context, _ *mcpsdk.CallToolRequest, in CompareSessionToBaselineInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {
 	description, instructions := compareSessionToBaselineWorkflow(in.Baseline, in.Compare)
+	return nil, WorkflowPromptOutput{Description: description, Instructions: instructions}, nil
+}
+
+func (h *handler) draftObservabilityPack(_ context.Context, _ *mcpsdk.CallToolRequest, in DraftObservabilityPackInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {
+	description, instructions := draftObservabilityPackWorkflow(in.Goal, in.Service)
 	return nil, WorkflowPromptOutput{Description: description, Instructions: instructions}, nil
 }
 
@@ -168,17 +199,22 @@ func promptInvestigateIncident(_ context.Context, req *mcpsdk.GetPromptRequest) 
 	if req != nil && req.Params != nil {
 		focus = req.Params.Arguments["focus"]
 	}
+	description, instructions := investigateIncidentWorkflow(focus)
+	return userPrompt(description, instructions)
+}
+
+func investigateIncidentWorkflow(focus string) (string, string) {
 	focusText := "the most urgent current symptom"
 	if focus != "" {
 		focusText = fmt.Sprintf("%q", focus)
 	}
-	return userPrompt("Investigate an incident across Spaniel signals",
+	return "Investigate an incident across Spaniel signals",
 		fmt.Sprintf("Act as the incident investigator for %s. Build a timestamped evidence chain; do not infer causality from correlation alone.\n\n"+
 			"1. Call get_server_info and get_ingestion_health first so missing telemetry is not mistaken for healthy behavior.\n"+
 			"2. Call list_alerts(state=attention), list_notifications, and list_alert_history to identify the active symptom and its first transition.\n"+
 			"3. Use list_traces/search, get_trace, get_span, query_logs, get_metrics, and get_metric_series to correlate the symptom across signals.\n"+
 			"4. Separate confirmed facts, likely causes, and unknowns. Name the earliest causal-looking change, the blast radius, and the safest next diagnostic action.\n"+
-			"5. Do not acknowledge or silence anything unless the user explicitly asked you to take that operator action.", focusText))
+			"5. Do not acknowledge or silence anything unless the user explicitly asked you to take that operator action.", focusText)
 }
 
 func promptCompareSessionToBaseline(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
@@ -214,15 +250,20 @@ func promptDraftObservabilityPack(_ context.Context, req *mcpsdk.GetPromptReques
 		goal = req.Params.Arguments["goal"]
 		service = req.Params.Arguments["service"]
 	}
+	description, instructions := draftObservabilityPackWorkflow(goal, service)
+	return userPrompt(description, instructions)
+}
+
+func draftObservabilityPackWorkflow(goal, service string) (string, string) {
 	scope := "across the active session"
 	if service != "" {
 		scope = fmt.Sprintf("for service %q", service)
 	}
-	return userPrompt("Draft a dashboard and alert pack from observed telemetry",
+	return "Draft a dashboard and alert pack from observed telemetry",
 		fmt.Sprintf("Design an observability pack %s for this goal: %q. Base it on fields and values actually present in Spaniel, not guessed schemas.\n\n"+
 			"1. Inspect get_server_info, list_services, get_metrics, query_sql, and spaniel://schema. Review existing dashboards and alerts to avoid duplication.\n"+
 			"2. Draft one coherent dashboard definition and the smallest useful alert set. Prefer queries that share explicit variables and return renderer-compatible shapes.\n"+
 			"3. Call validate_dashboard and validate_alert for every definition. Repair validation failures before presenting anything.\n"+
 			"4. By default, stop after showing the validated draft. Only call apply_dashboard/apply_alert if the user explicitly asked to save or apply it and get_server_info reports writes_enabled=true. A prompt is guidance, not permission.\n"+
-			"5. Summarize why each panel and alert exists, expected signal volume, and likely false-positive modes.", scope, goal))
+			"5. Summarize why each panel and alert exists, expected signal volume, and likely false-positive modes.", scope, goal)
 }

@@ -103,6 +103,49 @@ func TestCompareSessionToBaselineToolMirrorsPrompt(t *testing.T) {
 	}
 }
 
+func TestInvestigateIncidentToolMirrorsPrompt(t *testing.T) {
+	cs, _ := connect(t, Options{Version: "t"})
+	out := callStructured[WorkflowPromptOutput](t, cs, "investigate_incident", map[string]any{"focus": "checkout"})
+	for _, want := range []string{"checkout", "get_ingestion_health", "list_notifications", "Do not acknowledge or silence"} {
+		if !strings.Contains(out.Instructions, want) {
+			t.Errorf("tool instructions missing %q:\n%s", want, out.Instructions)
+		}
+	}
+	assertWorkflowToolMirrorsPrompt(t, cs, "investigate_incident", map[string]string{"focus": "checkout"}, out)
+}
+
+func TestDraftObservabilityPackToolMirrorsPrompt(t *testing.T) {
+	cs, _ := connect(t, Options{Version: "t"})
+	out := callStructured[WorkflowPromptOutput](t, cs, "draft_observability_pack", map[string]any{
+		"goal":    "catch checkout regressions",
+		"service": "checkout",
+	})
+	for _, want := range []string{"catch checkout regressions", "service \"checkout\"", "validate_dashboard", "guidance, not permission"} {
+		if !strings.Contains(out.Instructions, want) {
+			t.Errorf("tool instructions missing %q:\n%s", want, out.Instructions)
+		}
+	}
+	assertWorkflowToolMirrorsPrompt(t, cs, "draft_observability_pack", map[string]string{
+		"goal":    "catch checkout regressions",
+		"service": "checkout",
+	}, out)
+}
+
+func assertWorkflowToolMirrorsPrompt(t *testing.T, cs *mcpsdk.ClientSession, name string, arguments map[string]string, tool WorkflowPromptOutput) {
+	t.Helper()
+	prompt, err := cs.GetPrompt(context.Background(), &mcpsdk.GetPromptParams{Name: name, Arguments: arguments})
+	if err != nil {
+		t.Fatalf("get prompt %s: %v", name, err)
+	}
+	if prompt.Description != tool.Description {
+		t.Fatalf("%s descriptions diverged: tool=%q prompt=%q", name, tool.Description, prompt.Description)
+	}
+	promptText := prompt.Messages[0].Content.(*mcpsdk.TextContent).Text
+	if promptText != tool.Instructions {
+		t.Fatalf("%s tool and prompt diverged:\ntool:\n%s\nprompt:\n%s", name, tool.Instructions, promptText)
+	}
+}
+
 func TestPrompt_InvestigateIncidentFocus(t *testing.T) {
 	cs, _ := connect(t, Options{Version: "t"})
 	out, err := cs.GetPrompt(context.Background(), &mcpsdk.GetPromptParams{
