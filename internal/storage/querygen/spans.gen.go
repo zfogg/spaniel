@@ -222,11 +222,11 @@ type ISpanDo interface {
 	ListTraceOverlays(service string, sessionID string, fromNs int64, toNs int64, limit int) (result []model.TraceOverlay, err error)
 	ListCoverageOperations(sessionID string) (result []model.CoverageOperation, err error)
 	GetCoverageQuality(sessionID string) (result []model.CoverageQuality, err error)
-	ListTagged(sessionID string, service string, name string, hasKind bool, kind int, sort string, limit int, offset int) (result []model.SpanRow, err error)
-	ListGroups(sessionID string, limit int, offset int) (result []model.SpanGroup, err error)
-	ListTraces(sessionID string, service string, limit int, offset int) (result []model.TraceListRow, err error)
-	CountGroups(sessionID string) (result []model.CountValue, err error)
-	CountTraces(sessionID string, service string) (result []model.CountValue, err error)
+	ListTagged(sessionID string, service string, name string, hasKind bool, kind int, sort string, limit int, offset int, services []string) (result []model.SpanRow, err error)
+	ListGroups(sessionID string, limit int, offset int, services []string) (result []model.SpanGroup, err error)
+	ListTraces(sessionID string, service string, limit int, offset int, services []string) (result []model.TraceListRow, err error)
+	CountGroups(sessionID string, services []string) (result []model.CountValue, err error)
+	CountTraces(sessionID string, service string, services []string) (result []model.CountValue, err error)
 	ListSourceStats(sessionID string) (result []model.SourceStatsRow, err error)
 	ServiceP95(serviceName string) (result []model.P95Value, err error)
 	ListServiceMapNodes(sessionID string) (result []model.ServiceMapNode, err error)
@@ -362,13 +362,18 @@ func (s spanDo) GetCoverageQuality(sessionID string) (result []model.CoverageQua
 
 // ListTagged
 //
-// WITH page_spans AS (SELECT trace_id, span_id, parent_span_id, service_name, name, kind, start_ns, end_ns, duration_ns, status_code, status_message, attributes, resource, session_id, session_label, received_at FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) AND (@service = ” OR service_name = @service) AND (@name = ” OR name = @name) AND (@hasKind = FALSE OR kind = @kind) ORDER BY CASE WHEN @sort = 'name' THEN name END ASC, CASE WHEN @sort = 'dur' THEN duration_ns END DESC, CASE WHEN @sort NOT IN ('name', 'dur') THEN start_ns END DESC LIMIT @limit OFFSET @offset) SELECT s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind, s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message, s.attributes::VARCHAR AS attributes, s.resource::VARCHAR AS resource, s.session_id, s.session_label, s.received_at, CASE WHEN ni.trace_id IS NOT NULL THEN 'n+1' WHEN s.status_code = 2 THEN 'error' WHEN s.duration_ns > 250000000 THEN 'slow' WHEN lw.span_id IS NOT NULL THEN 'lint' ELSE ” END AS tag FROM page_spans s LEFT JOIN (SELECT DISTINCT trace_id FROM trace_issues WHERE kind = 'n_plus_one') ni ON s.trace_id = ni.trace_id LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw ON s.span_id = lw.span_id ORDER BY CASE WHEN @sort = 'name' THEN s.name END ASC, CASE WHEN @sort = 'dur' THEN s.duration_ns END DESC, CASE WHEN @sort NOT IN ('name', 'dur') THEN s.start_ns END DESC
-func (s spanDo) ListTagged(sessionID string, service string, name string, hasKind bool, kind int, sort string, limit int, offset int) (result []model.SpanRow, err error) {
+// WITH page_spans AS (SELECT trace_id, span_id, parent_span_id, service_name, name, kind, start_ns, end_ns, duration_ns, status_code, status_message, attributes, resource, session_id, session_label, received_at FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = ” OR service_name = @service) AND (@name = ” OR name = @name) AND (@hasKind = FALSE OR kind = @kind) ORDER BY CASE WHEN @sort = 'name' THEN name END ASC, CASE WHEN @sort = 'dur' THEN duration_ns END DESC, CASE WHEN @sort NOT IN ('name', 'dur') THEN start_ns END DESC LIMIT @limit OFFSET @offset) SELECT s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind, s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message, s.attributes::VARCHAR AS attributes, s.resource::VARCHAR AS resource, s.session_id, s.session_label, s.received_at, CASE WHEN ni.trace_id IS NOT NULL THEN 'n+1' WHEN s.status_code = 2 THEN 'error' WHEN s.duration_ns > 250000000 THEN 'slow' WHEN lw.span_id IS NOT NULL THEN 'lint' ELSE ” END AS tag FROM page_spans s LEFT JOIN (SELECT DISTINCT trace_id FROM trace_issues WHERE kind = 'n_plus_one') ni ON s.trace_id = ni.trace_id LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw ON s.span_id = lw.span_id ORDER BY CASE WHEN @sort = 'name' THEN s.name END ASC, CASE WHEN @sort = 'dur' THEN s.duration_ns END DESC, CASE WHEN @sort NOT IN ('name', 'dur') THEN s.start_ns END DESC
+func (s spanDo) ListTagged(sessionID string, service string, name string, hasKind bool, kind int, sort string, limit int, offset int, services []string) (result []model.SpanRow, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, sessionID)
 	params = append(params, sessionID)
+	generateSQL.WriteString("WITH page_spans AS (SELECT trace_id, span_id, parent_span_id, service_name, name, kind, start_ns, end_ns, duration_ns, status_code, status_message, attributes, resource, session_id, session_label, received_at FROM spans WHERE (? = '' OR session_id = ?) ")
+	if len(services) > 0 {
+		params = append(params, services)
+		generateSQL.WriteString("AND service_name IN ? ")
+	}
 	params = append(params, service)
 	params = append(params, service)
 	params = append(params, name)
@@ -383,7 +388,7 @@ func (s spanDo) ListTagged(sessionID string, service string, name string, hasKin
 	params = append(params, sort)
 	params = append(params, sort)
 	params = append(params, sort)
-	generateSQL.WriteString("WITH page_spans AS (SELECT trace_id, span_id, parent_span_id, service_name, name, kind, start_ns, end_ns, duration_ns, status_code, status_message, attributes, resource, session_id, session_label, received_at FROM spans WHERE (? = '' OR session_id = ?) AND (? = '' OR service_name = ?) AND (? = '' OR name = ?) AND (? = FALSE OR kind = ?) ORDER BY CASE WHEN ? = 'name' THEN name END ASC, CASE WHEN ? = 'dur' THEN duration_ns END DESC, CASE WHEN ? NOT IN ('name', 'dur') THEN start_ns END DESC LIMIT ? OFFSET ?) SELECT s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind, s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message, s.attributes::VARCHAR AS attributes, s.resource::VARCHAR AS resource, s.session_id, s.session_label, s.received_at, CASE WHEN ni.trace_id IS NOT NULL THEN 'n+1' WHEN s.status_code = 2 THEN 'error' WHEN s.duration_ns > 250000000 THEN 'slow' WHEN lw.span_id IS NOT NULL THEN 'lint' ELSE '' END AS tag FROM page_spans s LEFT JOIN (SELECT DISTINCT trace_id FROM trace_issues WHERE kind = 'n_plus_one') ni ON s.trace_id = ni.trace_id LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw ON s.span_id = lw.span_id ORDER BY CASE WHEN ? = 'name' THEN s.name END ASC, CASE WHEN ? = 'dur' THEN s.duration_ns END DESC, CASE WHEN ? NOT IN ('name', 'dur') THEN s.start_ns END DESC ")
+	generateSQL.WriteString("AND (? = '' OR service_name = ?) AND (? = '' OR name = ?) AND (? = FALSE OR kind = ?) ORDER BY CASE WHEN ? = 'name' THEN name END ASC, CASE WHEN ? = 'dur' THEN duration_ns END DESC, CASE WHEN ? NOT IN ('name', 'dur') THEN start_ns END DESC LIMIT ? OFFSET ?) SELECT s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind, s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message, s.attributes::VARCHAR AS attributes, s.resource::VARCHAR AS resource, s.session_id, s.session_label, s.received_at, CASE WHEN ni.trace_id IS NOT NULL THEN 'n+1' WHEN s.status_code = 2 THEN 'error' WHEN s.duration_ns > 250000000 THEN 'slow' WHEN lw.span_id IS NOT NULL THEN 'lint' ELSE '' END AS tag FROM page_spans s LEFT JOIN (SELECT DISTINCT trace_id FROM trace_issues WHERE kind = 'n_plus_one') ni ON s.trace_id = ni.trace_id LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw ON s.span_id = lw.span_id ORDER BY CASE WHEN ? = 'name' THEN s.name END ASC, CASE WHEN ? = 'dur' THEN s.duration_ns END DESC, CASE WHEN ? NOT IN ('name', 'dur') THEN s.start_ns END DESC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -394,16 +399,21 @@ func (s spanDo) ListTagged(sessionID string, service string, name string, hasKin
 
 // ListGroups
 //
-// SELECT service_name, name, kind, COUNT(*) AS count, MAX(start_ns) AS latest_start_ns, SUM(CASE WHEN status_code = 2 THEN 1 ELSE 0 END) AS error_count, CAST(quantile_cont(duration_ns, 0.5) AS BIGINT) AS p50_duration_ns, CAST(quantile_cont(duration_ns, 0.95) AS BIGINT) AS p95_duration_ns, MAX(duration_ns) AS max_duration_ns, COUNT(DISTINCT attributes) AS attribute_variants FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) GROUP BY service_name, name, kind ORDER BY latest_start_ns DESC, service_name, name LIMIT @limit OFFSET @offset
-func (s spanDo) ListGroups(sessionID string, limit int, offset int) (result []model.SpanGroup, err error) {
+// SELECT service_name, name, kind, COUNT(*) AS count, MAX(start_ns) AS latest_start_ns, SUM(CASE WHEN status_code = 2 THEN 1 ELSE 0 END) AS error_count, CAST(quantile_cont(duration_ns, 0.5) AS BIGINT) AS p50_duration_ns, CAST(quantile_cont(duration_ns, 0.95) AS BIGINT) AS p95_duration_ns, MAX(duration_ns) AS max_duration_ns, COUNT(DISTINCT attributes) AS attribute_variants FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} GROUP BY service_name, name, kind ORDER BY latest_start_ns DESC, service_name, name LIMIT @limit OFFSET @offset
+func (s spanDo) ListGroups(sessionID string, limit int, offset int, services []string) (result []model.SpanGroup, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, sessionID)
 	params = append(params, sessionID)
+	generateSQL.WriteString("SELECT service_name, name, kind, COUNT(*) AS count, MAX(start_ns) AS latest_start_ns, SUM(CASE WHEN status_code = 2 THEN 1 ELSE 0 END) AS error_count, CAST(quantile_cont(duration_ns, 0.5) AS BIGINT) AS p50_duration_ns, CAST(quantile_cont(duration_ns, 0.95) AS BIGINT) AS p95_duration_ns, MAX(duration_ns) AS max_duration_ns, COUNT(DISTINCT attributes) AS attribute_variants FROM spans WHERE (? = '' OR session_id = ?) ")
+	if len(services) > 0 {
+		params = append(params, services)
+		generateSQL.WriteString("AND service_name IN ? ")
+	}
 	params = append(params, limit)
 	params = append(params, offset)
-	generateSQL.WriteString("SELECT service_name, name, kind, COUNT(*) AS count, MAX(start_ns) AS latest_start_ns, SUM(CASE WHEN status_code = 2 THEN 1 ELSE 0 END) AS error_count, CAST(quantile_cont(duration_ns, 0.5) AS BIGINT) AS p50_duration_ns, CAST(quantile_cont(duration_ns, 0.95) AS BIGINT) AS p95_duration_ns, MAX(duration_ns) AS max_duration_ns, COUNT(DISTINCT attributes) AS attribute_variants FROM spans WHERE (? = '' OR session_id = ?) GROUP BY service_name, name, kind ORDER BY latest_start_ns DESC, service_name, name LIMIT ? OFFSET ? ")
+	generateSQL.WriteString("GROUP BY service_name, name, kind ORDER BY latest_start_ns DESC, service_name, name LIMIT ? OFFSET ? ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -414,18 +424,23 @@ func (s spanDo) ListGroups(sessionID string, limit int, offset int) (result []mo
 
 // ListTraces
 //
-// WITH root_spans AS (SELECT trace_id, service_name, name, attributes::VARCHAR AS attributes, status_code, start_ns, end_ns, duration_ns, session_id, session_label FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) AND (@service = ” OR service_name = @service) ORDER BY start_ns DESC LIMIT @limit OFFSET @offset) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, ”) AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, COUNT(*) AS span_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) sc ON rs.trace_id = sc.trace_id ORDER BY rs.start_ns DESC
-func (s spanDo) ListTraces(sessionID string, service string, limit int, offset int) (result []model.TraceListRow, err error) {
+// WITH root_spans AS (SELECT trace_id, service_name, name, attributes::VARCHAR AS attributes, status_code, start_ns, end_ns, duration_ns, session_id, session_label FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = ” OR service_name = @service) ORDER BY start_ns DESC LIMIT @limit OFFSET @offset) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, ”) AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, COUNT(*) AS span_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) sc ON rs.trace_id = sc.trace_id ORDER BY rs.start_ns DESC
+func (s spanDo) ListTraces(sessionID string, service string, limit int, offset int, services []string) (result []model.TraceListRow, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, sessionID)
 	params = append(params, sessionID)
+	generateSQL.WriteString("WITH root_spans AS (SELECT trace_id, service_name, name, attributes::VARCHAR AS attributes, status_code, start_ns, end_ns, duration_ns, session_id, session_label FROM spans WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (? = '' OR session_id = ?) ")
+	if len(services) > 0 {
+		params = append(params, services)
+		generateSQL.WriteString("AND service_name IN ? ")
+	}
 	params = append(params, service)
 	params = append(params, service)
 	params = append(params, limit)
 	params = append(params, offset)
-	generateSQL.WriteString("WITH root_spans AS (SELECT trace_id, service_name, name, attributes::VARCHAR AS attributes, status_code, start_ns, end_ns, duration_ns, session_id, session_label FROM spans WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (? = '' OR session_id = ?) AND (? = '' OR service_name = ?) ORDER BY start_ns DESC LIMIT ? OFFSET ?) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, COUNT(*) AS span_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) sc ON rs.trace_id = sc.trace_id ORDER BY rs.start_ns DESC ")
+	generateSQL.WriteString("AND (? = '' OR service_name = ?) ORDER BY start_ns DESC LIMIT ? OFFSET ?) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, COUNT(*) AS span_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) sc ON rs.trace_id = sc.trace_id ORDER BY rs.start_ns DESC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -436,14 +451,19 @@ func (s spanDo) ListTraces(sessionID string, service string, limit int, offset i
 
 // CountGroups
 //
-// SELECT COUNT(*) AS count FROM (SELECT 1 FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) GROUP BY service_name, name, kind) groups
-func (s spanDo) CountGroups(sessionID string) (result []model.CountValue, err error) {
+// SELECT COUNT(*) AS count FROM (SELECT 1 FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} GROUP BY service_name, name, kind) groups
+func (s spanDo) CountGroups(sessionID string, services []string) (result []model.CountValue, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, sessionID)
 	params = append(params, sessionID)
-	generateSQL.WriteString("SELECT COUNT(*) AS count FROM (SELECT 1 FROM spans WHERE (? = '' OR session_id = ?) GROUP BY service_name, name, kind) groups ")
+	generateSQL.WriteString("SELECT COUNT(*) AS count FROM (SELECT 1 FROM spans WHERE (? = '' OR session_id = ?) ")
+	if len(services) > 0 {
+		params = append(params, services)
+		generateSQL.WriteString("AND service_name IN ? ")
+	}
+	generateSQL.WriteString("GROUP BY service_name, name, kind) groups ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -454,16 +474,21 @@ func (s spanDo) CountGroups(sessionID string) (result []model.CountValue, err er
 
 // CountTraces
 //
-// SELECT COUNT(*) AS count FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) AND (@service = ” OR service_name = @service)
-func (s spanDo) CountTraces(sessionID string, service string) (result []model.CountValue, err error) {
+// SELECT COUNT(*) AS count FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = ” OR service_name = @service)
+func (s spanDo) CountTraces(sessionID string, service string, services []string) (result []model.CountValue, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, sessionID)
 	params = append(params, sessionID)
+	generateSQL.WriteString("SELECT COUNT(*) AS count FROM spans WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (? = '' OR session_id = ?) ")
+	if len(services) > 0 {
+		params = append(params, services)
+		generateSQL.WriteString("AND service_name IN ? ")
+	}
 	params = append(params, service)
 	params = append(params, service)
-	generateSQL.WriteString("SELECT COUNT(*) AS count FROM spans WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (? = '' OR session_id = ?) AND (? = '' OR service_name = ?) ")
+	generateSQL.WriteString("AND (? = '' OR service_name = ?) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

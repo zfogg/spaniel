@@ -27,6 +27,7 @@ type TraceRow struct {
 }
 
 type TraceFilter struct {
+	Services  []string
 	SessionID string
 	Service   string
 	Limit     int
@@ -42,7 +43,7 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 	}
 	offset := (f.Page - 1) * f.Limit
 
-	rows, err := d.query.Span.ListTraces(f.SessionID, f.Service, f.Limit, offset)
+	rows, err := d.query.Span.ListTraces(f.SessionID, f.Service, f.Limit, offset, f.Services)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 // CountTraces returns the number of root spans matching a trace-list filter,
 // before pagination. A trace is represented by its root span in ListTraces.
 func (d *DB) CountTraces(f TraceFilter) (int, error) {
-	rows, err := d.query.Span.CountTraces(f.SessionID, f.Service)
+	rows, err := d.query.Span.CountTraces(f.SessionID, f.Service, f.Services)
 	if err != nil {
 		return 0, err
 	}

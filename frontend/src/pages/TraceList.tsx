@@ -1,7 +1,9 @@
+import ServiceFilter from '@/components/ServiceFilter'
+import { useServiceSelection } from '@/lib/use-service-selection'
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryState, parseAsStringLiteral } from 'nuqs'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { DurBar } from '@/components/DurBar'
 import ErrorState from '@/components/ErrorState'
 import { qk } from '../lib/query'
@@ -18,7 +20,6 @@ import { useNewItemIDs } from '@/lib/use-new-item-ids'
 const GRID_COLS = 'minmax(0,1fr) 90px 80px 200px 70px 140px'
 const SLOW_NS = 250_000_000
 const MAX_SESSIONS = 7
-const MAX_SERVICES = 15
 const PAGE_SIZE = 100
 
 function fmtDuration(ns: number): string {
@@ -387,7 +388,7 @@ function SbMore({ count }: { count: number }) {
 
 export default function TraceList() {
   // Filters live in the URL (typed, via nuqs) so they're shareable/bookmarkable.
-  const [filterService, setFilterService] = useQueryState('service', { defaultValue: 'all' })
+  const [filterService, setFilterService] = useServiceSelection(true)
   const [filterSession, setFilterSession] = useQueryState('session')
   const [quickFilter, setQuickFilter] = useQueryState(
     'status',
@@ -398,7 +399,7 @@ export default function TraceList() {
 
   // Live activity tracking: detects incoming spans and auto-switches session
   const { streaming, activeSessionId } = useLiveActivity()
-  const manualSessionRef = useRef(false)
+  const manualSessionRef = useRef(filterSession !== null)
 
   // Auto-switch to the active session when new data arrives (unless user manually selected)
   useEffect(() => {
@@ -413,15 +414,18 @@ export default function TraceList() {
   const {
     data: traceResponse,
     isLoading: loading,
+    isFetching,
     isError,
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.traces({ sessionId: filterSession, service: filterService, page }),
+    queryKey: qk.traces({ sessionId: filterSession, services: filterService, page }),
+    // Keep the layout and last result mounted while a new filter is fetched.
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api.traces.list({
         sessionId: filterSession ?? undefined,
-        service: filterService === 'all' ? undefined : filterService,
+        services: filterService,
         page,
         limit: PAGE_SIZE,
       }),
@@ -434,17 +438,6 @@ export default function TraceList() {
   })
   const baselineSessionId = sessions.find((s) => s.is_baseline)?.id ?? null
 
-  // Per-service trace counts + most-recent timestamp, derived from the
-  // loaded traces. Services are ordered by recency (newest trace first).
-  const serviceCounts: Record<string, number> = {}
-  const serviceLatest: Record<string, number> = {}
-  for (const t of traces) {
-    serviceCounts[t.service_name] = (serviceCounts[t.service_name] ?? 0) + 1
-    serviceLatest[t.service_name] = Math.max(serviceLatest[t.service_name] ?? 0, t.start_ns)
-  }
-  const serviceNames = Object.keys(serviceCounts).sort(
-    (a, b) => serviceLatest[b] - serviceLatest[a],
-  )
   const sessionsByRecent = [...sessions].sort((a, b) => b.created_at - a.created_at)
 
   const lintCount = traces.filter((t) => t.has_n1).length
@@ -460,12 +453,9 @@ export default function TraceList() {
           ? t.status_code === 2
           : true
 
-  const filtered = traces.filter(
-    (t) =>
-      (filterService === 'all' || t.service_name === filterService) &&
-      (filterSession === null || t.session_id === filterSession) &&
-      matchesQuick(t),
-  )
+  // Service/session filtering belongs to the response. Applying the new URL
+  // filters to the previous response can briefly erase every visible row.
+  const filtered = traces.filter(matchesQuick)
   const arrivingTraceIDs = useNewItemIDs(traces, (trace) => trace.trace_id)
 
   useEffect(() => {
@@ -491,7 +481,7 @@ export default function TraceList() {
     )
   }
 
-  if (traces.length === 0) {
+  if (traces.length === 0 && filterService.length === 0) {
     return (
       <div className="flex h-full flex-col">
         <EmptyState />
@@ -523,23 +513,12 @@ export default function TraceList() {
           </SbGroup>
         )}
 
-        {serviceNames.length > 0 && (
-          <SbGroup title="services">
-            {serviceNames.slice(0, MAX_SERVICES).map((name) => (
-              <SbItem
-                key={name}
-                active={filterService === name}
-                count={serviceCounts[name]}
-                onClick={() => toggle(filterService, name, setFilterService, 'all')}
-              >
-                {name}
-              </SbItem>
-            ))}
-            {serviceNames.length > MAX_SERVICES && (
-              <SbMore count={serviceNames.length - MAX_SERVICES} />
-            )}
-          </SbGroup>
-        )}
+        <ServiceFilter
+          signal="traces"
+          selected={filterService}
+          onChange={setFilterService}
+          sessionId={filterSession}
+        />
 
         <SbGroup title="filters">
           <SbItem
@@ -578,6 +557,11 @@ export default function TraceList() {
               <span className="font-sans text-[13px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
                 Recent traces
               </span>
+              {isFetching && (
+                <span role="status" className="text-xs text-muted-foreground">
+                  Updating traces…
+                </span>
+              )}
               {streaming && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ok)] bg-[var(--ok-bg)] px-2 py-0.5">
                   <span className="pulse-dot size-1.5 rounded-full bg-[var(--ok)]" />

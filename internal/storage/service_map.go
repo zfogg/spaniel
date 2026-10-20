@@ -29,6 +29,40 @@ func (d *DB) ListServices(sessionID string) ([]string, error) {
 	return result, err
 }
 
+// ListSignalServices discovers services across the complete session,
+// independently of pagination, time windows, and selected service filters.
+func (d *DB) ListSignalServices(sessionID, signal string) ([]string, error) {
+	var result []string
+	switch signal {
+	case "", "spans", "traces":
+		q := d.query.Span.Distinct(d.query.Span.ServiceName).Order(d.query.Span.ServiceName)
+		if sessionID != "" {
+			q = q.Where(d.query.Span.SessionID.Eq(sessionID))
+		}
+		if signal == "traces" {
+			q = q.Where(d.query.Span.Where(d.query.Span.ParentSpanID.Eq("")).Or(d.query.Span.ParentSpanID.IsNull()))
+		}
+		err := q.Pluck(d.query.Span.ServiceName, &result)
+		return result, err
+	case "logs":
+		q := d.query.Log.Distinct(d.query.Log.ServiceName).Order(d.query.Log.ServiceName)
+		if sessionID != "" {
+			q = q.Where(d.query.Log.SessionID.Eq(sessionID))
+		}
+		err := q.Pluck(d.query.Log.ServiceName, &result)
+		return result, err
+	case "metrics":
+		q := d.query.Metric.Distinct(d.query.Metric.ServiceName).Order(d.query.Metric.ServiceName)
+		if sessionID != "" {
+			q = q.Where(d.query.Metric.SessionID.Eq(sessionID))
+		}
+		err := q.Pluck(d.query.Metric.ServiceName, &result)
+		return result, err
+	default:
+		return nil, fmt.Errorf("invalid telemetry signal: %s", signal)
+	}
+}
+
 func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 	nodeRows, err := d.query.Span.ListServiceMapNodes(sessionID)
 	if err != nil {

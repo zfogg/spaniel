@@ -1,3 +1,5 @@
+import ServiceFilter from '@/components/ServiceFilter'
+import { useServiceSelection } from '@/lib/use-service-selection'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import debounce from 'debounce-fn'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -554,6 +556,8 @@ function useMetricCatalogLiveRefresh() {
 export default function Metrics() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
+  const [services, setServices] = useServiceSelection()
+  const sessionId = searchParams.get('session') ?? undefined
   const [typeSel, setTypeSel] = useState<string | null>(null)
   const [range, setRange] = useState<TimeRange>('1h')
   const [operation, setOperation] = useState('raw')
@@ -566,24 +570,29 @@ export default function Metrics() {
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.metrics(),
-    queryFn: () => api.metrics.list().then((r) => r.data ?? []),
+    queryKey: qk.metrics(sessionId),
+    queryFn: () => api.metrics.list(sessionId).then((r) => r.data ?? []),
   })
   const { data: cardinality = [] } = useQuery({
-    queryKey: ['metric-cardinality'],
-    queryFn: () => api.metrics.cardinality().then((r) => r.data ?? []),
+    queryKey: ['metric-cardinality', sessionId],
+    queryFn: () => api.metrics.cardinality(sessionId).then((r) => r.data ?? []),
   })
 
   const selectedName = searchParams.get('metric')
   const selectedService = searchParams.get('service')
   const selected = useMemo(() => {
-    if (!selectedName || !selectedService) return null
+    if (
+      !selectedName ||
+      !selectedService ||
+      (services.length > 0 && !services.includes(selectedService))
+    )
+      return null
     return (
       catalog.find(
         (metric) => metric.name === selectedName && metric.service_name === selectedService,
       ) ?? null
     )
-  }, [catalog, selectedName, selectedService])
+  }, [catalog, selectedName, selectedService, services])
   const selectedCardinality = useMemo(
     () =>
       cardinality.find(
@@ -619,10 +628,16 @@ export default function Metrics() {
 
   // auto-select the first metric once the catalog loads
   useEffect(() => {
-    if (!selected && catalog.length > 0) {
-      selectMetric(catalog[0], !selectedName || !selectedService)
+    const available = catalog.filter(
+      (m) => services.length === 0 || services.includes(m.service_name),
+    )
+    if (
+      (!selected || (services.length > 0 && !services.includes(selected.service_name))) &&
+      available.length > 0
+    ) {
+      selectMetric(available[0], !selectedName || !selectedService)
     }
-  }, [catalog, selected, selectedName, selectedService, selectMetric])
+  }, [catalog, selected, selectedName, selectedService, selectMetric, services])
 
   // `range` (not the computed `from`) is the key input so we don't refetch on
   // every render; matching WebSocket metric events refresh this active series.
@@ -634,6 +649,7 @@ export default function Metrics() {
     refetch: refetchSeries,
   } = useQuery({
     queryKey: qk.metricSeries({
+      sessionId,
       name: selected?.name,
       service: selected?.service_name,
       range,
@@ -645,6 +661,7 @@ export default function Metrics() {
         .series({
           name: selected!.name,
           service: selected!.service_name,
+          sessionId,
           operation,
           withTraces: true,
           from: rangeFromNs(range),
@@ -663,6 +680,7 @@ export default function Metrics() {
     const textTerms = terms.filter((term) => !term.startsWith('service='))
     return catalog
       .filter((m) => {
+        if (services.length && !services.includes(m.service_name)) return false
         if (typeSel && m.type !== typeSel) return false
         if (serviceFilters.length > 0 && !serviceFilters.includes(m.service_name.toLowerCase()))
           return false
@@ -680,7 +698,7 @@ export default function Metrics() {
         // zero preserves that already-recency-ordered tie in the stable JS sort.
         return b.last_timestamp_ns - a.last_timestamp_ns
       })
-  }, [catalog, query, recentMetricUpdates, typeSel])
+  }, [catalog, query, recentMetricUpdates, typeSel, services])
 
   const groups = useMemo(() => {
     const out: Record<string, MetricCatalogEntry[]> = {}
@@ -753,6 +771,13 @@ export default function Metrics() {
       {/* left rail */}
       <div className="w-[320px] border-r border-border bg-[var(--surface)] flex flex-col overflow-hidden">
         <div className="px-3 py-2.5 border-b border-border flex flex-col gap-2">
+          <ServiceFilter
+            signal="metrics"
+            selected={services}
+            onChange={setServices}
+            sessionId={sessionId}
+            compact
+          />
           <span className="flex w-full min-w-0 items-center gap-[7px] bg-muted border border-border rounded-md px-2.5 h-7">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
               <circle cx="6" cy="6" r="4" stroke="var(--muted-foreground)" strokeWidth="1.4" />

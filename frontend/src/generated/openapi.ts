@@ -4747,6 +4747,8 @@ export interface operations {
         page?: number
         /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
+        /** @description Match any selected service before pagination; intersects with service if also provided. */
+        services?: string[]
       }
       header?: never
       path?: never
@@ -5181,7 +5183,11 @@ export interface operations {
   }
   listServices: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Discover services across the complete session for this telemetry type. Traces use root spans. */
+        signal?: 'traces' | 'spans' | 'logs' | 'metrics'
+        sessionId?: string
+      }
       header?: never
       path?: never
       cookie?: never
@@ -5937,6 +5943,8 @@ export interface operations {
         name?: string
         /** @description Filters results by the OpenTelemetry span kind. */
         kind?: number
+        /** @description Match any selected service before pagination; intersects with service if also provided. */
+        services?: string[]
       }
       header?: never
       path?: never
@@ -6086,6 +6094,8 @@ export interface operations {
         page?: number
         /** @description Caps how many results are returned in one response. Use it with page to paginate through larger result sets. */
         limit?: number
+        /** @description Match any selected service before pagination; intersects with service if also provided. */
+        services?: string[]
       }
       header?: never
       path?: never

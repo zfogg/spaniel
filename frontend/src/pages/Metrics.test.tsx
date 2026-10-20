@@ -6,6 +6,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Metrics from './Metrics'
 import { bucketPoints } from '@/lib/metrics-bucket'
 
+// Keep the contract client while adapting Node's absolute Request URLs to the
+// per-test fetch fixtures. Resolve fetch at request time so stubs are honored.
+vi.mock('@/lib/openapi', async () => {
+  const { default: createClient } = await import('openapi-fetch')
+  return {
+    openapiClient: createClient({
+      baseUrl: 'http://localhost',
+      fetch: (request: Request) => fetch(request.url.replace('http://localhost', '')),
+    }),
+  }
+})
+
 type MetricEvent = {
   type: string
   payload: { name?: string; serviceName?: string; catalogOnly?: boolean }
@@ -57,6 +69,10 @@ function setup(opts: { catalog?: MetricCatalogFixture[]; series?: Record<string,
       meta: { total: 0, page: 1 },
     },
     '/api/metrics/cardinality': { data: [], meta: { total: 0, page: 1 } },
+    '/api/services': {
+      data: Array.from(new Set((opts.catalog ?? []).map((m) => m.service_name))),
+      meta: { total: 0, page: 1 },
+    },
   }
   for (const [key, series] of Object.entries(opts.series ?? {})) {
     routes['/api/metrics/series?' + key] = { data: series, meta: { total: 0, page: 1 } }
@@ -150,7 +166,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.requests&service=api&with_traces=1': {
+        'name=http.requests&service=api&with_traces=true': {
           name: 'http.requests',
           service_name: 'api',
           type: 'counter',
@@ -355,7 +371,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=memory.usage&service=api&with_traces=1': {
+        'name=memory.usage&service=api&with_traces=true': {
           name: 'memory.usage',
           service_name: 'api',
           type: 'gauge',
@@ -388,7 +404,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.requests&service=api&with_traces=1': {
+        'name=http.requests&service=api&with_traces=true': {
           name: 'http.requests',
           service_name: 'api',
           type: 'counter',
@@ -445,7 +461,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.requests&service=api&with_traces=1': {
+        'name=http.requests&service=api&with_traces=true': {
           name: 'http.requests',
           service_name: 'api',
           type: 'counter',
@@ -520,7 +536,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=newer.inserted&service=api&with_traces=1': {
+        'name=newer.inserted&service=api&with_traces=true': {
           name: 'newer.inserted',
           service_name: 'api',
           type: 'gauge',
@@ -556,7 +572,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.requests&service=api&with_traces=1': {
+        'name=http.requests&service=api&with_traces=true': {
           name: 'http.requests',
           service_name: 'api',
           type: 'counter',
@@ -593,7 +609,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=memory.usage&service=api&with_traces=1': {
+        'name=memory.usage&service=api&with_traces=true': {
           name: 'memory.usage',
           service_name: 'api',
           type: 'gauge',
@@ -631,7 +647,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.requests&service=api&with_traces=1': {
+        'name=http.requests&service=api&with_traces=true': {
           name: 'http.requests',
           service_name: 'api',
           type: 'counter',
@@ -640,7 +656,7 @@ describe('<Metrics />', () => {
           points: [],
           traces: [],
         },
-        'name=pool.in_use&service=postgres&with_traces=1': {
+        'name=pool.in_use&service=postgres&with_traces=true': {
           name: 'pool.in_use',
           service_name: 'postgres',
           type: 'gauge',
@@ -675,7 +691,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.response.bytes&service=api&operation=p95&with_traces=1': {
+        'name=http.response.bytes&service=api&operation=p95&with_traces=true': {
           name: 'http.response.bytes',
           service_name: 'api',
           type: 'histogram',
@@ -714,7 +730,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.server.response.body.size&service=api&operation=avg&with_traces=1': {
+        'name=http.server.response.body.size&service=api&operation=avg&with_traces=true': {
           name: 'http.server.response.body.size',
           service_name: 'api',
           type: 'histogram',
@@ -749,7 +765,7 @@ describe('<Metrics />', () => {
         },
       ],
       series: {
-        'name=http.requests&service=api&operation=raw&with_traces=1': {
+        'name=http.requests&service=api&operation=raw&with_traces=true': {
           name: 'http.requests',
           service_name: 'api',
           type: 'counter',

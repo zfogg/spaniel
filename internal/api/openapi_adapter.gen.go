@@ -139,7 +139,9 @@ func (r *Router) GetServiceMap(w http.ResponseWriter, req *http.Request, _ apige
 	r.getServiceMap(w, req)
 }
 
-func (r *Router) ListServices(w http.ResponseWriter, req *http.Request) { r.listServices(w, req) }
+func (r *Router) ListServices(w http.ResponseWriter, req *http.Request, _ apigen.ListServicesParams) {
+	r.listServices(w, req)
+}
 
 func (r *Router) ListSessions(w http.ResponseWriter, req *http.Request) { r.listSessions(w, req) }
 

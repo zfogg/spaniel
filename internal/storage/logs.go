@@ -12,6 +12,7 @@ func (d *DB) InsertLog(l *Log) error {
 }
 
 type LogFilter struct {
+	Services    []string
 	SessionID   string
 	Service     string
 	TraceID     string
@@ -36,6 +37,9 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 	q := d.query.Log.Where()
 	if f.SessionID != "" {
 		q = q.Where(d.query.Log.SessionID.Eq(f.SessionID))
+	}
+	if len(f.Services) > 0 {
+		q = q.Where(d.query.Log.ServiceName.In(f.Services...))
 	}
 	if f.Service != "" {
 		q = q.Where(d.query.Log.ServiceName.Eq(f.Service))
@@ -65,6 +69,9 @@ func (d *DB) CountLogs(f LogFilter) (int, error) {
 	q := d.query.Log.Where()
 	if f.SessionID != "" {
 		q = q.Where(d.query.Log.SessionID.Eq(f.SessionID))
+	}
+	if len(f.Services) > 0 {
+		q = q.Where(d.query.Log.ServiceName.In(f.Services...))
 	}
 	if f.Service != "" {
 		q = q.Where(d.query.Log.ServiceName.Eq(f.Service))

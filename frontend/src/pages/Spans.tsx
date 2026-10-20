@@ -1,3 +1,5 @@
+import ServiceFilter from '@/components/ServiceFilter'
+import { useServiceSelection } from '@/lib/use-service-selection'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
@@ -320,13 +322,19 @@ export default function Spans() {
   const [sortBy, setSortBy] = useState<SpanSort>('time')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [svcSel, setSvcSel] = useState<string | null>(null)
+  const [svcSel, setSvcSel] = useServiceSelection()
+  const sessionId = searchParams.get('session') ?? undefined
   const [kindSel, setKindSel] = useState<string | null>(null)
   const [tagSel, setTagSel] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('span'))
   const [page, setPage] = useState(1)
   const [drilldown, setDrilldown] = useState<SpanDrilldown | null>(() => initialDrilldown)
   const showingGroups = view === 'grouped' && drilldown === null
+
+  useEffect(() => {
+    setPage(1)
+    setSelectedId(null)
+  }, [svcSel, sessionId])
 
   const updateURL = (change: (params: URLSearchParams) => void) => {
     const params = new URLSearchParams(searchParams)
@@ -389,10 +397,12 @@ export default function Spans() {
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.spans({ sort: sortBy, page, drilldown }),
+    queryKey: qk.spans({ sort: sortBy, page, drilldown, services: svcSel, sessionId }),
     queryFn: () =>
       api.spans.list({
         sort: sortBy,
+        services: svcSel,
+        sessionId,
         page,
         limit: PAGE_SIZE,
         service: drilldown?.service_name,
@@ -418,8 +428,8 @@ export default function Spans() {
     error: groupsErrorDetail,
     refetch: refetchGroups,
   } = useQuery({
-    queryKey: qk.spans({ view: 'grouped', page }),
-    queryFn: () => api.spans.groups({ page, limit: PAGE_SIZE }),
+    queryKey: qk.spans({ view: 'grouped', page, services: svcSel, sessionId }),
+    queryFn: () => api.spans.groups({ page, limit: PAGE_SIZE, services: svcSel, sessionId }),
     enabled: showingGroups,
     // Pagination and switching back to an already-loaded groups page should
     // remain responsive while the aggregate refreshes.
@@ -427,13 +437,6 @@ export default function Spans() {
   })
   const groups = groupResponse?.data ?? []
   const groupTotal = groupResponse?.meta?.total ?? 0
-
-  // facet counts computed from the full dataset
-  const svcFacets = useMemo(() => {
-    const m: Record<string, number> = {}
-    for (const s of spans) m[s.service_name] = (m[s.service_name] ?? 0) + 1
-    return Object.entries(m).sort((a, b) => b[1] - a[1])
-  }, [spans])
 
   const kindFacets = useMemo(() => {
     const m: Record<string, number> = {}
@@ -470,11 +473,10 @@ export default function Spans() {
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const f: ColumnFiltersState = []
-    if (svcSel) f.push({ id: 'service', value: svcSel })
     if (kindSel) f.push({ id: 'kind', value: kindSel })
     if (tagSel) f.push({ id: 'tag', value: tagSel })
     return f
-  }, [svcSel, kindSel, tagSel])
+  }, [kindSel, tagSel])
 
   const table = useReactTable({
     data: spans,
@@ -494,34 +496,30 @@ export default function Spans() {
   const selected = filtered.find((s) => s.span_id === selectedId) ?? selectedSpan?.data ?? null
 
   const activeFilters: { label: string; clear: () => void }[] = []
-  if (svcSel) activeFilters.push({ label: `svc: ${svcSel}`, clear: () => setSvcSel(null) })
+  if (svcSel.length)
+    activeFilters.push({ label: `services: ${svcSel.join(', ')}`, clear: () => setSvcSel([]) })
   if (kindSel) activeFilters.push({ label: `kind: ${kindSel}`, clear: () => setKindSel(null) })
   if (tagSel) activeFilters.push({ label: `tag: ${tagSel}`, clear: () => setTagSel(null) })
 
   return (
     <div className="flex h-full overflow-hidden">
       {/* Sidebar */}
-      {view === 'all' && (
+      {
         <aside
           data-testid="spans-sidebar"
           className="w-[200px] border-r border-border bg-background flex flex-col overflow-x-hidden overflow-y-auto shrink-0 py-3"
         >
-          <SbGroup title="service">
-            <SbItem active={!svcSel} onClick={() => setSvcSel(null)} count={spans.length}>
-              all services
-            </SbItem>
-            {svcFacets.map(([svc, n]) => (
-              <SbItem
-                key={svc}
-                active={svcSel === svc}
-                dot={svcColor(svc).fg}
-                count={n}
-                onClick={() => setSvcSel(svcSel === svc ? null : svc)}
-              >
-                {svc}
-              </SbItem>
-            ))}
-          </SbGroup>
+          <div className="px-3 mb-3">
+            <ServiceFilter
+              signal="spans"
+              selected={svcSel}
+              onChange={(services) => {
+                setSvcSel(services)
+                setPage(1)
+              }}
+              sessionId={sessionId}
+            />
+          </div>
 
           <SbGroup title="kind">
             {kindFacets.map(([k, n]) => (
@@ -571,7 +569,7 @@ export default function Spans() {
             </SbItem>
           </SbGroup>
         </aside>
-      )}
+      }
 
       {/* Main */}
       <div className="@container flex-1 min-w-0 flex flex-col overflow-hidden bg-background">

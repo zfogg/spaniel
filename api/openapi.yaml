@@ -6200,6 +6200,15 @@ paths:
                   required: false
                   schema:
                     type: integer
+                - description: Match any selected service before pagination; intersects with service if also provided.
+                  explode: true
+                  in: query
+                  name: services
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
             responses:
                 "200":
                     content:
@@ -6780,6 +6789,22 @@ paths:
     /api/services:
         get:
             operationId: listServices
+            parameters:
+                - description: Discover services across the complete session for this telemetry type. Traces use root spans.
+                  in: query
+                  name: signal
+                  schema:
+                    default: spans
+                    enum:
+                        - traces
+                        - spans
+                        - logs
+                        - metrics
+                    type: string
+                - in: query
+                  name: sessionId
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -7698,6 +7723,15 @@ paths:
                   required: false
                   schema:
                     type: integer
+                - description: Match any selected service before pagination; intersects with service if also provided.
+                  explode: true
+                  in: query
+                  name: services
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
             responses:
                 "200":
                     content:
@@ -7902,6 +7936,15 @@ paths:
                   required: false
                   schema:
                     type: integer
+                - description: Match any selected service before pagination; intersects with service if also provided.
+                  explode: true
+                  in: query
+                  name: services
+                  schema:
+                    items:
+                        type: string
+                    type: array
+                  style: form
             responses:
                 "200":
                     content:

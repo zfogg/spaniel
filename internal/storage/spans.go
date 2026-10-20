@@ -109,6 +109,7 @@ func (d *DB) GetSpan(spanID string) (*Span, error) {
 }
 
 type SpanFilter struct {
+	Services  []string
 	SessionID string
 	Sort      string // "time" | "dur" | "name"
 	Limit     int
@@ -131,7 +132,7 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 	if f.Page < 1 {
 		f.Page = 1
 	}
-	rows, err := d.query.Span.ListTagged(f.SessionID, f.Service, f.Name, f.HasKind, f.Kind, f.Sort, f.Limit, (f.Page-1)*f.Limit)
+	rows, err := d.query.Span.ListTagged(f.SessionID, f.Service, f.Name, f.HasKind, f.Kind, f.Sort, f.Limit, (f.Page-1)*f.Limit, f.Services)
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +150,9 @@ func (d *DB) CountSpans(f SpanFilter) (int, error) {
 	q := d.query.Span.Where()
 	if f.SessionID != "" {
 		q = q.Where(d.query.Span.SessionID.Eq(f.SessionID))
+	}
+	if len(f.Services) > 0 {
+		q = q.Where(d.query.Span.ServiceName.In(f.Services...))
 	}
 	if f.Service != "" {
 		q = q.Where(d.query.Span.ServiceName.Eq(f.Service))
@@ -178,7 +182,7 @@ func (d *DB) ListSpanGroups(f SpanFilter) ([]*SpanGroup, error) {
 	if f.Page < 1 {
 		f.Page = 1
 	}
-	rows, err := d.query.Span.ListGroups(f.SessionID, f.Limit, (f.Page-1)*f.Limit)
+	rows, err := d.query.Span.ListGroups(f.SessionID, f.Limit, (f.Page-1)*f.Limit, f.Services)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +194,7 @@ func (d *DB) ListSpanGroups(f SpanFilter) ([]*SpanGroup, error) {
 }
 
 func (d *DB) CountSpanGroups(f SpanFilter) (int, error) {
-	rows, err := d.query.Span.CountGroups(f.SessionID)
+	rows, err := d.query.Span.CountGroups(f.SessionID, f.Services)
 	if err != nil {
 		return 0, err
 	}

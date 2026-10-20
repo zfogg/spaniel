@@ -7,7 +7,8 @@ export const databaseSchema = {
 }
 
 export const services = {
-  list: () => unwrap(openapiClient.GET('/api/services')),
+  list: (params?: { signal?: 'traces' | 'spans' | 'logs' | 'metrics'; sessionId?: string }) =>
+    unwrap(openapiClient.GET('/api/services', { params: { query: params } })),
 }
 
 export const lint = {

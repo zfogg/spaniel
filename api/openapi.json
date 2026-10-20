@@ -9064,6 +9064,19 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "services",
+            "in": "query",
+            "description": "Match any selected service before pagination; intersects with service if also provided.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
           }
         ],
         "responses": {
@@ -10020,6 +10033,30 @@
         "summary": "list Services",
         "tags": [
           "Traces"
+        ],
+        "parameters": [
+          {
+            "name": "signal",
+            "in": "query",
+            "description": "Discover services across the complete session for this telemetry type. Traces use root spans.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "traces",
+                "spans",
+                "logs",
+                "metrics"
+              ],
+              "default": "spans"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
         ]
       }
     },
@@ -11388,6 +11425,19 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "services",
+            "in": "query",
+            "description": "Match any selected service before pagination; intersects with service if also provided.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
           }
         ],
         "responses": {
@@ -11707,6 +11757,19 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "services",
+            "in": "query",
+            "description": "Match any selected service before pagination; intersects with service if also provided.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
           }
         ],
         "responses": {

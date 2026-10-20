@@ -1,5 +1,7 @@
+import ServiceFilter from '@/components/ServiceFilter'
+import { useServiceSelection } from '@/lib/use-service-selection'
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
@@ -368,7 +370,8 @@ function LogInspector({
 
 export default function LogViewer() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [filterService, setFilterService] = useState('all')
+  const [filterService, setFilterService] = useServiceSelection()
+  const sessionId = searchParams.get('session') ?? undefined
   const [filterSource, setFilterSource] = useState('all')
   const [filterSev, setFilterSev] = useState<SevFilter>('ALL')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('1h')
@@ -406,12 +409,14 @@ export default function LogViewer() {
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.logs({ severity, traceId, service: filterService, fromNs, page }),
+    queryKey: qk.logs({ severity, traceId, services: filterService, sessionId, fromNs, page }),
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api.logs.list({
         severity,
         traceId,
-        service: filterService === 'all' ? undefined : filterService,
+        services: filterService,
+        sessionId,
         fromNs,
         page,
         limit: PAGE_SIZE,
@@ -420,11 +425,6 @@ export default function LogViewer() {
   const logs = logResponse?.data ?? []
   const arrivingLogKeys = useNewItemIDs(logs, logKey)
   const logTotal = logResponse?.meta?.total ?? 0
-  const { data: services = [] } = useQuery({
-    queryKey: qk.services(),
-    queryFn: () => api.services.list().then((r) => r.data ?? []),
-  })
-
   // tick relative timestamps every second
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1_000)
@@ -441,7 +441,6 @@ export default function LogViewer() {
   }, [])
 
   const filtered = logs.filter((l) => {
-    if (filterService !== 'all' && l.service_name !== filterService) return false
     if (!matchesSevFilter(l.severity, filterSev)) return false
     if (filterSource !== 'all' && logSource(l) !== filterSource) return false
     if (search) {
@@ -455,7 +454,7 @@ export default function LogViewer() {
   useEffect(() => {
     setPage(1)
     setSelectedKey(null)
-  }, [filterService, filterSource, filterSev, timeFilter, traceId])
+  }, [filterService, filterSource, filterSev, timeFilter, traceId, sessionId])
 
   const sources = Array.from(new Set(logs.map(logSource))).sort()
 
@@ -482,19 +481,13 @@ export default function LogViewer() {
           className="w-[260px] h-7 bg-surface2 border border-line rounded-[5px] px-2.5 font-mono text-[11px] text-ink outline-none"
         />
 
-        {/* service filter */}
-        <select
-          value={filterService}
-          onChange={(e) => setFilterService(e.target.value)}
-          className="h-7 bg-surface2 border border-line rounded-[5px] px-2 font-mono text-[11px] text-ink cursor-pointer outline-none"
-        >
-          <option value="all">all services</option>
-          {services.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <ServiceFilter
+          signal="logs"
+          selected={filterService}
+          onChange={setFilterService}
+          sessionId={sessionId}
+          compact
+        />
 
         <select
           value={filterSource}

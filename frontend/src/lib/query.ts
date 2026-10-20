@@ -35,7 +35,8 @@ export const qk = {
   issues: (key?: string) => ['issues', key ?? null] as const,
   lint: (sessionId?: string) => ['lint', sessionId ?? null] as const,
   stats: (sessionId?: string) => ['stats', sessionId ?? null] as const,
-  services: () => ['services'] as const,
+  services: (signal?: string, sessionId?: string) =>
+    ['services', signal ?? null, sessionId ?? null] as const,
   forwarders: () => ['forwarders'] as const,
   sources: () => ['sources'] as const,
   storage: () => ['storage'] as const,
@@ -53,6 +54,7 @@ const INVALIDATIONS: Record<string, string[]> = {
   // Invalidate their active observers from the event that made their results
   // stale, rather than polling the preview endpoint.
   span: [
+    'services',
     'traces',
     'trace',
     'spans',
@@ -63,8 +65,8 @@ const INVALIDATIONS: Record<string, string[]> = {
     'sessions',
     'dashboard-panel',
   ],
-  log: ['logs', 'dashboard-panel'],
-  metric: ['metrics', 'metric-series', 'dashboard-panel'],
+  log: ['services', 'logs', 'dashboard-panel'],
+  metric: ['services', 'metrics', 'metric-series', 'dashboard-panel'],
   issue: ['issues', 'traces', 'trace'],
   alert: ['alerts', 'notifications'],
 }
@@ -126,9 +128,12 @@ export function useLiveInvalidation() {
             predicate: (query) => {
               const [prefix, params] = query.queryKey
               if (prefix !== 'traces' || !params || typeof params !== 'object') return false
-              const { page, service, sessionId } = params as Record<string, unknown>
+              const { page, service, services, sessionId } = params as Record<string, unknown>
               return (
                 (page === 1 || page === undefined) &&
+                (!Array.isArray(services) ||
+                  services.length === 0 ||
+                  services.includes(ev.payload.service_name)) &&
                 (service === 'all' ||
                   service === undefined ||
                   service === ev.payload.service_name) &&
@@ -148,10 +153,19 @@ export function useLiveInvalidation() {
             predicate: (query) => {
               const [prefix, params] = query.queryKey
               if (prefix !== 'spans' || !params || typeof params !== 'object') return false
-              const { page, sort, drilldown, view } = params as Record<string, unknown>
+              const { page, sort, drilldown, view, services, sessionId } = params as Record<
+                string,
+                unknown
+              >
               return (
                 (page === 1 || page === undefined) &&
                 sort === 'time' &&
+                (sessionId === undefined ||
+                  sessionId === null ||
+                  sessionId === ev.payload.session_id) &&
+                (!Array.isArray(services) ||
+                  services.length === 0 ||
+                  services.includes(ev.payload.service_name)) &&
                 drilldown === null &&
                 view === undefined
               )
@@ -167,11 +181,20 @@ export function useLiveInvalidation() {
             predicate: (query) => {
               const [prefix, params] = query.queryKey
               if (prefix !== 'logs' || !params || typeof params !== 'object') return false
-              const { page, severity, traceId, service } = params as Record<string, unknown>
+              const { page, severity, traceId, service, services, sessionId } = params as Record<
+                string,
+                unknown
+              >
               return (
                 (page === 1 || page === undefined) &&
                 severity === undefined &&
                 traceId === undefined &&
+                (sessionId === undefined ||
+                  sessionId === null ||
+                  sessionId === ev.payload.session_id) &&
+                (!Array.isArray(services) ||
+                  services.length === 0 ||
+                  services.includes(ev.payload.service_name)) &&
                 (service === 'all' || service === undefined || service === ev.payload.service_name)
               )
             },

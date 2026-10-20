@@ -246,6 +246,7 @@ func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 	traces, err := r.store.WithContext(req.Context()).ListTraces(storage.TraceFilter{
 		SessionID: sessionID,
 		Service:   service,
+		Services:  q["services"],
 		Limit:     limit,
 		Page:      page,
 	})
@@ -259,6 +260,7 @@ func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 	total, err := r.store.WithContext(req.Context()).CountTraces(storage.TraceFilter{
 		SessionID: sessionID,
 		Service:   service,
+		Services:  q["services"],
 	})
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
@@ -311,7 +313,7 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 		page = 1
 	}
 	if q.Get("view") == "grouped" {
-		filter := storage.SpanFilter{SessionID: r.scopeSession(q.Get("sessionId")), Limit: limit, Page: page}
+		filter := storage.SpanFilter{Services: q["services"], SessionID: r.scopeSession(q.Get("sessionId")), Limit: limit, Page: page}
 		groups, err := r.store.WithContext(req.Context()).ListSpanGroups(filter)
 		if err != nil {
 			respondErr(w, req, 500, err.Error())
@@ -336,6 +338,7 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 		Limit:     limit,
 		Page:      page,
 		Service:   q.Get("service"),
+		Services:  q["services"],
 		Name:      q.Get("name"),
 		Kind:      kind,
 		HasKind:   hasKind,
@@ -355,7 +358,7 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 		row.Links = []*storage.SpanLink{}
 	}
 	total, err := r.store.WithContext(req.Context()).CountSpans(storage.SpanFilter{
-		SessionID: r.scopeSession(q.Get("sessionId")), Service: q.Get("service"), Name: q.Get("name"),
+		SessionID: r.scopeSession(q.Get("sessionId")), Service: q.Get("service"), Services: q["services"], Name: q.Get("name"),
 		Kind: kind, HasKind: hasKind,
 	})
 	if err != nil {
@@ -522,6 +525,7 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 	filter := storage.LogFilter{
 		SessionID:   r.scopeSession(q.Get("sessionId")),
 		Service:     q.Get("service"),
+		Services:    q["services"],
 		TraceID:     q.Get("traceId"),
 		SpanID:      q.Get("spanId"),
 		MinSeverity: minSeverity,
@@ -569,7 +573,14 @@ func logSeverityBand(severity string) (minSeverity, maxSeverity int, ok bool) {
 }
 
 func (r *Router) listServices(w http.ResponseWriter, req *http.Request) {
-	services, err := r.store.WithContext(req.Context()).ListServices(r.scopeSession(req.URL.Query().Get("sessionId")))
+	signal := req.URL.Query().Get("signal")
+	switch signal {
+	case "", "traces", "spans", "logs", "metrics":
+	default:
+		respondErr(w, req, 400, "invalid telemetry signal")
+		return
+	}
+	services, err := r.store.WithContext(req.Context()).ListSignalServices(r.scopeSession(req.URL.Query().Get("sessionId")), signal)
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
