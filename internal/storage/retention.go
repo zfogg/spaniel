@@ -46,25 +46,28 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 		telemetry.Catalog().RecordStoragePrune(context.Background(), result, float64(time.Since(started).Microseconds())/1000)
 	}()
 
-	err := d.withMaintenance(func(d *DB) error {
-		if cfg.MaxAge > 0 {
-			n, err := d.deleteByAge(cfg.MaxAge, activeID)
-			if err != nil {
-				return fmt.Errorf("delete by age: %w", err)
+	var err error
+	if cfg.MaxAge > 0 || cfg.MaxSessions > 0 {
+		err = d.withMaintenance(func(d *DB) error {
+			if cfg.MaxAge > 0 {
+				n, err := d.deleteByAge(cfg.MaxAge, activeID)
+				if err != nil {
+					return fmt.Errorf("delete by age: %w", err)
+				}
+				res.DeletedByAge = n
 			}
-			res.DeletedByAge = n
-		}
 
-		if cfg.MaxSessions > 0 {
-			n, err := d.deleteByCount(cfg.MaxSessions, activeID)
-			if err != nil {
-				return fmt.Errorf("delete by count: %w", err)
+			if cfg.MaxSessions > 0 {
+				n, err := d.deleteByCount(cfg.MaxSessions, activeID)
+				if err != nil {
+					return fmt.Errorf("delete by count: %w", err)
+				}
+				res.DeletedByCount = n
 			}
-			res.DeletedByCount = n
-		}
 
-		return d.checkpointWithRetry()
-	})
+			return d.checkpointWithRetry()
+		})
+	}
 	if err != nil {
 		result = "error"
 		return res, err
@@ -198,17 +201,11 @@ func (d *DB) deleteBySize(maxBytes int64, activeID string, maxBatches int) (int,
 }
 
 // reclaimRetentionSpace makes the size measurement authoritative after a
-// deletion. DuckDB keeps freed blocks in the database allocation until VACUUM;
-// checkpointing alone therefore leaves UsedSize unchanged and makes the
-// storage guard believe pruning failed. Run this while maintenance has closed
-// all appenders, and re-check the cap before deleting another batch.
+// deletion. CHECKPOINT merges sufficiently sparse row groups; several batches
+// may be needed before used blocks fall. DuckDB's VACUUM does not reclaim
+// deletes, so avoid the former VACUUM plus second CHECKPOINT on every batch.
+// Run this with appenders closed and the SQL pool reserved.
 func (d *DB) reclaimRetentionSpace() error {
-	if err := d.checkpointWithRetry(); err != nil {
-		return err
-	}
-	if err := d.gorm.Exec("VACUUM").Error; err != nil {
-		return fmt.Errorf("vacuum retention: %w", err)
-	}
 	return d.checkpointWithRetry()
 }
 

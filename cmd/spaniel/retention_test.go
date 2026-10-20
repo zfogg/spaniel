@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/zfogg/spaniel/internal/storage"
 )
@@ -16,6 +17,8 @@ type fakeStorageGuardStore struct {
 	pruneErr     error
 	pruneBatches int
 	retainSize   bool
+	pruneStep    int64
+	noProgress   bool
 }
 
 func (f *fakeStorageGuardStore) UsedSize() int64         { return f.size }
@@ -28,7 +31,12 @@ func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID stri
 	if f.pruneErr != nil {
 		return storage.PruneResult{}, f.pruneErr
 	}
-	if !f.retainSize {
+	if f.noProgress {
+		return storage.PruneResult{FinalDBSizeBytes: f.size}, nil
+	}
+	if f.pruneStep > 0 {
+		f.size -= f.pruneStep
+	} else if !f.retainSize {
 		f.size = cfg.MaxDBSizeBytes - 1
 	}
 	return storage.PruneResult{DeletedBySize: 2, FinalDBSizeBytes: f.size}, nil
@@ -56,14 +64,14 @@ func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {
 	}
 }
 
-func TestStorageGuardEnabledPrunesAt95PercentTo65Percent(t *testing.T) {
+func TestStorageGuardEnabledPrunesAt80PercentTo65Percent(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 94, activeID: "active"}
+	store := &fakeStorageGuardStore{size: 79, activeID: "active"}
 	_ = checkStorageGuard(store, policy)
 	if store.pruneCalls != 0 || store.full {
 		t.Fatal("storage below the high-water mark should retain telemetry and remain writable")
 	}
-	store.size = 95
+	store.size = 80
 
 	_ = checkStorageGuard(store, policy)
 
@@ -96,6 +104,54 @@ func TestStorageGuardYieldsAfterOneBatchAboveHighWater(t *testing.T) {
 	}
 	if store.pruneCalls != 1 || store.pruneBatches != 1 || store.full {
 		t.Fatalf("automatic pruning must yield and remain writable below cap: %+v", store)
+	}
+}
+
+func TestStorageGuardContinuesBelowHighWaterUntilTarget(t *testing.T) {
+	store := &fakeStorageGuardStore{size: 80, pruneStep: 5}
+	policy := newStorageGuardPolicy(100, true)
+	for _, wantSize := range []int64{75, 70, 65} {
+		if err := checkStorageGuard(store, policy); err != nil {
+			t.Fatal(err)
+		}
+		if store.size != wantSize || store.full {
+			t.Fatalf("guard did not keep restoring headroom: %+v", store)
+		}
+		wantInterval := 100 * time.Millisecond
+		if wantSize == 65 {
+			wantInterval = 5 * time.Second
+		}
+		if got := policy.CheckInterval(); got != wantInterval {
+			t.Fatalf("size %d: next check %s, want %s", wantSize, got, wantInterval)
+		}
+	}
+	_ = checkStorageGuard(store, policy)
+	if store.pruneCalls != 3 {
+		t.Fatalf("guard pruned past target: calls=%d", store.pruneCalls)
+	}
+}
+
+func TestStorageGuardCatchUpUsesDeletedRowsAndBacksOffWithoutProgress(t *testing.T) {
+	store := &fakeStorageGuardStore{size: 90, retainSize: true}
+	policy := newStorageGuardPolicy(100, true)
+	_ = checkStorageGuard(store, policy)
+	if policy.CheckInterval() != 100*time.Millisecond {
+		t.Fatal("deletes must continue even while allocated blocks have not fallen")
+	}
+	store.noProgress = true
+	_ = checkStorageGuard(store, policy)
+	if policy.CheckInterval() != 5*time.Second {
+		t.Fatal("irreducible storage must not busy-loop")
+	}
+	store.noProgress = false
+	store.pruneErr = errors.New("maintenance failed")
+	_ = checkStorageGuard(store, policy)
+	if policy.CheckInterval() != 5*time.Second {
+		t.Fatal("maintenance failure must back off")
+	}
+	policy.Update(100, false)
+	if policy.CheckInterval() != 5*time.Second || policy.pruning.Load() {
+		t.Fatal("disabling auto-prune must cancel catch-up")
 	}
 }
 

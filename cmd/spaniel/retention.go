@@ -18,11 +18,12 @@ import (
 
 const (
 	storageGuardInterval = 5 * time.Second
-	// Defer automatic pruning until the database is close to its cap, then
-	// reclaim enough room for a meaningful ingest burst. This preserves more
-	// recent telemetry than the former 80% -> 70% policy.
-	storageHighWaterPercent   = int64(95)
-	storagePruneTargetPercent = int64(65)
+	// Yield to exporters between bounded batches, but keep reclaiming until
+	// the low watermark is reached. A five-second gap after every batch let
+	// ingestion outrun cleanup and repeatedly cross the hard cap.
+	storageGuardCatchUpInterval = 100 * time.Millisecond
+	storageHighWaterPercent     = int64(80)
+	storagePruneTargetPercent   = int64(65)
 )
 
 var (
@@ -38,6 +39,8 @@ var (
 type storageGuardPolicy struct {
 	maxBytes  atomic.Int64
 	autoPrune atomic.Bool
+	pruning   atomic.Bool
+	retrySoon atomic.Bool
 }
 
 func newStorageGuardPolicy(maxBytes int64, autoPrune bool) *storageGuardPolicy {
@@ -49,6 +52,15 @@ func newStorageGuardPolicy(maxBytes int64, autoPrune bool) *storageGuardPolicy {
 func (p *storageGuardPolicy) Update(maxBytes int64, autoPrune bool) {
 	p.maxBytes.Store(maxBytes)
 	p.autoPrune.Store(autoPrune)
+	p.pruning.Store(false)
+	p.retrySoon.Store(false)
+}
+
+func (p *storageGuardPolicy) CheckInterval() time.Duration {
+	if p.autoPrune.Load() && p.retrySoon.Load() {
+		return storageGuardCatchUpInterval
+	}
+	return storageGuardInterval
 }
 
 func (p *storageGuardPolicy) RetentionSizeLimit() int64 {
@@ -159,17 +171,19 @@ type storageGuardStore interface {
 
 // checkStorageGuard applies one storage policy pass. With auto-prune disabled,
 // it never deletes and marks storage full only at the hard cap. With it enabled,
-// pruning begins at 95% and targets 65%, leaving headroom for ingest bursts. If
-// pruning cannot restore that headroom, ingestion pauses before the hard cap.
+// pruning begins at 80% and continues to 65%, leaving headroom for ingest bursts.
 func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) error {
+	policy.retrySoon.Store(false)
 	maxBytes := policy.maxBytes.Load()
 	if maxBytes <= 0 {
+		policy.pruning.Store(false)
 		store.SetFull(false)
 		return nil
 	}
 
 	size := store.UsedSize()
 	if !policy.autoPrune.Load() {
+		policy.pruning.Store(false)
 		full := size >= maxBytes
 		store.SetFull(full)
 		if full {
@@ -188,13 +202,19 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) erro
 	if target <= 0 || target >= highWater {
 		target = highWater - 1
 	}
-	if size < highWater {
+	if size <= target || (size < highWater && !policy.pruning.Load()) {
+		policy.pruning.Store(false)
 		store.SetFull(false)
 		return nil
 	}
+	policy.pruning.Store(true)
 
 	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxSizeBatches: 1}, store.ActiveSessionID())
 	after := store.UsedSize()
+	policy.pruning.Store(after > target)
+	// Progress is measured by deleted records, not allocated blocks: DuckDB
+	// can need several batches before checkpoint merges sparse row groups.
+	policy.retrySoon.Store(err == nil && after > target && res.DeletedBySize > 0)
 	if err != nil {
 		slog.Error("storage guard auto-prune failed", "err", err)
 		if storage.IsDatabaseInvalidated(err) {
@@ -226,19 +246,18 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) erro
 }
 
 // runStorageGuard enforces the live size policy between hourly retention
-// passes. Checking every five seconds provides enough headroom for bursty
-// local telemetry without continuously querying DuckDB.
+// passes. While pruning is making progress, continue after a short exporter
+// window instead of waiting five seconds for each small batch. Errors or an
+// empty batch use the ordinary interval so an irreducible cap cannot spin.
 func runStorageGuard(store *storage.DB, policy *storageGuardPolicy, reportFatal func(error)) {
 	check := func() {
 		if err := checkStorageGuard(store, policy); err != nil {
 			reportFatal(err)
 		}
 	}
-	check()
-	ticker := time.NewTicker(storageGuardInterval)
-	defer ticker.Stop()
-	for range ticker.C {
+	for {
 		check()
+		time.Sleep(policy.CheckInterval())
 	}
 }
 
