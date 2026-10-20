@@ -1,4 +1,4 @@
-.PHONY: dev build build-server run test test-coverage test-extensive test-storage generate verify-generated setup
+.PHONY: dev build build-server run test test-coverage test-extensive test-storage test-ingestion generate verify-generated setup
 
 # Use MSYS2 Bash when available; otherwise use Bash from PATH. Scoop's sh.exe
 # shim may select a broken Zsh process on Windows.
@@ -116,3 +116,9 @@ generate-openapi:
 
 setup:
 	git config core.hooksPath git-hooks
+
+# Focused protocol-lint regression check, using the same Windows CGO toolchain.
+test-ingestion:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/ingestion.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace' -test.v
