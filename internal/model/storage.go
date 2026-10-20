@@ -366,13 +366,16 @@ type Metric struct {
 func (Metric) TableName() string { return "metrics" }
 
 type Dashboard struct {
-	ID          string               `json:"id"`
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	CreatedAt   int64                `json:"created_at"`
-	UpdatedAt   int64                `json:"updated_at"`
-	Variables   []*DashboardVariable `json:"variables"`
-	Panels      []*DashboardPanel    `json:"panels"`
+	ID                 string               `json:"id"`
+	Name               string               `json:"name"`
+	Description        string               `json:"description"`
+	SourceFile         string               `json:"source_file"`
+	SourceHash         string               `json:"source_hash"`
+	SourceFileModified bool                 `json:"source_file_modified"`
+	CreatedAt          int64                `json:"created_at"`
+	UpdatedAt          int64                `json:"updated_at"`
+	Variables          []*DashboardVariable `json:"variables"`
+	Panels             []*DashboardPanel    `json:"panels"`
 }
 
 func (Dashboard) TableName() string { return "dashboards" }
@@ -429,6 +432,7 @@ type AlertRule struct {
 	LastError                     string           `json:"last_error"`
 	SourceFile                    string           `json:"source_file"`
 	SourceHash                    string           `json:"source_hash"`
+	SourceFileModified            bool             `json:"source_file_modified"`
 	CreatedAt                     int64            `json:"created_at"`
 	UpdatedAt                     int64            `json:"updated_at"`
 	Instances                     []*AlertInstance `json:"instances,omitempty" gorm:"-"`

@@ -506,10 +506,10 @@ export function useDashboardEditor() {
     }
   }
   const exportAsEditableCopy = async () => {
-    if (!active || !active.id.startsWith('file-')) return
+    if (!active || !active.source_file) return
     try {
       const yaml = await api.dashboards.config(active.id)
-      const copy = await api.dashboards.importConfig(yaml)
+      const copy = await api.dashboards.importConfig(yaml.replace(/^id:.*(?:\r?\n|$)/m, ''))
       await refresh()
       toast.success('Created an editable local copy.')
       editorNavigate(`/dashboards/${copy.data.id}`)

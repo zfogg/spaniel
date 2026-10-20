@@ -87,12 +87,27 @@ func (d *DB) DuplicateAlertRule(id string) (*AlertRule, error) {
 func (d *DB) ReplaceAlertDefinition(r *AlertRule) error {
 	if old, e := d.GetAlertRule(r.ID); e == nil {
 		r.CreatedAt = old.CreatedAt
+		if old.SourceFileModified && old.SourceFile == r.SourceFile {
+			r.SourceFileModified = true
+		}
 		return d.UpdateAlertRule(r)
 	}
 	now := time.Now().UnixNano()
 	r.CreatedAt = now
 	r.UpdatedAt = now
 	return d.query.AlertRule.Create(r)
+}
+
+func (d *DB) AcknowledgeAlertSourceFile(id string) error {
+	q := d.namedQuery("AcknowledgeAlertSourceFile")
+	result, err := q.AlertRule.Where(q.AlertRule.ID.Eq(id), q.AlertRule.SourceFile.Neq("")).UpdateColumn(q.AlertRule.SourceFileModified, false)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("file-managed alert not found")
+	}
+	return nil
 }
 func (d *DB) UpdateAlertRule(r *AlertRule) error {
 	// Rule edits are definition changes. Preserve evaluator-owned health state

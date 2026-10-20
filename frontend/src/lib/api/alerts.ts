@@ -40,6 +40,12 @@ export const alerts = {
     unwrap(
       openapiClient.POST('/api/alerts/{id}/acknowledge', { params: { path: { id } }, body: {} }),
     ),
+  acknowledgeYAMLUpdate: (id: string) =>
+    unwrap(
+      openapiClient.POST('/api/alerts/{id}/acknowledge-yaml-update', {
+        params: { path: { id } },
+      }),
+    ),
   acknowledgeInstance: (id: string, groupKey: string, note = '') =>
     unwrap(
       openapiClient.POST('/api/alerts/{id}/instances/acknowledge', {

@@ -381,6 +381,19 @@ func (r *Router) deleteAlert(w http.ResponseWriter, q *http.Request) {
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 
+func (r *Router) acknowledgeAlertYamlUpdate(w http.ResponseWriter, q *http.Request) {
+	if err := r.store.WithContext(q.Context()).AcknowledgeAlertSourceFile(chi.URLParam(q, "id")); err != nil {
+		respondErr(w, q, http.StatusNotFound, err.Error())
+		return
+	}
+	if r.hub != nil {
+		// This is state synchronization, not an alert transition. Using the
+		// alert event type would create an operator notification with no rule.
+		r.hub.Broadcast(&ws.Event{Type: "alert_sync", Timestamp: time.Now().UnixNano(), Payload: map[string]any{"reason": "yaml_update_acknowledged"}})
+	}
+	respond(w, map[string]bool{"ok": true}, 1, 1)
+}
+
 func (r *Router) reloadAlertDefinitions(w http.ResponseWriter, q *http.Request) {
 	if r.settings == nil || r.settings.ReloadAlerts == nil {
 		respondErr(w, q, http.StatusNotImplemented, "alert directory reload is not configured")

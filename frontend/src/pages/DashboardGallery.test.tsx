@@ -5,6 +5,15 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Dashboards from './Dashboards'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
+
+vi.mock('sonner', () => ({
+  toast: {
+    warning: vi.fn(),
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}))
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
@@ -19,6 +28,9 @@ it('links selection to the URL and saves keyboard dashboard order changes', asyn
     panels: [],
     variables: [],
     description: '',
+    source_file: '',
+    source_hash: '',
+    source_file_modified: false,
     created_at: 0,
     updated_at: 0,
   }))
@@ -49,4 +61,42 @@ it('links selection to the URL and saves keyboard dashboard order changes', asyn
   fireEvent.keyDown(third, { key: 'ArrowUp', code: 'ArrowUp' })
   fireEvent.keyDown(third, { key: ' ', code: 'Space' })
   await waitFor(() => expect(reorder).toHaveBeenCalledWith(['First', 'Third', 'Second']))
+})
+
+it('warns when Spaniel adds a YAML ID and acknowledges without a success toast', async () => {
+  vi.spyOn(api.dashboards, 'list').mockResolvedValue({
+    data: [
+      {
+        id: 'generated-id',
+        name: 'Versioned dashboard',
+        panels: [],
+        variables: [],
+        description: '',
+        created_at: 0,
+        updated_at: 0,
+        source_file: 'dashboards/versioned.yaml',
+        source_hash: 'generated-hash',
+        source_file_modified: true,
+      },
+    ],
+    meta: { total: 1 },
+  })
+  const acknowledge = vi
+    .spyOn(api.dashboards, 'acknowledgeYAMLUpdate')
+    .mockResolvedValue({ data: { ok: true }, meta: { total: 1 } })
+
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MemoryRouter initialEntries={['/dashboards']}>
+        <Dashboards />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  await waitFor(() => expect(toast.warning).toHaveBeenCalledOnce())
+  fireEvent.click(screen.getByRole('button', { name: 'Acknowledge saved ID' }))
+  await waitFor(() => expect(acknowledge).toHaveBeenCalledWith('generated-id'))
+  expect(toast.success).not.toHaveBeenCalled()
 })

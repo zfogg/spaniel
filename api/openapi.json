@@ -309,6 +309,9 @@
                 "source_hash": {
                   "type": "string"
                 },
+                "source_file_modified": {
+                  "type": "boolean"
+                },
                 "updated_at": {
                   "type": "number"
                 }
@@ -339,6 +342,7 @@
                 "last_error",
                 "source_file",
                 "source_hash",
+                "source_file_modified",
                 "created_at",
                 "updated_at",
                 "instances"
@@ -539,6 +543,9 @@
           "source_hash": {
             "type": "string"
           },
+          "source_file_modified": {
+            "type": "boolean"
+          },
           "updated_at": {
             "type": "number"
           }
@@ -569,6 +576,7 @@
           "last_error",
           "source_file",
           "source_hash",
+          "source_file_modified",
           "created_at",
           "updated_at",
           "instances"
@@ -932,6 +940,15 @@
           "name": {
             "type": "string"
           },
+          "source_file": {
+            "type": "string"
+          },
+          "source_hash": {
+            "type": "string"
+          },
+          "source_file_modified": {
+            "type": "boolean"
+          },
           "panels": {
             "default": [],
             "items": {
@@ -1053,6 +1070,9 @@
           "id",
           "name",
           "description",
+          "source_file",
+          "source_hash",
+          "source_file_modified",
           "created_at",
           "updated_at",
           "variables",
@@ -5453,6 +5473,65 @@
         ]
       }
     },
+    "/api/alerts/{id}/acknowledge-yaml-update": {
+      "post": {
+        "operationId": "acknowledgeAlertYamlUpdate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "example": {
+                    "summary": "YAML update acknowledged",
+                    "value": {
+                      "data": {
+                        "ok": true
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Ok"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The file-managed alert was not found."
+          }
+        },
+        "summary": "acknowledge an ID written to alert YAML",
+        "tags": [
+          "Alerts"
+        ]
+      }
+    },
     "/api/alerts/{id}/config": {
       "get": {
         "operationId": "exportAlertConfig",
@@ -7501,6 +7580,65 @@
           }
         },
         "summary": "patch Dashboard",
+        "tags": [
+          "Dashboards"
+        ]
+      }
+    },
+    "/api/dashboards/{id}/acknowledge-yaml-update": {
+      "post": {
+        "operationId": "acknowledgeDashboardYamlUpdate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "example": {
+                    "summary": "YAML update acknowledged",
+                    "value": {
+                      "data": {
+                        "ok": true
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Ok"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The file-managed dashboard was not found."
+          }
+        },
+        "summary": "acknowledge an ID written to dashboard YAML",
         "tags": [
           "Dashboards"
         ]

@@ -76,7 +76,7 @@ export function DashboardEditor() {
   } = useDashboardEditor()
   if (active) {
     const dashboard = active!
-    const fileManaged = dashboard.id.startsWith('file-')
+    const fileManaged = Boolean(dashboard.source_file)
     return (
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className="w-64 shrink-0 overflow-auto border-r border-border bg-surface">

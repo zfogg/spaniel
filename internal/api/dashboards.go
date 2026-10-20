@@ -20,9 +20,10 @@ import (
 
 const dashboardQueryVersion = 1
 
-func rejectFileManagedDashboard(w http.ResponseWriter, req *http.Request) bool {
-	if strings.HasPrefix(chi.URLParam(req, "id"), "file-") {
-		respondErr(w, req, http.StatusConflict, "file-managed dashboards are read-only; export and import YAML to create a local copy")
+func (r *Router) rejectFileManagedDashboard(w http.ResponseWriter, req *http.Request) bool {
+	dashboard, err := r.store.WithContext(req.Context()).GetDashboard(chi.URLParam(req, "id"))
+	if err == nil && dashboard.SourceFile != "" {
+		respondErr(w, req, http.StatusConflict, "dashboard is managed by YAML file "+dashboard.SourceFile+"; edit the file and reload dashboards")
 		return true
 	}
 	return false
@@ -45,7 +46,7 @@ func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 		available[dashboard.ID] = true
 	}
 	for _, id := range in.IDs {
-		if strings.HasPrefix(id, "file-") {
+		if dashboard, err := r.store.WithContext(req.Context()).GetDashboard(id); err == nil && dashboard.SourceFile != "" {
 			respondErr(w, req, http.StatusConflict, "file-managed dashboards cannot be reordered")
 			return
 		}
@@ -63,7 +64,7 @@ func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) movePanel(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	var in struct {
@@ -174,6 +175,15 @@ func (r *Router) exportDashboardConfig(w http.ResponseWriter, req *http.Request)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }
+
+func (r *Router) acknowledgeDashboardYamlUpdate(w http.ResponseWriter, req *http.Request) {
+	if err := r.store.WithContext(req.Context()).AcknowledgeDashboardSourceFile(chi.URLParam(req, "id")); err != nil {
+		respondErr(w, req, http.StatusNotFound, err.Error())
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, 1, 1)
+}
+
 func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, req.Body, 1<<20))
 	if err != nil {
@@ -190,8 +200,8 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 		respondErr(w, req, 400, "invalid dashboard YAML: "+err.Error())
 		return
 	}
-	if strings.HasPrefix(dashboard.ID, "file-") {
-		respondErr(w, req, http.StatusConflict, "file-managed dashboards are read-only; remove id to import a local copy")
+	if existing, err := r.store.WithContext(req.Context()).GetDashboard(dashboard.ID); err == nil && existing.SourceFile != "" {
+		respondErr(w, req, http.StatusConflict, "dashboard is managed by YAML file "+existing.SourceFile+"; remove id to import a local copy")
 		return
 	}
 	for _, panel := range dashboard.Panels {
@@ -211,7 +221,7 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 	respond(w, dashboard, 1, 1)
 }
 func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	x, err := r.store.GetDashboard(chi.URLParam(req, "id"))
@@ -231,7 +241,7 @@ func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
 	respond(w, x, 1, 1)
 }
 func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	id := chi.URLParam(req, "id")
@@ -247,7 +257,7 @@ func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) savePanel(w http.ResponseWriter, req *http.Request, update bool) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	var in panelInput
@@ -363,7 +373,7 @@ func or(a, b string) string {
 	return a
 }
 func (r *Router) saveVariable(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	var in variableInput
@@ -423,7 +433,7 @@ func validateDashboardVariable(variable *storage.DashboardVariable, value string
 	return nil
 }
 func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	dashboard, err := r.store.GetDashboard(chi.URLParam(req, "id"))
@@ -443,7 +453,7 @@ func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	dashboard, err := r.store.GetDashboard(chi.URLParam(req, "id"))

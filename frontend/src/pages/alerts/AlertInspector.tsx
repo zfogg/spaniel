@@ -56,6 +56,10 @@ export function Inspector({
       queryClient.invalidateQueries({ queryKey: ['alert-events', rule.id] })
     },
   })
+  const acknowledgeYAMLUpdate = useMutation({
+    mutationFn: () => api.alerts.acknowledgeYAMLUpdate(rule.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+  })
   const acknowledgeInstance = useMutation({
     mutationFn: ({
       groupKey,
@@ -265,10 +269,33 @@ export function Inspector({
       </header>
 
       {fileManaged && (
-        <p className="rounded border border-warn bg-warn-bg p-3 text-sm text-warn-ink">
-          This rule is managed by <code>{rule.source_file}</code>. Edit that YAML file and reload
-          alerts from Settings; duplicate it to start a database-managed copy.
-        </p>
+        <div className="rounded border border-warn bg-warn-bg p-3 text-sm text-warn-ink">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              This rule is managed by <code>{rule.source_file}</code>. Edit that YAML file and
+              reload alerts from Settings; duplicate it to start a database-managed copy.
+            </span>
+            {rule.source_file_modified && (
+              <button
+                type="button"
+                disabled={acknowledgeYAMLUpdate.isPending}
+                onClick={() => acknowledgeYAMLUpdate.mutate()}
+                className="rounded bg-emerald-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+              >
+                Acknowledge saved ID
+              </button>
+            )}
+          </div>
+          {rule.source_file_modified && (
+            <p className="mt-2 font-medium">
+              Spaniel added this alert’s ID to the YAML file. Save and commit the changed file, then
+              acknowledge it here.
+            </p>
+          )}
+          {acknowledgeYAMLUpdate.error && (
+            <p className="mt-2 text-danger">{acknowledgeYAMLUpdate.error.message}</p>
+          )}
+        </div>
       )}
 
       <InspectorSection title="Condition">

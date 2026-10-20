@@ -65,7 +65,7 @@ func (h *handler) listDashboards(ctx context.Context, _ *mcpsdk.CallToolRequest,
 		if needle != "" && !strings.Contains(strings.ToLower(dashboard.Name+"\n"+dashboard.Description), needle) {
 			continue
 		}
-		out.Dashboards = append(out.Dashboards, DashboardSummary{ID: dashboard.ID, Name: dashboard.Name, Description: dashboard.Description, PanelCount: len(dashboard.Panels), VariableCount: len(dashboard.Variables), ManagedByFile: strings.HasPrefix(dashboard.ID, "file-"), UpdatedAt: dashboard.UpdatedAt, Link: "/dashboards?id=" + dashboard.ID})
+		out.Dashboards = append(out.Dashboards, DashboardSummary{ID: dashboard.ID, Name: dashboard.Name, Description: dashboard.Description, PanelCount: len(dashboard.Panels), VariableCount: len(dashboard.Variables), ManagedByFile: dashboard.SourceFile != "", UpdatedAt: dashboard.UpdatedAt, Link: "/dashboards?id=" + dashboard.ID})
 	}
 	out.Count = len(out.Dashboards)
 	return nil, out, nil
@@ -247,12 +247,12 @@ func (h *handler) applyDashboard(ctx context.Context, _ *mcpsdk.CallToolRequest,
 	if id == "" {
 		id = uuid.NewString()
 	} else {
-		if strings.HasPrefix(id, "file-") {
-			return nil, ApplyDashboardOutput{}, fmt.Errorf("file-managed dashboards are read-only")
-		}
 		existing, err := h.store.WithContext(ctx).GetDashboard(id)
 		if err != nil {
 			return nil, ApplyDashboardOutput{}, fmt.Errorf("dashboard not found")
+		}
+		if existing.SourceFile != "" {
+			return nil, ApplyDashboardOutput{}, fmt.Errorf("dashboard is managed by YAML file %s", existing.SourceFile)
 		}
 		expected, err := parseExpectedUpdatedAt(in.ExpectedUpdatedAt)
 		if err != nil {
@@ -305,8 +305,8 @@ func (h *handler) importDashboardYAML(ctx context.Context, _ *mcpsdk.CallToolReq
 	if err != nil {
 		return nil, ApplyDashboardOutput{}, err
 	}
-	if strings.HasPrefix(dashboard.ID, "file-") {
-		return nil, ApplyDashboardOutput{}, fmt.Errorf("file-managed dashboards are read-only; remove id to import a local copy")
+	if existing, err := h.store.WithContext(ctx).GetDashboard(dashboard.ID); err == nil && existing.SourceFile != "" {
+		return nil, ApplyDashboardOutput{}, fmt.Errorf("dashboard is managed by YAML file %s; remove id to import a local copy", existing.SourceFile)
 	}
 	id = dashboard.ID
 	if _, err := h.validateDashboardModel(ctx, dashboard); err != nil {
@@ -343,11 +343,12 @@ type MutationOutput struct {
 }
 
 func (h *handler) deleteDashboard(ctx context.Context, _ *mcpsdk.CallToolRequest, in DeleteDashboardInput) (*mcpsdk.CallToolResult, MutationOutput, error) {
-	if strings.HasPrefix(in.DashboardID, "file-") {
-		return nil, MutationOutput{}, fmt.Errorf("file-managed dashboards are read-only")
-	}
-	if _, err := h.store.WithContext(ctx).GetDashboard(in.DashboardID); err != nil {
+	dashboard, err := h.store.WithContext(ctx).GetDashboard(in.DashboardID)
+	if err != nil {
 		return nil, MutationOutput{}, fmt.Errorf("dashboard not found")
+	}
+	if dashboard.SourceFile != "" {
+		return nil, MutationOutput{}, fmt.Errorf("dashboard is managed by YAML file %s", dashboard.SourceFile)
 	}
 	if err := h.store.WithContext(ctx).DeleteDashboard(in.DashboardID); err != nil {
 		return nil, MutationOutput{}, err

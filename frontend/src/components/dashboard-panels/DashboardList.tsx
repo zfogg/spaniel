@@ -39,7 +39,7 @@ function DashboardRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: dashboard.id,
-    disabled: pending,
+    disabled: pending || Boolean(dashboard.source_file),
   })
   return (
     <div
@@ -53,13 +53,17 @@ function DashboardRow({
     >
       <button
         type="button"
-        disabled={pending}
+        disabled={pending || Boolean(dashboard.source_file)}
         aria-label={`Reorder ${dashboard.name}`}
-        title="Drag to reorder · Arrow keys reorder"
+        title={
+          dashboard.source_file
+            ? 'File-managed dashboards keep directory order'
+            : 'Drag to reorder · Arrow keys reorder'
+        }
         {...attributes}
         {...listeners}
         onKeyDown={(event) => {
-          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          if (!dashboard.source_file && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
             event.preventDefault()
             move(event.key === 'ArrowUp' ? -1 : 1)
           }
@@ -151,7 +155,8 @@ export function DashboardList({
                   pending={pending}
                   move={(direction) => {
                     const target = dashboards[index + direction]
-                    if (target && !pending) reorder(dashboard.id, target.id)
+                    if (target && !pending && !dashboard.source_file && !target.source_file)
+                      reorder(dashboard.id, target.id)
                   }}
                 />
                 {showPlaceholder && placeholderAfter ? placeholder : null}

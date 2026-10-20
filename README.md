@@ -297,6 +297,8 @@ spaniel ci export --output ./spaniel-baseline.json
 # ~/.spaniel/config.yaml
 port: 8080
 db_path: ~/.spaniel/spaniel.duckdb
+dashboards_dir: ~/.spaniel/dashboards
+alerts_dir: ~/.spaniel/alerts
 retention_days: 7
 max_sessions: 50
 max_db_size_mb: 500
@@ -308,6 +310,18 @@ forward:
   - http://tempo:4318
   - http://otelcollector:4318
 ```
+
+To version-control dashboards and alerts, point `dashboards_dir` and
+`alerts_dir` at directories in your project. Spaniel reconciles those YAML
+files at startup: existing IDs update the same objects, IDs recreate them on a
+fresh database, and removing a file removes its file-managed object.
+
+Handwritten YAML may omit `id`. On its first load, Spaniel generates a UUID and
+writes it into the file. The UI shows a warning badge and browser toast until
+you save or commit that change and click **Acknowledge saved ID**. Spaniel does
+not rewrite files that already contain an ID. File-managed definitions are
+read-only in the UI; edit the YAML and restart Spaniel (or reload alerts from
+Settings) to apply later changes.
 
 Settings resolve **highest priority first**:
 

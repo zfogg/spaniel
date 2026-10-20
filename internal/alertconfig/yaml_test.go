@@ -68,3 +68,27 @@ owner: a-team
 		t.Fatalf("retired owner field should be rejected, got %v", err)
 	}
 }
+
+func TestAlertYAMLOmittedCollectionsBecomeEmptyJSON(t *testing.T) {
+	definition, err := Parse([]byte(`version: 1
+name: Minimal alert
+query: SELECT 1 AS value
+condition:
+  kind: threshold
+  operator: ">"
+  threshold: 0
+pending_for: 0s
+cooldown: 0s
+severity: warning
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule, err := definition.Alert("minimal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rule.GroupByJSON != "[]" || rule.AnnotationsJSON != "{}" {
+		t.Fatalf("omitted collections must be usable JSON, got group_by=%s annotations=%s", rule.GroupByJSON, rule.AnnotationsJSON)
+	}
+}
