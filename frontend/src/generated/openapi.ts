@@ -4549,6 +4549,15 @@ export interface operations {
           }
         }
       }
+      /** @description Storage is unavailable and the process is restarting. */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listIssues: {

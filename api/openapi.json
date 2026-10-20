@@ -8680,6 +8680,16 @@
               }
             },
             "description": "Successful response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Storage is unavailable and the process is restarting."
           }
         },
         "summary": "get Health",
