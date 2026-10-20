@@ -181,6 +181,52 @@ func TestPrune_NoLimits_NoOp(t *testing.T) {
 	}
 }
 
+func TestPruneSizeBudgetAllowsIngestionBetweenPasses(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "budget.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	seedSession(t, d, "active", "active", time.Now().UnixNano(), false, 0)
+	seedSession(t, d, "old", "old", time.Now().Add(-time.Hour).UnixNano(), false, 0)
+	for i := range pruneTraceBatch + 5 {
+		if err := d.AppendSpan(&Span{
+			SessionID: "old", TraceID: fmt.Sprintf("trace-%05d", i), SpanID: fmt.Sprintf("span-%05d", i),
+			ServiceName: "test", Name: "operation", StartNs: int64(i + 1), EndNs: int64(i + 2),
+			Attributes: "{}", Resource: "{}",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := d.FlushBatch(); err != nil {
+		t.Fatal(err)
+	}
+	// An impossible cap must still yield after one batch, preserving newer
+	// traces and allowing writes before a later guard pass continues pruning.
+	cfg := RetentionConfig{MaxDBSizeBytes: 1, MaxSizeBatches: 1}
+	res, err := d.Prune(cfg, "active")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.DeletedBySize != pruneTraceBatch {
+		t.Fatalf("deleted %d, want one batch of %d", res.DeletedBySize, pruneTraceBatch)
+	}
+	var remaining int
+	if err := d.SQL().QueryRow("SELECT count(*) FROM spans").Scan(&remaining); err != nil || remaining != 5 {
+		t.Fatalf("remaining=%d err=%v", remaining, err)
+	}
+	if err := d.AppendLog(&Log{SessionID: "active", ServiceName: "test", Body: "between passes", Attributes: "{}"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.FlushBatch(); err != nil {
+		t.Fatal(err)
+	}
+	res, err = d.Prune(cfg, "active")
+	if err != nil || res.DeletedBySize != 6 {
+		t.Fatalf("second pass: %+v err=%v", res, err)
+	}
+}
+
 func TestReset_WipesAllTables(t *testing.T) {
 	d := openTestDB(t)
 	seedSession(t, d, "s1", "s1", time.Now().UnixNano(), false, 3)

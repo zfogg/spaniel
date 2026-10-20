@@ -102,6 +102,7 @@ func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storag
 		t0 := time.Now()
 		current := cfg
 		current.MaxDBSizeBytes = policy.RetentionSizeLimit()
+		current.MaxSizeBatches = 1
 		scopedStore := store.WithContext(ctx)
 		res, err := scopedStore.Prune(current, scopedStore.ActiveSessionID())
 		getRetentionDurationHist().Record(ctx, float64(time.Since(t0).Milliseconds()))
@@ -192,14 +193,8 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) erro
 		return nil
 	}
 
-	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target}, store.ActiveSessionID())
+	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxSizeBatches: 1}, store.ActiveSessionID())
 	after := store.UsedSize()
-	for attempt := 1; err == nil && after >= highWater && attempt < 3; attempt++ {
-		var more storage.PruneResult
-		more, err = store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target}, store.ActiveSessionID())
-		res.DeletedBySize += more.DeletedBySize
-		after = store.UsedSize()
-	}
 	if err != nil {
 		slog.Error("storage guard auto-prune failed", "err", err)
 		if storage.IsDatabaseInvalidated(err) {

@@ -21,6 +21,7 @@ type RetentionConfig struct {
 	MaxAge         time.Duration // delete sessions older than this
 	MaxSessions    int           // keep at most this many sessions
 	MaxDBSizeBytes int64         // shrink to at most this many bytes on disk
+	MaxSizeBatches int           // bound automatic size pruning; zero runs to the target
 }
 
 // PruneResult summarizes what a Prune run did. Useful for logging and tests.
@@ -62,18 +63,18 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (PruneResult, error) {
 			res.DeletedByCount = n
 		}
 
-		if cfg.MaxDBSizeBytes > 0 && d.path != "" && d.path != ":memory:" {
-			n, err := d.deleteBySize(cfg.MaxDBSizeBytes, activeID)
-			if err != nil {
-				return fmt.Errorf("delete by size: %w", err)
-			}
-			res.DeletedBySize = n
-		}
 		return d.checkpointWithRetry()
 	})
 	if err != nil {
 		result = "error"
 		return res, err
+	}
+	if cfg.MaxDBSizeBytes > 0 && d.path != "" && d.path != ":memory:" {
+		res.DeletedBySize, err = d.deleteBySize(cfg.MaxDBSizeBytes, activeID, cfg.MaxSizeBatches)
+		if err != nil {
+			result = "error"
+			return res, fmt.Errorf("delete by size: %w", err)
+		}
 	}
 
 	// Final state for reporting.
@@ -147,39 +148,50 @@ func (d *DB) deleteByCount(maxSessions int, activeID string) (int, error) {
 	return d.deleteSessions(deletable[:excess])
 }
 
-func (d *DB) deleteBySize(maxBytes int64, activeID string) (int, error) {
+func (d *DB) deleteBySize(maxBytes int64, activeID string, maxBatches int) (int, error) {
 	deleted := 0
-	for d.UsedSize() > maxBytes {
-		// Prefer deleting a complete old session. This keeps each retained
-		// session internally consistent. Unlike age/count retention, size
-		// pressure may evict an old baseline as well: the active session is
-		// the one record set that must survive continued ingestion.
-		removed, err := d.deleteOldestSessionForSize(activeID)
-		if err != nil {
-			return deleted, err
-		}
-		if removed {
-			deleted++
-			if err := d.reclaimRetentionSpace(); err != nil {
-				return deleted, err
+	for batches := 0; (maxBatches <= 0 || batches < maxBatches) && d.UsedSize() > maxBytes; batches++ {
+		// Each batch owns maintenance independently. Keeping the gate across
+		// the entire size target blocked exporters for minutes on a busy DB.
+		n := 0
+		err := d.withMaintenance(func(d *DB) error {
+			// Prefer deleting a complete old session. This keeps each retained
+			// session internally consistent. Unlike age/count retention, size
+			// pressure may evict an old baseline as well: the active session is
+			// the one record set that must survive continued ingestion.
+			// Automatic passes also bound old-session cleanup by rows; deleting
+			// a whole large session would defeat their batch limit after restart.
+			if maxBatches <= 0 {
+				removed, err := d.deleteOldestSessionForSize(activeID)
+				if err != nil {
+					return err
+				}
+				if removed {
+					n = 1
+					return d.reclaimRetentionSpace()
+				}
 			}
-			continue
-		}
 
-		// Once the active session is the only session left (or there was only
-		// one to begin with), reclaim its telemetry by age. One batch includes
-		// oldest trace groups, logs, and metrics, rather than exhausting a
-		// signal type before considering the others.
-		n, err := d.deleteOldestTelemetryBatch(activeID)
+			// Once the active session is the only session left (or there was only
+			// one to begin with), reclaim its telemetry by age. One batch includes
+			// oldest trace groups, logs, and metrics, rather than exhausting a
+			// signal type before considering the others.
+			var err error
+			n, err = d.deleteOldestTelemetryBatch(activeID)
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return nil
+			}
+			return d.reclaimRetentionSpace()
+		})
+		deleted += n
 		if err != nil {
 			return deleted, err
 		}
 		if n == 0 {
 			break
-		}
-		deleted += n
-		if err := d.reclaimRetentionSpace(); err != nil {
-			return deleted, err
 		}
 	}
 	return deleted, nil
@@ -242,14 +254,19 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
 		LIMIT %d`, pruneTraceBatch)
 	traceMatch := func(table string) string {
 		return fmt.Sprintf(`EXISTS (
-			SELECT 1 FROM (%s) oldest
+			SELECT 1 FROM retention_oldest_traces oldest
 			WHERE oldest.session_id = %s.session_id
 			  AND oldest.trace_id = %s.trace_id
-		)`, oldestTraces, table, table)
+		)`, table, table)
 	}
 
 	deleted := 0
 	err := d.namedGORM("DeleteOldestTelemetryBatch").Transaction(func(tx *gorm.DB) error {
+		// Materialize once rather than grouping/sorting the entire spans table
+		// again for each dependent table. The maintenance connection is exclusive.
+		if err := tx.Exec("CREATE TEMP TABLE retention_oldest_traces AS " + oldestTraces).Error; err != nil {
+			return err
+		}
 		for _, table := range []string{"lint_warnings", "trace_issues", "logs", "span_events", "span_links"} {
 			if err := tx.Exec(`DELETE FROM ` + table + ` WHERE ` + traceMatch(table)).Error; err != nil {
 				return fmt.Errorf("delete old trace %s: %w", table, err)
@@ -260,6 +277,9 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string) (int, error) {
 			return fmt.Errorf("delete old spans: %w", result.Error)
 		}
 		deleted += int(result.RowsAffected)
+		if err := tx.Exec("DROP TABLE retention_oldest_traces").Error; err != nil {
+			return err
+		}
 		for _, spec := range []struct {
 			table string
 			order string

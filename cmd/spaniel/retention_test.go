@@ -8,12 +8,14 @@ import (
 )
 
 type fakeStorageGuardStore struct {
-	size       int64
-	activeID   string
-	full       bool
-	pruneCalls int
-	pruneLimit int64
-	pruneErr   error
+	size         int64
+	activeID     string
+	full         bool
+	pruneCalls   int
+	pruneLimit   int64
+	pruneErr     error
+	pruneBatches int
+	retainSize   bool
 }
 
 func (f *fakeStorageGuardStore) UsedSize() int64         { return f.size }
@@ -22,10 +24,13 @@ func (f *fakeStorageGuardStore) SetFull(full bool)       { f.full = full }
 func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID string) (storage.PruneResult, error) {
 	f.pruneCalls++
 	f.pruneLimit = cfg.MaxDBSizeBytes
+	f.pruneBatches = cfg.MaxSizeBatches
 	if f.pruneErr != nil {
 		return storage.PruneResult{}, f.pruneErr
 	}
-	f.size = cfg.MaxDBSizeBytes - 1
+	if !f.retainSize {
+		f.size = cfg.MaxDBSizeBytes - 1
+	}
 	return storage.PruneResult{DeletedBySize: 2, FinalDBSizeBytes: f.size}, nil
 }
 
@@ -81,6 +86,16 @@ func TestStorageGuardEnabledPausesBeforeCapWhenPruneFails(t *testing.T) {
 
 	if !store.full {
 		t.Fatal("failed proactive prune should pause ingestion before the hard cap")
+	}
+}
+
+func TestStorageGuardYieldsAfterOneBatchAboveHighWater(t *testing.T) {
+	store := &fakeStorageGuardStore{size: 96, retainSize: true}
+	if err := checkStorageGuard(store, newStorageGuardPolicy(100, true)); err != nil {
+		t.Fatal(err)
+	}
+	if store.pruneCalls != 1 || store.pruneBatches != 1 || store.full {
+		t.Fatalf("automatic pruning must yield and remain writable below cap: %+v", store)
 	}
 }
 
