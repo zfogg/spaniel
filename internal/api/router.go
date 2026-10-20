@@ -220,7 +220,11 @@ func respondErr(w http.ResponseWriter, req *http.Request, code int, msg string) 
 	json.NewEncoder(w).Encode(body) //nolint:errcheck
 }
 
-func (r *Router) health(w http.ResponseWriter, _ *http.Request) {
+func (r *Router) health(w http.ResponseWriter, req *http.Request) {
+	if err := r.store.Ping(req.Context()); err != nil {
+		respondErr(w, req, http.StatusServiceUnavailable, "storage unavailable")
+		return
+	}
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 

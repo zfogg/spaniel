@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -28,6 +29,25 @@ func IsStorageFull(err error) bool {
 		strings.Contains(m, "disk is full") ||
 		strings.Contains(m, "out of disk") ||
 		strings.Contains(m, "enospc")
+}
+
+// IsDatabaseInvalidated reports DuckDB's fatal process-local state. Reopening
+// the database in a fresh process restores service; continuing to use this DB
+// handle only produces repeated failures.
+func IsDatabaseInvalidated(err error) bool {
+	if err == nil {
+		return false
+	}
+	m := strings.ToLower(err.Error())
+	return strings.Contains(m, "database has been invalidated") ||
+		(strings.Contains(m, "database must be restarted") && strings.Contains(m, "fatal error"))
+}
+
+// Ping verifies that DuckDB can execute a query, not merely that the HTTP
+// process is alive. This detects invalidated database handles for readiness.
+func (d *DB) Ping(ctx context.Context) error {
+	var value int
+	return d.gorm.WithContext(ctx).Raw("SELECT 1").Scan(&value).Error
 }
 
 // Full reports whether the storage is currently full (writes rejected). It's an

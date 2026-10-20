@@ -96,7 +96,7 @@ func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig
 // runRetention applies age/count retention immediately and then hourly. The
 // size limit is merged from the live policy so disabling auto-prune stops every
 // automatic size-based deletion path without affecting explicit retention.
-func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storageGuardPolicy) {
+func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storageGuardPolicy, reportFatal func(error)) {
 	apply := func() {
 		ctx, span := otel.Tracer("spaniel/retention").Start(context.Background(), "spaniel.retention.prune")
 		t0 := time.Now()
@@ -110,6 +110,9 @@ func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storag
 			span.SetStatus(codes.Error, err.Error())
 			span.End()
 			slog.Error("retention prune failed", "err", err)
+			if storage.IsDatabaseInvalidated(err) {
+				reportFatal(err)
+			}
 			return
 		}
 		deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
@@ -157,11 +160,11 @@ type storageGuardStore interface {
 // it never deletes and marks storage full only at the hard cap. With it enabled,
 // pruning begins at 95% and targets 65%, leaving headroom for ingest bursts. If
 // pruning cannot restore that headroom, ingestion pauses before the hard cap.
-func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
+func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) error {
 	maxBytes := policy.maxBytes.Load()
 	if maxBytes <= 0 {
 		store.SetFull(false)
-		return
+		return nil
 	}
 
 	size := store.UsedSize()
@@ -173,7 +176,7 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 				"db_mb", float64(size)/1024/1024,
 				"cap_mb", float64(maxBytes)/1024/1024)
 		}
-		return
+		return nil
 	}
 
 	highWater := maxBytes * storageHighWaterPercent / 100
@@ -186,7 +189,7 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	}
 	if size < highWater {
 		store.SetFull(false)
-		return
+		return nil
 	}
 
 	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target}, store.ActiveSessionID())
@@ -199,6 +202,9 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	}
 	if err != nil {
 		slog.Error("storage guard auto-prune failed", "err", err)
+		if storage.IsDatabaseInvalidated(err) {
+			return err
+		}
 	}
 	// Staying above the proactive high-water mark after one pass is not a
 	// storage-full condition: queued ingestion may flush as appenders reopen,
@@ -211,7 +217,7 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 			"db_mb", float64(after)/1024/1024,
 			"high_water_mb", float64(highWater)/1024/1024,
 			"cap_mb", float64(maxBytes)/1024/1024)
-		return
+		return nil
 	}
 	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
 	if deleted > 0 {
@@ -221,14 +227,17 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 			"target_mb", float64(target)/1024/1024,
 			"cap_mb", float64(maxBytes)/1024/1024)
 	}
+	return nil
 }
 
 // runStorageGuard enforces the live size policy between hourly retention
 // passes. Checking every five seconds provides enough headroom for bursty
 // local telemetry without continuously querying DuckDB.
-func runStorageGuard(store *storage.DB, policy *storageGuardPolicy) {
+func runStorageGuard(store *storage.DB, policy *storageGuardPolicy, reportFatal func(error)) {
 	check := func() {
-		checkStorageGuard(store, policy)
+		if err := checkStorageGuard(store, policy); err != nil {
+			reportFatal(err)
+		}
 	}
 	check()
 	ticker := time.NewTicker(storageGuardInterval)

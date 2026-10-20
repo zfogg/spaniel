@@ -29,6 +29,23 @@ func TestIsStorageFull(t *testing.T) {
 	}
 }
 
+func TestIsDatabaseInvalidated(t *testing.T) {
+	cases := []struct {
+		err  error
+		want bool
+	}{
+		{nil, false},
+		{errors.New("context deadline exceeded"), false},
+		{errors.New("database has been invalidated because of a previous fatal error"), true},
+		{errors.New("Invalid Input Error: The database must be restarted prior to being used again after a fatal error"), true},
+	}
+	for _, c := range cases {
+		if got := IsDatabaseInvalidated(c.err); got != c.want {
+			t.Errorf("IsDatabaseInvalidated(%v) = %v, want %v", c.err, got, c.want)
+		}
+	}
+}
+
 func TestFullFlag(t *testing.T) {
 	d, err := Open(":memory:")
 	if err != nil {

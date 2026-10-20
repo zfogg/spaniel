@@ -46,6 +46,21 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 }
 
+func TestHealthEndpointReportsClosedStorage(t *testing.T) {
+	handler, store := setupRouter(t)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", w.Code)
+	}
+}
+
 func TestDrainRequestBodyMiddlewareReadsIgnoredPayload(t *testing.T) {
 	h := drainRequestBodyMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	req := httptest.NewRequest(http.MethodPost, "/ignored", strings.NewReader("payload"))

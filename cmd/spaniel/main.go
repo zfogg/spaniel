@@ -660,17 +660,24 @@ func run(cfg runConfig) error {
 
 	storagePolicy := newStorageGuardPolicy(int64(cfg.MaxDBSizeMB)*1024*1024, cfg.AutoPrune)
 	telemetry.Catalog().SetStorageDBSizeLimit(int64(cfg.MaxDBSizeMB) * 1024 * 1024)
+	storageFatalCh := make(chan error, 1)
+	reportStorageFatal := func(err error) {
+		select {
+		case storageFatalCh <- fmt.Errorf("storage database invalidated; restart required: %w", err):
+		default:
+		}
+	}
 
 	// Panic-safe: a bare `go` here means a single panic silently kills
 	// auto-pruning for the rest of the process lifetime and the disk fills up.
 	goroutine.Go(func() {
-		runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, 0), storagePolicy)
+		runRetention(store, retentionConfig(cfg.RetentionDays, cfg.MaxSessions, 0), storagePolicy, reportStorageFatal)
 	}, "subsystem", "retention")
 
 	// Enforce the size cap between retention passes. Auto-prune mode deletes old
 	// sessions proactively; preserve mode pauses ingestion at the hard cap.
 	goroutine.Go(func() {
-		runStorageGuard(store, storagePolicy)
+		runStorageGuard(store, storagePolicy, reportStorageFatal)
 	}, "subsystem", "storage-guard")
 
 	hub := ws.NewHub()
@@ -1027,10 +1034,20 @@ func run(cfg runConfig) error {
 		}
 	}()
 
-	ctx, stop := notifyShutdown(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signalCtx, stop := notifyShutdown(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancelRun := context.WithCancelCause(signalCtx)
+	go func() {
+		select {
+		case err := <-storageFatalCh:
+			slog.Error("storage database requires process restart", "err", err)
+			cancelRun(err)
+		case <-ctx.Done():
+		}
+	}()
 	api.ConfigureAlertDelivery(api.AlertDelivery{BrowserEnabled: func() bool { return cfg.Viper.GetBool("alerts.browser_enabled") }, PushoverEnabled: func() bool { return cfg.Viper.GetBool("alerts.pushover_enabled") }, BrowserTemplate: func() string { return cfg.Viper.GetString("alerts.browser_template") }, PushoverTemplate: func() string { return cfg.Viper.GetString("alerts.pushover_template") }, PushoverUserKey: os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"), PushoverAPIToken: os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"), RecordEvent: func(e *storage.AlertEvent) { _ = store.RecordAlertEvent(e) }, RecordNotification: func(n *storage.NotificationRecord) { _ = store.RecordNotification(n) }})
 	api.StartAlertEvaluator(ctx, store, hub, 15*time.Second)
 	defer stop()
+	defer cancelRun(nil)
 
 	lns, err := listenAll(hosts, cfg.Port)
 	if err != nil {
@@ -1063,17 +1080,23 @@ func run(cfg runConfig) error {
 
 	serveErr := serveAll(wrapTLS(lns, tlsCfg), srv)
 
-	// Shutdown tasks: run a final retention pass, flush drop counters, close DB.
-	retCfg := retentionConfig(cfg.RetentionDays, cfg.MaxSessions, 0)
-	retCfg.MaxDBSizeBytes = storagePolicy.RetentionSizeLimit()
-	if _, err := store.Prune(retCfg, store.ActiveSessionID()); err != nil {
-		fmt.Fprintf(os.Stderr, "shutdown retention: %v\n", err)
+	storageCause := context.Cause(ctx)
+	if storageCause == nil || errors.Is(storageCause, context.Canceled) {
+		// Shutdown tasks: run a final retention pass, flush drop counters, close DB.
+		retCfg := retentionConfig(cfg.RetentionDays, cfg.MaxSessions, 0)
+		retCfg.MaxDBSizeBytes = storagePolicy.RetentionSizeLimit()
+		if _, err := store.Prune(retCfg, store.ActiveSessionID()); err != nil {
+			fmt.Fprintf(os.Stderr, "shutdown retention: %v\n", err)
+		}
+		dc := pipeline.DropCounters()
+		_ = store.SaveDropCounters(dc.DroppedSpansTotal(), dc.DroppedLogsTotal(), dc.DroppedMetricPointsTotal())
 	}
-	dc := pipeline.DropCounters()
-	_ = store.SaveDropCounters(dc.DroppedSpansTotal(), dc.DroppedLogsTotal(), dc.DroppedMetricPointsTotal())
 
 	// A listener-closed error from a clean shutdown is not a real failure.
 	if ctx.Err() != nil {
+		if storageCause != nil && !errors.Is(storageCause, context.Canceled) {
+			return storageCause
+		}
 		return nil
 	}
 	return serveErr

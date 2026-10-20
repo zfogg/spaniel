@@ -161,8 +161,8 @@ func (d *DB) withMaintenance(fn func(*DB) error) error {
 // which wedged a retention commit and all ingestion on Pi5 (2026-10-19).
 // New queries wait in database/sql, where their contexts remain cancellable.
 func (d *DB) exclusiveSQLMaintenance(fn func(*DB) error) error {
-	ctx, cancel := context.WithTimeout(d.gorm.Statement.Context, 30*time.Second)
-	defer cancel()
+	drainCtx, cancelDrain := context.WithTimeout(d.gorm.Statement.Context, 30*time.Second)
+	defer cancelDrain()
 	pool := d.SQL()
 	limit := pool.Stats().MaxOpenConnections
 	if limit <= 0 {
@@ -175,14 +175,20 @@ func (d *DB) exclusiveSQLMaintenance(fn func(*DB) error) error {
 		}
 	}()
 	for range limit {
-		conn, err := pool.Conn(ctx)
+		conn, err := pool.Conn(drainCtx)
 		if err != nil {
 			return fmt.Errorf("drain SQL pool for maintenance: %w", err)
 		}
 		conns = append(conns, conn)
 	}
+	// The acquisition deadline must not cancel native DuckDB work after we own
+	// the complete pool. Interrupting a retention transaction, VACUUM, or
+	// CHECKPOINT can invalidate the database for the rest of the process. Keep
+	// the caller's values (including trace context), but let the exclusive
+	// maintenance operation finish and commit before releasing its connections.
+	maintenanceCtx := context.WithoutCancel(d.gorm.Statement.Context)
 	maintenance := *d
-	maintenance.gorm = d.gorm.Session(&gorm.Session{NewDB: true, Context: ctx})
+	maintenance.gorm = d.gorm.Session(&gorm.Session{NewDB: true, Context: maintenanceCtx})
 	maintenance.gorm.Statement.ConnPool = conns[0]
 	maintenance.query = querygen.Use(maintenance.gorm)
 	return fn(&maintenance)

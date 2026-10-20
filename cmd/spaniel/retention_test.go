@@ -33,7 +33,7 @@ func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {
 	policy := newStorageGuardPolicy(100, false)
 	store := &fakeStorageGuardStore{size: 99}
 
-	checkStorageGuard(store, policy)
+	_ = checkStorageGuard(store, policy)
 	if store.full {
 		t.Fatal("storage below the cap should remain writable")
 	}
@@ -42,7 +42,7 @@ func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {
 	}
 
 	store.size = 100
-	checkStorageGuard(store, policy)
+	_ = checkStorageGuard(store, policy)
 	if !store.full {
 		t.Fatal("storage at the cap should report full")
 	}
@@ -54,13 +54,13 @@ func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {
 func TestStorageGuardEnabledPrunesAt95PercentTo65Percent(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
 	store := &fakeStorageGuardStore{size: 94, activeID: "active"}
-	checkStorageGuard(store, policy)
+	_ = checkStorageGuard(store, policy)
 	if store.pruneCalls != 0 || store.full {
 		t.Fatal("storage below the high-water mark should retain telemetry and remain writable")
 	}
 	store.size = 95
 
-	checkStorageGuard(store, policy)
+	_ = checkStorageGuard(store, policy)
 
 	if store.pruneCalls != 1 {
 		t.Fatalf("got %d prune calls, want 1", store.pruneCalls)
@@ -77,10 +77,23 @@ func TestStorageGuardEnabledPausesBeforeCapWhenPruneFails(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
 	store := &fakeStorageGuardStore{size: 95, pruneErr: errors.New("boom")}
 
-	checkStorageGuard(store, policy)
+	_ = checkStorageGuard(store, policy)
 
 	if !store.full {
 		t.Fatal("failed proactive prune should pause ingestion before the hard cap")
+	}
+}
+
+func TestStorageGuardReportsInvalidatedDatabase(t *testing.T) {
+	policy := newStorageGuardPolicy(100, true)
+	store := &fakeStorageGuardStore{
+		size:     95,
+		pruneErr: errors.New("database has been invalidated because of a previous fatal error"),
+	}
+
+	err := checkStorageGuard(store, policy)
+	if !storage.IsDatabaseInvalidated(err) {
+		t.Fatalf("checkStorageGuard error = %v, want invalidated database", err)
 	}
 }
 
