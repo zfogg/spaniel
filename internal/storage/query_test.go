@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -37,7 +36,7 @@ func openFileDB(t *testing.T) *DB {
 func openQueryGateDB(t *testing.T) *DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "query-gate.duckdb")
-	g, err := gorm.Open(duckdb.Open(duckDBDSN(path, false)), &gorm.Config{})
+	g, err := gorm.Open(duckdb.Open(duckDBDSN(path)), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open query gate database: %v", err)
 	}
@@ -123,7 +122,7 @@ func TestReadOnlyQuery_RejectsWrites(t *testing.T) {
 		"CREATE TABLE t (a INTEGER)",
 	} {
 		if _, _, _, err := d.ReadOnlyQuery(context.Background(), q, 10); err == nil {
-			t.Errorf("expected engine to reject: %s", q)
+			t.Errorf("expected query gate to reject: %s", q)
 		}
 	}
 	if n := spanCount(t, d); n != 1 {
@@ -132,9 +131,7 @@ func TestReadOnlyQuery_RejectsWrites(t *testing.T) {
 }
 
 // TestReadOnlyQuery_MutationRegression exercises the gate through the public
-// query path. On Windows these statements would otherwise run on Spaniel's
-// shared read-write DuckDB instance; on other platforms DuckDB's read-only
-// instance provides a second line of defence.
+// query path. All platforms use the server's shared read-write instance.
 func TestReadOnlyQuery_MutationRegression(t *testing.T) {
 	d := openQueryGateDB(t)
 	queries := []string{
@@ -199,24 +196,40 @@ func TestReadOnlyQuery_Truncation(t *testing.T) {
 	}
 }
 
-func TestReadOnlyQuery_InMemoryUnsupported(t *testing.T) {
-	d, err := Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+func TestReadOnlyQuery_InMemory(t *testing.T) {
+	d := openTestDB(t)
 	_, rows, _, err := d.ReadOnlyQuery(context.Background(), "SELECT 1", 10)
-	if runtime.GOOS == "windows" {
-		if err != nil {
-			t.Fatalf("Windows should query the server connection safely: %v", err)
-		}
-		if len(rows) != 1 || rows[0][0] != int32(1) && rows[0][0] != int64(1) {
-			t.Errorf("rows = %#v, want one row containing 1", rows)
-		}
-		return
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("in-memory query: rows=%v err=%v", rows, err)
 	}
-	if err == nil {
-		t.Error("expected in-memory DB to report read-only SQL unavailable")
+}
+
+// A query must see committed writes and leave ingestion writable afterward.
+// Running this on Linux catches attempts to reopen with access_mode=read_only.
+func TestReadOnlyQuery_SharedWriter(t *testing.T) {
+	d := openQueryGateDB(t)
+	for i := 0; i < 2; i++ {
+		if _, err := d.SQL().Exec("INSERT INTO spans VALUES ('t', 'b', 'new')"); err != nil {
+			t.Fatal(err)
+		}
+		if got := spanCount(t, d); got != i+2 {
+			t.Fatalf("count = %d, want %d", got, i+2)
+		}
+	}
+}
+
+func TestReadOnlyQuery_RejectsExternalAccess(t *testing.T) {
+	d := openQueryGateDB(t)
+	for _, query := range []string{
+		"SELECT * FROM read_csv('/etc/passwd')",
+		"SELECT * FROM read_text('/etc/passwd')",
+		"SELECT * FROM read_parquet('https://example.com/data.parquet')",
+	} {
+		if _, _, _, err := d.ReadOnlyQuery(context.Background(), query, 1); err == nil {
+			t.Fatalf("external access accepted: %s", query)
+		} else if !strings.Contains(err.Error(), "disabled") && !strings.Contains(err.Error(), "file system operations") {
+			t.Fatalf("expected external access denial for %s, got %v", query, err)
+		}
 	}
 }
 

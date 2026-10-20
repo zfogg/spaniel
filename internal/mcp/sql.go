@@ -23,14 +23,14 @@ func (h *handler) registerSQLTool(s *mcpsdk.Server) {
 			"Tables: spans, logs, metrics, sessions, trace_issues, lint_warnings, span_events, span_links, meta. " +
 			"The attributes/resource columns are JSON stored as VARCHAR (use DuckDB's json functions or ::JSON). " +
 			"Run `SHOW TABLES` or `DESCRIBE <table>` to inspect the schema. " +
-			"Read-only is enforced by the DuckDB engine: any write, DDL, COPY, or ATTACH is rejected. " +
+			"Read-only SQL validation rejects mutations: any write, DDL, COPY, or ATTACH is rejected. " +
 			"Results are capped at max_rows (default 1000).",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, h.querySQL)
 }
 
 type QuerySQLInput struct {
-	SQL     string `json:"sql" jsonschema:"the SQL to run (read-only; the engine rejects writes)"`
+	SQL     string `json:"sql" jsonschema:"the SQL to run (read-only; mutating statements are rejected)"`
 	Name    string `json:"name,omitempty" jsonschema:"optional simple query name; Spaniel adds the spaniel.storage. prefix (default UserQuery)"`
 	MaxRows int    `json:"max_rows,omitempty" jsonschema:"max rows to return (default 1000, max 50000)"`
 }
@@ -57,8 +57,8 @@ func (h *handler) querySQL(ctx context.Context, _ *mcpsdk.CallToolRequest, in Qu
 	qctx, cancel := context.WithTimeout(ctx, sqlQueryTimeout)
 	defer cancel()
 
-	// Read-only is enforced by the DuckDB engine (the store opens a read-only
-	// connection); a write/DDL/COPY/ATTACH comes back here as an error.
+	// The storage query gate rejects writes, DDL, COPY, and ATTACH before
+	// running SQL on the shared DuckDB pool.
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		name = "UserQuery"

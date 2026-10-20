@@ -67,7 +67,7 @@ const (
 var duckDBMaxOpenConnections = len(batchTables) + duckDBGORMConnections
 
 func Open(path string) (*DB, error) {
-	g, err := gorm.Open(duckdb.Open(duckDBDSN(path, false)), &gorm.Config{
+	g, err := gorm.Open(duckdb.Open(duckDBDSN(path)), &gorm.Config{
 		Logger:                 logger.Default.LogMode(logger.Silent),
 		SkipDefaultTransaction: true,
 	})
@@ -109,18 +109,16 @@ func Open(path string) (*DB, error) {
 // duckDBDSN places resource limits in the connector configuration rather than
 // issuing SET statements on one connection. database/sql opens connections
 // lazily, so per-connection SETs leave later query connections unconstrained.
-func duckDBDSN(path string, readOnly bool) string {
+func duckDBDSN(path string) string {
 	sep := "?"
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
 	settings := fmt.Sprintf("threads=%d&memory_limit=%s", duckDBWorkerThreads, duckDBMemoryLimit)
-	if readOnly {
-		// User-authored dashboard and alert SQL runs on this connection. Keep
-		// DuckDB from reaching the network/filesystem or loading extensions even
-		// when a query uses otherwise read-looking SQL constructs.
-		settings += "&access_mode=read_only&enable_external_access=false&autoinstall_known_extensions=false&autoload_known_extensions=false&allow_community_extensions=false&lock_configuration=true"
-	}
+	// User SQL shares this instance with ingestion. Disable external I/O and
+	// extension loading on the instance so SELECT table functions cannot bypass
+	// the read-only SQL gate. All connections inherit the same configuration.
+	settings += "&enable_external_access=false&autoinstall_known_extensions=false&autoload_known_extensions=false&allow_community_extensions=false&lock_configuration=true"
 	return path + sep + settings
 }
 

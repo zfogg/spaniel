@@ -2,9 +2,7 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"runtime"
 	"strings"
 
 	"github.com/zfogg/gotel/sqltrace"
@@ -12,20 +10,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// ReadOnlyQuery runs query against a read-only DuckDB connection to the same
-// database file and returns the result columns and rows (capped at maxRows;
-// truncated reports whether more rows were available). []byte values are
-// converted to strings so they marshal cleanly to JSON.
-//
-// Read-only is enforced by DuckDB itself on platforms that can open a
-// read-only instance alongside the server's writer. Windows cannot do that:
-// DuckDB holds an exclusive file lock for its read-write instance, so there we
-// reuse the server's connection after rejecting every mutating SQL keyword.
-// The guard deliberately tokenizes rather than parsing a different SQL dialect,
-// preserving DuckDB-specific SELECT syntax.
-//
-// Non-Windows platforms require a file-backed database because an in-memory
-// database can't be reopened as a second, read-only instance.
+// ReadOnlyQuery runs validated read-only SQL on the server's bounded DuckDB
+// pool and returns columns and rows capped at maxRows. []byte values become
+// strings for JSON. DuckDB cannot reopen an active writer with a different
+// access_mode or configuration, on any platform. The SQL gate rejects mutations
+// before execution; the shared instance disables external access and extensions.
 func (d *DB) ReadOnlyQuery(ctx context.Context, query string, maxRows int) (cols []string, rows [][]any, truncated bool, err error) {
 	return d.ReadOnlyQueryArgs(ctx, query, nil, maxRows)
 }
@@ -36,28 +25,14 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	if maxRows <= 0 {
 		maxRows = 1000
 	}
-	if runtime.GOOS != "windows" && (d.path == "" || d.path == ":memory:") {
-		return nil, nil, false, fmt.Errorf("read-only SQL is unavailable: the database is in-memory, not file-backed")
-	}
 	if err := validateReadOnlySQL(query); err != nil {
 		return nil, nil, false, err
-	}
-	var ro *sql.DB
-	if runtime.GOOS == "windows" {
-		ro = d.SQL()
-	} else {
-		ro, err = sql.Open("duckdb", duckDBDSN(d.path, true))
-		if err != nil {
-			return nil, nil, false, fmt.Errorf("open read-only connection: %w", err)
-		}
-		defer ro.Close() //nolint:errcheck
-		ro.SetMaxOpenConns(1)
 	}
 
 	// Internal callers such as catalog discovery can opt out through
 	// WithoutTracing. Explicit WithQueryName contexts win; otherwise the stable
 	// ReadOnlyQuery fallback is used for user-authored dashboard and alert SQL.
-	rs, err := sqltrace.QueryContext(ctx, ro, sqltrace.SpanConfig{
+	rs, err := sqltrace.QueryContext(ctx, d.SQL(), sqltrace.SpanConfig{
 		Tracer: otel.Tracer("spaniel/storage"), Namer: storageNamer, Name: "ReadOnlyQuery",
 		Dialect: sqltrace.DialectDuckDB, System: "duckdb", Namespace: "spaniel",
 		Kind: trace.SpanKindInternal, Observe: storageObserver,
@@ -99,7 +74,7 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 }
 
 // ValidateReadOnlySQL verifies that a statement is suitable for the read-only
-// query runner. Execution still occurs on DuckDB's read-only connection.
+// query runner. The same gate protects the shared writer pool on every platform.
 func ValidateReadOnlySQL(query string) error { return validateReadOnlySQL(query) }
 
 var mutatingSQLKeywords = map[string]struct{}{
