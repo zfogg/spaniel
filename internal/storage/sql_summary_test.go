@@ -54,13 +54,14 @@ func TestWithQueryNamePanicsOnInvalidName(t *testing.T) {
 
 func TestSQLSummary(t *testing.T) {
 	for _, tt := range []struct{ sql, want string }{
-		{"SELECT * FROM spans WHERE trace_id = 'secret' ORDER BY start_ns DESC", "SELECT spans"},
-		{"SELECT id, service_name FROM spans WHERE trace_id = 'secret' AND kind = 2", "SELECT spans"},
-		{"WITH recent AS (SELECT * FROM spans) SELECT * FROM recent", "SELECT spans"},
-		{"INSERT INTO sessions (id) VALUES (?)", "INSERT sessions"},
-		{"UPDATE sessions SET label = ?", "UPDATE sessions"},
-		{"DELETE FROM spans WHERE trace_id = $1", "DELETE spans"},
-		{"EXPLAIN SELECT * FROM spans", "EXPLAIN SELECT spans"},
+		{"SELECT * FROM spans WHERE trace_id = 'secret' ORDER BY start_ns DESC", "SELECT … FROM spans WHERE … ORDER BY …"},
+		{"SELECT id, service_name FROM spans WHERE trace_id = 'secret' AND kind = 2", "SELECT … FROM spans WHERE …"},
+		{"WITH recent AS (SELECT * FROM spans) SELECT * FROM recent", "WITH recent AS (SELECT … FROM spans) SELECT … FROM recent"},
+		{"INSERT INTO sessions (id) VALUES (?)", "INSERT INTO sessions VALUES …"},
+		{"UPDATE sessions SET label = ?", "UPDATE sessions SET …"},
+		{"DELETE FROM spans WHERE trace_id = $1", "DELETE FROM spans WHERE …"},
+		{"EXPLAIN SELECT * FROM spans", "EXPLAIN SELECT … FROM spans"},
+		{"SELECT * FROM spans s LEFT JOIN LATERAL (SELECT * FROM logs WHERE trace_id=s.trace_id LIMIT 1) l ON true LIMIT ?", "SELECT … FROM spans LEFT JOIN LATERAL (SELECT … FROM logs WHERE … LIMIT 1) LIMIT ?"},
 	} {
 		if got := sqlSummary(tt.sql); got != tt.want {
 			t.Errorf("sqlSummary(%q) = %q, want %q", tt.sql, got, tt.want)
@@ -105,7 +106,7 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 		for _, attr := range span.Attributes() {
 			attrs[string(attr.Key)] = attr.Value.AsString()
 		}
-		if attrs["db.query.summary"] != "SELECT" {
+		if attrs["db.query.summary"] != "SELECT …" {
 			t.Errorf("summary = %q", attrs["db.query.summary"])
 		}
 		if attrs["db.query.text"] != "SELECT ? AS value" {
@@ -141,8 +142,8 @@ func TestReadOnlyQueryUsesExplicitUserName(t *testing.T) {
 		for _, attr := range span.Attributes() {
 			if string(attr.Key) == "db.query.summary" {
 				foundSummary = true
-				if attr.Value.AsString() != "SELECT" {
-					t.Errorf("summary = %q, want SELECT", attr.Value.AsString())
+				if attr.Value.AsString() != "SELECT …" {
+					t.Errorf("summary = %q, want SELECT …", attr.Value.AsString())
 				}
 			}
 		}
@@ -152,4 +153,44 @@ func TestReadOnlyQueryUsesExplicitUserName(t *testing.T) {
 		return
 	}
 	t.Fatal("no explicitly named read-only SQL span recorded")
+}
+
+// TestReadOnlyQueryStructuralSummary verifies complex SQL actually executes in
+// DuckDB and that the emitted named span preserves its query topology and bounds.
+func TestReadOnlyQueryStructuralSummary(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = provider.Shutdown(context.Background()) })
+	d, err := Open(filepath.Join(t.TempDir(), "structural.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	const sql = `WITH recent AS MATERIALIZED (
+		SELECT trace_id FROM spans ORDER BY start_ns DESC LIMIT 1
+	) SELECT r.trace_id FROM recent r LEFT JOIN LATERAL (
+		SELECT trace_id FROM logs WHERE trace_id=r.trace_id LIMIT 1
+	) l ON true UNION ALL SELECT trace_id FROM spans LIMIT CAST(5 AS BIGINT)`
+	ctx := WithQueryName(context.Background(), "VerifyStructuralSummary")
+	if _, _, _, err := d.ReadOnlyQuery(ctx, sql, 10); err != nil {
+		t.Fatal(err)
+	}
+	const want = "WITH recent AS MATERIALIZED (SELECT … FROM spans ORDER BY … LIMIT 1) SELECT … FROM recent LEFT JOIN LATERAL (SELECT … FROM logs WHERE … LIMIT 1) UNION ALL SELECT … FROM spans LIMIT ?"
+	for _, span := range recorder.Ended() {
+		if span.Name() != "spaniel.storage.VerifyStructuralSummary" {
+			continue
+		}
+		for _, attr := range span.Attributes() {
+			if string(attr.Key) == "db.query.summary" {
+				if got := attr.Value.AsString(); got != want {
+					t.Fatalf("summary = %q; want %q", got, want)
+				}
+				return
+			}
+		}
+		t.Fatal("storage span missing summary")
+	}
+	t.Fatal("no complex read-only SQL span recorded")
 }

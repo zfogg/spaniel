@@ -176,7 +176,7 @@ func TestNamedHelpersPrefixSimpleNames(t *testing.T) {
 				attrs[string(attr.Key)] = attr.Value.AsInt64()
 			}
 		}
-		if attrs["db.query.text"] != "SELECT ?" || attrs["db.query.summary"] != "SELECT" || attrs["gotel.db.query.bind_count"] != int64(1) {
+		if attrs["db.query.text"] != "SELECT ?" || attrs["db.query.summary"] != "SELECT …" || attrs["gotel.db.query.bind_count"] != int64(1) {
 			t.Errorf("SelectOne safe query attrs = %#v", attrs)
 		}
 		break
