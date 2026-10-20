@@ -40,7 +40,7 @@ func (d *DB) ListNotifications(source string, page, limit int) ([]*NotificationR
 	if err != nil {
 		return nil, 0, err
 	}
-	items, err := q.Order(d.query.NotificationRecord.CreatedAt.Desc()).Offset((page - 1) * limit).Limit(limit).Find()
+	items, err := q.Order(d.query.NotificationRecord.CreatedAt.Desc(), d.query.NotificationRecord.ID.Desc()).Offset((page - 1) * limit).Limit(limit).Find()
 	return items, total, err
 }
 

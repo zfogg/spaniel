@@ -647,7 +647,7 @@ func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInst
 	}
 	inbox := func(severity, title, body, dedupe string) {
 		if d.RecordNotification != nil {
-			notification := &storage.NotificationRecord{Source: "alert", SourceID: rule.ID, Severity: severity, Title: title, Body: body, Link: "/alerts?id=" + rule.ID, DedupeKey: dedupe}
+			notification := &storage.NotificationRecord{Source: "alert", SourceID: rule.ID, Severity: severity, Title: title, Body: body, Link: "/alerts?id=" + rule.ID, DedupeKey: fmt.Sprintf("%s:%d", dedupe, now.UnixNano())}
 			d.RecordNotification(notification)
 			if hub != nil {
 				hub.Broadcast(&ws.Event{Type: "notification", Timestamp: now.UnixNano(), Payload: map[string]string{"id": notification.ID, "source": notification.Source, "sourceId": notification.SourceID}})

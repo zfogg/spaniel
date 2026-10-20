@@ -347,8 +347,14 @@ func (r *Router) testAlertNotification(w http.ResponseWriter, q *http.Request) {
 	if in.Destination == "browser" {
 		event := alertEvent(rule, instance, "test", now)
 		payload, _ := event.Payload.(map[string]any)
+		notification := &storage.NotificationRecord{Source: "alert", SourceID: rule.ID, Severity: rule.Severity, Title: rule.Name, Body: fmt.Sprint(payload["body"]), Link: "/alerts?id=" + rule.ID}
+		if err := r.store.WithContext(q.Context()).RecordNotification(notification); err != nil {
+			respondErr(w, q, http.StatusInternalServerError, err.Error())
+			return
+		}
 		if r.hub != nil {
 			r.hub.Broadcast(event)
+			r.hub.Broadcast(&ws.Event{Type: "notification", Timestamp: now.UnixNano(), Payload: map[string]string{"id": notification.ID, "source": "alert", "sourceId": rule.ID}})
 		}
 		_ = r.store.WithContext(q.Context()).RecordAlertEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: "test", Kind: "notification_browser_test", State: "firing", Value: &value, Detail: fmt.Sprint(payload["body"])})
 		respond(w, map[string]any{"destination": "browser", "status": "sent", "body": payload["body"]}, 1, 1)

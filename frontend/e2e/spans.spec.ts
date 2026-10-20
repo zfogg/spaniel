@@ -67,7 +67,8 @@ test.describe('Spans page', () => {
   test('is accessible via the Spans nav link', async ({ page }) => {
     await stubBackend(page)
     await page.goto('/')
-    await page.getByRole('link', { name: 'Spans' }).click()
+    await page.getByRole('button', { name: 'Telemetry', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Spans', exact: true }).click()
     await expect(page).toHaveURL('/spans')
   })
 

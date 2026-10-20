@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"fmt"
+
 	"github.com/zfogg/spaniel/internal/model"
 	"gorm.io/gorm/clause"
 )
@@ -76,10 +78,17 @@ func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
 	// DuckDB rejects ON CONFLICT assignments to indexed columns even when
 	// their values do not change. A finding's identity is immutable; only its
 	// accumulated evidence changes when late spans trigger another analysis.
-	return d.namedQuery("UpsertTraceIssue").TraceIssue.Clauses(clause.OnConflict{
+	if err := d.namedQuery("UpsertTraceIssue").TraceIssue.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
-	}).Create(issue)
+	}).Create(issue); err != nil {
+		return err
+	}
+	return d.RecordNotification(&NotificationRecord{
+		Source: "issue", SourceID: issue.ID, Severity: "warning",
+		Title: "Performance issues", Body: fmt.Sprintf("%s (%d)", issue.Kind, issue.Count),
+		Link: "/traces/" + issue.TraceID, DedupeKey: "issue:" + issue.ID,
+	})
 }
 
 func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {

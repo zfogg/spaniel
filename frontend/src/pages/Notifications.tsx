@@ -1,11 +1,11 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import PaginationControls from '@/components/PaginationControls'
 import { api } from '@/lib/api'
 import { qk } from '@/lib/query'
-import { useState } from 'react'
-import { useWS } from '@/lib/ws'
+import { useWS, useWSStatus } from '@/lib/ws'
 
 const tone: Record<string, string> = {
   critical: 'bg-danger-bg text-danger-ink',
@@ -15,14 +15,18 @@ const tone: Record<string, string> = {
 }
 
 export default function Notifications() {
-  const [page, setPage] = useState(1)
+  const [params, setParams] = useSearchParams()
+  const rawPage = Number(params.get('page'))
+  const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1
+  const setPage = (next: number) => setParams({ page: String(next) })
+  const status = useWSStatus()
   const qc = useQueryClient()
   const list = useQuery({
-    queryKey: [qk.notifications(), page],
-    queryFn: () => api.notifications.list({ page }),
+    queryKey: [...qk.notifications(), { page, limit: 35 }],
+    queryFn: () => api.notifications.list({ page, limit: 35 }),
   })
   useWS((event) => {
-    if (event.type === 'alert' || event.type === 'issue') {
+    if (event.type === 'alert' || event.type === 'issue' || event.type === 'notification') {
       qc.invalidateQueries({ queryKey: qk.notifications() })
     }
   })
@@ -31,17 +35,31 @@ export default function Notifications() {
       acknowledged ? api.notifications.acknowledge(id) : api.notifications.read(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications() }),
   })
+  useEffect(() => {
+    if (status.connected) qc.invalidateQueries({ queryKey: qk.notifications() })
+  }, [status.connected, qc])
   const rows = list.data?.data ?? []
   return (
     <section className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden p-6">
       <header className="mb-4">
         <h1 className="text-xl font-semibold">Notifications</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Durable alert, lint, and delivery summaries. Alert history remains the detailed audit
-          trail.
+          Past browser notifications, newest first. New notifications appear here live.
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground" role="status">
+          {status.connected ? 'Live updates connected' : 'Reconnecting to live updates…'}
         </p>
       </header>
       <div className="min-h-0 flex-1 overflow-auto rounded border border-border bg-surface">
+        {list.isLoading && (
+          <p className="p-6 text-sm text-muted-foreground">Loading notifications…</p>
+        )}
+        {list.isError && (
+          <div role="alert" className="p-6 text-sm text-danger-ink">
+            Could not load notifications. <button onClick={() => list.refetch()}>Retry</button>
+          </div>
+        )}
+        {mutate.isError && <p role="alert">Could not update notification. Please try again.</p>}
         {rows.map((n) => (
           <article
             key={n.id}
@@ -73,6 +91,7 @@ export default function Notifications() {
                 {!n.read_at && (
                   <button
                     className="rounded border border-border px-2 py-1 text-xs"
+                    disabled={mutate.isPending}
                     onClick={() => mutate.mutate({ id: n.id })}
                   >
                     Read
@@ -81,6 +100,7 @@ export default function Notifications() {
                 {!n.acknowledged_at && (
                   <button
                     className="rounded border border-accent px-2 py-1 text-xs text-accent-ink"
+                    disabled={mutate.isPending}
                     onClick={() => mutate.mutate({ id: n.id, acknowledged: true })}
                   >
                     Acknowledge
@@ -90,13 +110,13 @@ export default function Notifications() {
             </div>
           </article>
         ))}
-        {!list.isLoading && !rows.length && (
+        {!list.isLoading && !list.isError && !rows.length && (
           <p className="p-6 text-sm text-muted-foreground">No notifications yet.</p>
         )}
       </div>
       <PaginationControls
         page={page}
-        pageSize={30}
+        pageSize={35}
         total={list.data?.meta?.total ?? 0}
         itemLabel="notifications"
         onPageChange={setPage}

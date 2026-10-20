@@ -38,5 +38,6 @@ it('refetches a current-session panel when the active session changes', async ()
   expect(preview).toHaveBeenLastCalledWith(
     'dashboard',
     expect.objectContaining({ query_sql: panel.query_sql, variables: {} }),
+    expect.objectContaining({ aborted: false }),
   )
 })

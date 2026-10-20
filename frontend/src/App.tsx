@@ -1,8 +1,8 @@
-import { BrowserRouter, Routes, Route, NavLink, useMatch } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Moon, Sun, Search } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Moon, Sun, Search } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CommandPalette } from '@/components/CommandPalette'
 import { SEARCH_PALETTE_EVENT } from '@/lib/shortcuts'
@@ -19,6 +19,8 @@ import Coverage from './pages/Coverage'
 import Settings from './pages/Settings'
 import Dashboards, { DashboardEditor } from './pages/Dashboards'
 import Alerts from './pages/Alerts'
+import Notifications from './pages/Notifications'
+import NavigationGroups from './components/NavigationGroups'
 import DatabaseSchema from './pages/DatabaseSchema'
 import OpenAPI from './pages/OpenAPI'
 import OpenAPIJSON from './pages/OpenAPIJSON'
@@ -129,103 +131,6 @@ function NavPill({ to, end, label }: { to: string; end?: boolean; label: string 
   )
 }
 
-function DocsMenu() {
-  const docsActive = Boolean(useMatch('/docs/*'))
-  const [visible, setVisible] = useState(false)
-  const [fading, setFading] = useState(false)
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const clearTimers = () => {
-    if (closeTimer.current) clearTimeout(closeTimer.current)
-    if (fadeTimer.current) clearTimeout(fadeTimer.current)
-    closeTimer.current = null
-    fadeTimer.current = null
-  }
-
-  const show = () => {
-    clearTimers()
-    setVisible(true)
-    setFading(false)
-  }
-
-  const scheduleClose = () => {
-    clearTimers()
-    closeTimer.current = setTimeout(() => {
-      setFading(true)
-      fadeTimer.current = setTimeout(() => {
-        setVisible(false)
-        setFading(false)
-      }, 220)
-    }, 300)
-  }
-
-  useEffect(() => clearTimers, [])
-
-  return (
-    <div className="relative" onMouseEnter={show} onMouseLeave={scheduleClose}>
-      <button
-        type="button"
-        onClick={show}
-        aria-current={docsActive ? 'page' : undefined}
-        className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-[5px] text-xs font-medium transition-colors ${
-          docsActive
-            ? 'border-border bg-muted text-foreground'
-            : 'border-transparent text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
-        }`}
-      >
-        Docs {visible && !fading ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-      </button>
-      {visible && (
-        <div
-          className={`absolute left-0 top-full z-[60] w-48 rounded-md border border-border bg-background p-1 shadow-lg transition-opacity duration-200 ease-out ${
-            fading ? 'pointer-events-none opacity-0' : 'opacity-100'
-          }`}
-        >
-          <NavLink
-            to="/openapi-docs"
-            className={({ isActive }) =>
-              `block rounded px-2.5 py-2 text-xs transition-colors ${
-                isActive
-                  ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
-              }`
-            }
-          >
-            OpenAPI docs
-          </NavLink>
-          <NavLink
-            to="/docs/openapi-spec"
-            className={({ isActive }) =>
-              `block rounded px-2.5 py-2 text-xs transition-colors ${
-                isActive
-                  ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
-              }`
-            }
-          >
-            OpenAPI spec file
-          </NavLink>
-          <NavLink
-            to="/docs/database"
-            className={({ isActive }) =>
-              `block rounded px-2.5 py-2 text-xs transition-colors ${
-                isActive
-                  ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-purple-200 hover:text-foreground dark:hover:bg-purple-900'
-              }`
-            }
-          >
-            Database schema
-          </NavLink>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Theme toggle ──────────────────────────────────────────────────────────────
-
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -328,17 +233,10 @@ function Chrome() {
 
       {/* nav */}
       <nav className="flex gap-0.5 shrink-0 whitespace-nowrap" aria-label="Primary navigation">
-        <NavPill to="/" end label="Traces" />
-        <NavPill to="/spans" label="Spans" />
-        <NavPill to="/logs" label="Logs" />
-        <NavPill to="/metrics" label="Metrics" />
-        <NavPill to="/dashboards" label="Dashboards" />
-        <NavPill to="/alerts" label="Alerts" />
+        <NavigationGroups />
         <NavPill to="/services" label="Services" />
-        <NavPill to="/coverage" label="Coverage" />
-        <NavPill to="/lint" label="Lint" />
         <NavPill to="/sessions" label="Sessions" />
-        <DocsMenu />
+        <NavPill to="/notifications" label="Notifications" />
         <NavPill to="/settings" label="Settings" />
       </nav>
 
@@ -413,6 +311,7 @@ function AppShell() {
             <Route path="/dashboards/new" element={<DashboardEditor />} />
             <Route path="/dashboards/:dashboardId" element={<DashboardEditor />} />
             <Route path="/alerts" element={<Alerts />} />
+            <Route path="/notifications" element={<Notifications />} />
             <Route path="/docs/database" element={<DatabaseSchema />} />
             <Route path="/openapi-docs" element={<OpenAPI />} />
             <Route path="/docs/openapi-spec" element={<OpenAPIJSON />} />

@@ -16,7 +16,7 @@ export function NotificationList() {
   const page = notificationPageFrom(params)
   const qc = useQueryClient()
   const notifications = useQuery({
-    queryKey: [qk.notifications(), page],
+    queryKey: [...qk.notifications(), { page, source: 'alert' }],
     queryFn: () => api.notifications.list({ page, source: 'alert' }),
   })
   useWS((event) => {
@@ -87,7 +87,7 @@ export function NotificationInspector() {
   const page = notificationPageFrom(params)
   const qc = useQueryClient()
   const notifications = useQuery({
-    queryKey: [qk.notifications(), page],
+    queryKey: [...qk.notifications(), { page, source: 'alert' }],
     queryFn: () => api.notifications.list({ page, source: 'alert' }),
   })
   const rows = notifications.data?.data ?? []
