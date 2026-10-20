@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func gapSpan(id, parentID string, startMs, endMs int) *storage.Span {
@@ -104,5 +105,44 @@ func TestTracingGap_OrdinaryHTTPRequestStillReportsUncoveredTime(t *testing.T) {
 	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{request, gapSpan("work", "request", 100, 500)}, 0)
 	if len(got) != 1 || got[0].ExampleSpanID != "request" {
 		t.Fatalf("ordinary HTTP request gap was hidden: %+v", got)
+	}
+}
+
+func TestTracingGap_ClientTransportTimeIsNotMissingApplicationWork(t *testing.T) {
+	for _, protocol := range []string{"HTTP", "RPC", "database"} {
+		t.Run(protocol, func(t *testing.T) {
+			client := gapSpan("client", "", 0, 369)
+			client.Kind, client.Name, client.ServiceName = int(trace.SpanKindClient), protocol, "caller"
+			server := gapSpan("server", "client", 70, 294)
+			server.Kind, server.ServiceName = int(trace.SpanKindServer), "remote"
+			if got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{client, server}, 0); len(got) != 0 {
+				t.Fatalf("normal transport/remote latency reported as a gap: %+v", got)
+			}
+		})
+	}
+}
+
+func TestTracingGap_ClientDoesNotHideRealServerWorkWithClockSkew(t *testing.T) {
+	client := gapSpan("client", "", 0, 1000)
+	client.Kind, client.ServiceName = int(trace.SpanKindClient), "caller"
+	// The remote clock is five seconds ahead. Its own coverage is still valid.
+	server := gapSpan("server", "client", 5100, 5500)
+	server.Kind, server.ServiceName = int(trace.SpanKindServer), "remote"
+	work := gapSpan("work", "server", 5200, 5250)
+	work.Kind, work.ServiceName = int(trace.SpanKindInternal), "remote"
+	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{client, server, work}, 0)
+	if len(got) != 1 || got[0].ExampleSpanID != "server" || got[0].WastedNs != int64(350*time.Millisecond) {
+		t.Fatalf("expected only the real server gap, got %+v", got)
+	}
+}
+
+func TestTracingGap_InternalWorkAroundClientCallStillReports(t *testing.T) {
+	operation := gapSpan("operation", "", 0, 1000)
+	operation.Kind = int(trace.SpanKindInternal)
+	client := gapSpan("client", "operation", 100, 200)
+	client.Kind = int(trace.SpanKindClient)
+	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, client}, 0)
+	if len(got) != 1 || got[0].ExampleSpanID != "operation" || got[0].WastedNs != int64(900*time.Millisecond) {
+		t.Fatalf("expected uncovered application work around the client call, got %+v", got)
 	}
 }

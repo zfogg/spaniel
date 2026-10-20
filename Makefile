@@ -117,7 +117,7 @@ test-tracing-gap:
 test-ingest-admission:
 	mkdir -p $(BIN_DIR)
 	go test -race -c -o $(BIN_DIR)/ingest-admission.test$(EXE) ./internal/ingestion
-	./$(BIN_DIR)/ingest-admission.test$(EXE) -test.run 'TestIngestAdmission|TestTracingGap|TestHTTP|TestDB' -test.count=1 -test.v
+	./$(BIN_DIR)/ingest-admission.test$(EXE) -test.run 'TestIngestAdmission|TestTracingGap|TestSynchronousIO|TestHTTP|TestDB' -test.count=1 -test.v
 
 generate:
 	go run ./cmd/genquery

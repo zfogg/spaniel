@@ -4,12 +4,14 @@ import (
 	"time"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const tracingGapThreshold = 50 * time.Millisecond
 
-// TracingGapDetector fires when a parent span has > 50ms of duration not
-// covered by any child span (unexplained latency).
+// TracingGapDetector checks application-operation coverage. Outbound client
+// duration includes transport and remote waiting, which child application
+// spans cannot be expected to cover.
 type TracingGapDetector struct{}
 
 func (*TracingGapDetector) Kind() string { return "tracing_gap" }
@@ -25,6 +27,13 @@ func (*TracingGapDetector) Analyze(traceID, sessionID string, spans []*storage.S
 
 	var issues []*storage.TraceIssue
 	for _, s := range spans {
+		// CLIENT spans measure the entire remote call, including network time.
+		// A remote SERVER child also has its own host clock. Subtracting its
+		// duration from the client is not a measure of missing local work.
+		// Continue analyzing server/internal descendants independently.
+		if s.Kind == int(trace.SpanKindClient) {
+			continue
+		}
 		// HTTP 101 transfers this handler to a long-lived upgraded protocol.
 		// Time between WebSocket messages is connection idle time, not missing
 		// request work. Analyze its child operations normally below.
