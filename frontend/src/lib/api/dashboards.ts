@@ -20,6 +20,12 @@ export const dashboards = {
     unwrap(openapiClient.PATCH('/api/dashboards/{id}', { params: { path: { id } }, body })),
   remove: (id: string) =>
     unwrap(openapiClient.DELETE('/api/dashboards/{id}', { params: { path: { id } } })),
+  acknowledgeYAMLUpdate: (id: string) =>
+    unwrap(
+      openapiClient.POST('/api/dashboards/{id}/acknowledge-yaml-update', {
+        params: { path: { id } },
+      }),
+    ),
   config: async (id: string) => {
     const response = await fetch(`/api/dashboards/${id}/config`)
     if (!response.ok) throw new Error(await response.text())

@@ -1060,23 +1060,28 @@ function GeneralSection({
           <>
             <Row
               label="Write tools"
-              hint="Whether agents can mutate state (create/activate sessions, set baseline, prune)."
+              hint="Whether agents can mutate Spaniel state. Changing this disconnects MCP sessions so they reconnect with the new tool permissions."
               testid="row-mcp-writes"
               align="center"
             >
+              <Toggle
+                on={s.mcp_allow_writes}
+                onChange={(v) => mutate({ mcp_allow_writes: v })}
+                label="allow MCP writes"
+              />
               {s.mcp_allow_writes ? (
                 <>
                   <Pill tone="warn">read + write</Pill>
                   <span className="font-sans text-xs text-muted-foreground">
-                    Agents can modify sessions and prune data.
+                    Agents can modify dashboards, alerts, sessions, coverage, notifications, and
+                    data.
                   </span>
                 </>
               ) : (
                 <>
                   <Pill tone="ok">read-only</Pill>
                   <span className="font-sans text-xs text-muted-foreground">
-                    Enable writes with{' '}
-                    <code className="font-mono text-xs text-foreground">--mcp-allow-writes</code>.
+                    Mutating tools are omitted from MCP.
                   </span>
                 </>
               )}

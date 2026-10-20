@@ -126,6 +126,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/alerts/{id}/acknowledge-yaml-update': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** acknowledge an ID written to alert YAML */
+    post: operations['acknowledgeAlertYamlUpdate']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/alerts/{id}/config': {
     parameters: {
       query?: never
@@ -404,6 +421,23 @@ export interface paths {
     head?: never
     /** patch Dashboard */
     patch: operations['patchDashboard']
+    trace?: never
+  }
+  '/api/dashboards/{id}/acknowledge-yaml-update': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** acknowledge an ID written to dashboard YAML */
+    post: operations['acknowledgeDashboardYamlUpdate']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
     trace?: never
   }
   '/api/dashboards/{id}/config': {
@@ -1289,6 +1323,7 @@ export interface components {
         severity: 'info' | 'warning' | 'critical'
         source_file: string
         source_hash: string
+        source_file_modified: boolean
         updated_at: number
       }[]
       summary: {
@@ -1343,6 +1378,7 @@ export interface components {
       severity: 'info' | 'warning' | 'critical'
       source_file: string
       source_hash: string
+      source_file_modified: boolean
       updated_at: number
     }
     AlertSilence: {
@@ -1435,6 +1471,9 @@ export interface components {
       description: string
       id: string
       name: string
+      source_file: string
+      source_hash: string
+      source_file_modified: boolean
       /** @default [] */
       panels: {
         dashboard_id: string
@@ -2890,6 +2929,39 @@ export interface operations {
       }
     }
   }
+  acknowledgeAlertYamlUpdate: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['Ok']
+          }
+        }
+      }
+      /** @description The file-managed alert was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
   exportAlertConfig: {
     parameters: {
       query?: never
@@ -3908,6 +3980,39 @@ export interface operations {
       }
       /** @description Spaniel could not complete the request. */
       500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  acknowledgeDashboardYamlUpdate: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['Ok']
+          }
+        }
+      }
+      /** @description The file-managed dashboard was not found. */
+      404: {
         headers: {
           [name: string]: unknown
         }
@@ -5572,6 +5677,8 @@ export interface operations {
           max_db_size_mb?: number
           /** @description Limits how many capture sessions Spaniel retains. */
           max_sessions?: number
+          /** @description Allows MCP clients to use mutating tools and hot-reloads the MCP server. */
+          mcp_allow_writes?: boolean
           /** @description Prevents Spaniel from opening the browser automatically on startup. */
           no_browser?: boolean
           /** @description Sets the port accepting OTLP over gRPC. */

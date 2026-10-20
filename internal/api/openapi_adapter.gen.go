@@ -229,6 +229,10 @@ func (r *Router) AcknowledgeAlert(w http.ResponseWriter, req *http.Request, id s
 	r.acknowledgeAlert(w, req)
 }
 
+func (r *Router) AcknowledgeAlertYamlUpdate(w http.ResponseWriter, req *http.Request, id string) {
+	r.acknowledgeAlertYamlUpdate(w, req)
+}
+
 func (r *Router) DuplicateAlert(w http.ResponseWriter, req *http.Request, id string) {
 	r.duplicateAlert(w, req)
 }
@@ -265,6 +269,10 @@ func (r *Router) ImportDashboardConfig(w http.ResponseWriter, req *http.Request)
 
 func (r *Router) ReorderDashboards(w http.ResponseWriter, req *http.Request) {
 	r.reorderDashboards(w, req)
+}
+
+func (r *Router) AcknowledgeDashboardYamlUpdate(w http.ResponseWriter, req *http.Request, id string) {
+	r.acknowledgeDashboardYamlUpdate(w, req)
 }
 
 func (r *Router) CreateDashboardPanel(w http.ResponseWriter, req *http.Request, id string) {

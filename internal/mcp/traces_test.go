@@ -3,10 +3,12 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	toongo "github.com/toon-format/toon-go"
 
 	"github.com/zfogg/spaniel/internal/storage"
 )
@@ -76,7 +78,7 @@ func seedTrace(t *testing.T, store *storage.DB, sessID string) {
 	}
 }
 
-// callStructured calls a tool and decodes its structured output into T.
+// callStructured calls a tool and decodes its TOON text output into T.
 func callStructured[T any](t *testing.T, cs *mcpsdk.ClientSession, name string, args map[string]any) T {
 	t.Helper()
 	res, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: name, Arguments: args})
@@ -86,15 +88,51 @@ func callStructured[T any](t *testing.T, cs *mcpsdk.ClientSession, name string, 
 	if res.IsError {
 		t.Fatalf("%s returned tool error: %+v", name, res.Content)
 	}
-	raw, err := json.Marshal(res.StructuredContent)
+	if res.StructuredContent != nil {
+		t.Fatalf("%s unexpectedly duplicated its result as JSON structuredContent", name)
+	}
+	if len(res.Content) != 1 {
+		t.Fatalf("%s returned %d content blocks, want one TOON block", name, len(res.Content))
+	}
+	content, ok := res.Content[0].(*mcpsdk.TextContent)
+	if !ok {
+		t.Fatalf("%s returned %T, want TextContent", name, res.Content[0])
+	}
+	decoded, err := toongo.DecodeString(content.Text)
 	if err != nil {
-		t.Fatalf("marshal %s output: %v", name, err)
+		t.Fatalf("decode %s TOON output: %v\n%s", name, err, content.Text)
+	}
+	raw, err := json.Marshal(coerceTOONIntegerStrings(decoded))
+	if err != nil {
+		t.Fatalf("marshal decoded %s output: %v", name, err)
 	}
 	var out T
 	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("unmarshal %s output: %v", name, err)
+		t.Fatalf("unmarshal decoded %s output: %v\n%s", name, err, content.Text)
 	}
 	return out
+}
+
+// TOON deliberately quotes integers outside JavaScript's safe range. Convert
+// those decimal strings back for Go structs used by the test suite.
+func coerceTOONIntegerStrings(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		for key, child := range value {
+			value[key] = coerceTOONIntegerStrings(child)
+		}
+		return value
+	case []any:
+		for i, child := range value {
+			value[i] = coerceTOONIntegerStrings(child)
+		}
+		return value
+	case string:
+		if parsed, err := strconv.ParseInt(value, 10, 64); err == nil && (parsed > 9_007_199_254_740_991 || parsed < -9_007_199_254_740_991) {
+			return parsed
+		}
+	}
+	return value
 }
 
 // callToolIsError calls a tool and reports whether it returned a tool error.
@@ -178,10 +216,17 @@ func TestGetTrace(t *testing.T) {
 		}
 	}
 
-	raw, _ := json.Marshal(res.StructuredContent)
+	decoded, err := toongo.DecodeString(text.Text)
+	if err != nil {
+		t.Fatalf("decode TOON output: %v", err)
+	}
+	raw, err := json.Marshal(coerceTOONIntegerStrings(decoded))
+	if err != nil {
+		t.Fatal(err)
+	}
 	var out GetTraceOutput
 	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("decode output: %v", err)
+		t.Fatalf("unmarshal TOON output: %v", err)
 	}
 	if out.SpanCount != 2 {
 		t.Errorf("span_count = %d, want 2", out.SpanCount)

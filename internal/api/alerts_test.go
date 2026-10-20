@@ -75,6 +75,35 @@ func TestAlertsAPI_CreateExportAndPreview(t *testing.T) {
 	}
 }
 
+func TestAlertsAPI_AcknowledgeGeneratedYAMLID(t *testing.T) {
+	handler, store := setupRouter(t)
+	rule := &storage.AlertRule{
+		ID:                 "file-alert",
+		Name:               "File alert",
+		QuerySQL:           "SELECT 1 AS value",
+		ConditionJSON:      `{"kind":"threshold","operator":">","value":0}`,
+		GroupByJSON:        "[]",
+		Severity:           "warning",
+		Enabled:            true,
+		SourceFile:         "alerts/file-alert.yaml",
+		SourceFileModified: true,
+	}
+	if err := store.ReplaceAlertDefinition(rule); err != nil {
+		t.Fatal(err)
+	}
+	w := do(t, handler, http.MethodPost, "/api/alerts/file-alert/acknowledge-yaml-update", map[string]any{})
+	if w.Code != http.StatusOK {
+		t.Fatalf("acknowledge status %d: %s", w.Code, w.Body.String())
+	}
+	saved, err := store.GetAlertRule(rule.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.SourceFileModified {
+		t.Fatal("acknowledge did not clear source_file_modified")
+	}
+}
+
 func TestAlertsAPI_EventsIncludesSilences(t *testing.T) {
 	handler, store := setupRouter(t)
 	rule := &storage.AlertRule{ID: "timeline-rule", Name: "Timeline", QuerySQL: "SELECT 1 AS value", ConditionJSON: `{"kind":"threshold","operator":">","value":0}`, GroupByJSON: "[]", Enabled: true}

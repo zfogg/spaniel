@@ -14,31 +14,31 @@ import (
 func (h *handler) registerTopologyTools(s *mcpsdk.Server) {
 	readOnly := &mcpsdk.ToolAnnotations{ReadOnlyHint: true}
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_service_map",
 		Description: "Get the service dependency graph for a session: nodes (services with span/error counts and p95 latency) and edges (caller→callee with call counts, average duration, and errors). Use to understand how services call each other and where errors concentrate. Defaults to the active session.",
 		Annotations: readOnly,
 	}, h.getServiceMap)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_services",
 		Description: "List all service.name values observed across stored telemetry.",
 		Annotations: readOnly,
 	}, h.listServices)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_stats",
 		Description: "Get counts and storage stats for a session (spans, traces, logs, sessions, DB size, and dropped-signal counters). Defaults to the active session.",
 		Annotations: readOnly,
 	}, h.getStats)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_metrics",
 		Description: "List the metric catalog for a session: each metric name with its type (gauge/counter/histogram), unit, description, service, and sample count. Use get_metric_series to fetch the actual data points. Defaults to the active session.",
 		Annotations: readOnly,
 	}, h.getMetrics)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_metric_series",
 		Description: "Get the time-series data points for one metric (by name), optionally narrowed by service and a [from_ns, to_ns] time window. Points include value, attributes, and exemplar links to traces. Defaults to the active session.",
 		Annotations: readOnly,

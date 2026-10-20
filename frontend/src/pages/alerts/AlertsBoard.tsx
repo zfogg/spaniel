@@ -17,6 +17,7 @@ import { ImportAlert } from './ImportAlert'
 import { Inspector } from './AlertInspector'
 import { Empty } from './AlertFields'
 import { History } from './AlertHistory'
+import { toast } from 'sonner'
 export function Alerts() {
   const [searchParams, setSearchParams] = useSearchParams()
   const historyFiltersFromURL = (): HistoryFilters => ({
@@ -60,6 +61,26 @@ export function Alerts() {
   const rules = rulesData?.data.items ?? []
   const ruleTotal = rulesData?.meta?.total ?? 0
   const ruleSummary = rulesData?.data.summary
+  const yamlUpdates = useQuery({
+    queryKey: qk.alerts({ page: 1, state: 'all', yaml_updates: true }),
+    queryFn: () => api.alerts.list({ page: 1, limit: 100, state: 'all' }),
+  })
+  const yamlNoticeSignature = useRef('')
+  useEffect(() => {
+    const modified = (yamlUpdates.data?.data.items ?? []).filter(
+      (rule) => rule.source_file_modified,
+    )
+    const signature = modified
+      .map((rule) => rule.id)
+      .sort()
+      .join(',')
+    if (signature && signature !== yamlNoticeSignature.current) {
+      toast.warning(
+        `Spaniel added ${modified.length === 1 ? 'an ID' : 'IDs'} to ${modified.length} alert YAML ${modified.length === 1 ? 'file' : 'files'}. Save the changed ${modified.length === 1 ? 'file' : 'files'} in your repository.`,
+      )
+    }
+    yamlNoticeSignature.current = signature
+  }, [yamlUpdates.data])
   const history = useQuery({
     queryKey: ['alert-history', historyFilters, historyPage],
     queryFn: () =>

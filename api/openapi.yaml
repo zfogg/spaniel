@@ -212,6 +212,8 @@ components:
                                 type: string
                             source_file:
                                 type: string
+                            source_file_modified:
+                                type: boolean
                             source_hash:
                                 type: string
                             updated_at:
@@ -242,6 +244,7 @@ components:
                             - last_error
                             - source_file
                             - source_hash
+                            - source_file_modified
                             - created_at
                             - updated_at
                             - instances
@@ -377,6 +380,8 @@ components:
                     type: string
                 source_file:
                     type: string
+                source_file_modified:
+                    type: boolean
                 source_hash:
                     type: string
                 updated_at:
@@ -407,6 +412,7 @@ components:
                 - last_error
                 - source_file
                 - source_hash
+                - source_file_modified
                 - created_at
                 - updated_at
                 - instances
@@ -712,6 +718,12 @@ components:
                             - updated_at
                         type: object
                     type: array
+                source_file:
+                    type: string
+                source_file_modified:
+                    type: boolean
+                source_hash:
+                    type: string
                 updated_at:
                     type: number
                 variables:
@@ -757,6 +769,9 @@ components:
                 - id
                 - name
                 - description
+                - source_file
+                - source_hash
+                - source_file_modified
                 - created_at
                 - updated_at
                 - variables
@@ -3544,6 +3559,42 @@ paths:
             summary: acknowledge Alert
             tags:
                 - Alerts
+    /api/alerts/{id}/acknowledge-yaml-update:
+        post:
+            operationId: acknowledgeAlertYamlUpdate
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: YAML update acknowledged
+                                    value:
+                                        data:
+                                            ok: true
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/Ok'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: The file-managed alert was not found.
+            summary: acknowledge an ID written to alert YAML
+            tags:
+                - Alerts
     /api/alerts/{id}/config:
         get:
             operationId: exportAlertConfig
@@ -5066,6 +5117,42 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Spaniel could not complete the request.
             summary: patch Dashboard
+            tags:
+                - Dashboards
+    /api/dashboards/{id}/acknowledge-yaml-update:
+        post:
+            operationId: acknowledgeDashboardYamlUpdate
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: YAML update acknowledged
+                                    value:
+                                        data:
+                                            ok: true
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/Ok'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: The file-managed dashboard was not found.
+            summary: acknowledge an ID written to dashboard YAML
             tags:
                 - Dashboards
     /api/dashboards/{id}/config:
@@ -7278,6 +7365,9 @@ paths:
                                 max_sessions:
                                     description: Limits how many capture sessions Spaniel retains.
                                     type: integer
+                                mcp_allow_writes:
+                                    description: Allows MCP clients to use mutating tools and hot-reloads the MCP server.
+                                    type: boolean
                                 no_browser:
                                     description: Prevents Spaniel from opening the browser automatically on startup.
                                     type: boolean

@@ -20,9 +20,10 @@ import (
 
 const dashboardQueryVersion = 1
 
-func rejectFileManagedDashboard(w http.ResponseWriter, req *http.Request) bool {
-	if strings.HasPrefix(chi.URLParam(req, "id"), "file-") {
-		respondErr(w, req, http.StatusConflict, "file-managed dashboards are read-only; export and import YAML to create a local copy")
+func (r *Router) rejectFileManagedDashboard(w http.ResponseWriter, req *http.Request) bool {
+	dashboard, err := r.store.WithContext(req.Context()).GetDashboard(chi.URLParam(req, "id"))
+	if err == nil && dashboard.SourceFile != "" {
+		respondErr(w, req, http.StatusConflict, "dashboard is managed by YAML file "+dashboard.SourceFile+"; edit the file and reload dashboards")
 		return true
 	}
 	return false
@@ -45,7 +46,7 @@ func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 		available[dashboard.ID] = true
 	}
 	for _, id := range in.IDs {
-		if strings.HasPrefix(id, "file-") {
+		if dashboard, err := r.store.WithContext(req.Context()).GetDashboard(id); err == nil && dashboard.SourceFile != "" {
 			respondErr(w, req, http.StatusConflict, "file-managed dashboards cannot be reordered")
 			return
 		}
@@ -63,7 +64,7 @@ func (r *Router) reorderDashboards(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) movePanel(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	var in struct {
@@ -174,6 +175,15 @@ func (r *Router) exportDashboardConfig(w http.ResponseWriter, req *http.Request)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }
+
+func (r *Router) acknowledgeDashboardYamlUpdate(w http.ResponseWriter, req *http.Request) {
+	if err := r.store.WithContext(req.Context()).AcknowledgeDashboardSourceFile(chi.URLParam(req, "id")); err != nil {
+		respondErr(w, req, http.StatusNotFound, err.Error())
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, 1, 1)
+}
+
 func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, req.Body, 1<<20))
 	if err != nil {
@@ -188,6 +198,10 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 	dashboard, err := definition.Dashboard(uuid.NewString())
 	if err != nil {
 		respondErr(w, req, 400, "invalid dashboard YAML: "+err.Error())
+		return
+	}
+	if existing, err := r.store.WithContext(req.Context()).GetDashboard(dashboard.ID); err == nil && existing.SourceFile != "" {
+		respondErr(w, req, http.StatusConflict, "dashboard is managed by YAML file "+existing.SourceFile+"; remove id to import a local copy")
 		return
 	}
 	for _, panel := range dashboard.Panels {
@@ -207,7 +221,7 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 	respond(w, dashboard, 1, 1)
 }
 func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	x, err := r.store.GetDashboard(chi.URLParam(req, "id"))
@@ -227,7 +241,7 @@ func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
 	respond(w, x, 1, 1)
 }
 func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	id := chi.URLParam(req, "id")
@@ -243,7 +257,7 @@ func (r *Router) deleteDashboard(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) savePanel(w http.ResponseWriter, req *http.Request, update bool) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	var in panelInput
@@ -346,23 +360,7 @@ func (r *Router) dashboardQueryArgs(dashboard *model.Dashboard, query string) []
 }
 
 func validateDeployAnnotationResult(columns []string) error {
-	has := func(names ...string) bool {
-		for _, candidate := range names {
-			for _, column := range columns {
-				if strings.EqualFold(column, candidate) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	if !has("timestamp", "timestamp_ns", "time_ns") {
-		return &dslError{"deploy annotation_query requires a timestamp, timestamp_ns, or time_ns column"}
-	}
-	if !has("label", "release", "version") {
-		return &dslError{"deploy annotation_query requires a label, release, or version column"}
-	}
-	return nil
+	return dashboardconfig.ValidateDeployAnnotationResult(columns)
 }
 
 type dslError struct{ s string }
@@ -375,7 +373,7 @@ func or(a, b string) string {
 	return a
 }
 func (r *Router) saveVariable(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	var in variableInput
@@ -435,7 +433,7 @@ func validateDashboardVariable(variable *storage.DashboardVariable, value string
 	return nil
 }
 func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	dashboard, err := r.store.GetDashboard(chi.URLParam(req, "id"))
@@ -455,7 +453,7 @@ func (r *Router) deletePanel(w http.ResponseWriter, req *http.Request) {
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 func (r *Router) deleteVariable(w http.ResponseWriter, req *http.Request) {
-	if rejectFileManagedDashboard(w, req) {
+	if r.rejectFileManagedDashboard(w, req) {
 		return
 	}
 	dashboard, err := r.store.GetDashboard(chi.URLParam(req, "id"))
@@ -555,63 +553,7 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 }
 
 func validatePanelResult(display string, columns []string) error {
-	if display == "" || display == "table" {
-		return nil
-	}
-	has := func(names ...string) bool {
-		for _, candidate := range names {
-			for _, column := range columns {
-				if strings.EqualFold(column, candidate) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	switch display {
-	case "single_value":
-		if !has("value") {
-			return &dslError{"single value panels require a value column"}
-		}
-	case "time_series", "deploy_correlation":
-		if !has("value") || !has("timestamp", "timestamp_ns", "time_ns") {
-			return &dslError{"time series panels require timestamp and value columns"}
-		}
-	case "heatmap":
-		// Accept both the semantic dashboard shape and generic Cartesian data.
-		// Older panels commonly alias the time axis as timestamp/time rather
-		// than timestamp_ns; HeatmapPanel renders all of these forms.
-		axisColumns := []string{"timestamp_ns", "timestamp", "time_ns", "time", "x"}
-		axisCount := 0
-		for _, axis := range axisColumns {
-			if has(axis) {
-				axisCount++
-			}
-		}
-		if !has("value") || axisCount == 0 {
-			return &dslError{"heatmap panels require value and a time/x column (timestamp_ns, timestamp, time_ns, time, or x); include bucket_ms (or y) for a two-dimensional heatmap"}
-		}
-		if axisCount > 1 {
-			return &dslError{"heatmap panels require exactly one time/x column; choose one of timestamp_ns, timestamp, time_ns, time, or x"}
-		}
-	case "entity_list":
-		if !has("label", "service_name", "name") || !has("primary_value", "value", "duration_ns") {
-			return &dslError{"entity list panels require a label and primary_value (or value) column"}
-		}
-	case "trace_list":
-		if !has("trace_id") {
-			return &dslError{"trace list panels require a trace_id column"}
-		}
-	case "span_list":
-		if !has("span_id", "trace_id") {
-			return &dslError{"span list panels require a span_id or trace_id column"}
-		}
-	case "log_list":
-		if !has("body", "message") {
-			return &dslError{"log list panels require a body or message column"}
-		}
-	}
-	return nil
+	return dashboardconfig.ValidatePanelResult(display, columns)
 }
 func rowsForColumns(columns []string, values [][]any) []map[string]any {
 	out := make([]map[string]any, 0, len(values))

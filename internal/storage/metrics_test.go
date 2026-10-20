@@ -83,6 +83,12 @@ func TestGetMetricSeries_Filters(t *testing.T) {
 	if len(rows) != 3 {
 		t.Errorf("expected 3 rows in [200,400], got %d", len(rows))
 	}
+
+	// A limit keeps the newest points but still returns them chronologically.
+	rows, _ = d.GetMetricSeries(MetricSeriesFilter{Name: "m", Service: "api", SessionID: "s1", Limit: 2})
+	if len(rows) != 2 || rows[0].TimestampNs != 400 || rows[1].TimestampNs != 500 {
+		t.Errorf("limited rows = %+v, want newest two in ascending order", rows)
+	}
 }
 
 func TestReset_ClearsMetrics(t *testing.T) {

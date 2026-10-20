@@ -154,6 +154,7 @@ export const emptyRule = (): AlertRule => ({
   last_error: '',
   source_file: '',
   source_hash: '',
+  source_file_modified: false,
   created_at: 0,
   updated_at: 0,
   instances: [],

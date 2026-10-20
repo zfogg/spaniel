@@ -31,6 +31,9 @@ func newDashboard(db *gorm.DB, opts ...gen.DOOption) dashboard {
 	_dashboard.ID = field.NewString(tableName, "id")
 	_dashboard.Name = field.NewString(tableName, "name")
 	_dashboard.Description = field.NewString(tableName, "description")
+	_dashboard.SourceFile = field.NewString(tableName, "source_file")
+	_dashboard.SourceHash = field.NewString(tableName, "source_hash")
+	_dashboard.SourceFileModified = field.NewBool(tableName, "source_file_modified")
 	_dashboard.CreatedAt = field.NewInt64(tableName, "created_at")
 	_dashboard.UpdatedAt = field.NewInt64(tableName, "updated_at")
 	_dashboard.Variables = dashboardHasManyVariables{
@@ -53,13 +56,16 @@ func newDashboard(db *gorm.DB, opts ...gen.DOOption) dashboard {
 type dashboard struct {
 	dashboardDo
 
-	ALL         field.Asterisk
-	ID          field.String
-	Name        field.String
-	Description field.String
-	CreatedAt   field.Int64
-	UpdatedAt   field.Int64
-	Variables   dashboardHasManyVariables
+	ALL                field.Asterisk
+	ID                 field.String
+	Name               field.String
+	Description        field.String
+	SourceFile         field.String
+	SourceHash         field.String
+	SourceFileModified field.Bool
+	CreatedAt          field.Int64
+	UpdatedAt          field.Int64
+	Variables          dashboardHasManyVariables
 
 	Panels dashboardHasManyPanels
 
@@ -81,6 +87,9 @@ func (d *dashboard) updateTableName(table string) *dashboard {
 	d.ID = field.NewString(table, "id")
 	d.Name = field.NewString(table, "name")
 	d.Description = field.NewString(table, "description")
+	d.SourceFile = field.NewString(table, "source_file")
+	d.SourceHash = field.NewString(table, "source_hash")
+	d.SourceFileModified = field.NewBool(table, "source_file_modified")
 	d.CreatedAt = field.NewInt64(table, "created_at")
 	d.UpdatedAt = field.NewInt64(table, "updated_at")
 
@@ -99,10 +108,13 @@ func (d *dashboard) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (d *dashboard) fillFieldMap() {
-	d.fieldMap = make(map[string]field.Expr, 7)
+	d.fieldMap = make(map[string]field.Expr, 10)
 	d.fieldMap["id"] = d.ID
 	d.fieldMap["name"] = d.Name
 	d.fieldMap["description"] = d.Description
+	d.fieldMap["source_file"] = d.SourceFile
+	d.fieldMap["source_hash"] = d.SourceHash
+	d.fieldMap["source_file_modified"] = d.SourceFileModified
 	d.fieldMap["created_at"] = d.CreatedAt
 	d.fieldMap["updated_at"] = d.UpdatedAt
 

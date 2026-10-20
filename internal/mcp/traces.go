@@ -13,25 +13,25 @@ import (
 func (h *handler) registerTraceTools(s *mcpsdk.Server) {
 	readOnly := &mcpsdk.ToolAnnotations{ReadOnlyHint: true}
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_traces",
 		Description: "List recent traces (most recent first), optionally filtered by service. Each row includes the root operation, duration, span count, and any detected issue kinds (e.g. n_plus_one, error_chain). Use this to find a trace to drill into, then call get_trace. Defaults to the active session.",
 		Annotations: readOnly,
 	}, h.listTraces)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_trace",
 		Description: "Get the full span tree for one trace as an indented waterfall, plus detected performance issues, correlated log lines, and lint warnings. This is the main debugging tool: call it with a trace_id from list_traces or search to see exactly what happened, what was slow, and what went wrong.",
 		Annotations: readOnly,
 	}, h.getTrace)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_span",
 		Description: "Get one span by id with its full attributes, resource, events (e.g. exceptions), and links to other spans/traces. Use after get_trace when you need the complete detail of a specific span.",
 		Annotations: readOnly,
 	}, h.getSpan)
 
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_slow_spans",
 		Description: "List the slowest spans in a session, longest-duration first, each tagged if it is part of an n+1, an error, slow, or has a lint warning. Use to find performance hot spots across all traces. Defaults to the active session.",
 		Annotations: readOnly,

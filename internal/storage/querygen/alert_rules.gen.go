@@ -53,6 +53,7 @@ func newAlertRule(db *gorm.DB, opts ...gen.DOOption) alertRule {
 	_alertRule.LastError = field.NewString(tableName, "last_error")
 	_alertRule.SourceFile = field.NewString(tableName, "source_file")
 	_alertRule.SourceHash = field.NewString(tableName, "source_hash")
+	_alertRule.SourceFileModified = field.NewBool(tableName, "source_file_modified")
 	_alertRule.CreatedAt = field.NewInt64(tableName, "created_at")
 	_alertRule.UpdatedAt = field.NewInt64(tableName, "updated_at")
 
@@ -90,6 +91,7 @@ type alertRule struct {
 	LastError                     field.String
 	SourceFile                    field.String
 	SourceHash                    field.String
+	SourceFileModified            field.Bool
 	CreatedAt                     field.Int64
 	UpdatedAt                     field.Int64
 
@@ -133,6 +135,7 @@ func (a *alertRule) updateTableName(table string) *alertRule {
 	a.LastError = field.NewString(table, "last_error")
 	a.SourceFile = field.NewString(table, "source_file")
 	a.SourceHash = field.NewString(table, "source_hash")
+	a.SourceFileModified = field.NewBool(table, "source_file_modified")
 	a.CreatedAt = field.NewInt64(table, "created_at")
 	a.UpdatedAt = field.NewInt64(table, "updated_at")
 
@@ -151,7 +154,7 @@ func (a *alertRule) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (a *alertRule) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 27)
+	a.fieldMap = make(map[string]field.Expr, 28)
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["name"] = a.Name
 	a.fieldMap["query_sql"] = a.QuerySQL
@@ -177,6 +180,7 @@ func (a *alertRule) fillFieldMap() {
 	a.fieldMap["last_error"] = a.LastError
 	a.fieldMap["source_file"] = a.SourceFile
 	a.fieldMap["source_hash"] = a.SourceHash
+	a.fieldMap["source_file_modified"] = a.SourceFileModified
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
 }

@@ -3,9 +3,9 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	toongo "github.com/toon-format/toon-go"
 )
 
 const (
@@ -21,7 +21,7 @@ func (h *handler) registerResourcesAndPrompts(s *mcpsdk.Server) {
 		Name:        "spaniel-db-schema",
 		Title:       "Spaniel DuckDB schema",
 		Description: "Live table/column listing for the telemetry database, for writing query_sql queries.",
-		MIMEType:    "text/plain",
+		MIMEType:    "text/toon",
 	}, h.readSchemaResource)
 
 	s.AddResource(&mcpsdk.Resource{
@@ -32,26 +32,33 @@ func (h *handler) registerResourcesAndPrompts(s *mcpsdk.Server) {
 		MIMEType:    "text/markdown",
 	}, h.readGuideResource)
 
-	s.AddPrompt(&mcpsdk.Prompt{
-		Name:        "debug_latest_trace",
-		Description: "Investigate the most recent trace (optionally for a service): pull it, summarize the waterfall, and explain any detected issues, errors, or slow spans.",
-		Arguments: []*mcpsdk.PromptArgument{
-			{Name: "service", Description: "limit to traces from this service.name", Required: false},
-		},
-	}, promptDebugLatestTrace)
+	h.registerDynamicResources(s)
 
 	s.AddPrompt(&mcpsdk.Prompt{
-		Name:        "diff_against_baseline",
-		Description: "Compare the active session against a baseline session and report regressions.",
+		Name:        "investigate_incident",
+		Description: "Run a cross-signal incident investigation using alerts, notifications, ingestion health, traces, spans, logs, and metrics.",
+		Arguments: []*mcpsdk.PromptArgument{
+			{Name: "focus", Description: "optional alert id, service name, symptom, or error text", Required: false},
+		},
+	}, promptInvestigateIncident)
+
+	s.AddPrompt(&mcpsdk.Prompt{
+		Name:        "compare_session_to_baseline",
+		Description: "Compare a session to its baseline across timings, issues, route coverage, logs, and metrics.",
 		Arguments: []*mcpsdk.PromptArgument{
 			{Name: "baseline", Description: "baseline session id or label", Required: false},
+			{Name: "compare", Description: "comparison session id or label; defaults to active", Required: false},
 		},
-	}, promptDiffAgainstBaseline)
+	}, promptCompareSessionToBaseline)
 
 	s.AddPrompt(&mcpsdk.Prompt{
-		Name:        "find_bottlenecks",
-		Description: "Find the biggest performance problems in the active session and propose fixes.",
-	}, promptFindBottlenecks)
+		Name:        "draft_observability_pack",
+		Description: "Design a cohesive dashboard and alert set from real telemetry, validate it, and optionally apply it when explicitly requested and writes are available.",
+		Arguments: []*mcpsdk.PromptArgument{
+			{Name: "goal", Description: "what the dashboard and alerts should help observe", Required: true},
+			{Name: "service", Description: "optional service to focus on", Required: false},
+		},
+	}, promptDraftObservabilityPack)
 }
 
 func (h *handler) readSchemaResource(ctx context.Context, _ *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
@@ -62,24 +69,23 @@ func (h *handler) readSchemaResource(ctx context.Context, _ *mcpsdk.ReadResource
 		return nil, fmt.Errorf("read schema: %w", err)
 	}
 	_ = cols
-	var b strings.Builder
-	b.WriteString("Spaniel DuckDB schema (table: columns)\n\n")
-	curTable := ""
+	type schemaColumn struct {
+		TableName  string `json:"table_name"`
+		ColumnName string `json:"column_name"`
+		DataType   string `json:"data_type"`
+	}
+	items := make([]schemaColumn, 0, len(rows))
 	for _, r := range rows {
-		table := fmt.Sprint(r[0])
-		col := fmt.Sprint(r[1])
-		typ := fmt.Sprint(r[2])
-		if table != curTable {
-			if curTable != "" {
-				b.WriteString("\n")
-			}
-			fmt.Fprintf(&b, "%s:\n", table)
-			curTable = table
-		}
-		fmt.Fprintf(&b, "  %s %s\n", col, typ)
+		items = append(items, schemaColumn{TableName: fmt.Sprint(r[0]), ColumnName: fmt.Sprint(r[1]), DataType: fmt.Sprint(r[2])})
+	}
+	data, err := toongo.Marshal(struct {
+		Columns []schemaColumn `json:"columns"`
+	}{Columns: items})
+	if err != nil {
+		return nil, fmt.Errorf("encode schema as TOON: %w", err)
 	}
 	return &mcpsdk.ReadResourceResult{
-		Contents: []*mcpsdk.ResourceContents{{URI: schemaURI, MIMEType: "text/plain", Text: b.String()}},
+		Contents: []*mcpsdk.ResourceContents{{URI: schemaURI, MIMEType: "text/toon", Text: string(data)}},
 	}, nil
 }
 
@@ -101,6 +107,17 @@ Spaniel stores local OpenTelemetry data in DuckDB and exposes it through these t
 3. get_span for full attributes/events on a specific span.
 4. list_issues / list_slow_spans to find what to fix.
 5. After a code change, diff_sessions(baseline, compare) to confirm it helped.
+
+Dashboard and alert definitions can be inspected, validated, previewed, and
+exported as YAML. With writes enabled, apply_* accepts typed MCP input while
+import_* accepts the portable YAML document. Exported dashboard and alert YAML
+includes a stable id: keep it to update that object, or remove it to create a
+copy. Mutating tools are absent unless the server enables MCP writes.
+
+Tool results are TOON text except the two YAML exports. Dynamic resources use
+spaniel://dashboards/{dashboard_id}, spaniel://alerts/{alert_id},
+spaniel://spans/{span_id}, spaniel://traces/{trace_id}, and scoped log/metric
+templates so a client can attach a specific live object as model context.
 
 ## Escape hatch
 query_sql runs read-only SQL directly against the tables above — use it for
@@ -125,54 +142,61 @@ func userPrompt(desc, text string) (*mcpsdk.GetPromptResult, error) {
 	}, nil
 }
 
-func promptDebugLatestTrace(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
-	service := ""
+func promptInvestigateIncident(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+	focus := ""
 	if req != nil && req.Params != nil {
-		service = req.Params.Arguments["service"]
+		focus = req.Params.Arguments["focus"]
 	}
-	scope := "the active session"
-	if service != "" {
-		scope = fmt.Sprintf("service %q", service)
+	focusText := "the most urgent current symptom"
+	if focus != "" {
+		focusText = fmt.Sprintf("%q", focus)
 	}
-	return userPrompt("Investigate the latest trace",
-		fmt.Sprintf("Use the Spaniel MCP tools to debug the most recent trace in %s.\n\n"+
-			"1. Call list_traces%s to find the newest trace (prefer one with errors or detected issues).\n"+
-			"2. Call get_trace on it and read the waterfall, issues, correlated logs, and lint warnings.\n"+
-			"3. If a span looks suspicious, call get_span for its full attributes and events.\n"+
-			"4. Summarize what the trace did, what was slow or failing, and the likely root cause.",
-			scope, serviceArg(service)))
+	return userPrompt("Investigate an incident across Spaniel signals",
+		fmt.Sprintf("Act as the incident investigator for %s. Build a timestamped evidence chain; do not infer causality from correlation alone.\n\n"+
+			"1. Call get_server_info and get_ingestion_health first so missing telemetry is not mistaken for healthy behavior.\n"+
+			"2. Call list_alerts(state=attention), list_notifications, and list_alert_history to identify the active symptom and its first transition.\n"+
+			"3. Use list_traces/search, get_trace, get_span, query_logs, get_metrics, and get_metric_series to correlate the symptom across signals.\n"+
+			"4. Separate confirmed facts, likely causes, and unknowns. Name the earliest causal-looking change, the blast radius, and the safest next diagnostic action.\n"+
+			"5. Do not acknowledge or silence anything unless the user explicitly asked you to take that operator action.", focusText))
 }
 
-func promptDiffAgainstBaseline(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
-	baseline := ""
+func promptCompareSessionToBaseline(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+	baseline, compare := "", ""
 	if req != nil && req.Params != nil {
 		baseline = req.Params.Arguments["baseline"]
+		compare = req.Params.Arguments["compare"]
 	}
-	pick := "find the session marked as a baseline (see is_baseline in list_sessions)"
+	pickBaseline := "find the session marked as a baseline"
 	if baseline != "" {
-		pick = fmt.Sprintf("use baseline %q", baseline)
+		pickBaseline = fmt.Sprintf("use baseline %q", baseline)
 	}
-	return userPrompt("Diff the active session against a baseline",
-		fmt.Sprintf("Compare the current run against a baseline using Spaniel.\n\n"+
-			"1. Call list_sessions to find the active session and %s.\n"+
-			"2. Call diff_sessions with baseline and compare set to those session ids.\n"+
-			"3. Report the duration delta, any spans added/removed, the DB-call delta, and the per-operation timing changes that regressed (status \"changed\" with a positive delta_pct).",
-			pick))
+	pickCompare := "use the active session as the comparison"
+	if compare != "" {
+		pickCompare = fmt.Sprintf("use comparison session %q", compare)
+	}
+	return userPrompt("Compare a session to a baseline",
+		fmt.Sprintf("Produce a regression report grounded in Spaniel evidence.\n\n"+
+			"1. Call list_sessions; %s and %s.\n"+
+			"2. Call diff_sessions, then inspect the most regressed traces/spans and relevant logs and metric series.\n"+
+			"3. Call get_coverage for both session scopes when possible; distinguish newly dark routes from routes that simply received no traffic.\n"+
+			"4. Report improvements as well as regressions. Rank changes by user impact and absolute time, and call out sampling or ingestion-health differences that weaken the comparison.", pickBaseline, pickCompare))
 }
 
-func promptFindBottlenecks(_ context.Context, _ *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
-	return userPrompt("Find performance bottlenecks",
-		"Find the biggest performance problems in the active Spaniel session.\n\n"+
-			"1. Call list_issues to see detected problems (n_plus_one, error_chain, chatty_http, slow DB) ordered by time wasted.\n"+
-			"2. Call list_slow_spans to see the slowest individual operations.\n"+
-			"3. For the worst offenders, call get_trace to understand the context.\n"+
-			"4. Propose concrete fixes, most impactful first.")
-}
-
-// serviceArg renders the optional service filter for list_traces in the prompt text.
-func serviceArg(service string) string {
-	if service == "" {
-		return ""
+func promptDraftObservabilityPack(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+	goal, service := "", ""
+	if req != nil && req.Params != nil {
+		goal = req.Params.Arguments["goal"]
+		service = req.Params.Arguments["service"]
 	}
-	return fmt.Sprintf(" with service=%q", service)
+	scope := "across the active session"
+	if service != "" {
+		scope = fmt.Sprintf("for service %q", service)
+	}
+	return userPrompt("Draft a dashboard and alert pack from observed telemetry",
+		fmt.Sprintf("Design an observability pack %s for this goal: %q. Base it on fields and values actually present in Spaniel, not guessed schemas.\n\n"+
+			"1. Inspect get_server_info, list_services, get_metrics, query_sql, and spaniel://schema. Review existing dashboards and alerts to avoid duplication.\n"+
+			"2. Draft one coherent dashboard definition and the smallest useful alert set. Prefer queries that share explicit variables and return renderer-compatible shapes.\n"+
+			"3. Call validate_dashboard and validate_alert for every definition. Repair validation failures before presenting anything.\n"+
+			"4. By default, stop after showing the validated draft. Only call apply_dashboard/apply_alert if the user explicitly asked to save or apply it and get_server_info reports writes_enabled=true. A prompt is guidance, not permission.\n"+
+			"5. Summarize why each panel and alert exists, expected signal volume, and likely false-positive modes.", scope, goal))
 }

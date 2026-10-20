@@ -53,6 +53,10 @@ type SettingsService struct {
 	// nil = settings are persisted but take effect on the next restart.
 	SetStoragePolicy func(maxDBSizeMB int, autoPrune bool)
 
+	// SetMCPAllowWrites rebuilds the MCP server with or without mutating tools.
+	// nil = settings are persisted but take effect on the next restart.
+	SetMCPAllowWrites func(bool)
+
 	// ReloadAlerts revalidates and reconciles configured alert YAML files.
 	ReloadAlerts func() error
 
@@ -80,33 +84,33 @@ type UpdateCheckResult struct {
 // SettingsResponse is the JSON shape returned by GET /api/settings.
 // Persistable fields live at the top level; read-only info is under Runtime.
 type SettingsResponse struct {
-	Port                  int      `json:"port"`
-	DBPath                string   `json:"db_path"`
-	AlertsDir             string   `json:"alerts_dir"`
-	RetentionDays         int      `json:"retention_days"`
-	MaxSessions           int      `json:"max_sessions"`
-	MaxDBSizeMB           int      `json:"max_db_size_mb"`
-	AutoPrune             bool     `json:"auto_prune"`
-	AdvanceSessionOnStart bool     `json:"advance_session_on_start"`
-	OTLPGRPCPort          int      `json:"otlp_grpc_port"`
-	OTLPHTTPPort          int      `json:"otlp_http_port"`
-	NoBrowser             bool     `json:"no_browser"`
-	Forward               []string `json:"forward"`
-	BindAddressV4         string   `json:"bind_address_v4"`
-	BindAddressV6         string   `json:"bind_address_v6"`
-	ForwardSample         float64  `json:"forward_sample"`
-	SourceRPS             float64  `json:"source_rps"`
-	SourceBurst           int      `json:"source_burst"`
-	TLSEnabled            bool     `json:"tls_enabled"`
-	BearerTokenSet        bool     `json:"bearer_token_set"`
-	SelfMonitor           bool     `json:"self_monitor"`
-	MCPEnabled            bool     `json:"mcp_enabled"`
-	MCPAllowWrites        bool     `json:"mcp_allow_writes"`
-	AlertsBrowserEnabled     bool   `json:"alerts_browser_enabled"`
-	AlertsPushoverEnabled    bool   `json:"alerts_pushover_enabled"`
-	AlertsPushoverConfigured bool   `json:"alerts_pushover_configured"`
-	AlertsBrowserTemplate    string `json:"alerts_browser_template"`
-	AlertsPushoverTemplate   string `json:"alerts_pushover_template"`
+	Port                     int      `json:"port"`
+	DBPath                   string   `json:"db_path"`
+	AlertsDir                string   `json:"alerts_dir"`
+	RetentionDays            int      `json:"retention_days"`
+	MaxSessions              int      `json:"max_sessions"`
+	MaxDBSizeMB              int      `json:"max_db_size_mb"`
+	AutoPrune                bool     `json:"auto_prune"`
+	AdvanceSessionOnStart    bool     `json:"advance_session_on_start"`
+	OTLPGRPCPort             int      `json:"otlp_grpc_port"`
+	OTLPHTTPPort             int      `json:"otlp_http_port"`
+	NoBrowser                bool     `json:"no_browser"`
+	Forward                  []string `json:"forward"`
+	BindAddressV4            string   `json:"bind_address_v4"`
+	BindAddressV6            string   `json:"bind_address_v6"`
+	ForwardSample            float64  `json:"forward_sample"`
+	SourceRPS                float64  `json:"source_rps"`
+	SourceBurst              int      `json:"source_burst"`
+	TLSEnabled               bool     `json:"tls_enabled"`
+	BearerTokenSet           bool     `json:"bearer_token_set"`
+	SelfMonitor              bool     `json:"self_monitor"`
+	MCPEnabled               bool     `json:"mcp_enabled"`
+	MCPAllowWrites           bool     `json:"mcp_allow_writes"`
+	AlertsBrowserEnabled     bool     `json:"alerts_browser_enabled"`
+	AlertsPushoverEnabled    bool     `json:"alerts_pushover_enabled"`
+	AlertsPushoverConfigured bool     `json:"alerts_pushover_configured"`
+	AlertsBrowserTemplate    string   `json:"alerts_browser_template"`
+	AlertsPushoverTemplate   string   `json:"alerts_pushover_template"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -126,24 +130,25 @@ type SettingsRuntime struct {
 // SettingsUpdate is the writable subset accepted by PUT /api/settings.
 // Pointer fields let clients send partial updates — nil = "leave as-is".
 type SettingsUpdate struct {
-	Port                  *int      `json:"port,omitempty"`
-	DBPath                *string   `json:"db_path,omitempty"`
+	Port                   *int      `json:"port,omitempty"`
+	DBPath                 *string   `json:"db_path,omitempty"`
 	AlertsDir              *string   `json:"alerts_dir,omitempty"`
-	RetentionDays         *int      `json:"retention_days,omitempty"`
-	MaxSessions           *int      `json:"max_sessions,omitempty"`
-	MaxDBSizeMB           *int      `json:"max_db_size_mb,omitempty"`
-	AutoPrune             *bool     `json:"auto_prune,omitempty"`
-	AdvanceSessionOnStart *bool     `json:"advance_session_on_start,omitempty"`
-	OTLPGRPCPort          *int      `json:"otlp_grpc_port,omitempty"`
-	OTLPHTTPPort          *int      `json:"otlp_http_port,omitempty"`
-	NoBrowser             *bool     `json:"no_browser,omitempty"`
-	Forward               *[]string `json:"forward,omitempty"`
-	BindAddressV4         *string   `json:"bind_address_v4,omitempty"`
-	BindAddressV6         *string   `json:"bind_address_v6,omitempty"`
-	ForwardSample         *float64  `json:"forward_sample,omitempty"`
-	SourceRPS             *float64  `json:"source_rps,omitempty"`
-	SourceBurst           *int      `json:"source_burst,omitempty"`
-	SelfMonitor           *bool     `json:"self_monitor,omitempty"`
+	RetentionDays          *int      `json:"retention_days,omitempty"`
+	MaxSessions            *int      `json:"max_sessions,omitempty"`
+	MaxDBSizeMB            *int      `json:"max_db_size_mb,omitempty"`
+	AutoPrune              *bool     `json:"auto_prune,omitempty"`
+	AdvanceSessionOnStart  *bool     `json:"advance_session_on_start,omitempty"`
+	OTLPGRPCPort           *int      `json:"otlp_grpc_port,omitempty"`
+	OTLPHTTPPort           *int      `json:"otlp_http_port,omitempty"`
+	NoBrowser              *bool     `json:"no_browser,omitempty"`
+	Forward                *[]string `json:"forward,omitempty"`
+	BindAddressV4          *string   `json:"bind_address_v4,omitempty"`
+	BindAddressV6          *string   `json:"bind_address_v6,omitempty"`
+	ForwardSample          *float64  `json:"forward_sample,omitempty"`
+	SourceRPS              *float64  `json:"source_rps,omitempty"`
+	SourceBurst            *int      `json:"source_burst,omitempty"`
+	SelfMonitor            *bool     `json:"self_monitor,omitempty"`
+	MCPAllowWrites         *bool     `json:"mcp_allow_writes,omitempty"`
 	AlertsBrowserEnabled   *bool     `json:"alerts_browser_enabled,omitempty"`
 	AlertsPushoverEnabled  *bool     `json:"alerts_pushover_enabled,omitempty"`
 	AlertsBrowserTemplate  *string   `json:"alerts_browser_template,omitempty"`
@@ -204,28 +209,28 @@ func (r *Router) buildSettings() SettingsResponse {
 	delivery := currentAlertDelivery()
 
 	resp := SettingsResponse{
-		Port:                  v.GetInt("port"),
-		DBPath:                v.GetString("db_path"),
-		AlertsDir:             v.GetString("alerts_dir"),
-		RetentionDays:         v.GetInt("retention_days"),
-		MaxSessions:           v.GetInt("max_sessions"),
-		MaxDBSizeMB:           v.GetInt("max_db_size_mb"),
-		AutoPrune:             v.GetBool("auto_prune"),
-		AdvanceSessionOnStart: v.GetBool("advance_session_on_start"),
-		OTLPGRPCPort:          v.GetInt("otlp_grpc_port"),
-		OTLPHTTPPort:          v.GetInt("otlp_http_port"),
-		NoBrowser:             v.GetBool("no_browser"),
-		Forward:               nonNilStrings(v.GetStringSlice("forward")),
-		BindAddressV4:         v.GetString("bind_address_v4"),
-		BindAddressV6:         v.GetString("bind_address_v6"),
-		ForwardSample:         v.GetFloat64("forward_sample"),
-		SourceRPS:             v.GetFloat64("source_rps"),
-		SourceBurst:           v.GetInt("source_burst"),
-		TLSEnabled:            s.TLSEnabled,
-		BearerTokenSet:        s.BearerTokenSet,
-		SelfMonitor:           v.GetBool("self_monitor"),
-		MCPEnabled:            s.MCPEnabled,
-		MCPAllowWrites:        s.MCPAllowWrites,
+		Port:                     v.GetInt("port"),
+		DBPath:                   v.GetString("db_path"),
+		AlertsDir:                v.GetString("alerts_dir"),
+		RetentionDays:            v.GetInt("retention_days"),
+		MaxSessions:              v.GetInt("max_sessions"),
+		MaxDBSizeMB:              v.GetInt("max_db_size_mb"),
+		AutoPrune:                v.GetBool("auto_prune"),
+		AdvanceSessionOnStart:    v.GetBool("advance_session_on_start"),
+		OTLPGRPCPort:             v.GetInt("otlp_grpc_port"),
+		OTLPHTTPPort:             v.GetInt("otlp_http_port"),
+		NoBrowser:                v.GetBool("no_browser"),
+		Forward:                  nonNilStrings(v.GetStringSlice("forward")),
+		BindAddressV4:            v.GetString("bind_address_v4"),
+		BindAddressV6:            v.GetString("bind_address_v6"),
+		ForwardSample:            v.GetFloat64("forward_sample"),
+		SourceRPS:                v.GetFloat64("source_rps"),
+		SourceBurst:              v.GetInt("source_burst"),
+		TLSEnabled:               s.TLSEnabled,
+		BearerTokenSet:           s.BearerTokenSet,
+		SelfMonitor:              v.GetBool("self_monitor"),
+		MCPEnabled:               s.MCPEnabled,
+		MCPAllowWrites:           s.MCPAllowWrites,
 		AlertsBrowserEnabled:     v.GetBool("alerts.browser_enabled"),
 		AlertsPushoverEnabled:    v.GetBool("alerts.pushover_enabled"),
 		AlertsPushoverConfigured: delivery.PushoverUserKey != "" && delivery.PushoverAPIToken != "",
@@ -389,6 +394,10 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 			}
 		}
 	}
+	if u.MCPAllowWrites != nil {
+		s.Viper.Set("mcp_allow_writes", *u.MCPAllowWrites)
+		s.MCPAllowWrites = *u.MCPAllowWrites
+	}
 	if u.AlertsBrowserEnabled != nil {
 		s.Viper.Set("alerts.browser_enabled", *u.AlertsBrowserEnabled)
 	}
@@ -402,7 +411,13 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 		s.Viper.Set("alerts.pushover_template", *u.AlertsPushoverTemplate)
 	}
 
-	return s.Save()
+	if err := s.Save(); err != nil {
+		return err
+	}
+	if u.MCPAllowWrites != nil && s.SetMCPAllowWrites != nil {
+		s.SetMCPAllowWrites(*u.MCPAllowWrites)
+	}
+	return nil
 }
 
 // Save writes the current persistable settings to the global config file.
@@ -416,7 +431,7 @@ func (s *SettingsService) Save() error {
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
 	out.SetConfigFile(s.ConfigPath)
-	for _, k := range []string{"port", "db_path", "alerts_dir", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor", "alerts.browser_enabled", "alerts.pushover_enabled", "alerts.browser_template", "alerts.pushover_template"} {
+	for _, k := range []string{"port", "db_path", "alerts_dir", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor", "mcp_enabled", "mcp_allow_writes", "alerts.browser_enabled", "alerts.pushover_enabled", "alerts.browser_template", "alerts.pushover_template"} {
 		out.Set(k, s.Viper.Get(k))
 	}
 	if err := os.MkdirAll(parentDir(s.ConfigPath), 0o750); err != nil {

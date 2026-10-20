@@ -1,6 +1,6 @@
 // Package dashboardconfig converts portable dashboard definitions to and from
-// Spaniel's persisted dashboard records. Definitions intentionally omit
-// database IDs, timestamps, and query results.
+// Spaniel's persisted dashboard records. Definitions retain an optional stable
+// ID for export/edit/import updates while omitting timestamps and query results.
 package dashboardconfig
 
 import (
@@ -37,6 +37,7 @@ var (
 
 type Definition struct {
 	Version        int        `yaml:"version"`
+	ID             string     `yaml:"id,omitempty"`
 	Name           string     `yaml:"name"`
 	Description    string     `yaml:"description,omitempty"`
 	MagicVariables []MagicVar `yaml:"magic_variables,omitempty"`
@@ -73,7 +74,7 @@ type Panel struct {
 var MagicVariables = []MagicVar{{Name: "session_id", Kind: "string"}}
 
 func FromDashboard(d *model.Dashboard) (Definition, error) {
-	out := Definition{Version: Version, Name: d.Name, Description: d.Description, MagicVariables: MagicVariables}
+	out := Definition{Version: Version, ID: d.ID, Name: d.Name, Description: d.Description, MagicVariables: MagicVariables}
 	for _, v := range d.Variables {
 		var options []string
 		if err := yaml.Unmarshal([]byte(v.OptionsJSON), &options); err != nil {
@@ -114,6 +115,9 @@ func Parse(data []byte) (Definition, error) {
 	}
 	if d.Version != Version {
 		return d, fmt.Errorf("unsupported dashboard definition version %d", d.Version)
+	}
+	if strings.TrimSpace(d.ID) != d.ID || len(d.ID) > 128 {
+		return d, fmt.Errorf("id must not contain surrounding whitespace and must be at most 128 characters")
 	}
 	if strings.TrimSpace(d.Name) == "" || len(d.Name) > maxDashboardNameLength {
 		if len(d.Name) > maxDashboardNameLength {
@@ -261,6 +265,9 @@ func Marshal(d *model.Dashboard) ([]byte, error) {
 }
 
 func (d Definition) Dashboard(id string) (*model.Dashboard, error) {
+	if d.ID != "" {
+		id = d.ID
+	}
 	out := &model.Dashboard{ID: id, Name: d.Name, Description: d.Description}
 	for _, v := range d.Variables {
 		options, err := json.Marshal(v.Options)

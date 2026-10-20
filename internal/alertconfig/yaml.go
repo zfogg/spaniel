@@ -16,21 +16,21 @@ import (
 const Version = 1
 
 type Definition struct {
-	Version         int               `yaml:"version"`
-	ID              string            `yaml:"id,omitempty"`
-	Name            string            `yaml:"name"`
-	Query           string            `yaml:"query"`
-	Condition       Condition         `yaml:"condition"`
-	GroupBy         []string          `yaml:"group_by,omitempty"`
-	PendingFor      string            `yaml:"pending_for"`
-	Cooldown        string            `yaml:"cooldown"`
-	RepeatInterval  string            `yaml:"repeat_interval,omitempty"`
-	Severity        string            `yaml:"severity"`
-	Enabled         *bool             `yaml:"enabled,omitempty"`
-	BrowserEnabled  *bool             `yaml:"browser_enabled,omitempty"`
-	PushoverEnabled *bool             `yaml:"pushover_enabled,omitempty"`
+	Version           int                `yaml:"version"`
+	ID                string             `yaml:"id,omitempty"`
+	Name              string             `yaml:"name"`
+	Query             string             `yaml:"query"`
+	Condition         Condition          `yaml:"condition"`
+	GroupBy           []string           `yaml:"group_by,omitempty"`
+	PendingFor        string             `yaml:"pending_for"`
+	Cooldown          string             `yaml:"cooldown"`
+	RepeatInterval    string             `yaml:"repeat_interval,omitempty"`
+	Severity          string             `yaml:"severity"`
+	Enabled           *bool              `yaml:"enabled,omitempty"`
+	BrowserEnabled    *bool              `yaml:"browser_enabled,omitempty"`
+	PushoverEnabled   *bool              `yaml:"pushover_enabled,omitempty"`
 	InstanceDiscovery *InstanceDiscovery `yaml:"instance_discovery,omitempty"`
-	Annotations     map[string]string `yaml:"annotations,omitempty"`
+	Annotations       map[string]string  `yaml:"annotations,omitempty"`
 }
 type InstanceDiscovery struct {
 	Query      string `yaml:"query"`
@@ -194,6 +194,12 @@ func (d Definition) Alert(id string) (*model.AlertRule, error) {
 		conditionMap["value"] = *threshold
 	}
 	condition, _ := json.Marshal(conditionMap)
+	if d.GroupBy == nil {
+		d.GroupBy = []string{}
+	}
+	if d.Annotations == nil {
+		d.Annotations = map[string]string{}
+	}
 	groups, _ := json.Marshal(d.GroupBy)
 	annotations, _ := json.Marshal(d.Annotations)
 	enabled, browser, push := true, true, true

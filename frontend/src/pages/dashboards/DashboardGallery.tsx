@@ -20,6 +20,7 @@ export function DashboardGallery() {
   const selectedId = searchParams.get('id')
   const [reordering, setReordering] = useState(false)
   const reorderPending = useRef(false)
+  const yamlNoticeSignature = useRef('')
   const dashboards = useMemo(
     () => [
       ...savedDashboards,
@@ -42,6 +43,19 @@ export function DashboardGallery() {
         ),
       )
   }, [selected])
+  useEffect(() => {
+    const modified = savedDashboards.filter((dashboard) => dashboard.source_file_modified)
+    const signature = modified
+      .map((dashboard) => dashboard.id)
+      .sort()
+      .join(',')
+    if (signature && signature !== yamlNoticeSignature.current) {
+      toast.warning(
+        `Spaniel added ${modified.length === 1 ? 'an ID' : 'IDs'} to ${modified.length} dashboard YAML ${modified.length === 1 ? 'file' : 'files'}. Save the changed ${modified.length === 1 ? 'file' : 'files'} in your repository.`,
+      )
+    }
+    yamlNoticeSignature.current = signature
+  }, [savedDashboards])
   const dashboardHref = (id: string, index: number) => {
     const next = new URLSearchParams(searchParams)
     if (index === 0) next.delete('id')
@@ -59,7 +73,9 @@ export function DashboardGallery() {
     setReordering(true)
     try {
       await api.dashboards.reorder(
-        next.filter((item) => !item.id.startsWith('local-')).map((item) => item.id),
+        next
+          .filter((item) => !item.id.startsWith('local-') && !item.source_file)
+          .map((item) => item.id),
       )
       // Preserve the viewed dashboard when moving a different entry to first.
       setSearchParams(
@@ -117,11 +133,11 @@ export function DashboardGallery() {
           </div>
           <div className="ml-auto">
             <button
-              disabled={selected?.id.startsWith('file-')}
+              disabled={Boolean(selected?.source_file)}
               onClick={() => selected && navigate(`/dashboards/${selected.id}`)}
               className="cursor-pointer rounded-md bg-[#315b7d] px-3 py-2 text-xs font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {selected?.id.startsWith('file-') ? 'File-managed' : 'Edit dashboard'}
+              {selected?.source_file ? 'File-managed' : 'Edit dashboard'}
             </button>
           </div>
         </header>
@@ -142,11 +158,39 @@ export function DashboardGallery() {
                 failed. Healthy panels are still shown.
               </p>
             )}
-            {selected.id.startsWith('file-') && (
-              <p className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-                File-managed dashboard: its YAML file is authoritative and reloads on startup.
-                Export/import its YAML to create an editable local copy.
-              </p>
+            {selected.source_file && (
+              <div className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    File-managed dashboard: <code>{selected.source_file}</code> is authoritative and
+                    reloads on startup.
+                  </span>
+                  {selected.source_file_modified && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await api.dashboards.acknowledgeYAMLUpdate(selected.id)
+                          await qc.invalidateQueries({ queryKey: qk.dashboards() })
+                        } catch (error) {
+                          toast.error(
+                            `Could not acknowledge YAML update: ${error instanceof Error ? error.message : String(error)}`,
+                          )
+                        }
+                      }}
+                      className="rounded bg-emerald-700 px-2.5 py-1 font-semibold text-white hover:bg-emerald-600"
+                    >
+                      Acknowledge saved ID
+                    </button>
+                  )}
+                </div>
+                {selected.source_file_modified && (
+                  <p className="mt-2 font-medium">
+                    Spaniel added this dashboard’s ID to the YAML file. Save and commit the changed
+                    file, then acknowledge it here.
+                  </p>
+                )}
+              </div>
             )}
             <div className="mb-4 flex flex-wrap gap-2">
               {selected.variables.map((variable) => (

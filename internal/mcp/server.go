@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
@@ -20,7 +21,10 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/zfogg/spaniel/internal/coverage"
+	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/ws"
 )
 
 // Options configures the MCP server.
@@ -32,6 +36,36 @@ type Options struct {
 	// session, set baseline, prune). When false, those tools are not registered
 	// at all — they do not appear in tools/list and cannot be called.
 	AllowWrites bool
+	// Runtime dependencies are optional so tests and storage-only embeddings can
+	// still construct the MCP server. When supplied they enrich operational
+	// tools and preserve the same live behavior as the HTTP API.
+	Hub        *ws.Hub
+	Manifests  *coverage.Manifests
+	Forwarder  *forwarder.Forwarder
+	Throughput ThroughputProvider
+	Drops      DropCounterProvider
+	Sources    SourcesProvider
+}
+
+type ThroughputProvider interface{ Throughput() storage.Throughput }
+type DropCounterProvider interface {
+	DroppedSpansTotal() int64
+	DroppedLogsTotal() int64
+	DroppedMetricPointsTotal() int64
+	LastDropAt() int64
+}
+type SourcesProvider interface{ Sources() []storage.SourceStats }
+
+// Handler serves MCP and can replace its underlying server when write access
+// changes. Replacing the server intentionally invalidates existing MCP
+// sessions: clients reconnect and receive a fresh tool list with the new
+// permissions instead of retaining a writable session after writes are
+// disabled.
+type Handler struct {
+	mu      sync.RWMutex
+	store   *storage.DB
+	opts    Options
+	current http.Handler
 }
 
 // handler holds the dependencies shared by every tool handler.
@@ -41,9 +75,42 @@ type handler struct {
 	tracer trace.Tracer
 }
 
-// NewHandler builds the MCP server and returns an http.Handler serving the
-// streamable-HTTP transport. Mount it at /mcp on the main server.
-func NewHandler(store *storage.DB, opts Options) http.Handler {
+// NewHandler builds a reloadable MCP HTTP handler. Mount it at /mcp on the
+// main server.
+func NewHandler(store *storage.DB, opts Options) *Handler {
+	h := &Handler{store: store, opts: opts}
+	h.current = buildHandler(store, opts)
+	return h
+}
+
+// ServeHTTP dispatches to the current MCP server.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	current := h.current
+	h.mu.RUnlock()
+	current.ServeHTTP(w, r)
+}
+
+// SetAllowWrites hot-applies MCP write access. Rebuilding is required because
+// write tools are omitted entirely from a read-only server's tools/list.
+func (h *Handler) SetAllowWrites(allow bool) {
+	h.mu.RLock()
+	unchanged := h.opts.AllowWrites == allow
+	h.mu.RUnlock()
+	if unchanged {
+		return
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.opts.AllowWrites == allow {
+		return
+	}
+	h.opts.AllowWrites = allow
+	h.current = buildHandler(h.store, h.opts)
+}
+
+func buildHandler(store *storage.DB, opts Options) http.Handler {
 	h := &handler{
 		store:  store,
 		opts:   opts,
@@ -81,7 +148,7 @@ func NewHandler(store *storage.DB, opts Options) http.Handler {
 // tools are added by registerWriteTools only when AllowWrites is set. Tool
 // groups are split across files in this package; this is the single entry point.
 func (h *handler) registerTools(s *mcpsdk.Server) {
-	mcpsdk.AddTool(s, &mcpsdk.Tool{
+	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_server_info",
 		Description: "Get Spaniel server version and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection and see how much data is available.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
@@ -93,6 +160,11 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	h.registerTopologyTools(s)
 	h.registerSessionTools(s)
 	h.registerSQLTool(s)
+	h.registerDashboardTools(s)
+	h.registerAlertTools(s)
+	h.registerCoverageTools(s)
+	h.registerNotificationTools(s)
+	h.registerIngestionTools(s)
 	h.registerResourcesAndPrompts(s)
 
 	if h.opts.AllowWrites {

@@ -174,6 +174,16 @@ func (d *DB) DeleteDashboard(id string) error {
 func (d *DB) ReplaceDashboardDefinition(x *Dashboard) error {
 	now := time.Now().UnixNano()
 	x.CreatedAt, x.UpdatedAt = now, now
+	if old, err := d.GetDashboard(x.ID); err == nil {
+		x.CreatedAt = old.CreatedAt
+		if old.SourceFileModified && old.SourceFile == x.SourceFile {
+			x.SourceFileModified = true
+		}
+		if x.SourceFile == "" {
+			x.SourceFile = old.SourceFile
+			x.SourceHash = old.SourceHash
+		}
+	}
 	for _, panel := range x.Panels {
 		panel.ID = uuid.NewString()
 		panel.DashboardID = x.ID
@@ -204,6 +214,18 @@ func (d *DB) ReplaceDashboardDefinition(x *Dashboard) error {
 		if err := q.DashboardPanel.Create(x.Panels...); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (d *DB) AcknowledgeDashboardSourceFile(id string) error {
+	q := d.namedQuery("AcknowledgeDashboardSourceFile")
+	result, err := q.Dashboard.Where(q.Dashboard.ID.Eq(id), q.Dashboard.SourceFile.Neq("")).UpdateColumn(q.Dashboard.SourceFileModified, false)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("file-managed dashboard not found")
 	}
 	return nil
 }

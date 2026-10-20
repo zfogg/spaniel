@@ -2,13 +2,62 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/zfogg/spaniel/internal/storage"
 )
 
+func TestDashboardYAMLExportEditImportUpdatesStableID(t *testing.T) {
+	handler, db := setupRouter(t)
+	dashboard, err := db.CreateDashboardWithPanels("Before", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported := do(t, handler, http.MethodGet, "/api/dashboards/"+dashboard.ID+"/config", nil)
+	if exported.Code != http.StatusOK {
+		t.Fatalf("export status=%d body=%s", exported.Code, exported.Body.String())
+	}
+	if !strings.Contains(exported.Body.String(), "id: "+dashboard.ID) {
+		t.Fatalf("export omitted stable id:\n%s", exported.Body.String())
+	}
+	edited := strings.Replace(exported.Body.String(), "name: Before", "name: After", 1)
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", bytes.NewBufferString(edited))
+	req.Header.Set("Content-Type", "application/yaml")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("import status=%d body=%s", response.Code, response.Body.String())
+	}
+	var envelope struct {
+		Data struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.ID != dashboard.ID || envelope.Data.Name != "After" {
+		t.Fatalf("imported dashboard = %#v, want same id and edited name", envelope.Data)
+	}
+	all, err := db.ListDashboards()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("dashboard count = %d, want update rather than copy", len(all))
+	}
+}
+
 func TestFileManagedDashboardMutationsAreRejected(t *testing.T) {
-	handler, _ := setupRouter(t)
+	handler, db := setupRouter(t)
+	if err := db.ReplaceDashboardDefinition(&storage.Dashboard{ID: "file-owned", Name: "Owned", SourceFile: "dashboards/owned.yaml", SourceFileModified: true}); err != nil {
+		t.Fatal(err)
+	}
 	for name, test := range map[string]struct {
 		method, path, body string
 	}{
@@ -26,6 +75,17 @@ func TestFileManagedDashboardMutationsAreRejected(t *testing.T) {
 				t.Fatalf("status %d want %d: %s", w.Code, http.StatusConflict, w.Body.String())
 			}
 		})
+	}
+	w := do(t, handler, http.MethodPost, "/api/dashboards/file-owned/acknowledge-yaml-update", map[string]any{})
+	if w.Code != http.StatusOK {
+		t.Fatalf("acknowledge status %d: %s", w.Code, w.Body.String())
+	}
+	dashboard, err := db.GetDashboard("file-owned")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dashboard.SourceFileModified {
+		t.Fatal("acknowledge did not clear source_file_modified")
 	}
 }
 
