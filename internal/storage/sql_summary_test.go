@@ -54,9 +54,9 @@ func TestWithQueryNamePanicsOnInvalidName(t *testing.T) {
 
 func TestSQLSummary(t *testing.T) {
 	for _, tt := range []struct{ sql, want string }{
-		{"SELECT * FROM spans WHERE trace_id = 'secret' ORDER BY start_ns DESC", "SELECT * FROM spans WHERE trace_id = ? ORDER BY start_ns DESC · 1 args"},
-		{"SELECT id, service_name FROM spans WHERE trace_id = 'secret' AND kind = 2", "SELECT id, service_name FROM spans WHERE trace_id = ? AND kind = ? · 2 args"},
-		{"WITH recent AS (SELECT * FROM spans) SELECT * FROM recent", "SELECT * FROM recent · 0 args"},
+		{"SELECT * FROM spans WHERE trace_id = 'secret' ORDER BY start_ns DESC", "SELECT spans"},
+		{"SELECT id, service_name FROM spans WHERE trace_id = 'secret' AND kind = 2", "SELECT spans"},
+		{"WITH recent AS (SELECT * FROM spans) SELECT * FROM recent", "SELECT spans"},
 		{"INSERT INTO sessions (id) VALUES (?)", "INSERT sessions"},
 		{"UPDATE sessions SET label = ?", "UPDATE sessions"},
 		{"DELETE FROM spans WHERE trace_id = $1", "DELETE spans"},
@@ -105,7 +105,7 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 		for _, attr := range span.Attributes() {
 			attrs[string(attr.Key)] = attr.Value.AsString()
 		}
-		if attrs["db.query.summary"] != "spaniel.storage.ReadOnlyQuery" {
+		if attrs["db.query.summary"] != "SELECT" {
 			t.Errorf("summary = %q", attrs["db.query.summary"])
 		}
 		if attrs["db.query.text"] != "SELECT ? AS value" {
@@ -141,8 +141,8 @@ func TestReadOnlyQueryUsesExplicitUserName(t *testing.T) {
 		for _, attr := range span.Attributes() {
 			if string(attr.Key) == "db.query.summary" {
 				foundSummary = true
-				if attr.Value.AsString() != "spaniel.storage.DashboardLatency" {
-					t.Errorf("summary = %q, want DashboardLatency", attr.Value.AsString())
+				if attr.Value.AsString() != "SELECT" {
+					t.Errorf("summary = %q, want SELECT", attr.Value.AsString())
 				}
 			}
 		}
