@@ -28,6 +28,7 @@ jobs:
           cache: true
       - run: go build ./...
       - run: go test ./internal/... ./cmd/... -race -count=1
+      - run: make test-mcp-e2e
 
   frontend:
     runs-on: ubuntu-latest

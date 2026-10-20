@@ -238,7 +238,7 @@ All tools are **read-only** unless you start spaniel with `--mcp-allow-writes`.
 | `get_service_map` / `list_services` / `get_stats` | dependency graph; services; counts |
 | `get_metrics` / `get_metric_series` | metric catalog and time series |
 | `list_sessions` / `diff_sessions` | sessions; before/after comparison |
-| `query_sql` | **read-only** raw SQL over the DuckDB tables (engine-enforced) |
+| `query_sql` | **read-only** raw SQL over the DuckDB tables (validated before execution; external access disabled) |
 | `list_dashboards` / `get_dashboard` / `run_dashboard_panel` / `validate_dashboard` | inspect, execute, and validate dashboard definitions |
 | `export_dashboard_yaml` / `import_dashboard_yaml` / `apply_dashboard` / `delete_dashboard` | portable dashboard YAML and structured dashboard lifecycle; imports with an ID update that dashboard, while imports without an ID create a copy |
 | `list_alerts` / `get_alert` / `list_alert_history` / `preview_alert` / `validate_alert` | alert definitions, state, history, query previews, and validation |
@@ -469,7 +469,12 @@ make setup    # point git at the repo's pre-commit hooks (one-time)
 make dev      # Go backend + Vite dev server with hot reload
 make build    # production binary with the frontend embedded via go:embed
 make test     # Go test suite
+make test-mcp-e2e # MCP protocol integration via the reference Inspector CLI
 ```
+
+The Inspector integration requires Node.js 22.19.0 or newer. It starts a
+loopback-only Spaniel MCP server and uses the pinned Inspector CLI to verify
+initialization, strict tool schemas, TOON tool output, prompts, and resources.
 
 Frontend tests live in `frontend/`:
 
