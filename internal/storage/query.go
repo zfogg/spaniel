@@ -7,9 +7,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/zfogg/gotel"
+	"github.com/zfogg/gotel/sqltrace"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -52,17 +52,13 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 		if name == "" {
 			name = storageQueryName("ReadOnlyQuery")
 		}
-		attrs := []attribute.KeyValue{
-			semconv.DBSystemKey.String("duckdb"),
-			attribute.String("db.query.summary", name),
-		}
-		if sanitized, ok := sanitizeSQL(query); ok {
-			attrs = append(attrs, semconv.DBQueryTextKey.String(sanitized))
-		}
+		metadata := sqltrace.Inspect(storageNamer, "", query, args)
+		attrs := metadata.Attributes("duckdb", d.path)
+		attrs = append(attrs, sqltrace.QuerySummaryKey.String(name))
 		var span trace.Span
 		ctx, span = otel.Tracer("spaniel/storage").Start(ctx, name,
 			trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
-		defer span.End()
+		defer func() { gotel.End(span, err) }()
 	}
 
 	var ro *sql.DB

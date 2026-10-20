@@ -147,7 +147,7 @@ func TestNamedHelpersPrefixSimpleNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	var one int
-	if err := store.namedGORM("SelectOne").Raw("SELECT 1").Scan(&one).Error; err != nil {
+	if err := store.namedGORM("SelectOne").Raw("SELECT ?", 1).Scan(&one).Error; err != nil {
 		t.Fatal(err)
 	}
 	parent.End()
@@ -162,6 +162,24 @@ func TestNamedHelpersPrefixSimpleNames(t *testing.T) {
 		if counts[name] != 1 {
 			t.Errorf("%s spans = %d, want 1; recorded %v", name, counts[name], counts)
 		}
+	}
+	for _, span := range recorder.Ended() {
+		if span.Name() != "spaniel.storage.SelectOne" {
+			continue
+		}
+		attrs := map[string]any{}
+		for _, attr := range span.Attributes() {
+			switch attr.Key {
+			case "db.query.text", "db.query.summary":
+				attrs[string(attr.Key)] = attr.Value.AsString()
+			case "db.query.parameter.count":
+				attrs[string(attr.Key)] = attr.Value.AsInt64()
+			}
+		}
+		if attrs["db.query.text"] != "SELECT ?" || attrs["db.query.summary"] != "spaniel.storage.SelectOne" || attrs["db.query.parameter.count"] != int64(1) {
+			t.Errorf("SelectOne safe query attrs = %#v", attrs)
+		}
+		break
 	}
 }
 

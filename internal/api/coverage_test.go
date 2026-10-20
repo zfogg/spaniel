@@ -61,7 +61,7 @@ func TestCoverageSpecPersistsAfterStorageReload(t *testing.T) {
 
 func TestCoverageSpecCanBeReplaced(t *testing.T) {
 	handler, _ := setupRouterWithManifests(t, nil)
-	create := []byte(`{"name":"initial","service_name":"spaniel","content":"openapi: 3.1.0\ninfo: {title: Spaniel API, version: '1'}\npaths: {}"}`)
+	create := []byte(`{"name":"initial","service_name":"spaniel","content":"openapi: 3.1.0\ninfo: {title: Spaniel API, version: '1'}\npaths:\n  /api/coverage:\n    get:\n      responses: {'200': {description: ok}}"}`)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/coverage/specs", bytes.NewReader(create)))
 	if w.Code != http.StatusOK {
@@ -87,6 +87,9 @@ func TestCoverageSpecCanBeReplaced(t *testing.T) {
 	}
 	if updated.Data.ID != created.Data.ID || updated.Data.Name != "refreshed" || updated.Data.RouteCount != 1 {
 		t.Fatalf("updated spec = %#v", updated.Data)
+	}
+	if updated.Data.Content == created.Data.Content || updated.Data.Digest == created.Data.Digest {
+		t.Fatalf("replacement retained the original OpenAPI content or digest: %#v", updated.Data)
 	}
 }
 

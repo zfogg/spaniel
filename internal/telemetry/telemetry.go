@@ -2,11 +2,11 @@ package telemetry
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/zfogg/gotel"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	goruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
@@ -185,12 +185,5 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		slog.String("spaniel.log.source", "spaniel"),
 	})))
 
-	shutdown = func(ctx context.Context) error {
-		var errs []error
-		for _, fn := range shutdownFuncs {
-			errs = append(errs, fn(ctx))
-		}
-		return errors.Join(errs...)
-	}
-	return shutdown, nil
+	return gotel.Shutdown(shutdownFuncs...), nil
 }
