@@ -869,6 +869,19 @@ func run(cfg runConfig) error {
 			fmt.Printf("  Routes    →  %s (%d declared)\n", cfg.RoutesFile, total)
 		}
 	}
+	var mcpHandler *mcp.Handler
+	if cfg.MCPEnabled {
+		mcpHandler = mcp.NewHandler(store, mcp.Options{
+			Version:     version,
+			AllowWrites: cfg.MCPAllowWrites,
+			Hub:         hub,
+			Manifests:   manifests,
+			Forwarder:   fwd,
+			Throughput:  pipeline,
+			Drops:       pipeline.DropCounters(),
+			Sources:     pipeline,
+		})
+	}
 	settingsSvc := &api.SettingsService{
 		Viper:          cfg.Viper,
 		ConfigPath:     globalConfigPath(),
@@ -895,6 +908,11 @@ func run(cfg runConfig) error {
 		SetStoragePolicy: func(maxDBSizeMB int, autoPrune bool) {
 			storagePolicy.Update(int64(maxDBSizeMB)*1024*1024, autoPrune)
 			telemetry.Catalog().SetStorageDBSizeLimit(int64(maxDBSizeMB) * 1024 * 1024)
+		},
+		SetMCPAllowWrites: func(enabled bool) {
+			if mcpHandler != nil {
+				mcpHandler.SetAllowWrites(enabled)
+			}
 		},
 		ReloadAlerts: func() error {
 			return loadAlertDefinitions(store, expandHome(cfg.Viper.GetString("alerts_dir")))
@@ -948,17 +966,7 @@ func run(cfg runConfig) error {
 	mainMux := http.NewServeMux()
 	mainMux.Handle("/api/", apiRouter)
 	mainMux.Handle("/ws", apiRouter)
-	if cfg.MCPEnabled {
-		mcpHandler := mcp.NewHandler(store, mcp.Options{
-			Version:     version,
-			AllowWrites: cfg.MCPAllowWrites,
-			Hub:         hub,
-			Manifests:   manifests,
-			Forwarder:   fwd,
-			Throughput:  pipeline,
-			Drops:       pipeline.DropCounters(),
-			Sources:     pipeline,
-		})
+	if mcpHandler != nil {
 		mainMux.Handle("/mcp", mcpHandler)
 		mainMux.Handle("/mcp/", mcpHandler)
 	}

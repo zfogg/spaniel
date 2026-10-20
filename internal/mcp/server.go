@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
@@ -55,6 +56,18 @@ type DropCounterProvider interface {
 }
 type SourcesProvider interface{ Sources() []storage.SourceStats }
 
+// Handler serves MCP and can replace its underlying server when write access
+// changes. Replacing the server intentionally invalidates existing MCP
+// sessions: clients reconnect and receive a fresh tool list with the new
+// permissions instead of retaining a writable session after writes are
+// disabled.
+type Handler struct {
+	mu      sync.RWMutex
+	store   *storage.DB
+	opts    Options
+	current http.Handler
+}
+
 // handler holds the dependencies shared by every tool handler.
 type handler struct {
 	store  *storage.DB
@@ -62,9 +75,42 @@ type handler struct {
 	tracer trace.Tracer
 }
 
-// NewHandler builds the MCP server and returns an http.Handler serving the
-// streamable-HTTP transport. Mount it at /mcp on the main server.
-func NewHandler(store *storage.DB, opts Options) http.Handler {
+// NewHandler builds a reloadable MCP HTTP handler. Mount it at /mcp on the
+// main server.
+func NewHandler(store *storage.DB, opts Options) *Handler {
+	h := &Handler{store: store, opts: opts}
+	h.current = buildHandler(store, opts)
+	return h
+}
+
+// ServeHTTP dispatches to the current MCP server.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	current := h.current
+	h.mu.RUnlock()
+	current.ServeHTTP(w, r)
+}
+
+// SetAllowWrites hot-applies MCP write access. Rebuilding is required because
+// write tools are omitted entirely from a read-only server's tools/list.
+func (h *Handler) SetAllowWrites(allow bool) {
+	h.mu.RLock()
+	unchanged := h.opts.AllowWrites == allow
+	h.mu.RUnlock()
+	if unchanged {
+		return
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.opts.AllowWrites == allow {
+		return
+	}
+	h.opts.AllowWrites = allow
+	h.current = buildHandler(h.store, h.opts)
+}
+
+func buildHandler(store *storage.DB, opts Options) http.Handler {
 	h := &handler{
 		store:  store,
 		opts:   opts,

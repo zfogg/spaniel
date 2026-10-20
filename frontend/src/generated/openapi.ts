@@ -5677,6 +5677,8 @@ export interface operations {
           max_db_size_mb?: number
           /** @description Limits how many capture sessions Spaniel retains. */
           max_sessions?: number
+          /** @description Allows MCP clients to use mutating tools and hot-reloads the MCP server. */
+          mcp_allow_writes?: boolean
           /** @description Prevents Spaniel from opening the browser automatically on startup. */
           no_browser?: boolean
           /** @description Sets the port accepting OTLP over gRPC. */

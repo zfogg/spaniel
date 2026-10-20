@@ -10873,6 +10873,10 @@
                     "type": "integer",
                     "description": "Limits how many capture sessions Spaniel retains."
                   },
+                  "mcp_allow_writes": {
+                    "type": "boolean",
+                    "description": "Allows MCP clients to use mutating tools and hot-reloads the MCP server."
+                  },
                   "no_browser": {
                     "type": "boolean",
                     "description": "Prevents Spaniel from opening the browser automatically on startup."

@@ -62,6 +62,46 @@ func TestListToolsReadOnly(t *testing.T) {
 	}
 }
 
+func TestHandlerHotReloadsWriteTools(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "test.duckdb"))
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	handler := NewHandler(store, Options{Version: "test", AllowWrites: false})
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	connectClient := func() *mcpsdk.ClientSession {
+		client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "1"}, nil)
+		cs, err := client.Connect(context.Background(), &mcpsdk.StreamableClientTransport{Endpoint: srv.URL}, nil)
+		if err != nil {
+			t.Fatalf("connect: %v", err)
+		}
+		t.Cleanup(func() { cs.Close() })
+		return cs
+	}
+
+	if names := toolNames(t, connectClient()); names["create_session"] {
+		t.Fatal("create_session was exposed while writes were disabled")
+	}
+
+	handler.SetAllowWrites(true)
+	writable := connectClient()
+	if names := toolNames(t, writable); !names["create_session"] {
+		t.Fatal("create_session was not exposed after enabling writes")
+	}
+
+	handler.SetAllowWrites(false)
+	if _, err := writable.ListTools(context.Background(), nil); err == nil {
+		t.Fatal("existing writable MCP session remained usable after disabling writes")
+	}
+	if names := toolNames(t, connectClient()); names["create_session"] {
+		t.Fatal("create_session remained exposed after disabling writes")
+	}
+}
+
 func TestGetServerInfo(t *testing.T) {
 	cs, _ := connect(t, Options{Version: "test-1.0", AllowWrites: true})
 

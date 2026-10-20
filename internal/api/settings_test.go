@@ -40,6 +40,8 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 	v.Set("otlp_http_port", 4318)
 	v.Set("no_browser", false)
 	v.Set("forward", []string{})
+	v.Set("mcp_enabled", true)
+	v.Set("mcp_allow_writes", false)
 
 	svc := &SettingsService{
 		Viper:        v,
@@ -48,6 +50,7 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 		StartedAt:    time.Now().Add(-90 * time.Second),
 		OTLPGRPCPort: 4317,
 		OTLPHTTPPort: 4318,
+		MCPEnabled:   true,
 	}
 
 	router := NewRouterFull(store, ws.NewHub(), (*forwarder.Forwarder)(nil), nil, svc, nil, nil, nil)
@@ -116,12 +119,12 @@ func TestPutSettings_Valid_PersistsAndReturns(t *testing.T) {
 	newAutoPrune := false
 	newAdvanceSessionOnStart := false
 	w := putSettings(t, router, map[string]any{
-		"port":           newPort,
-		"retention_days": newRet,
-		"auto_prune":     newAutoPrune,
+		"port":                     newPort,
+		"retention_days":           newRet,
+		"auto_prune":               newAutoPrune,
 		"advance_session_on_start": newAdvanceSessionOnStart,
-		"otlp_grpc_port": 4321,
-		"otlp_http_port": 0,
+		"otlp_grpc_port":           4321,
+		"otlp_http_port":           0,
 	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
@@ -190,6 +193,44 @@ func TestPutSettings_HotAppliesStoragePolicy(t *testing.T) {
 	}
 	if calls != 1 || gotMaxMB != 250 || gotAutoPrune {
 		t.Fatalf("storage policy callback: calls=%d max_mb=%d auto_prune=%v", calls, gotMaxMB, gotAutoPrune)
+	}
+}
+
+func TestPutSettings_HotAppliesAndPersistsMCPWriteAccess(t *testing.T) {
+	router, svc, _ := newSettingsRouter(t)
+	var got bool
+	var calls int
+	svc.SetMCPAllowWrites = func(enabled bool) {
+		calls++
+		got = enabled
+	}
+
+	w := putSettings(t, router, map[string]any{"mcp_allow_writes": true})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data SettingsResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !resp.Data.MCPAllowWrites || !svc.MCPAllowWrites || !svc.Viper.GetBool("mcp_allow_writes") {
+		t.Fatalf("MCP write access was not reflected everywhere: response=%v service=%v viper=%v", resp.Data.MCPAllowWrites, svc.MCPAllowWrites, svc.Viper.GetBool("mcp_allow_writes"))
+	}
+	if calls != 1 || !got {
+		t.Fatalf("MCP callback: calls=%d enabled=%v", calls, got)
+	}
+
+	raw, err := os.ReadFile(svc.ConfigPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if !bytes.Contains(raw, []byte("mcp_allow_writes: true")) {
+		t.Fatalf("config did not persist MCP write access:\n%s", raw)
+	}
+	if !bytes.Contains(raw, []byte("mcp_enabled: true")) {
+		t.Fatalf("saving settings dropped mcp_enabled:\n%s", raw)
 	}
 }
 

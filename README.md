@@ -260,7 +260,7 @@ series. Three user-selectable prompts guide complete workflows:
 prompt only applies its validated draft when the user explicitly asks and MCP
 writes are enabled.
 
-Config: `mcp_enabled` (default `true`), `mcp_allow_writes` (default `false`), or the `--mcp-enabled` / `--mcp-allow-writes` flags.
+Config: `mcp_enabled` (default `true`), `mcp_allow_writes` (default `false`), or the `--mcp-enabled` / `--mcp-allow-writes` flags. Write access can also be toggled from `/settings`; Spaniel persists the choice and reconnects MCP clients with the updated tool permissions.
 
 ---
 

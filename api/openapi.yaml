@@ -7365,6 +7365,9 @@ paths:
                                 max_sessions:
                                     description: Limits how many capture sessions Spaniel retains.
                                     type: integer
+                                mcp_allow_writes:
+                                    description: Allows MCP clients to use mutating tools and hot-reloads the MCP server.
+                                    type: boolean
                                 no_browser:
                                     description: Prevents Spaniel from opening the browser automatically on startup.
                                     type: boolean
