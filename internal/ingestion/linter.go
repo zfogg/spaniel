@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -22,7 +23,7 @@ var rules = []LintRule{
 		ID:       "http.missing_method",
 		Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if s.Kind != 3 && s.Kind != 4 { // client=3, server=4
+			if !isHTTPSpan(s) {
 				return "", false
 			}
 			if !hasAttr(s.Attributes, "http.request.method") && !hasAttr(s.Attributes, "http.method") {
@@ -35,7 +36,7 @@ var rules = []LintRule{
 		ID:       "http.missing_status_code",
 		Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if s.Kind != 3 && s.Kind != 4 {
+			if !isHTTPSpan(s) {
 				return "", false
 			}
 			if !hasAttr(s.Attributes, "http.response.status_code") && !hasAttr(s.Attributes, "http.status_code") {
@@ -130,6 +131,25 @@ var rules = []LintRule{
 			return "", false
 		},
 	},
+}
+
+// Span kind describes the transport role, not its protocol. SQL clients and
+// message producers must not be asked to invent HTTP attributes.
+func isHTTPSpan(s *storage.Span) bool {
+	if s.Kind != 2 && s.Kind != 3 {
+		return false
+	} // OTLP server=2, client=3
+	for _, key := range []string{"http.request.method", "http.method", "http.response.status_code", "http.status_code", "http.route", "http.url", "url.full", "url.path"} {
+		if hasAttr(s.Attributes, key) {
+			return true
+		}
+	}
+	for _, method := range []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "CONNECT", "TRACE"} {
+		if s.Name == method || strings.HasPrefix(s.Name, method+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 func lintSpan(s *storage.Span, sessionID string, store *storage.DB, tracer trace.Tracer) {

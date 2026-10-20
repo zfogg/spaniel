@@ -7,6 +7,23 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
+func TestHTTPRulesRespectProtocolAndOTLPKinds(t *testing.T) {
+	for _, rule := range []string{"http.missing_method", "http.missing_status_code"} {
+		for _, s := range []*storage.Span{
+			buildSpan(3, "ratio-worker", map[string]string{"db.system.name": "postgresql", "db.operation.name": "INSERT", "db.query.text": "INSERT INTO reference_points VALUES (?)"}),
+			buildSpan(3, "cache", map[string]string{"db.system.name": "redis"}),
+			buildSpan(4, "producer", map[string]string{"messaging.system": "kafka"}),
+		} {
+			if _, fired := findRule(rule).Check(s); fired {
+				t.Fatalf("%s misidentified non-HTTP span %+v", rule, s)
+			}
+		}
+		if _, fired := findRule(rule).Check(buildSpan(2, "http-server", map[string]string{"url.path": "/health"})); !fired {
+			t.Fatalf("%s missed real OTLP HTTP server", rule)
+		}
+	}
+}
+
 // buildSpan creates a minimal *storage.Span for testing lint rules.
 func buildSpan(kind int, serviceName string, attrs map[string]string) *storage.Span {
 	attrsJSON := "{"
@@ -42,7 +59,7 @@ func findRule(id string) LintRule {
 
 func TestHTTPMissingMethod_ClientNoAttrs_Fires(t *testing.T) {
 	rule := findRule("http.missing_method")
-	s := buildSpan(3, "svc", map[string]string{})
+	s := buildSpan(3, "svc", map[string]string{"url.full": "https://example.test/"})
 	_, fired := rule.Check(s)
 	if !fired {
 		t.Errorf("expected rule to fire for kind=3 with no http method attr")
@@ -51,7 +68,7 @@ func TestHTTPMissingMethod_ClientNoAttrs_Fires(t *testing.T) {
 
 func TestHTTPMissingMethod_ServerNoAttrs_Fires(t *testing.T) {
 	rule := findRule("http.missing_method")
-	s := buildSpan(4, "svc", map[string]string{})
+	s := buildSpan(2, "svc", map[string]string{"url.path": "/example"})
 	_, fired := rule.Check(s)
 	if !fired {
 		t.Errorf("expected rule to fire for kind=4 with no http method attr")
@@ -89,7 +106,7 @@ func TestHTTPMissingMethod_WithLegacyAttr_DoesNotFire(t *testing.T) {
 
 func TestHTTPMissingStatusCode_ClientNoAttrs_Fires(t *testing.T) {
 	rule := findRule("http.missing_status_code")
-	s := buildSpan(3, "svc", map[string]string{})
+	s := buildSpan(3, "svc", map[string]string{"url.full": "https://example.test/"})
 	_, fired := rule.Check(s)
 	if !fired {
 		t.Errorf("expected rule to fire for kind=3 with no status code attr")
