@@ -1,4 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import { useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { formatNumber } from '@/lib/format-number'
 import { qk } from '@/lib/query'
 import { api, LintWarning, TraceIssue } from '@/lib/api'
 import EmptyState from '@/components/EmptyState'
@@ -38,7 +41,9 @@ function SummaryStat({ tone, big, label, sub }: SummaryStatProps) {
     <div className="flex-1 px-3 py-2.5 border border-line rounded-lg bg-surface2">
       <div className="flex items-baseline gap-2">
         <span className={`w-2 h-2 rounded-full self-center shrink-0 ${dotClass}`} />
-        <span className="font-mono text-xl font-bold text-ink leading-none">{big}</span>
+        <span className="font-mono text-xl font-bold text-ink leading-none" title={String(big)}>
+          {typeof big === 'number' ? formatNumber(big) : big}
+        </span>
       </div>
       <div className="font-sans text-[11px] text-ink2 mt-1">{label}</div>
       <div className="font-mono text-[10px] text-ink3 mt-0.5">{sub}</div>
@@ -129,6 +134,13 @@ export default function LintPage() {
     queryFn: () => api.issues.list().then((r) => r.data ?? []),
   })
   const loading = lintLoading || issuesLoading
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const virtualizer = useVirtualizer({
+    count: loading || lintError ? 0 : warnings.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 110,
+    overscan: 8,
+  })
 
   const errors = warnings.filter((w) => w.severity === 'error').length
   const warnCnt = warnings.filter((w) => w.severity === 'warning').length
@@ -166,17 +178,17 @@ export default function LintPage() {
         <div className="flex gap-1.5">
           {errors > 0 && (
             <span className="px-[7px] py-0.5 rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase text-danger-ink bg-danger-bg">
-              {errors} error{errors !== 1 ? 's' : ''}
+              {formatNumber(errors)} error{errors !== 1 ? 's' : ''}
             </span>
           )}
           {warnCnt > 0 && (
             <span className="px-[7px] py-0.5 rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase text-warn-ink bg-warn-bg">
-              {warnCnt} warn{warnCnt !== 1 ? 's' : ''}
+              {formatNumber(warnCnt)} warn{warnCnt !== 1 ? 's' : ''}
             </span>
           )}
           {infoCnt > 0 && (
             <span className="px-[7px] py-0.5 rounded font-mono text-[9px] font-semibold tracking-[0.04em] uppercase text-ink3 bg-chip-bg">
-              {infoCnt} info
+              {formatNumber(infoCnt)} info
             </span>
           )}
         </div>
@@ -188,7 +200,7 @@ export default function LintPage() {
           tone="ok"
           big={warnings.length}
           label="total lint warnings"
-          sub={loading ? 'loading…' : `${warnings.length} total`}
+          sub={loading ? 'loading…' : `${warnings.length.toLocaleString()} total`}
         />
         <SummaryStat
           tone="danger"
@@ -216,7 +228,7 @@ export default function LintPage() {
       </div>
 
       {/* warning list */}
-      <div className="flex-1 overflow-auto bg-surface">
+      <div ref={scrollRef} className="flex-1 overflow-auto bg-surface">
         {loading && <div className="px-[18px] py-8 font-mono text-xs text-ink3">Loading…</div>}
         {!loading && lintError && (
           <ErrorState what="lint results" error={lintErr} onRetry={() => refetch()} />
@@ -239,14 +251,21 @@ export default function LintPage() {
             }
           />
         )}
-        {!loading &&
-          warnings.map((w, i) => (
-            <LintRow
-              key={`${w.rule_id}-${w.span_id}-${i}`}
-              w={w}
-              last={i === warnings.length - 1}
-            />
-          ))}
+        {!loading && !lintError && (
+          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((row) => (
+              <div
+                key={row.key}
+                data-index={row.index}
+                ref={virtualizer.measureElement}
+                className="absolute top-0 left-0 w-full"
+                style={{ transform: `translateY(${row.start}px)` }}
+              >
+                <LintRow w={warnings[row.index]} last={row.index === warnings.length - 1} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

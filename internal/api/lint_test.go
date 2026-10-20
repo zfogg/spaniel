@@ -1,12 +1,51 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/zfogg/spaniel/internal/storage"
 )
+
+func TestListLint_Unlimited(t *testing.T) {
+	handler, store := setupRouter(t)
+	// Both sides of the union must remain complete, globally and per session.
+	for i := 0; i < 505; i++ {
+		insertLintWarning(t, store, "many", fmt.Sprintf("rule-%d", i), "warning", "warning")
+	}
+	if err := store.UpsertTraceIssue(&storage.TraceIssue{
+		ID: "old-issue", TraceID: "old-trace", SessionID: "many",
+		Kind: "n_plus_one", Count: 3, CreatedAt: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	insertLintWarning(t, store, "other", "other-rule", "other", "info")
+	for _, tc := range []struct {
+		path  string
+		count int
+	}{
+		{"/api/lint", 507}, {"/api/lint?sessionId=many", 506},
+	} {
+		w := do(t, handler, http.MethodGet, tc.path, nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d", tc.path, w.Code)
+		}
+		items := decodeData[[]storage.LintWarning](t, w.Body.Bytes())
+		if len(items) != tc.count {
+			t.Fatalf("%s: got %d, want %d", tc.path, len(items), tc.count)
+		}
+		if items[len(items)-1].RuleID != "n_plus_one" {
+			t.Fatal("oldest finding missing")
+		}
+		for i := 1; i < len(items); i++ {
+			if items[i].CreatedAt > items[i-1].CreatedAt {
+				t.Fatal("findings out of order")
+			}
+		}
+	}
+}
 
 func insertLintWarning(t *testing.T, store *storage.DB, sessID, ruleID, msg, severity string) {
 	t.Helper()
