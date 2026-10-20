@@ -47,7 +47,7 @@ func IsDatabaseInvalidated(err error) bool {
 // process is alive. This detects invalidated database handles for readiness.
 func (d *DB) Ping(ctx context.Context) error {
 	var value int
-	return d.gorm.WithContext(ctx).Raw("SELECT 1").Scan(&value).Error
+	return d.gorm.WithContext(WithoutTracing(ctx)).Raw("SELECT 1").Scan(&value).Error
 }
 
 // Full reports whether the storage is currently full (writes rejected). It's an
