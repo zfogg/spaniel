@@ -221,6 +221,9 @@ type client struct {
 	conn   *websocket.Conn
 	send   chan []byte
 	cancel context.CancelFunc
+	// Guarded by Hub.mu. Older clients remain visible until they explicitly
+	// send a visibility frame, preserving compatibility with existing viewers.
+	hidden bool
 }
 
 type Hub struct {
@@ -238,6 +241,19 @@ func NewHub() *Hub {
 		heartbeatInterval: defaultHeartbeatInterval,
 	}
 	return h
+}
+
+// HasViewers reports whether UI-derived database work currently has a visible
+// consumer. Background sockets stay connected for alerts and notifications.
+func (h *Hub) HasViewers() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for c := range h.clients {
+		if !c.hidden {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
@@ -281,9 +297,9 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	_ = conn.CloseNow()
 }
 
-// readPump drains inbound frames (clients don't send anything meaningful; this
-// is for byte accounting and to observe the close handshake) until the
-// connection errors or ctx is canceled.
+// readPump accounts for incoming frames and records the viewer's visibility.
+// Unknown client messages are ignored; alert delivery remains connected while
+// a background tab opts out of UI updates and derived database snapshots.
 func (h *Hub) readPump(ctx context.Context, c *client) {
 	for {
 		_, data, err := c.conn.Read(ctx)
@@ -291,6 +307,15 @@ func (h *Hub) readPump(ctx context.Context, c *client) {
 			return
 		}
 		telemetry.Catalog().RecordWebSocketMessageReceived(ctx, int64(len(data)))
+		var state struct {
+			Type    string `json:"type"`
+			Visible *bool  `json:"visible"`
+		}
+		if json.Unmarshal(data, &state) == nil && state.Type == "visibility" && state.Visible != nil {
+			h.mu.Lock()
+			c.hidden = !*state.Visible
+			h.mu.Unlock()
+		}
 	}
 }
 
@@ -347,6 +372,9 @@ func (h *Hub) Broadcast(ev *Event) {
 	h.mu.RLock()
 	queued, dropped := int64(0), int64(0)
 	for c := range h.clients {
+		if c.hidden && ev.Type != "alert" && ev.Type != "alert_sync" && ev.Type != "notification" {
+			continue
+		}
 		select {
 		case c.send <- data:
 			queued++

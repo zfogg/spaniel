@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import { Plus } from 'lucide-react'
 import { api, type Dashboard } from '@/lib/api'
 import { qk } from '@/lib/query'
@@ -31,18 +32,25 @@ export function DashboardGallery() {
     [savedDashboards, local],
   )
   const selected = dashboards.find((dashboard) => dashboard.id === selectedId) ?? dashboards[0]
-  const [variables, setVariables] = useState<Record<string, string>>({})
+  const [variableOverrides, setVariableOverrides] = useState<{
+    dashboardId: string
+    values: Record<string, string>
+  }>({ dashboardId: '', values: {} })
+  // Defaults are available on the first panel render. An effect used to run
+  // every query once with {} then again with the same server-side defaults,
+  // and reset operator choices whenever dashboard metadata refreshed.
+  const variables = useMemo(
+    () => ({
+      ...Object.fromEntries(
+        (selected?.variables ?? []).map((variable) => [variable.name, variable.default_value]),
+      ),
+      ...(variableOverrides.dashboardId === selected?.id ? variableOverrides.values : {}),
+    }),
+    [selected, variableOverrides],
+  )
   const [panelStatus, setPanelStatus] = useState<
     Record<string, { state: 'loading' | 'ready' | 'error'; message?: string }>
   >({})
-  useEffect(() => {
-    if (selected)
-      setVariables(
-        Object.fromEntries(
-          selected.variables.map((variable) => [variable.name, variable.default_value]),
-        ),
-      )
-  }, [selected])
   useEffect(() => {
     const modified = savedDashboards.filter((dashboard) => dashboard.source_file_modified)
     const signature = modified
@@ -200,9 +208,12 @@ export function DashboardGallery() {
                     aria-label={`Dashboard variable ${variable.name}`}
                     value={variables[variable.name] ?? ''}
                     onChange={(event) =>
-                      setVariables((current) => ({
-                        ...current,
-                        [variable.name]: event.target.value,
+                      setVariableOverrides((current) => ({
+                        dashboardId: selected.id,
+                        values: {
+                          ...(current.dashboardId === selected.id ? current.values : {}),
+                          [variable.name]: event.target.value,
+                        },
                       }))
                     }
                     className="ml-1 rounded border border-border bg-surface px-2 py-1"

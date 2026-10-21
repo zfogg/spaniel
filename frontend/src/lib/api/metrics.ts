@@ -3,13 +3,16 @@ import { unwrap } from './transport'
 import type { MetricSeriesQuery } from './requests'
 
 export const metrics = {
-  list: (sessionId?: string) =>
-    unwrap(openapiClient.GET('/api/metrics', { params: { query: { sessionId } } })),
-  cardinality: (sessionId?: string) =>
-    unwrap(openapiClient.GET('/api/metrics/cardinality', { params: { query: { sessionId } } })),
-  series: (params: MetricSeriesQuery) =>
+  list: (sessionId?: string, signal?: AbortSignal) =>
+    unwrap(openapiClient.GET('/api/metrics', { params: { query: { sessionId } }, signal })),
+  cardinality: (sessionId?: string, signal?: AbortSignal) =>
+    unwrap(
+      openapiClient.GET('/api/metrics/cardinality', { params: { query: { sessionId } }, signal }),
+    ),
+  series: (params: MetricSeriesQuery, signal?: AbortSignal) =>
     unwrap(
       openapiClient.GET('/api/metrics/series', {
+        signal,
         params: {
           query: {
             name: params.name,

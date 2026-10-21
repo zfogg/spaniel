@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { motion } from 'motion/react'
 
@@ -31,6 +31,7 @@ export function DashboardPanel({
   const { data: dashboard } = useQuery({
     queryKey: ['dashboard-runtime', dashboardId],
     queryFn: () => api.dashboards.get(dashboardId).then((response) => response.data),
+    enabled: sharedVariables === undefined,
   })
   useEffect(() => {
     if (dashboard)

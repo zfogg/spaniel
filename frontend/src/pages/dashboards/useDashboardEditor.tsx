@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import {
   api,
   type Dashboard,
@@ -109,6 +110,7 @@ export function useDashboardEditor() {
       api.dashboards.catalog(undefined, debouncedSearch, signal).then((x) => x.data),
     retry: 1,
     staleTime: 15_000,
+    enabled: !active || (!active.source_file && editorTab === 'library'),
   })
   const preview = useMutation({
     mutationFn: () =>

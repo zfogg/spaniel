@@ -999,52 +999,11 @@ func run(cfg runConfig) error {
 		}()
 	}
 
-	// Throughput + forwarder status broadcaster (every 2s)
-	go func() {
-		// This is UI bookkeeping, not an operator-visible database operation.
-		// It runs every two seconds, so tracing it would otherwise manufacture a
-		// constant stream of root db.query traces merely because the UI is live.
-		statsStore := store.WithContext(storage.WithoutTracing(context.Background()))
-		var prevSpans, prevLogs int
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			stats, err := statsStore.GetStats("")
-			if err == nil {
-				spansRate := float64(stats.SpanCount-prevSpans) / 2.0
-				logsRate := float64(stats.LogCount-prevLogs) / 2.0
-				if spansRate < 0 {
-					spansRate = 0
-				}
-				if logsRate < 0 {
-					logsRate = 0
-				}
-				prevSpans = stats.SpanCount
-				prevLogs = stats.LogCount
-				hub.Broadcast(ws.NewThroughputEvent(&ws.ThroughputPayload{
-					SpansPerSec: spansRate,
-					LogsPerSec:  logsRate,
-				}))
-			}
-			if fwd != nil {
-				for _, s := range fwd.Status() {
-					hub.Broadcast(ws.NewForwarderEvent(&ws.ForwarderPayload{
-						URL:          s.URL,
-						Sent:         s.Sent,
-						Errors:       s.Errors,
-						LastErr:      s.LastErr,
-						PendingBytes: s.PendingBytes,
-						DroppedSpool: s.DroppedSpool,
-					}))
-				}
-			}
-		}
-	}()
-
 	ctx, stop := notifyShutdown(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go broadcastUILoop(ctx, hub, pipeline, fwd)
 	api.ConfigureAlertDelivery(api.AlertDelivery{BrowserEnabled: func() bool { return cfg.Viper.GetBool("alerts.browser_enabled") }, PushoverEnabled: func() bool { return cfg.Viper.GetBool("alerts.pushover_enabled") }, BrowserTemplate: func() string { return cfg.Viper.GetString("alerts.browser_template") }, PushoverTemplate: func() string { return cfg.Viper.GetString("alerts.pushover_template") }, PushoverUserKey: os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"), PushoverAPIToken: os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"), RecordEvent: func(e *storage.AlertEvent) { _ = store.RecordAlertEvent(e) }, RecordNotification: func(n *storage.NotificationRecord) { _ = store.RecordNotification(n) }})
 	api.StartAlertEvaluator(ctx, store, hub, 15*time.Second)
-	defer stop()
 
 	lns, err := listenAll(hosts, cfg.Port)
 	if err != nil {

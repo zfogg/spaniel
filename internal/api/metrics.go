@@ -133,7 +133,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	}
 	from, _ := strconv.ParseInt(q.Get("from"), 10, 64)
 	to, _ := strconv.ParseInt(q.Get("to"), 10, 64)
-	rows, err := r.store.WithContext(req.Context()).GetMetricSeries(storage.MetricSeriesFilter{Name: name, Service: q.Get("service"), SessionID: r.scopeSession(q.Get("sessionId")), FromNs: from, ToNs: to})
+	rows, err := r.store.WithContext(req.Context()).GetMetricChartSeries(storage.MetricSeriesFilter{Name: name, Service: q.Get("service"), SessionID: r.scopeSession(q.Get("sessionId")), FromNs: from, ToNs: to})
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -145,34 +145,45 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 	filters := metricDimensionFilters(q)
 	byKey := map[string]*MetricSeries{}
 	values := map[string]map[string]struct{}{}
+	type identity struct {
+		attrs   map[string]any
+		matches bool
+	}
+	identities := map[string]identity{}
+	points := newMetricPointDecoder()
 	for _, row := range rows {
-		attrs := map[string]any{}
-		_ = json.Unmarshal([]byte(row.SeriesAttributes), &attrs)
-		// Dimension menus describe the stream, not merely the currently filtered
-		// result. That lets an operator replace one filter without first clearing
-		// every other selected label.
-		for k, v := range attrs {
-			if values[k] == nil {
-				values[k] = map[string]struct{}{}
-			}
-			values[k][stringifyMetricDimension(v)] = struct{}{}
+		key := row.SeriesKey
+		if key == "" {
+			key = row.Name + "\x00" + row.ServiceName + "\x00" + row.SeriesAttributes
 		}
-		if !matchesMetricFilters(attrs, filters) {
+		id, known := identities[key]
+		if !known {
+			attrs := map[string]any{}
+			_ = json.Unmarshal([]byte(row.SeriesAttributes), &attrs)
+			id = identity{attrs: attrs, matches: matchesMetricFilters(attrs, filters)}
+			identities[key] = id
+			// Dimension menus describe the stream, not merely the currently filtered
+			// result. That lets an operator replace one filter without first clearing
+			// every other selected label.
+			for k, v := range id.attrs {
+				if values[k] == nil {
+					values[k] = map[string]struct{}{}
+				}
+				values[k][stringifyMetricDimension(v)] = struct{}{}
+			}
+		}
+		if !id.matches {
 			continue
 		}
 		if out.ServiceName == "" {
 			out.ServiceName, out.Type, out.Unit, out.Description, out.AggregationTemporality, out.IsMonotonic = row.ServiceName, row.Type, row.Unit, row.Description, row.AggregationTemporality, row.IsMonotonic
 		}
-		key := row.SeriesKey
-		if key == "" {
-			key = row.Name + "\x00" + row.ServiceName + "\x00" + row.SeriesAttributes
-		}
 		series := byKey[key]
 		if series == nil {
-			series = &MetricSeries{Key: key, Attributes: attrs, Points: []MetricSeriesPoint{}}
+			series = &MetricSeries{Key: key, Attributes: id.attrs, Points: []MetricSeriesPoint{}}
 			byKey[key] = series
 		}
-		series.Points = append(series.Points, metricPoint(row))
+		series.Points = append(series.Points, points.decode(row))
 	}
 	for k, set := range values {
 		for v := range set {
@@ -214,13 +225,43 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 }
 
 func metricPoint(row *storage.Metric) MetricSeriesPoint {
+	return newMetricPointDecoder().decode(row)
+}
+
+// Scope attributes and histogram bounds repeat on almost every export. Decode
+// them once per response rather than once per point. Bound the caches even for
+// untrusted senders that change these fields on every observation.
+type metricPointDecoder struct {
+	scopes map[string]map[string]any
+	bounds map[string][]float64
+}
+
+func newMetricPointDecoder() *metricPointDecoder {
+	return &metricPointDecoder{scopes: map[string]map[string]any{}, bounds: map[string][]float64{}}
+}
+
+func (d *metricPointDecoder) decode(row *storage.Metric) MetricSeriesPoint {
 	p := MetricSeriesPoint{StartTimestampNs: row.StartTimestampNs, TimestampNs: row.TimestampNs, Flags: row.Flags, Value: row.Value, Count: row.HistogramCount, Sum: row.HistogramSum, Min: row.HistogramMin, Max: row.HistogramMax, ExpScale: row.ExpScale, ExpZeroCount: row.ExpZeroCount, ExpZeroThreshold: row.ExpZeroThreshold, ExpPositiveOffset: row.ExpPositiveOffset, ExpNegativeOffset: row.ExpNegativeOffset, ScopeName: row.ScopeName, ScopeVersion: row.ScopeVersion, ScopeSchemaURL: row.ScopeSchemaURL, ScopeAttributes: map[string]any{}, Exemplars: []MetricSeriesExemplar{}}
-	_ = json.Unmarshal([]byte(row.ExplicitBounds), &p.Bounds)
+	if cached, ok := d.bounds[row.ExplicitBounds]; ok {
+		p.Bounds = cached
+	} else {
+		_ = json.Unmarshal([]byte(row.ExplicitBounds), &p.Bounds)
+		if len(d.bounds) < 128 {
+			d.bounds[row.ExplicitBounds] = p.Bounds
+		}
+	}
 	_ = json.Unmarshal([]byte(row.BucketCounts), &p.Buckets)
 	_ = json.Unmarshal([]byte(row.SummaryQuantiles), &p.Quantiles)
 	_ = json.Unmarshal([]byte(row.ExpPositiveCounts), &p.ExpPositiveCounts)
 	_ = json.Unmarshal([]byte(row.ExpNegativeCounts), &p.ExpNegativeCounts)
-	_ = json.Unmarshal([]byte(row.ScopeAttributes), &p.ScopeAttributes)
+	if cached, ok := d.scopes[row.ScopeAttributes]; ok {
+		p.ScopeAttributes = cached
+	} else {
+		_ = json.Unmarshal([]byte(row.ScopeAttributes), &p.ScopeAttributes)
+		if len(d.scopes) < 128 {
+			d.scopes[row.ScopeAttributes] = p.ScopeAttributes
+		}
+	}
 	_ = json.Unmarshal([]byte(row.Exemplars), &p.Exemplars)
 	if p.Sum == nil && row.SummarySum != nil {
 		p.Sum = row.SummarySum

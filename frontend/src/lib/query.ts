@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import type { ForwarderStatus, Log, SourceStats, SpanRow, Stats, TraceRow } from './api'
 import { onWSEvent } from './ws'
+import { isPageVisible } from './page-visibility'
 
 // Single shared client. This is a local dev tool talking to localhost, so we
 // keep data briefly fresh and avoid focus/aggressive-retry refetch noise; live
@@ -66,7 +67,9 @@ const INVALIDATIONS: Record<string, string[]> = {
     'dashboard-panel',
   ],
   log: ['services', 'logs', 'dashboard-panel'],
-  metric: ['services', 'metrics', 'metric-series', 'dashboard-panel'],
+  // The Metrics view refreshes its selected stream from matching metric
+  // events. Do not also refetch it for every unrelated metric in the store.
+  metric: ['services', 'metrics', 'dashboard-panel'],
   issue: ['issues', 'traces', 'trace'],
   alert: ['alerts', 'notifications'],
 }
@@ -112,12 +115,37 @@ export function useLiveInvalidation() {
   useEffect(() => {
     const dirty = new Set<string>()
     let timer: ReturnType<typeof setTimeout> | null = null
+    let visible = isPageVisible()
 
     const flush = () => {
       timer = null
-      for (const prefix of dirty) qc.invalidateQueries({ queryKey: [prefix] })
+      if (!isPageVisible()) return
+      for (const prefix of dirty)
+        qc.invalidateQueries({ queryKey: [prefix] }, { cancelRefetch: false })
       dirty.clear()
     }
+
+    const onVisibilityChange = () => {
+      const nextVisible = isPageVisible()
+      if (nextVisible === visible) return
+      visible = nextVisible
+      if (timer) clearTimeout(timer)
+      timer = null
+      if (!isPageVisible()) {
+        // Cancel the expensive reads already in flight. Their fetch functions
+        // consume the signal so DuckDB also sees the canceled request context.
+        void qc.cancelQueries({ queryKey: ['dashboard-panel'] })
+        void qc.cancelQueries({ queryKey: ['dashboard-annotations'] })
+        void qc.cancelQueries({ queryKey: ['metric-series'] })
+        return
+      }
+      dirty.clear()
+      // Include disabled/inactive entries when marking stale, but fetch only
+      // mounted, enabled views. A visibility-enabled observer may re-render
+      // just after this event; it must see stale data and perform one refresh.
+      void qc.invalidateQueries({ refetchType: 'active' }, { cancelRefetch: false })
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
 
     const unsub = onWSEvent((ev) => {
       if (ev.type === 'self_trace') {
@@ -245,11 +273,12 @@ export function useLiveInvalidation() {
       const prefixes = INVALIDATIONS[ev.type]
       if (!prefixes) return
       for (const p of prefixes) dirty.add(p)
-      if (!timer) timer = setTimeout(flush, 1_000)
+      if (isPageVisible() && !timer) timer = setTimeout(flush, 1_000)
     })
 
     return () => {
       unsub()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       if (timer) clearTimeout(timer)
     }
   }, [qc])

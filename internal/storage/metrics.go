@@ -101,7 +101,22 @@ type MetricSeriesFilter struct {
 // timestamp ascending. Histogram percentiles arrive as separate rows; callers
 // split them apart by attributes.percentile.
 func (d *DB) GetMetricSeries(f MetricSeriesFilter) ([]*Metric, error) {
+	return d.metricSeries(f, false)
+}
+
+// GetMetricChartSeries keeps the complete point history and chart metadata,
+// but avoids copying raw resource/point attribute blobs out of DuckDB. Charts
+// use the admitted series attributes; raw inspection and MCP retain the full
+// GetMetricSeries projection.
+func (d *DB) GetMetricChartSeries(f MetricSeriesFilter) ([]*Metric, error) {
+	return d.metricSeries(f, true)
+}
+
+func (d *DB) metricSeries(f MetricSeriesFilter, chart bool) ([]*Metric, error) {
 	q := d.query.Metric.Where()
+	if chart {
+		q = q.Omit(d.query.Metric.Resource, d.query.Metric.Attributes)
+	}
 	if f.Name != "" {
 		q = q.Where(d.query.Metric.Name.Eq(f.Name))
 	}

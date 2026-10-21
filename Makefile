@@ -128,6 +128,25 @@ test-ingest-backpressure:
 	go test -race -c -o $(BIN_DIR)/storage-backpressure.test$(EXE) ./internal/storage
 	./$(BIN_DIR)/storage-backpressure.test$(EXE) -test.run '$(BACKPRESSURE_TEST_RUN)' -test.count=1 -test.timeout=5m -test.v
 
+.PHONY: test-dashboard-reads
+test-dashboard-reads:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/dashboard-api.test$(EXE) ./internal/api
+	./$(BIN_DIR)/dashboard-api.test$(EXE) -test.count=1 -test.timeout=10m
+	go test -race -c -o $(BIN_DIR)/dashboard-storage.test$(EXE) ./internal/storage
+	./$(BIN_DIR)/dashboard-storage.test$(EXE) -test.count=1 -test.timeout=10m
+	go test -race -c -o $(BIN_DIR)/dashboard-ws.test$(EXE) ./internal/ws
+	./$(BIN_DIR)/dashboard-ws.test$(EXE) -test.count=1 -test.timeout=5m
+	go test -race -c -o $(BIN_DIR)/dashboard-live.test$(EXE) ./internal/live
+	./$(BIN_DIR)/dashboard-live.test$(EXE) -test.count=1 -test.timeout=5m
+	$(MAKE) test-dashboard-cli
+
+.PHONY: test-dashboard-cli
+test-dashboard-cli:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/dashboard-cli.test$(EXE) ./cmd/spaniel
+	(cd cmd/spaniel && "$(CURDIR)/$(BIN_DIR)/dashboard-cli.test$(EXE)" -test.count=1 -test.timeout=10m)
+
 generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema

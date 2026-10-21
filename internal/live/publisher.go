@@ -40,6 +40,9 @@ func NewPublisher(store *storage.DB, hub *ws.Hub, tp ThroughputProvider, dc Drop
 
 // Notify is safe to call after any successful durable ingest.
 func (p *Publisher) Notify() {
+	if !p.hub.HasViewers() {
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.timer == nil {
@@ -48,6 +51,12 @@ func (p *Publisher) Notify() {
 }
 
 func (p *Publisher) publish() {
+	if !p.hub.HasViewers() {
+		p.mu.Lock()
+		p.timer = nil
+		p.mu.Unlock()
+		return
+	}
 	sessionID := p.store.ActiveSessionID()
 	stats, err := p.store.GetStats(sessionID)
 	if err == nil {

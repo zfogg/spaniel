@@ -295,7 +295,7 @@ test.describe('Metrics page', () => {
     // The right pane H1 echoes the selected metric name.
     await expect(page.locator('h1', { hasText: 'http.requests' })).toBeVisible()
     await expect(page.getByText('request count')).toBeVisible()
-    await expect(page.getByText('unit · req')).toBeVisible()
+    await expect(page.locator('span').filter({ hasText: /^req$/ })).toBeVisible()
 
     // Counter stat strip labels.
     await expect(page.getByText('rate / min')).toBeVisible()

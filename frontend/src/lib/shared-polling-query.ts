@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isPageVisible } from './page-visibility'
 import {
   useQuery,
   useQueryClient,
@@ -50,6 +51,7 @@ export function useSharedPollingQuery<
     }
     poller.intervals.add(intervalMs)
     const refresh = () => {
+      if (!isPageVisible()) return
       void queryClient.refetchQueries(
         { queryKey: queryKeyRef.current, exact: true },
         { cancelRefetch: false },

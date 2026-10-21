@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Run the same browser contracts against an isolated production collector
+// when qualifying its built assets; ordinary development still owns Vite.
+const externalBaseURL = process.env.SPANIEL_E2E_BASE_URL
+
 /**
  * Playwright config for the spaniel frontend.
  *
@@ -17,16 +21,18 @@ export default defineConfig({
   // CI runners pick their own default.
   workers: process.env.CI ? undefined : 4,
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: externalBaseURL ?? 'http://localhost:5173',
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'pnpm dev --host 127.0.0.1',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-    stdout: 'ignore',
-    stderr: 'pipe',
-  },
+  webServer: externalBaseURL
+    ? undefined
+    : {
+        command: 'pnpm dev --host 127.0.0.1',
+        url: 'http://localhost:5173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 60_000,
+        stdout: 'ignore',
+        stderr: 'pipe',
+      },
 })

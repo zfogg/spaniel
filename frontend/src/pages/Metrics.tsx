@@ -2,7 +2,8 @@ import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import debounce from 'debounce-fn'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { isPageVisible, useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
@@ -459,34 +460,38 @@ function useSelectedMetricLiveRefresh(
   operation: string,
 ) {
   const queryClient = useQueryClient()
+  const name = metric?.name
+  const service = metric?.service_name
   useEffect(() => {
-    if (!metric) return
+    if (!name || !service) return
     let timer: ReturnType<typeof setTimeout> | null = null
     const key = qk.metricSeries({
-      name: metric.name,
-      service: metric.service_name,
+      name,
+      service,
       range,
       operation,
     })
     const unsubscribe = onWSEvent((event) => {
       if (
         event.type !== 'metric' ||
+        !isPageVisible() ||
         event.payload.catalogOnly ||
-        event.payload.name !== metric.name ||
-        event.payload.serviceName !== metric.service_name
+        event.payload.name !== name ||
+        event.payload.serviceName !== service
       )
         return
       if (timer) return
       timer = setTimeout(() => {
         timer = null
-        queryClient.invalidateQueries({ queryKey: key })
+        if (isPageVisible())
+          queryClient.invalidateQueries({ queryKey: key }, { cancelRefetch: false })
       }, 150)
     })
     return () => {
       unsubscribe()
       if (timer) clearTimeout(timer)
     }
-  }, [metric, operation, queryClient, range])
+  }, [name, service, operation, queryClient, range])
 }
 
 // Sidebar counts and ordering come from the catalog aggregate. Metric frames
@@ -526,14 +531,14 @@ function useMetricCatalogLiveRefresh() {
             }),
           )
         }
-        if (hasExternalUpdates) {
-          queryClient.invalidateQueries({ queryKey: qk.metrics() })
+        if (hasExternalUpdates && isPageVisible()) {
+          queryClient.invalidateQueries({ queryKey: qk.metrics() }, { cancelRefetch: false })
         }
       },
       { wait: 2_500 },
     )
     const unsubscribe = onWSEvent((event) => {
-      if (event.type !== 'metric') return
+      if (event.type !== 'metric' || !isPageVisible()) return
       const key = `${event.payload.serviceName}/${event.payload.name}`
       const previous = pendingUpdates.get(key)
       pendingUpdates.set(key, {
@@ -571,11 +576,11 @@ export default function Metrics() {
     refetch,
   } = useQuery({
     queryKey: qk.metrics(sessionId),
-    queryFn: () => api.metrics.list(sessionId).then((r) => r.data ?? []),
+    queryFn: ({ signal }) => api.metrics.list(sessionId, signal).then((r) => r.data ?? []),
   })
   const { data: cardinality = [] } = useQuery({
     queryKey: ['metric-cardinality', sessionId],
-    queryFn: () => api.metrics.cardinality(sessionId).then((r) => r.data ?? []),
+    queryFn: ({ signal }) => api.metrics.cardinality(sessionId, signal).then((r) => r.data ?? []),
   })
 
   const selectedName = searchParams.get('metric')
@@ -605,12 +610,14 @@ export default function Metrics() {
   // A direct metric URL bypasses selectMetric(), so it must establish the
   // same useful default as a sidebar click. Histogram rows keep value=0 as a
   // transport placeholder; their real visual value is a bucket percentile.
+  const selectedMetricName = selected?.name
+  const selectedMetricType = selected?.type
   useEffect(() => {
-    if (selected) {
-      setOperation(defaultMetricOperation(selected))
+    if (selectedMetricName && selectedMetricType) {
+      setOperation(defaultMetricOperation({ name: selectedMetricName, type: selectedMetricType }))
       setDimensionFilters({})
     }
-  }, [selected, selectedName, selectedService])
+  }, [selectedMetricName, selectedMetricType, selectedService])
 
   useSelectedMetricLiveRefresh(selected, range, operation)
   const recentMetricUpdates = useMetricCatalogLiveRefresh()
@@ -656,17 +663,20 @@ export default function Metrics() {
       operation,
       dimensionFilters,
     }),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api.metrics
-        .series({
-          name: selected!.name,
-          service: selected!.service_name,
-          sessionId,
-          operation,
-          withTraces: true,
-          from: rangeFromNs(range),
-          dimensionFilters,
-        })
+        .series(
+          {
+            name: selected!.name,
+            service: selected!.service_name,
+            sessionId,
+            operation,
+            withTraces: true,
+            from: rangeFromNs(range),
+            dimensionFilters,
+          },
+          signal,
+        )
         .then((r) => r.data),
     enabled: !!selected,
   })

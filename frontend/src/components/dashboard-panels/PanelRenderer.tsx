@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import { api, type DashboardPanel } from '@/lib/api'
 import { HeatmapPanel } from './HeatmapPanel'
 import { EntityListPanel } from './EntityListPanel'
@@ -24,12 +24,21 @@ export function PanelRenderer({
   variables?: Record<string, string>
   onStatus?: (id: string, status: 'loading' | 'ready' | 'error', message?: string) => void
 }) {
+  let annotationQuery = ''
+  try {
+    annotationQuery =
+      (JSON.parse(panel.settings_json) as { annotation_query?: string }).annotation_query ?? ''
+  } catch {
+    /* settings are optional */
+  }
+  const usesSession = panel.query_sql.includes('$session_id')
+  const annotationUsesSession = annotationQuery.includes('$session_id')
   // Session changes can happen without new telemetry events. Share this small
   // metadata query across panels so even an idle session switch refreshes them.
   const session = useQuery({
     queryKey: qk.activeSession(),
     queryFn: () => api.sessions.getActive().then((response) => response.data),
-    enabled: panel.query_sql.includes('$session_id'),
+    enabled: usesSession || annotationUsesSession,
     refetchInterval: 5000,
     staleTime: 5000,
   })
@@ -41,7 +50,7 @@ export function PanelRenderer({
       panel.query_sql,
       panel.display_type,
       variables,
-      panel.query_sql.includes('$session_id') ? session.data?.id : null,
+      usesSession ? session.data?.id : null,
     ],
     queryFn: ({ signal }) =>
       api.dashboards
@@ -52,19 +61,20 @@ export function PanelRenderer({
         )
         .then((response) => response.data),
     staleTime: 15_000,
+    enabled: !usesSession || Boolean(session.data?.id),
     refetchInterval: 30_000,
     retry: 1,
     refetchOnWindowFocus: false,
   })
-  let annotationQuery = ''
-  try {
-    annotationQuery =
-      (JSON.parse(panel.settings_json) as { annotation_query?: string }).annotation_query ?? ''
-  } catch {
-    /* settings are optional */
-  }
   const annotations = useQuery({
-    queryKey: ['dashboard-annotations', dashboardId, panel.id, annotationQuery, variables],
+    queryKey: [
+      'dashboard-annotations',
+      dashboardId,
+      panel.id,
+      annotationQuery,
+      variables,
+      annotationUsesSession ? session.data?.id : null,
+    ],
     queryFn: ({ signal }) =>
       api.dashboards
         .preview(
@@ -73,7 +83,10 @@ export function PanelRenderer({
           signal,
         )
         .then((response) => response.data),
-    enabled: panel.display_type === 'deploy_correlation' && Boolean(annotationQuery),
+    enabled:
+      panel.display_type === 'deploy_correlation' &&
+      Boolean(annotationQuery) &&
+      (!annotationUsesSession || Boolean(session.data?.id)),
     staleTime: 15_000,
     refetchInterval: 30_000,
     retry: 1,

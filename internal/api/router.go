@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	fastjson "github.com/goccy/go-json"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -75,6 +76,10 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Use(accessLogMiddleware)
 	mux.Use(middleware.Recoverer)
 	mux.Use(corsMiddleware)
+	// Keep the full JSON contracts/history while avoiding multi-megabyte wire
+	// transfers for live chart/lint refreshes. Streams and WebSockets retain
+	// their existing transport; only negotiated JSON responses are compressed.
+	mux.Use(middleware.Compress(1, "application/json"))
 	mux.Use(apiMetricsMiddleware)
 	mux.Use(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "spaniel.api",
@@ -190,7 +195,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 func respond(w http.ResponseWriter, data any, total, page int) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+	fastjson.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
 		"data": data,
 	})
 }
@@ -200,7 +205,7 @@ func respond(w http.ResponseWriter, data any, total, page int) {
 // not mistake a collection size for a paginated total.
 func respondPage(w http.ResponseWriter, data any, total, page int) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+	fastjson.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
 		"data": data,
 		"meta": map[string]any{"total": total, "page": page},
 	})

@@ -118,6 +118,13 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
   let retryTimeout: ReturnType<typeof setTimeout>
   let backoff = MIN_BACKOFF_MS
   let lastActivity = Date.now()
+  const sendVisibility = () => {
+    if (ws?.readyState === WebSocket.OPEN)
+      ws.send(
+        JSON.stringify({ type: 'visibility', visible: document.visibilityState !== 'hidden' }),
+      )
+  }
+  document.addEventListener('visibilitychange', sendVisibility)
 
   // Force a reconnect if the link goes silent (no heartbeat or data). onclose
   // won't always fire promptly on a dead connection, so we watch for silence.
@@ -130,6 +137,7 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
     ws = new WebSocket(url)
 
     ws.onopen = () => {
+      sendVisibility()
       backoff = MIN_BACKOFF_MS
       lastActivity = Date.now()
       onStatus?.(true)
@@ -168,6 +176,7 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
     closed = true
     clearTimeout(retryTimeout)
     clearInterval(staleTimer)
+    document.removeEventListener('visibilitychange', sendVisibility)
     ws?.close()
   }
 }

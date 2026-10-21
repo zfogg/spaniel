@@ -39,8 +39,8 @@ describe('useLiveInvalidation', () => {
     expect(spy).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(1_000)
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['traces'] })
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['traces'] }, { cancelRefetch: false })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] }, { cancelRefetch: false })
   })
 
   it.each(['log', 'metric'])('invalidates dashboard panels for a live %s event', (type) => {
@@ -52,7 +52,7 @@ describe('useLiveInvalidation', () => {
     renderHook(() => useLiveInvalidation(), { wrapper })
     captured!({ type, timestamp_ns: 0, payload: {} })
     vi.advanceTimersByTime(1_000)
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] }, { cancelRefetch: false })
   })
 
   it('updates forwarder status from the live event without invalidating its query', () => {
