@@ -42,4 +42,26 @@ describe('ErrorState', () => {
     render(<ErrorState what="traces" />)
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
+  it('collapses recursive database errors and retains the original cause', () => {
+    const nested =
+      'Failed: database has been invalidated because of a previous fatal error. Original error: "'.repeat(
+        10000,
+      )
+    render(
+      <ErrorState
+        what="this trace"
+        error={nested + 'Could not find node in column segment tree' + '"'.repeat(10000)}
+        onRetry={() => {}}
+      />,
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent!.length).toBeLessThan(4500)
+    expect(screen.getByText(/Could not find node in column segment tree/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+  })
+  it('bounds huge ordinary errors', () => {
+    render(<ErrorState what="this trace" error={'x'.repeat(100000)} />)
+    expect(screen.getByRole('alert').textContent!.length).toBeLessThan(4500)
+    expect(screen.getByText(/truncated/)).toBeTruthy()
+  })
 })

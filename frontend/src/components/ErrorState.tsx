@@ -5,7 +5,7 @@ interface ErrorStateProps {
   // headline ("Couldn't load traces").
   what: string
   // The thrown error from the failed query, if any — its message is surfaced
-  // verbatim so a 401/500/network failure is distinguishable at a glance.
+  // with bounded diagnostics so a 401/500/network failure remains readable.
   error?: unknown
   // Wire this to react-query's refetch() to give the user a one-click retry.
   onRetry?: () => void
@@ -13,9 +13,19 @@ interface ErrorStateProps {
 }
 
 function messageOf(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  return ''
+  let message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  if (message.includes('database has been invalidated because of a previous fatal error')) {
+    const marker = 'Original error: '
+    const last = message.lastIndexOf(marker)
+    const cause = (last >= 0 ? message.slice(last + marker.length) : '').replace(
+      /^["\s]+|["\s]+$/g,
+      '',
+    )
+    message =
+      'Database unavailable after a fatal DuckDB error; the collector must be restarted.' +
+      (cause && !cause.includes('database has been invalidated') ? ` Original cause: ${cause}` : '')
+  }
+  return message.length > 4096 ? message.slice(0, 4096) + '… [truncated]' : message
 }
 
 // Shown when a data fetch fails (network error, server down, 4xx/5xx). This is
@@ -29,9 +39,9 @@ export default function ErrorState({ what, error, onRetry, glyph }: ErrorStatePr
     <div
       data-testid="error-state"
       role="alert"
-      className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center"
+      className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-3 overflow-y-auto p-6 text-center"
     >
-      <div className="mb-1 text-[var(--danger)] opacity-80">
+      <div className="mt-auto mb-1 shrink-0 text-[var(--danger)] opacity-80">
         {glyph ?? (
           <svg
             width="26"
@@ -53,7 +63,7 @@ export default function ErrorState({ what, error, onRetry, glyph }: ErrorStatePr
       <div className="font-mono text-[13px] font-semibold text-foreground">
         Couldn{"'"}t load {what}
       </div>
-      <div className="max-w-[380px] font-mono text-[11px] leading-relaxed text-muted-foreground">
+      <div className="w-full max-w-[640px] shrink-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-mono text-[11px] leading-relaxed text-muted-foreground">
         {detail ? (
           <>
             The server returned an error: <span className="text-foreground">{detail}</span>.
@@ -66,11 +76,12 @@ export default function ErrorState({ what, error, onRetry, glyph }: ErrorStatePr
         <button
           type="button"
           onClick={onRetry}
-          className="mt-1 rounded-md border border-border bg-transparent px-3 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-muted"
+          className="mt-1 shrink-0 rounded-md border border-border bg-transparent px-3 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-muted"
         >
           Retry
         </button>
       )}
+      <div className="mb-auto" aria-hidden="true" />
     </div>
   )
 }

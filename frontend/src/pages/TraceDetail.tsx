@@ -140,7 +140,7 @@ export default function TraceDetail() {
   const traceDurationNs = rootSpan?.duration_ns ?? 0
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex min-h-0 flex-col h-full overflow-hidden">
       <div className="flex items-center gap-2 px-3.5 py-1.5 border-b border-border shrink-0">
         <button
           onClick={() => navigate(-1)}

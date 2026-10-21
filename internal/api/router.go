@@ -21,6 +21,7 @@ import (
 
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/coverage"
+	"github.com/zfogg/spaniel/internal/errtext"
 	"github.com/zfogg/spaniel/internal/forwarder"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
@@ -218,7 +219,7 @@ func respondErr(w http.ResponseWriter, req *http.Request, code int, msg string) 
 		w.Header().Set("X-Request-ID", reqID)
 	}
 	w.WriteHeader(code)
-	body := map[string]any{"error": msg}
+	body := map[string]any{"error": errtext.Message(msg)}
 	if reqID != "" {
 		body["request_id"] = reqID
 	}

@@ -2,10 +2,13 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	toongo "github.com/toon-format/toon-go"
+
+	"github.com/zfogg/spaniel/internal/errtext"
 )
 
 // addTOONTool keeps MCP's JSON Schema input contract while returning the
@@ -16,7 +19,7 @@ func addTOONTool[In, Out any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler mcpsd
 	mcpsdk.AddTool[In, any](s, tool, func(ctx context.Context, req *mcpsdk.CallToolRequest, in In) (*mcpsdk.CallToolResult, any, error) {
 		result, out, err := handler(ctx, req, in)
 		if err != nil {
-			return result, nil, err
+			return result, nil, errors.New(errtext.Message(err.Error()))
 		}
 		data, err := toongo.Marshal(out)
 		if err != nil {
@@ -38,7 +41,7 @@ func addTextTool[In any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler func(conte
 	mcpsdk.AddTool[In, any](s, tool, func(ctx context.Context, req *mcpsdk.CallToolRequest, in In) (*mcpsdk.CallToolResult, any, error) {
 		text, err := handler(ctx, req, in)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.New(errtext.Message(err.Error()))
 		}
 		return &mcpsdk.CallToolResult{Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: text}}}, nil, nil
 	})
