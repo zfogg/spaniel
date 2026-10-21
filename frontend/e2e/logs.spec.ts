@@ -177,8 +177,8 @@ test.describe('LogViewer', () => {
     await expect(page.getByRole('complementary', { name: 'Log details' })).toHaveCount(0)
   })
 
-  test('severity chips are auto-generated from the present severities', async ({ page }) => {
-    // Only INFO + ERROR present — DEBUG/WARN/FATAL/TRACE chips should not show.
+  test('severity filters remain available for levels absent from this page', async ({ page }) => {
+    // Levels absent from this page must remain searchable across older pages.
     await stubLogs(page, [
       makeLog({ severity: 9, body: 'info one' }),
       makeLog({ severity: 17, body: 'error one' }),
@@ -188,9 +188,9 @@ test.describe('LogViewer', () => {
     await expect(page.getByRole('button', { name: 'ALL', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'INFO', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'ERROR', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'DEBUG', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'WARN', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'FATAL', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'DEBUG', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'WARN', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'FATAL', exact: true })).toBeVisible()
   })
 
   test('a WebSocket log event refreshes the list and shows the new log', async ({ page }) => {
@@ -264,4 +264,79 @@ test.describe('LogViewer', () => {
 
     await expect(page.getByText('live log from websocket')).toBeVisible()
   })
+})
+
+test('log details overlay, badges, bookmarks and browser history', async ({ page }) => {
+  const message = 'A long message with spaces and a token: ' + 'x'.repeat(800)
+  const traceId = 'abcdef1234567890abcdef1234567890'
+  const logs = [9, 13, 17, 21].map((severity) =>
+    makeLog({
+      severity,
+      body: severity === 9 ? message : `level ${severity}`,
+      trace_id: traceId,
+      attributes: '{"extra":"detail"}',
+    }),
+  )
+  await stubLogs(page, logs)
+  await page.goto('/logs?session=s1')
+  const row = page.getByRole('button').filter({ hasText: message })
+  const before = await row.boundingBox()
+  for (const [label, color] of [
+    ['INFO', 'rgb(255, 255, 255)'],
+    ['WARN', 'rgb(113, 63, 18)'],
+    ['ERROR', 'rgb(127, 29, 29)'],
+    ['FATAL', 'rgb(107, 33, 168)'],
+  ]) {
+    await expect(
+      page
+        .locator('span')
+        .filter({ hasText: new RegExp(`^${label}$`) })
+        .first(),
+    ).toHaveCSS('background-color', color)
+  }
+  await row.click()
+  const panel = page.getByRole('complementary', { name: 'Log details' })
+  await expect(panel).toBeVisible()
+  await expect(panel.getByRole('link', { name: traceId })).toHaveAttribute(
+    'href',
+    `/traces/${traceId}?spanId=span-001`,
+  )
+  await expect(panel.getByText('detail')).toBeVisible()
+  await expect(panel.getByText(message)).toHaveCSS('white-space', 'pre-wrap')
+  const after = await row.boundingBox()
+  expect(after?.width).toBe(before?.width)
+  expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await page.screenshot({ path: '../.local/log-sidebar/overlay.png' })
+  const bookmark = page.url()
+  expect(new URL(bookmark).searchParams.get('session')).toBe('s1')
+  expect(new URL(bookmark).searchParams.get('log')).toBeTruthy()
+  await page.reload()
+  await expect(panel).toBeVisible()
+  await panel.getByRole('button', { name: 'Close inspector' }).click()
+  await expect(panel).toHaveCount(0)
+  expect(new URL(page.url()).searchParams.has('log')).toBe(false)
+  await page.goBack()
+  await expect(panel).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+})
+
+test('bookmarked log is retrieved outside the current table page', async ({ page }) => {
+  const log = makeLog({
+    body: 'bookmarked older log',
+    timestamp_ns: (Date.now() - 86400000) * 1000000,
+  })
+  await stubLogs(page, [log])
+  await page.goto('/logs')
+  await page.getByText(log.body).click()
+  await expect(page.getByRole('complementary', { name: 'Log details' })).toBeVisible()
+  await page.route('**/api/logs?**', (route) => {
+    const params = new URL(route.request().url()).searchParams
+    return jsonResponse(route, params.has('toNs') ? [log] : [])
+  })
+  await page.reload()
+  const panel = page.getByRole('complementary', { name: 'Log details' })
+  await expect(panel.getByText(log.body)).toBeVisible()
+  await expect(page.getByText('No logs yet')).toBeVisible()
+  await expect(panel.getByRole('button', { name: /Open trace/ })).toHaveCount(0)
 })

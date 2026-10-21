@@ -1,15 +1,15 @@
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
 import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
-import { fmtClock, fmtRelative } from '@/lib/fmt-relative'
+import { fmtClock, fmtDateTime, fmtRelative } from '@/lib/fmt-relative'
 import { matchesSevFilter, sevLabel, type SevFilter } from './log-severity-filter'
 import PaginationControls from '@/components/PaginationControls'
 import { AnimatePresence, motion } from 'motion/react'
@@ -18,6 +18,16 @@ import { useNewItemIDs } from '@/lib/use-new-item-ids'
 import { logKey } from '@/lib/log-key'
 
 const PAGE_SIZE = 100
+
+function logSelectionKey(log: Log): string {
+  let a = 2166136261
+  let b = 5381
+  for (const char of logKey(log)) {
+    a = Math.imul(a ^ char.charCodeAt(0), 16777619)
+    b = Math.imul(b, 33) ^ char.charCodeAt(0)
+  }
+  return `${(a >>> 0).toString(36)}${(b >>> 0).toString(36)}`
+}
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 
@@ -33,10 +43,13 @@ function sevBadgeStyle(n: number): React.CSSProperties {
     flexShrink: 0,
     display: 'inline-block',
   }
-  if (n >= 21) return { ...base, color: '#fff', background: 'var(--danger)' }
-  if (n >= 17) return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)' }
-  if (n >= 13) return { ...base, color: 'var(--warn)', background: 'var(--warn-bg)' }
-  if (n >= 9) return { ...base, color: 'var(--ink2)', background: 'transparent' }
+  if (n >= 21)
+    return { ...base, color: '#e9d5ff', background: '#6b21a8', border: '1px solid #a855f7' }
+  if (n >= 17)
+    return { ...base, color: '#fecaca', background: '#7f1d1d', border: '1px solid #ef4444' }
+  if (n >= 13)
+    return { ...base, color: '#fef08a', background: '#713f12', border: '1px solid #eab308' }
+  if (n >= 9) return { ...base, color: '#18181b', background: '#fff', border: '1px solid #d4d4d8' }
   if (n >= 5) return { ...base, color: 'var(--ink3)', background: 'transparent' }
   return { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
 }
@@ -266,13 +279,13 @@ function LogInspector({
   const c = svcColor(log.service_name)
   const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
 
-  let attrs: Record<string, unknown> = {}
+  let attrs: unknown = {}
   try {
     attrs = JSON.parse(log.attributes || '{}')
   } catch {
     /* empty */
   }
-  const attrEntries = Object.entries(attrs)
+  const hasAttrs = attrs !== null && (typeof attrs !== 'object' || Object.keys(attrs).length > 0)
 
   function openTrace() {
     if (!hasTrace) return
@@ -283,7 +296,7 @@ function LogInspector({
   return (
     <aside
       aria-label="Log details"
-      className="w-[360px] shrink-0 border-l border-line bg-surface flex flex-col overflow-hidden"
+      className="h-full w-full border-l border-line bg-surface flex flex-col overflow-hidden shadow-2xl"
     >
       <header className="flex items-center gap-2 px-[14px] py-2.5 border-b border-line shrink-0">
         <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
@@ -306,27 +319,23 @@ function LogInspector({
           <span className="font-mono text-[11px] text-ink2">{log.service_name || '—'}</span>
         </div>
 
-        {/* body (full, wrapped) */}
-        <div
-          className="font-mono text-[11.5px] leading-[1.5] whitespace-pre-wrap break-words bg-surface2 border border-line rounded-[5px] px-2.5 py-2 mb-3.5"
-          style={{ color: sevBodyColor(log.severity) }}
-        >
-          {log.body || '(empty)'}
-        </div>
-
-        {/* attributes */}
-        <div className="font-mono text-[9px] text-ink3 tracking-[0.1em] uppercase mb-1.5">
-          attributes
-        </div>
-        {attrEntries.length === 0 ? (
-          <div className="font-mono text-[11px] text-ink3">none</div>
-        ) : (
-          <JsonView data={attrs} />
-        )}
-
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 font-mono text-[11px] mb-4 [overflow-wrap:anywhere]">
+          <dt className="text-ink3">Timestamp</dt>
+          <dd>{fmtDateTime(log.timestamp_ns)}</dd>
+          <dt className="text-ink3">Unix nanoseconds</dt>
+          <dd>{log.timestamp_ns}</dd>
+          <dt className="text-ink3">Received</dt>
+          <dd>{log.received_at ? fmtDateTime(log.received_at) : '—'}</dd>
+          <dt className="text-ink3">Source</dt>
+          <dd>{logSource(log)}</dd>
+          <dt className="text-ink3">Session</dt>
+          <dd>{log.session_id || '—'}</dd>
+          <dt className="text-ink3">Severity number</dt>
+          <dd>{log.severity}</dd>
+        </dl>
         {/* trace + span IDs */}
         {(hasTrace || log.span_id) && (
-          <div className="mt-3.5">
+          <div className="mb-4">
             <div className="font-mono text-[9px] text-ink3 tracking-[0.1em] uppercase mb-1.5">
               ids
             </div>
@@ -337,7 +346,12 @@ function LogInspector({
               {hasTrace && (
                 <>
                   <span className="text-ink3">trace</span>
-                  <span className="text-ink2 break-all">{log.trace_id}</span>
+                  <Link
+                    className="text-accent-d break-all underline"
+                    to={`/traces/${log.trace_id}${log.span_id && !isZeroTraceId(log.span_id) ? `?spanId=${log.span_id}` : ''}`}
+                  >
+                    {log.trace_id}
+                  </Link>
                 </>
               )}
               {log.span_id && !/^0+$/.test(log.span_id) && (
@@ -348,6 +362,24 @@ function LogInspector({
               )}
             </div>
           </div>
+        )}
+        <h2 className="font-mono text-[10px] text-ink3 uppercase mb-2">Message</h2>
+        {/* body (full, wrapped) */}
+        <div
+          className="font-mono text-[11.5px] leading-[1.5] whitespace-pre-wrap [overflow-wrap:anywhere] bg-surface2 border border-line rounded-[5px] p-4 mb-3.5"
+          style={{ color: sevBodyColor(log.severity) }}
+        >
+          {log.body || '(empty)'}
+        </div>
+
+        {/* attributes */}
+        <div className="font-mono text-[9px] text-ink3 tracking-[0.1em] uppercase mb-1.5">
+          attributes
+        </div>
+        {!hasAttrs ? (
+          <div className="font-mono text-[11px] text-ink3">none</div>
+        ) : (
+          <JsonView data={attrs} />
         )}
       </div>
 
@@ -377,7 +409,23 @@ export default function LogViewer() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('1h')
   const [search, setSearch] = useState('')
   const [nowMs, setNowMs] = useState(() => Date.now())
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const selectedKey = searchParams.get('log')
+  const setSelectedLog = useCallback(
+    (log: Log | null) => {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current)
+        for (const key of ['log', 'logTime', 'logService', 'logSession']) next.delete(key)
+        if (log) {
+          next.set('log', logSelectionKey(log))
+          next.set('logTime', String(log.timestamp_ns))
+          next.set('logService', log.service_name)
+          next.set('logSession', log.session_id)
+        }
+        return next
+      })
+    },
+    [setSearchParams],
+  )
   const [page, setPage] = useState(1)
   const navigate = useNavigate()
   const traceId = searchParams.get('traceId') ?? undefined
@@ -434,11 +482,11 @@ export default function LogViewer() {
   // Esc closes the inspector.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedKey(null)
+      if (e.key === 'Escape' && selectedKey) setSelectedLog(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [selectedKey, setSelectedLog])
 
   const filtered = logs.filter((l) => {
     if (!matchesSevFilter(l.severity, filterSev)) return false
@@ -453,8 +501,34 @@ export default function LogViewer() {
 
   useEffect(() => {
     setPage(1)
-    setSelectedKey(null)
   }, [filterService, filterSource, filterSev, timeFilter, traceId, sessionId])
+
+  const selectedTime = Number(searchParams.get('logTime'))
+  const selectedService = searchParams.get('logService') ?? undefined
+  const selectedSession = searchParams.get('logSession') ?? undefined
+  const visibleSelection = logs.find((log) => logSelectionKey(log) === selectedKey)
+  const selectionQuery = useQuery({
+    queryKey: ['log-details', selectedKey, selectedTime, selectedService, selectedSession],
+    enabled:
+      !!selectedKey && !visibleSelection && Number.isFinite(selectedTime) && selectedTime > 0,
+    queryFn: async () => {
+      // Look up bookmarked records independently of the current list page/time range.
+      for (let page = 1; ; page++) {
+        const result = await api.logs.list({
+          fromNs: selectedTime,
+          toNs: selectedTime,
+          service: selectedService,
+          sessionId: selectedSession,
+          page,
+          limit: PAGE_SIZE,
+        })
+        const found = result.data.find((log) => logSelectionKey(log) === selectedKey)
+        if (found) return found
+        if (page * PAGE_SIZE >= (result.meta?.total ?? result.data.length)) return null
+      }
+    },
+  })
+  const selectedLog = visibleSelection ?? selectionQuery.data
 
   const sources = Array.from(new Set(logs.map(logSource))).sort()
 
@@ -465,7 +539,13 @@ export default function LogViewer() {
         {traceId && (
           <button
             type="button"
-            onClick={() => setSearchParams({})}
+            onClick={() =>
+              setSearchParams((current) => {
+                const next = new URLSearchParams(current)
+                next.delete('traceId')
+                return next
+              })
+            }
             className="rounded border border-accent-d bg-accent-bg px-2 py-1 font-mono text-[10px] text-accent-ink hover:brightness-110"
           >
             trace {traceId.slice(0, 8)} ×
@@ -547,7 +627,7 @@ export default function LogViewer() {
       </div>
 
       {/* body (list + optional right inspector) */}
-      <div className="flex-1 flex min-h-0">
+      <div className="relative flex-1 flex min-h-0">
         <div className="flex-1 flex flex-col min-w-0">
           {loading ? (
             <div className="flex items-center justify-center flex-1 font-mono text-xs text-ink3">
@@ -636,8 +716,8 @@ export default function LogViewer() {
                         log={log}
                         i={i}
                         nowMs={nowMs}
-                        selected={selectedKey === k}
-                        onSelect={() => setSelectedKey((prev) => (prev === k ? null : k))}
+                        selected={selectedKey === logSelectionKey(log)}
+                        onSelect={() => setSelectedLog(log)}
                         navigate={navigate}
                       />
                     </TelemetryArrival>
@@ -651,23 +731,46 @@ export default function LogViewer() {
         <AnimatePresence mode="wait" initial={false}>
           {selectedKey &&
             (() => {
-              const sel = filtered.find((l) => logKey(l) === selectedKey)
-              return sel ? (
+              const sel = selectedLog
+              return (
                 <motion.div
                   key={selectedKey}
-                  className="shrink-0"
+                  className="absolute inset-y-0 right-0 z-20 w-[440px] max-w-full"
                   initial={{ opacity: 0, x: 8 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 8 }}
                   transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
                 >
-                  <LogInspector
-                    log={sel}
-                    onClose={() => setSelectedKey(null)}
-                    navigate={navigate}
-                  />
+                  {sel ? (
+                    <LogInspector
+                      log={sel}
+                      onClose={() => setSelectedLog(null)}
+                      navigate={navigate}
+                    />
+                  ) : (
+                    <aside
+                      aria-label="Log details"
+                      className="h-full bg-surface border-l border-line p-4"
+                    >
+                      <button
+                        type="button"
+                        aria-label="Close inspector"
+                        className="float-right cursor-pointer"
+                        onClick={() => setSelectedLog(null)}
+                      >
+                        ×
+                      </button>
+                      <p className="font-mono text-xs">
+                        {selectionQuery.isFetching
+                          ? 'Loading log…'
+                          : selectionQuery.isError
+                            ? 'Unable to load this log.'
+                            : 'This log is no longer available.'}
+                      </p>
+                    </aside>
+                  )}
                 </motion.div>
-              ) : null
+              )
             })()}
         </AnimatePresence>
       </div>
