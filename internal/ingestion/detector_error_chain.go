@@ -21,6 +21,13 @@ func (*ErrorChainDetector) Analyze(traceID, sessionID string, spans []*storage.S
 		if s.StatusCode != 2 {
 			continue
 		}
+		// The producer may explicitly identify an expected caller termination
+		// at the boundary that handles it. Keep the error span and its events;
+		// exempt only this edge, never an ancestor subtree or sibling failure.
+		if extractAttrString(s.Attributes, "operation.termination") == "caller_cancelled" &&
+			extractAttrString(s.Attributes, "error.type") == "context_canceled" {
+			continue
+		}
 		if s.ParentSpanID == "" {
 			continue
 		}

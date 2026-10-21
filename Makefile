@@ -113,6 +113,12 @@ test-tracing-gap:
 	go test -c -o $(BIN_DIR)/tracing-gap.test$(EXE) ./internal/ingestion
 	./$(BIN_DIR)/tracing-gap.test$(EXE) -test.run 'TestTracingGap' -test.count=1 -test.v
 
+.PHONY: test-error-chain
+test-error-chain:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/error-chain.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/error-chain.test$(EXE) -test.run 'TestErrorChain' -test.count=1 -test.v
+
 .PHONY: test-ingest-admission
 test-ingest-admission:
 	mkdir -p $(BIN_DIR)
