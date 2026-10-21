@@ -19,6 +19,7 @@ type fakeStorageGuardStore struct {
 	backoff        bool
 	pruneBudget    time.Duration
 	requiredBudget time.Duration
+	retainSize     bool
 }
 
 func TestStorageGuardWaitsAfterSlowPassBeforeNextPause(t *testing.T) {
@@ -129,7 +130,9 @@ func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID stri
 	if f.pruneErr != nil {
 		return storage.PruneResult{}, f.pruneErr
 	}
-	f.size = cfg.MaxDBSizeBytes - 1
+	if !f.retainSize {
+		f.size = cfg.MaxDBSizeBytes - 1
+	}
 	return storage.PruneResult{DeletedBySize: 2, FinalDBSizeBytes: f.size}, nil
 }
 
@@ -155,6 +158,25 @@ func TestStorageGuardProactiveMaintenanceKeepsShortBudget(t *testing.T) {
 	checkStorageGuard(store, newStorageGuardPolicy(100, true))
 	if store.pruneCalls != 2 || store.full || store.size >= 100 {
 		t.Fatalf("crossing the cap did not promote recovery: %+v", store)
+	}
+}
+
+func TestStorageGuardSpacesBelowCapMaintenancePhases(t *testing.T) {
+	policy := newStorageGuardPolicy(100, true)
+	store := &fakeStorageGuardStore{size: 90, retainSize: true}
+
+	checkStorageGuard(store, policy)
+	checkStorageGuard(store, policy)
+	if store.pruneCalls != 1 || store.full {
+		t.Fatalf("below-cap maintenance repeated without a read window: %+v", store)
+	}
+
+	// Reaching the real cap bypasses the proactive cooldown so ingestion can
+	// recover immediately with the longer emergency budget.
+	store.size = 100
+	checkStorageGuard(store, policy)
+	if store.pruneCalls != 2 || store.pruneBudget != storageRecoveryBudget {
+		t.Fatalf("hard-cap recovery was delayed by proactive cooldown: %+v", store)
 	}
 }
 
@@ -220,8 +242,8 @@ func TestStoragePolicyDisablesAutomaticSizeRetention(t *testing.T) {
 }
 
 func TestStorageGuardSoftTargetFailureKeepsBelowCapWritable(t *testing.T) {
-	policy := newStorageGuardPolicy(500, true)
 	for _, size := range []int64{400, 499, 500, 501} {
+		policy := newStorageGuardPolicy(500, true)
 		store := &fakeStorageGuardStore{size: size, pruneErr: storage.ErrRetentionTargetUnreached}
 		checkStorageGuard(store, policy)
 		if store.full != (size >= 500) {
@@ -231,6 +253,7 @@ func TestStorageGuardSoftTargetFailureKeepsBelowCapWritable(t *testing.T) {
 			t.Fatalf("size=%d repeated maintenance: %d", size, store.pruneCalls)
 		}
 	}
+	policy := newStorageGuardPolicy(500, true)
 	store := &fakeStorageGuardStore{size: 450, pruneErr: errors.Join(storage.ErrRetentionTargetUnreached, errors.New("disk failure"))}
 	checkStorageGuard(store, policy)
 	if !store.full {

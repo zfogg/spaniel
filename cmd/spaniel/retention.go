@@ -21,6 +21,10 @@ const (
 	storageHighWaterPercent   = int64(80)
 	storagePruneTargetPercent = int64(70)
 	storageMaintenanceBudget  = 8 * time.Second
+	// A bounded proactive phase may successfully checkpoint or rebuild one
+	// table without reaching the target. Do not immediately monopolize DuckDB
+	// again: leave a useful read/ingest window between below-cap phases.
+	storageProactiveCooldown = time.Minute
 	// At the hard cap ingestion is already paused. Reusing the short proactive
 	// budget can repeatedly roll back the same larger table rebuild forever.
 	// Keep one bounded table phase, but allow it to finish before retrying.
@@ -39,8 +43,9 @@ var (
 // storageGuardPolicy is updated live by the settings API and read by both
 // background retention loops without racing on viper.
 type storageGuardPolicy struct {
-	maxBytes  atomic.Int64
-	autoPrune atomic.Bool
+	maxBytes       atomic.Int64
+	autoPrune      atomic.Bool
+	nextPruneAfter atomic.Int64
 }
 
 func newStorageGuardPolicy(maxBytes int64, autoPrune bool) *storageGuardPolicy {
@@ -52,6 +57,7 @@ func newStorageGuardPolicy(maxBytes int64, autoPrune bool) *storageGuardPolicy {
 func (p *storageGuardPolicy) Update(maxBytes int64, autoPrune bool) {
 	p.maxBytes.Store(maxBytes)
 	p.autoPrune.Store(autoPrune)
+	p.nextPruneAfter.Store(0)
 }
 
 func (p *storageGuardPolicy) RetentionSizeLimit() int64 {
@@ -193,6 +199,10 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 		store.SetFull(false)
 		return
 	}
+	if size < maxBytes && time.Now().UnixNano() < policy.nextPruneAfter.Load() {
+		store.SetFull(false)
+		return
+	}
 	// Enforce the real cap before maintenance; failure to reach the proactive
 	// target alone is not full.
 	store.SetFull(size >= maxBytes)
@@ -203,6 +213,9 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	}
 	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: budget}, store.ActiveSessionID())
 	after := store.UsedSize()
+	if size < maxBytes && after >= highWater && after < maxBytes {
+		policy.nextPruneAfter.Store(time.Now().Add(storageProactiveCooldown).UnixNano())
+	}
 	soft := storage.IsRetentionTargetUnreached(err)
 	if err != nil && !soft {
 		slog.Error("storage guard auto-prune failed", "err", err)

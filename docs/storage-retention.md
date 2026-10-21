@@ -36,7 +36,11 @@ ingestion from resuming when appenders reopen.
 
 Automatic maintenance has an eight-second work budget, including waiting for the
 appender lock and draining readers. A completed pass is followed by the normal
-five-second guard delay; overdue checks cannot chain pauses together. Automatic
+five-second guard delay; overdue checks cannot chain pauses together. When a
+successful bounded phase remains above high water but below the hard cap, the
+next proactive phase waits one minute so dashboards and ingestion get a useful
+uninterrupted window. Reaching the hard cap bypasses that cooldown and uses the
+longer recovery budget so ingestion can resume. Automatic
 checks with no age, count or size work do not enter exclusive maintenance.
 Required index recovery and checkpoint cleanup finish before appenders reopen,
 including after the optional work deadline expires.
