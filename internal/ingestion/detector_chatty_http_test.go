@@ -10,8 +10,9 @@ import (
 
 func httpSpan(id, host string) *storage.Span {
 	return &storage.Span{
+		Kind: 3, Name: "HTTP GET",
 		SpanID: id, ParentSpanID: "parent",
-		Attributes: fmt.Sprintf(`{"server.address":%q}`, host),
+		Attributes: fmt.Sprintf(`{"http.request.method":"GET","server.address":%q}`, host),
 		StartNs:    0, EndNs: int64(10 * time.Millisecond),
 		SessionID: "sess",
 	}
@@ -61,6 +62,7 @@ func TestChattyHTTP_URLFullAttribute(t *testing.T) {
 	var spans []*storage.Span
 	for i := range 5 {
 		spans = append(spans, &storage.Span{
+			Kind:       3,
 			SpanID:     fmt.Sprintf("s%d", i),
 			Attributes: `{"url.full":"https://payments.example.com/v1/charge"}`,
 			StartNs:    0, EndNs: int64(5 * time.Millisecond), SessionID: "sess",
@@ -70,5 +72,27 @@ func TestChattyHTTP_URLFullAttribute(t *testing.T) {
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue via url.full, got %d", len(got))
+	}
+}
+
+func TestChattyHTTP_IgnoresDatabaseAndIncomingRequests(t *testing.T) {
+	var spans []*storage.Span
+	for i := range 60 {
+		spans = append(spans, &storage.Span{SpanID: fmt.Sprint(i), Kind: 3, Name: "storage.GetBars", Attributes: `{"server.address":"127.0.0.1","db.system.name":"postgresql"}`})
+		spans = append(spans, &storage.Span{SpanID: fmt.Sprintf("redis%d", i), Kind: 3, Attributes: `{"server.address":"127.0.0.1","db.system.name":"redis"}`})
+		incoming := httpSpan(fmt.Sprintf("incoming%d", i), "127.0.0.1")
+		incoming.Kind = 2
+		spans = append(spans, incoming)
+	}
+	d := &ChattyHTTPDetector{}
+	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
+		t.Fatalf("non-outbound HTTP produced issues: %+v", got)
+	}
+	for i := range 5 {
+		spans = append(spans, httpSpan(fmt.Sprintf("http%d", i), "127.0.0.1"))
+	}
+	got := d.Analyze("t", "s", spans, 0)
+	if len(got) != 1 || got[0].Count != 5 {
+		t.Fatalf("actual HTTP request count: %+v", got)
 	}
 }

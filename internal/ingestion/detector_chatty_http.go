@@ -20,6 +20,11 @@ func (*ChattyHTTPDetector) Analyze(traceID, sessionID string, spans []*storage.S
 	}
 	groups := map[string]*group{}
 	for _, s := range spans {
+		// server.address also identifies PostgreSQL, Redis and RPC peers.
+		// Only outbound HTTP requests contribute to HTTP chattiness.
+		if s.Kind != 3 || !isHTTPSpan(s) {
+			continue
+		}
 		host := httpHost(s.Attributes)
 		if host == "" {
 			continue
