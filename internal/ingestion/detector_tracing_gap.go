@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"strings"
 	"time"
 
 	"github.com/zfogg/spaniel/internal/storage"
@@ -44,6 +45,14 @@ func (*TracingGapDetector) Analyze(traceID, sessionID string, spans []*storage.S
 		if len(kids) == 0 {
 			continue
 		}
+		// A parent that ends in the same context cancellation as one of its
+		// direct children is an aborted observation. Its uncovered duration can
+		// be ordinary blocking or waiting that was interrupted during shutdown,
+		// so it is not evidence of missing instrumentation. Keep analyzing the
+		// children independently so cancellation cannot hide gaps below them.
+		if endsInContextCancellation(s, kids) {
+			continue
+		}
 		parentDur := s.EndNs - s.StartNs
 		if parentDur <= 0 {
 			continue
@@ -67,4 +76,21 @@ func (*TracingGapDetector) Analyze(traceID, sessionID string, spans []*storage.S
 		})
 	}
 	return issues
+}
+
+func endsInContextCancellation(parent *storage.Span, children []*storage.Span) bool {
+	if parent.StatusCode != 2 {
+		return false
+	}
+	terminalStart := parent.EndNs - int64(tracingGapThreshold)
+	for _, child := range children {
+		if child.StatusCode != 2 || child.EndNs < terminalStart || child.EndNs > parent.EndNs {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(child.StatusMessage), "context canceled") ||
+			strings.EqualFold(extractAttrString(child.Attributes, "error.type"), "context_canceled") {
+			return true
+		}
+	}
+	return false
 }

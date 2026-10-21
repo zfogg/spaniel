@@ -146,3 +146,43 @@ func TestTracingGap_InternalWorkAroundClientCallStillReports(t *testing.T) {
 		t.Fatalf("expected uncovered application work around the client call, got %+v", got)
 	}
 }
+
+func TestTracingGap_ShutdownCancellationDoesNotReportObserverWait(t *testing.T) {
+	operation := gapSpan("operation", "", 0, 2305)
+	operation.Name, operation.StatusCode, operation.StatusMessage = "ratio.operations.check", 2, "background operation contains failed spans"
+	initialCheck := gapSpan("initial-check", "operation", 2, 34)
+	cancelledSignal := gapSpan("signal", "operation", 2304, 2305)
+	cancelledSignal.StatusCode, cancelledSignal.StatusMessage = 2, "context canceled"
+	cancelledHealth := gapSpan("health", "operation", 2303, 2305)
+	cancelledHealth.StatusCode, cancelledHealth.Attributes = 2, `{"error.type":"context_canceled"}`
+
+	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{
+		operation, initialCheck, cancelledSignal, cancelledHealth,
+	}, 0)
+	if len(got) != 0 {
+		t.Fatalf("coordinated shutdown reported observer wait as a tracing gap: %+v", got)
+	}
+}
+
+func TestTracingGap_CancellationDoesNotHideUnrelatedParentGap(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		parentCode int
+		childEndMs int
+	}{
+		{name: "successful parent", parentCode: 1, childEndMs: 500},
+		{name: "non-terminal cancellation", parentCode: 2, childEndMs: 400},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			operation := gapSpan("operation", "", 0, 500)
+			operation.StatusCode = test.parentCode
+			cancelled := gapSpan("cancelled", "operation", 100, test.childEndMs)
+			cancelled.StatusCode, cancelled.StatusMessage = 2, "context canceled"
+
+			got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, cancelled}, 0)
+			if len(got) != 1 || got[0].ExampleSpanID != "operation" {
+				t.Fatalf("real parent gap was hidden: %+v", got)
+			}
+		})
+	}
+}
