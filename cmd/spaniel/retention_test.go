@@ -10,13 +10,15 @@ import (
 )
 
 type fakeStorageGuardStore struct {
-	size       int64
-	activeID   string
-	full       bool
-	pruneCalls int
-	pruneLimit int64
-	pruneErr   error
-	backoff    bool
+	size           int64
+	activeID       string
+	full           bool
+	pruneCalls     int
+	pruneLimit     int64
+	pruneErr       error
+	backoff        bool
+	pruneBudget    time.Duration
+	requiredBudget time.Duration
 }
 
 func TestStorageGuardWaitsAfterSlowPassBeforeNextPause(t *testing.T) {
@@ -120,11 +122,40 @@ func (f *fakeStorageGuardStore) RetentionBackingOff() bool { return f.backoff }
 func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID string) (storage.PruneResult, error) {
 	f.pruneCalls++
 	f.pruneLimit = cfg.MaxDBSizeBytes
+	f.pruneBudget = cfg.MaxDuration
+	if cfg.MaxDuration < f.requiredBudget {
+		return storage.PruneResult{}, storage.ErrRetentionTargetUnreached
+	}
 	if f.pruneErr != nil {
 		return storage.PruneResult{}, f.pruneErr
 	}
 	f.size = cfg.MaxDBSizeBytes - 1
 	return storage.PruneResult{DeletedBySize: 2, FinalDBSizeBytes: f.size}, nil
+}
+
+func TestStorageGuardHardCapRecoveryCanFinishLargerRebuild(t *testing.T) {
+	for _, size := range []int64{100, 101} {
+		store := &fakeStorageGuardStore{size: size, requiredBudget: 2 * storageMaintenanceBudget}
+		checkStorageGuard(store, newStorageGuardPolicy(100, true))
+		if store.pruneCalls != 1 || store.pruneLimit != 70 || store.pruneBudget != storageRecoveryBudget || store.full || store.size >= 100 {
+			t.Fatalf("hard-cap rebuild did not restore ingestion: %+v", store)
+		}
+	}
+}
+
+func TestStorageGuardProactiveMaintenanceKeepsShortBudget(t *testing.T) {
+	store := &fakeStorageGuardStore{size: 99, requiredBudget: 2 * storageMaintenanceBudget}
+	checkStorageGuard(store, newStorageGuardPolicy(100, true))
+	if store.pruneBudget != storageMaintenanceBudget || store.full || store.size != 99 {
+		t.Fatalf("proactive pass must stay short without marking an under-cap store full: %+v", store)
+	}
+	// Continued ingestion crosses the cap after the short attempt. The next
+	// automatic pass must make forward progress rather than retry that budget.
+	store.size = 100
+	checkStorageGuard(store, newStorageGuardPolicy(100, true))
+	if store.pruneCalls != 2 || store.full || store.size >= 100 {
+		t.Fatalf("crossing the cap did not promote recovery: %+v", store)
+	}
 }
 
 func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {

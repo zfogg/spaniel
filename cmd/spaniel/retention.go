@@ -21,6 +21,10 @@ const (
 	storageHighWaterPercent   = int64(80)
 	storagePruneTargetPercent = int64(70)
 	storageMaintenanceBudget  = 8 * time.Second
+	// At the hard cap ingestion is already paused. Reusing the short proactive
+	// budget can repeatedly roll back the same larger table rebuild forever.
+	// Keep one bounded table phase, but allow it to finish before retrying.
+	storageRecoveryBudget     = 5 * time.Minute
 	storageWALCheckpointBytes = storage.ManagedWALCheckpointBytes
 )
 
@@ -193,7 +197,11 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	// target alone is not full.
 	store.SetFull(size >= maxBytes)
 
-	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: storageMaintenanceBudget}, store.ActiveSessionID())
+	budget := storageMaintenanceBudget
+	if size >= maxBytes {
+		budget = storageRecoveryBudget
+	}
+	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: budget}, store.ActiveSessionID())
 	after := store.UsedSize()
 	soft := storage.IsRetentionTargetUnreached(err)
 	if err != nil && !soft {
@@ -209,7 +217,8 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 		slog.Warn("storage guard could not restore headroom; ingestion paused",
 			"db_mb", float64(after)/1024/1024,
 			"high_water_mb", float64(highWater)/1024/1024,
-			"cap_mb", float64(maxBytes)/1024/1024)
+			"cap_mb", float64(maxBytes)/1024/1024,
+			"maintenance_budget", budget, "error", err)
 		return
 	}
 	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
