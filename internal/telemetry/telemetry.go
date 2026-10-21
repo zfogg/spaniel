@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/exemplar"
+	"go.opentelemetry.io/otel/sdk/resource"
 )
 
 var goruntimeOnce sync.Once
@@ -32,7 +33,9 @@ type Config struct {
 }
 
 // Setup installs Spaniel's global OTel providers and shared self-monitoring
-// headers. An empty endpoint intentionally leaves the global delegate untouched
+// headers. gotel supplies SDK/host/OS/process resources, extended by the standard
+// OTEL_RESOURCE_ATTRIBUTES and OTEL_SERVICE_NAME environment overrides.
+// An empty endpoint intentionally leaves the global delegate untouched
 // so a later hot-enabled provider can back-fill already-created instruments.
 func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error) {
 	if cfg.Endpoint == "" {
@@ -51,6 +54,7 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 		Endpoint: cfg.Endpoint, Protocol: otelhost.ProtocolGRPC, Insecure: cfg.Insecure,
 		Headers:    map[string]string{SelfTelemetryHeader: selfTelemetryValue},
 		Attributes: attrs, MetricInterval: 10 * time.Second,
+		ResourceOptions: []resource.Option{resource.WithFromEnv()},
 		MetricOptions: []sdkmetric.Option{
 			sdkmetric.WithExemplarFilter(exemplar.AlwaysOnFilter),
 			sdkmetric.WithView(sdkmetric.NewView(sdkmetric.Instrument{Name: "http.server.request.body.size"}, sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: bodySizeBounds}})),
