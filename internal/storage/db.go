@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,15 +17,20 @@ import (
 )
 
 type DB struct {
-	gorm               *gorm.DB
-	query              *querygen.Query
-	batcher            *Batcher
-	path               string
-	activeSessionID    string
-	activeSessionLabel string
-	full               *atomic.Bool  // writes rejected when true (see full.go); shared across WithContext copies
-	traceLintMu        *sync.Mutex   // shared by WithContext copies; serializes incremental trace lint insertion
-	retentionFloor     *atomic.Int64 // failed reclamation floor; prevents repeated destructive retries
+	gorm                     *gorm.DB
+	query                    *querygen.Query
+	batcher                  *Batcher
+	path                     string
+	activeSessionID          string
+	activeSessionLabel       string
+	full                     *atomic.Bool   // writes rejected when true (see full.go); shared across WithContext copies
+	traceLintMu              *sync.Mutex    // shared by WithContext copies; serializes incremental trace lint insertion
+	retentionFloor           *atomic.Int64  // failed reclamation floor; prevents repeated destructive retries
+	retentionRetry           *atomic.Int64  // automatic size reclamation retry time, Unix nanoseconds
+	retentionCheckpointReady *atomic.Bool   // next automatic size pass may rebuild or evict after a separate checkpoint pass
+	retentionReclaimed       *atomic.Bool   // measured allocation progress across one-table rebuild phases
+	retentionRebuildVisited  *atomic.Uint64 // tables already reclaimed in the current oldest-prefix cycle
+	maintenanceOwned         bool           // all SQL leases are reserved until maintenance and recovery finish
 }
 
 // WithContext returns a shallow copy of DB whose GORM queries carry ctx, so the
@@ -62,9 +68,16 @@ func (d *DB) namedGORM(name string) *gorm.DB {
 // an unbounded pool lets concurrent OTLP requests create many native DuckDB
 // connections and exhaust the host.
 const (
-	duckDBWorkerThreads   = 4
-	duckDBMemoryLimit     = "2GB"
-	duckDBGORMConnections = 16
+	// ManagedWALCheckpointBytes bounds WAL accumulated before a guarded
+	// checkpoint and the freshness of a size-maintenance checkpoint phase.
+	ManagedWALCheckpointBytes = int64(8 << 20)
+	duckDBWorkerThreads       = 4
+	duckDBMemoryLimit         = "2GB"
+	duckDBGORMConnections     = 16
+	// The guard schedules small WAL checkpoints under maintenance isolation.
+	// Keep native commit-time checkpoints out of the ingestion path without
+	// disabling WAL durability or checkpoint-on-shutdown.
+	duckDBAutoCheckpointThreshold = "1TB"
 )
 
 var duckDBMaxOpenConnections = len(batchTables) + duckDBGORMConnections
@@ -86,9 +99,17 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}}
+	d := &DB{gorm: g, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}}
+	if err := d.recoverReclaimIndexes(); err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("recover interrupted reclamation: %w", err)
+	}
 	if err := d.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
+	}
+	if err := d.initReclaimIndexSlots(); err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("initialize reclamation journal: %w", err)
 	}
 	_ = g.Use(newGORMPlugin())
 	d.query = querygen.Use(g)
@@ -120,12 +141,24 @@ func duckDBDSN(path string) string {
 	// Avoid the legacy ART-index serialization path during checkpoint. The
 	// bundled engine can read its current format; legacy conversion can fail
 	// with TransformToDeprecated after sustained indexed ingestion/deletion.
-	settings := fmt.Sprintf("threads=%d&memory_limit=%s&storage_compatibility_version=latest", duckDBWorkerThreads, duckDBMemoryLimit)
+	settings := fmt.Sprintf("threads=%d&memory_limit=%s&storage_compatibility_version=latest&checkpoint_threshold=%s", duckDBWorkerThreads, duckDBMemoryLimit, duckDBAutoCheckpointThreshold)
 	// User SQL shares this instance with ingestion. Disable external I/O and
 	// extension loading on the instance so SELECT table functions cannot bypass
 	// the read-only SQL gate. All connections inherit the same configuration.
 	settings += "&enable_external_access=false&autoinstall_known_extensions=false&autoload_known_extensions=false&allow_community_extensions=false&lock_configuration=true"
 	return path + sep + settings
+}
+
+// WALSize is a cheap filesystem snapshot for scheduling guarded checkpoints.
+func (d *DB) WALSize() int64 {
+	if d.path == "" || d.path == ":memory:" {
+		return 0
+	}
+	info, err := os.Stat(d.path + ".wal")
+	if err != nil {
+		return 0
+	}
+	return info.Size()
 }
 
 // FlushBatch flushes all buffered hot-path rows so they are visible to readers.

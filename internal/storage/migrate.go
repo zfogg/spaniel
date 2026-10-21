@@ -223,6 +223,8 @@ func migrations() []*gormigrate.Migration {
 		{ID: "0037_public_telemetry_views", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0037_public_telemetry_views.sql") }},
 		{ID: "0038_coverage_specs", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0038_coverage_specs.sql") }},
 		{ID: "0039_dashboard_yaml_provenance", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0039_dashboard_yaml_provenance.sql") }},
+		{ID: "0040_remove_unused_span_indexes", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0040_remove_unused_span_indexes.sql") }},
+		{ID: "0041_reclaim_index_journal", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0041_reclaim_index_journal.sql") }},
 	}
 }
 
@@ -331,7 +333,13 @@ func (d *DB) migrate() error {
 		if err := execMigrationFile(tx, "0038_coverage_specs.sql"); err != nil {
 			return err
 		}
-		return execMigrationFile(tx, "0039_dashboard_yaml_provenance.sql")
+		if err := execMigrationFile(tx, "0039_dashboard_yaml_provenance.sql"); err != nil {
+			return err
+		}
+		if err := execMigrationFile(tx, "0040_remove_unused_span_indexes.sql"); err != nil {
+			return err
+		}
+		return execMigrationFile(tx, "0041_reclaim_index_journal.sql")
 	})
 	if err := m.Migrate(); err != nil {
 		return err

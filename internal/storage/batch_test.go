@@ -86,6 +86,12 @@ func TestBatcherFlushesAtRowThreshold(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	// Isolate the row threshold from the independent 200ms timer. Under race
+	// instrumentation, that timer can flush a partial batch midway through the
+	// loop and leave its remaining rows below the threshold under test.
+	close(db.batcher.stop)
+	<-db.batcher.done
+	db.batcher.stop = make(chan struct{}) // Close still owns a fresh stop signal.
 
 	for i := range batchMaxRows + 10 {
 		if err := db.AppendSpan(&Span{

@@ -48,14 +48,43 @@ type tableAppender struct {
 }
 
 func (ta *tableAppender) close() error {
-	var err error
-	if ta.app != nil {
-		err = ta.app.Close()
-	}
+	err := ta.closeNative()
 	if ta.conn != nil {
 		_ = ta.conn.Close()
+		ta.conn = nil
 	}
 	return err
+}
+
+// closeNative flushes and destroys the native appender without returning its
+// connection lease to the SQL pool. Maintenance must keep that lease reserved
+// so queued readers cannot prevent ingestion from being restored.
+func (ta *tableAppender) closeNative() error {
+	app := ta.app
+	ta.app = nil
+	ta.pending = 0
+	if app != nil {
+		return app.Close()
+	}
+	return nil
+}
+
+func (ta *tableAppender) reopen() error {
+	if ta.app != nil {
+		return nil
+	}
+	return ta.conn.Raw(func(dc any) error {
+		driverConn, ok := dc.(driver.Conn)
+		if !ok {
+			return fmt.Errorf("unexpected driver connection type %T", dc)
+		}
+		app, err := duckdb.NewAppenderFromConn(driverConn, "", ta.table)
+		if err != nil {
+			return err
+		}
+		ta.app = app
+		return nil
+	})
 }
 
 // Batcher buffers hot-path rows and flushes them via the DuckDB Appender API.
@@ -100,18 +129,7 @@ func newTableAppender(db *sql.DB, table string) (*tableAppender, error) {
 		return nil, err
 	}
 	ta := &tableAppender{table: table, conn: conn}
-	err = conn.Raw(func(dc any) error {
-		driverConn, ok := dc.(driver.Conn)
-		if !ok {
-			return fmt.Errorf("unexpected driver connection type %T", dc)
-		}
-		app, aerr := duckdb.NewAppenderFromConn(driverConn, "", table)
-		if aerr != nil {
-			return aerr
-		}
-		ta.app = app
-		return nil
-	})
+	err = ta.reopen()
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -269,28 +287,99 @@ func (b *Batcher) Flush() error {
 // maintenance operation such as CHECKPOINT or VACUUM. DuckDB must not run
 // those operations while an Appender is alive, even if it has been flushed:
 // doing so can invalidate the database with "Invalid node type" errors.
-// Appends are blocked for the duration and fresh appenders are installed
-// before this method returns.
-func (b *Batcher) Maintenance(fn func() error) error {
-	b.mu.Lock()
+// Appends are blocked for the duration. Connection leases remain pinned while
+// native appenders are closed, and fresh appenders are restored on those same
+// leases before unlocking, including when fn fails or ctx is canceled. fn is
+// told how many pool connections remain reserved for restoration.
+func (b *Batcher) Maintenance(ctx context.Context, fn func(pinned int) error) (err error) {
+	if err := lockWithContext(ctx, &b.mu); err != nil {
+		return err
+	}
 	defer b.mu.Unlock()
 	if b.closed {
-		return fn()
+		// Close publishes closed before joining the interval flusher. It may
+		// still be waiting to reacquire this mutex and release its appenders.
+		// Finish that release before reporting zero reserved connections.
+		closeErr := b.closeAllLocked()
+		return errors.Join(closeErr, fn(0))
 	}
 
-	closeErr := b.closeAllLocked()
-	fnErr := fn()
-
-	var reopenErrs []error
-	for _, table := range batchTables {
-		ta, err := newTableAppender(b.db, table)
-		if err != nil {
-			reopenErrs = append(reopenErrs, fmt.Errorf("reopen appender for %s: %w", table, err))
-			continue
+	var closeErrs []error
+	defer func() {
+		var reopenErrs []error
+		for _, table := range batchTables {
+			ta := b.apps[table]
+			if ta == nil || ta.conn == nil {
+				continue
+			}
+			// Restoration deliberately ignores the canceled work context: these
+			// leases are already owned, so reopening never waits on the pool.
+			if e := ta.reopen(); e != nil {
+				reopenErrs = append(reopenErrs, fmt.Errorf("reopen appender for %s: %w", table, e))
+			}
 		}
-		b.apps[table] = ta
+		b.recordQueueDepthLocked()
+		err = errors.Join(errors.Join(closeErrs...), err, errors.Join(reopenErrs...))
+	}()
+
+	// Recover any already-missing lease before suspending healthy appenders.
+	// Acquisition is bounded, and an early failure leaves those appenders open.
+	pinned := 0
+	for _, table := range batchTables {
+		ta := b.apps[table]
+		if ta == nil || ta.conn == nil {
+			conn, e := b.db.Conn(ctx)
+			if e != nil {
+				return fmt.Errorf("reserve appender connection for %s: %w", table, e)
+			}
+			ta = &tableAppender{table: table, conn: conn}
+			b.apps[table] = ta
+		}
+		pinned++
 	}
-	return errors.Join(closeErr, fnErr, errors.Join(reopenErrs...))
+	for _, table := range batchTables {
+		if e := b.apps[table].closeNative(); e != nil {
+			closeErrs = append(closeErrs, fmt.Errorf("close appender for %s: %w", table, e))
+		}
+	}
+	b.recordQueueDepthLocked()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return fn(pinned)
+}
+
+// Expired automatic maintenance must not begin another ingestion pause after
+// waiting for an earlier writer/maintenance operation to release its lock.
+func lockWithContext(ctx context.Context, mu *sync.Mutex) error {
+	try := func() (bool, error) {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		if !mu.TryLock() {
+			return false, nil
+		}
+		if err := ctx.Err(); err != nil {
+			mu.Unlock()
+			return false, err
+		}
+		return true, nil
+	}
+	if acquired, err := try(); acquired || err != nil {
+		return err
+	}
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if acquired, err := try(); acquired || err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // Close stops the interval flusher, flushes remaining rows, and releases the

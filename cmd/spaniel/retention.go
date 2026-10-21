@@ -20,6 +20,8 @@ const (
 	storageGuardInterval      = 5 * time.Second
 	storageHighWaterPercent   = int64(80)
 	storagePruneTargetPercent = int64(70)
+	storageMaintenanceBudget  = 8 * time.Second
+	storageWALCheckpointBytes = storage.ManagedWALCheckpointBytes
 )
 
 var (
@@ -99,6 +101,7 @@ func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storag
 		t0 := time.Now()
 		current := cfg
 		current.MaxDBSizeBytes = policy.RetentionSizeLimit()
+		current.MaxDuration = storageMaintenanceBudget
 		scopedStore := store.WithContext(ctx)
 		res, err := scopedStore.Prune(current, scopedStore.ActiveSessionID())
 		getRetentionDurationHist().Record(ctx, float64(time.Since(t0).Milliseconds()))
@@ -148,6 +151,7 @@ type storageGuardStore interface {
 	ActiveSessionID() string
 	Prune(storage.RetentionConfig, string) (storage.PruneResult, error)
 	SetFull(bool)
+	RetentionBackingOff() bool
 }
 
 // checkStorageGuard applies one storage policy pass. With auto-prune disabled,
@@ -185,23 +189,21 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 		store.SetFull(false)
 		return
 	}
+	// Enforce the real cap before maintenance; failure to reach the proactive
+	// target alone is not full.
+	store.SetFull(size >= maxBytes)
 
-	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target}, store.ActiveSessionID())
+	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: storageMaintenanceBudget}, store.ActiveSessionID())
 	after := store.UsedSize()
-	for attempt := 1; err == nil && after >= highWater && attempt < 3; attempt++ {
-		var more storage.PruneResult
-		more, err = store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target}, store.ActiveSessionID())
-		res.DeletedBySize += more.DeletedBySize
-		after = store.UsedSize()
-	}
-	if err != nil {
+	soft := storage.IsRetentionTargetUnreached(err)
+	if err != nil && !soft {
 		slog.Error("storage guard auto-prune failed", "err", err)
 	}
 	// Staying above the proactive high-water mark after one pass is not a
 	// storage-full condition: queued ingestion may flush as appenders reopen,
 	// and the next guard pass can prune again. Reject writes only when pruning
 	// failed or the hard cap itself is still reached.
-	blocked := err != nil || after >= maxBytes
+	blocked := (err != nil && !soft) || after >= maxBytes
 	store.SetFull(blocked)
 	if blocked {
 		slog.Warn("storage guard could not restore headroom; ingestion paused",
@@ -224,14 +226,54 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 // passes. Checking every five seconds provides enough headroom for bursty
 // local telemetry without continuously querying DuckDB.
 func runStorageGuard(store *storage.DB, policy *storageGuardPolicy) {
-	check := func() {
+	runStorageGuardChecks(context.Background(), storageGuardInterval, func() {
+		if checkStorageWAL(store, policy, store.WALSize(), func(ctx context.Context) error {
+			return store.WithContext(ctx).Checkpoint()
+		}) {
+			return
+		}
 		checkStorageGuard(store, policy)
+	})
+}
+
+// Own WAL checkpoints instead of allowing a native transaction commit to start
+// one while appenders/readers remain active. This also runs in preserve mode
+// and with no size cap. At high water Prune already checkpoints; give eviction
+// priority so sustained WAL traffic cannot starve oldest-first reclamation.
+func checkStorageWAL(store storageGuardStore, policy *storageGuardPolicy, walBytes int64, checkpoint func(context.Context) error) bool {
+	if walBytes < storageWALCheckpointBytes {
+		return false
 	}
-	check()
-	ticker := time.NewTicker(storageGuardInterval)
-	defer ticker.Stop()
-	for range ticker.C {
+	maxBytes := policy.maxBytes.Load()
+	size := store.UsedSize()
+	if maxBytes > 0 && policy.autoPrune.Load() && !store.RetentionBackingOff() && size >= maxBytes*storageHighWaterPercent/100 {
+		return false
+	}
+	store.SetFull(maxBytes > 0 && size >= maxBytes)
+	ctx, cancel := context.WithTimeout(context.Background(), storageMaintenanceBudget)
+	defer cancel()
+	err := checkpoint(ctx)
+	if err != nil {
+		slog.Warn("storage WAL checkpoint failed", "err", err)
+	}
+	// A budget expiry alone cannot declare a below-cap durable WAL full.
+	failed := err != nil && !storage.IsMaintenanceTimeout(err)
+	store.SetFull(failed || (maxBytes > 0 && store.UsedSize() >= maxBytes))
+	return true
+}
+
+func runStorageGuardChecks(ctx context.Context, interval time.Duration, check func()) {
+	for ctx.Err() == nil {
 		check()
+		// A ticker retains an overdue tick while a long rebuild runs, causing
+		// back-to-back pauses. Start the next delay only after this pass ends.
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
 	}
 }
 

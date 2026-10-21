@@ -44,9 +44,9 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 
 	// Table sizes are live payload estimates. Physical allocation, indexes and
 	// deleted tuples are reported separately in MainBytes/WALBytes.
-	if d.path != "" && d.path != ":memory:" {
-		_ = d.flushBeforeCheckpoint()
-	}
+	// Observing storage must not pause appenders or drain every SQL connection.
+	// Report the current main/WAL footprint; explicit Compact/Checkpoint own
+	// maintenance. Committed payload estimates remain ordinary read queries.
 	var fileBytes int64
 	if d.path != "" && d.path != ":memory:" {
 		if fi, err := os.Stat(d.path); err == nil {
@@ -76,7 +76,7 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 	sessSizes, _ := d.query.Span.TopSessionSizes()
 	out.Sessions = sessSizes
 
-	// File sizes: MainBytes comes from fileBytes computed above (post-checkpoint).
+	// File sizes are a current allocation snapshot, including reusable blocks.
 	out.MainBytes = fileBytes
 	if d.path != "" && d.path != ":memory:" {
 		if fi, err := os.Stat(d.path + ".wal"); err == nil {
@@ -137,13 +137,17 @@ func (d *DB) withMaintenance(fn func(*DB) error) error {
 	if d.batcher == nil {
 		return d.exclusiveSQLMaintenance(fn)
 	}
-	return d.batcher.Maintenance(func() error { return d.exclusiveSQLMaintenance(fn) })
+	return d.batcher.Maintenance(d.gorm.Statement.Context, func(pinned int) error { return d.exclusiveSQLMaintenancePinned(pinned, fn) })
 }
 
 // Pause appenders and drain readers/metadata transactions before DuckDB
 // maintenance. A checkpoint must not race native prepares on another connection.
 // This restores the isolation already proven in the collector incident repair.
 func (d *DB) exclusiveSQLMaintenance(fn func(*DB) error) error {
+	return d.exclusiveSQLMaintenancePinned(0, fn)
+}
+
+func (d *DB) exclusiveSQLMaintenancePinned(pinned int, fn func(*DB) error) error {
 	ctx, cancel := context.WithTimeout(d.gorm.Statement.Context, 30*time.Second)
 	defer cancel()
 	pool := d.SQL()
@@ -151,13 +155,19 @@ func (d *DB) exclusiveSQLMaintenance(fn func(*DB) error) error {
 	if limit <= 0 {
 		return fmt.Errorf("maintenance requires a bounded SQL pool")
 	}
+	if pinned < 0 || pinned >= limit {
+		return fmt.Errorf("invalid maintenance appender lease count: %d of %d", pinned, limit)
+	}
 	var conns []*sql.Conn
 	defer func() {
 		for _, conn := range conns {
 			_ = conn.Close()
 		}
 	}()
-	for range limit {
+	// Native appenders are closed but their connection leases stay reserved.
+	// Drain only the reader/metadata slots; restoration cannot lose a race to
+	// queued queries for the five connections ingestion needs to resume.
+	for range limit - pinned {
 		conn, err := pool.Conn(ctx)
 		if err != nil {
 			return fmt.Errorf("drain SQL pool for maintenance: %w", err)
@@ -165,13 +175,36 @@ func (d *DB) exclusiveSQLMaintenance(fn func(*DB) error) error {
 		conns = append(conns, conn)
 	}
 	maintenance := *d
+	maintenance.maintenanceOwned = true
 	// The drain deadline bounds acquisition, not the maintenance transaction.
 	// Retention may need longer than 30s on an existing large file; interrupting
 	// it midway repeatedly prevents the storage guard from restoring headroom.
 	maintenance.gorm = d.gorm.Session(&gorm.Session{NewDB: true, Context: d.gorm.Statement.Context})
 	maintenance.gorm.Statement.ConnPool = conns[0]
 	maintenance.query = querygen.Use(maintenance.gorm)
+	if err := maintenance.recoverReclaimIndexes(); err != nil {
+		return err
+	}
 	return fn(&maintenance)
+}
+
+// Keep the reserved connection owned until explicit commit/rollback. A canceled
+// BeginTx context lets database/sql discard its lease and admit queued readers
+// during checkpoint/recovery. Statements still carry the bounded work context.
+func (d *DB) maintenanceTransaction(db *gorm.DB, fn func(*gorm.DB) error) error {
+	if !d.maintenanceOwned {
+		return db.Transaction(fn)
+	}
+	work := db.Statement.Context
+	if err := work.Err(); err != nil {
+		return err
+	}
+	return db.WithContext(context.WithoutCancel(work)).Transaction(func(tx *gorm.DB) error {
+		if err := fn(tx.WithContext(work)); err != nil {
+			return err
+		}
+		return work.Err()
+	})
 }
 
 // checkpointWithRetry lets auxiliary GORM writes from requests accepted just

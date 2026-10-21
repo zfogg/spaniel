@@ -51,6 +51,17 @@ func TestPruneSizeEvictsOnlyOldestTracesAboveCap(t *testing.T) {
 }
 
 func TestPruneReclaimsIndexedDeletesBeforeEvictingLiveTraces(t *testing.T) {
+	t.Run("current_indexes", func(t *testing.T) { testIndexedReclamation(t, false, 0, false, false) })
+	t.Run("legacy_indexes_substantial_payload", func(t *testing.T) { testIndexedReclamation(t, true, 512, false, false) })
+}
+
+func TestPruneKeepsSurvivorsWhenLegacyReclamationReachesStorageFloor(t *testing.T) {
+	t.Run("manual", func(t *testing.T) { testIndexedReclamation(t, true, 0, true, false) })
+	t.Run("automatic", func(t *testing.T) { testIndexedReclamation(t, true, 0, true, true) })
+}
+
+func testIndexedReclamation(t *testing.T, legacy bool, payloadBytes int, unreachable, automatic bool) {
+	t.Helper()
 	d, err := Open(filepath.Join(t.TempDir(), "retention.duckdb"))
 	if err != nil {
 		t.Fatal(err)
@@ -60,17 +71,26 @@ func TestPruneReclaimsIndexedDeletesBeforeEvictingLiveTraces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Fresh-schema setup currently omits the historical performance indexes.
-	// Install them explicitly so this regression exercises indexed row groups.
-	if err := d.withMaintenance(func(isolated *DB) error {
-		return execMigrationFile(isolated.gorm, "0007_performance_indexes.sql")
-	}); err != nil {
-		t.Fatal(err)
+	// Test both the current selective indexes and the historical index layout.
+	if legacy {
+		if err := d.withMaintenance(func(isolated *DB) error {
+			return execMigrationFile(isolated.gorm, "0007_performance_indexes.sql")
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
+	payload := make([]byte, payloadBytes)
 	for i := range 20000 {
+		attributes := `{}`
+		if payloadBytes > 0 {
+			if _, err := rand.Read(payload); err != nil {
+				t.Fatal(err)
+			}
+			attributes = `{"payload":"` + hex.EncodeToString(payload) + `"}`
+		}
 		if err := d.AppendSpan(&Span{TraceID: fmt.Sprintf("trace-%08d", i), SpanID: fmt.Sprintf("%016x", i),
 			SessionID: s.ID, Name: fmt.Sprintf("operation-%08d", i), ServiceName: "retention-test",
-			StartNs: int64(i), EndNs: int64(i + 1), ReceivedAt: int64(i), Attributes: `{}`, Resource: `{}`}); err != nil {
+			StartNs: int64(i), EndNs: int64(i + 1), ReceivedAt: int64(i), Attributes: attributes, Resource: `{}`}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -94,17 +114,38 @@ func TestPruneReclaimsIndexedDeletesBeforeEvictingLiveTraces(t *testing.T) {
 	if indexesBefore == 0 {
 		t.Fatal("fixture must contain indexed span rows")
 	}
-	// The old implementation deleted live traces immediately. Reclamation must
-	// satisfy this cap without evicting any of the 100 surviving trace IDs.
-	res, err := d.Prune(RetentionConfig{MaxDBSizeBytes: before - 262144}, s.ID)
-	if err != nil {
+	// Reclaim real stale payload without evicting any survivor. The tiny legacy
+	// case instead reaches its measured catalog/index floor; it must report an
+	// unreachable target without probing that floor by deleting more live rows.
+	target := before - 262144
+	cfg := RetentionConfig{MaxDBSizeBytes: target}
+	if automatic {
+		cfg.MaxDuration = 6 * time.Second
+	}
+	var res PruneResult
+	totalDeleted := 0
+	for pass := 0; pass < 12; pass++ {
+		res, err = d.Prune(cfg, s.ID)
+		totalDeleted += res.DeletedBySize
+		if err != nil || !automatic {
+			break
+		}
+	}
+	res.DeletedBySize = totalDeleted
+	if unreachable {
+		if !IsRetentionTargetUnreached(err) {
+			t.Fatalf("expected safe storage floor: %v", err)
+		}
+	} else if err != nil {
 		t.Fatal(err)
 	}
 	if res.DeletedBySize != 0 {
 		t.Fatalf("deleted %d live spans for stale allocation", res.DeletedBySize)
 	}
-	if after := d.UsedSize(); after >= before {
+	if after := d.UsedSize(); !unreachable && after >= before {
 		t.Fatalf("indexed deletes were not reclaimed: before=%d after=%d", before, after)
+	} else if unreachable && after <= target {
+		t.Fatalf("negative fixture did not establish a storage floor: used=%d target=%d", after, target)
 	}
 	var count int64
 	if err := d.SQL().QueryRow(`SELECT COUNT(*) FROM spans`).Scan(&count); err != nil {

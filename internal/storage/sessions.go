@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/model"
 	"github.com/zfogg/spaniel/internal/storage/querygen"
+	"gorm.io/gorm"
 )
 
 type Session = model.Session
@@ -121,8 +122,8 @@ func (d *DB) UpdateSession(id string, p SessionPatch) error {
 }
 
 func (d *DB) DeleteSession(id string) error {
-	q := d.namedQuery("DeleteSession")
-	return q.Transaction(func(tx *querygen.Query) error {
+	return d.maintenanceTransaction(d.namedGORM("DeleteSession"), func(g *gorm.DB) error {
+		tx := querygen.Use(g)
 		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SessionID.Eq(id)).Delete(); err != nil {
 			return err
 		}
