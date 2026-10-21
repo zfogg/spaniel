@@ -3,7 +3,9 @@ package ingestion
 import (
 	"crypto/sha256"
 	"fmt"
+	"strings"
 
+	"github.com/xwb1989/sqlparser"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -36,6 +38,9 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 			raw = extractAttrString(s.Attributes, "db.query.text")
 		}
 		if raw == "" {
+			continue
+		}
+		if isN1LifecycleSpan(s, raw) {
 			continue
 		}
 		fp := fingerprintSQL(raw)
@@ -86,4 +91,34 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 		})
 	}
 	return issues
+}
+
+// Preparation and transaction boundaries are not repeated data executions.
+// Keep them available to slow/error detectors, which still expose contention.
+func isN1LifecycleSpan(span *storage.Span, sql string) bool {
+	if isStatementPreparation(span) {
+		return true
+	}
+	operation := extractAttrString(span.Attributes, "db.operation.name")
+	if operation == "" {
+		operation = extractAttrString(span.Attributes, "db.operation")
+	}
+	switch strings.ToUpper(operation) {
+	case "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT", "RELEASE":
+		return true
+	}
+	if operation != "" {
+		return false
+	}
+	// Older instrumentation may provide only SQL. Parse it rather than
+	// matching words that could also occur in a real data query or literal.
+	statement, err := sqlparser.Parse(sql)
+	if err != nil {
+		return false
+	}
+	switch statement.(type) {
+	case *sqlparser.Begin, *sqlparser.Commit, *sqlparser.Rollback:
+		return true
+	}
+	return false
 }
