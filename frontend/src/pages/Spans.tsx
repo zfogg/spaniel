@@ -1,7 +1,7 @@
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   useReactTable,
@@ -17,9 +17,8 @@ import { svcColor, httpDisplayName } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
-import JsonView from '@/components/JsonView'
+import SpanInspector from '@/components/SpanInspector'
 import PaginationControls from '@/components/PaginationControls'
-import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { useRelativeTimeNow } from '@/components/shared/use-relative-time'
 import { fmtDuration, fmtClock, fmtRelative } from '@/lib/fmt-relative'
 import { AnimatePresence, motion } from 'motion/react'
@@ -180,127 +179,6 @@ function SbItem({
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{children}</span>
       <span className="text-muted-foreground text-[10px] shrink-0">{count}</span>
     </button>
-  )
-}
-
-// ── SpanInspector ─────────────────────────────────────────────────────────────
-
-function SpanInspector({ span, onClose }: { span: SpanRow; onClose: () => void }) {
-  const navigate = useNavigate()
-  const attrs = parseAttrs(span.attributes)
-  const entries = Object.entries(attrs)
-  const resourceAttrs = parseAttrs(span.resource)
-  const resourceCount = Object.keys(resourceAttrs).length
-  const kindLabel = KIND_LABELS[span.kind] ?? 'unknown'
-  const isSlow = span.duration_ns > SLOW_NS
-
-  return (
-    <aside
-      data-testid="span-inspector"
-      className="h-full w-[380px] border-l border-border bg-background flex flex-col overflow-hidden shrink-0"
-    >
-      <div className="px-4 py-3.5 border-b border-border">
-        <div className="flex items-center gap-2 mb-2">
-          <SvcChip name={span.service_name} />
-          <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">
-            {kindLabel}
-          </span>
-          <div className="flex-1" />
-          <TagBadge tag={span.tag} />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close inspector"
-            className="bg-transparent border-none cursor-pointer text-muted-foreground text-base leading-none p-0"
-          >
-            ×
-          </button>
-        </div>
-        <div className="font-mono text-[13px] text-foreground leading-[1.4] break-words">
-          {httpDisplayName(span)}
-        </div>
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          <div>
-            <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">
-              duration
-            </div>
-            <div
-              className="text-[22px] font-semibold leading-none mt-[3px]"
-              style={{
-                fontFamily: 'Georgia, serif',
-                color: isSlow ? 'var(--destructive, #c0392b)' : 'var(--foreground)',
-              }}
-            >
-              {fmtDuration(span.duration_ns)}
-            </div>
-          </div>
-          <div>
-            <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em]">
-              started
-            </div>
-            <div className="font-mono text-[10px] leading-relaxed text-foreground mt-1.5">
-              <TimestampWithAgo nanoseconds={span.start_ns} stacked />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 py-3.5 border-b border-border bg-muted">
-        <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] mb-[5px]">
-          belongs to trace
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs font-semibold text-foreground overflow-hidden text-ellipsis whitespace-nowrap">
-            {span.trace_id}
-          </span>
-        </div>
-        <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
-          <button
-            type="button"
-            onClick={() => navigate(`/traces/${span.trace_id}`)}
-            className="bg-transparent border-none cursor-pointer p-0 font-mono text-[10px] underline decoration-dotted"
-            style={{ color: 'var(--accent, #6366f1)' }}
-          >
-            open waterfall
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-x-hidden overflow-y-auto">
-        <div className="pt-3 px-4 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] flex items-baseline">
-          span attributes
-          <span className="flex-1" />
-          <span className="text-muted-foreground normal-case tracking-normal">
-            {entries.length} keys
-          </span>
-        </div>
-        <div className="pt-1 pb-3.5">
-          {entries.length > 0 ? (
-            <JsonView data={attrs} />
-          ) : (
-            <div className="px-4 py-3 font-mono text-[10.5px] text-muted-foreground">
-              no attributes
-            </div>
-          )}
-        </div>
-        <div className="border-t border-border pt-3 px-4 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] flex items-baseline">
-          resource attributes
-          <span className="flex-1" />
-          <span className="text-muted-foreground normal-case tracking-normal">
-            {resourceCount} keys
-          </span>
-        </div>
-        <div className="pt-1 pb-3.5">
-          {resourceCount > 0 ? (
-            <JsonView data={resourceAttrs} />
-          ) : (
-            <div className="px-4 py-3 font-mono text-[10.5px] text-muted-foreground">
-              no resource attributes
-            </div>
-          )}
-        </div>
-      </div>
-    </aside>
   )
 }
 
@@ -701,7 +579,7 @@ export default function Spans() {
           {/* Keep the scrollbars beside the inspector without shrinking the columns. */}
           <div
             data-testid="spans-table-scroll"
-            className={`h-full overflow-auto ${selected ? 'mr-[380px]' : ''}`}
+            className={`h-full overflow-auto ${selected ? 'mr-[512px]' : ''}`}
           >
             <div className="min-w-[1090px] w-[100cqw]">
               {/* Column headers */}
