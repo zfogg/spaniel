@@ -193,7 +193,8 @@ export default function TraceDetail() {
       ) : spans.length === 0 ? (
         <EmptyState
           title="Trace not found"
-          hint="This trace has no spans — it may have aged out of retention, or the id is wrong."
+          tone="danger"
+          hint="No spans are stored for this trace. It may have been sampled out, not exported yet, or removed by retention."
         />
       ) : (
         <div className="flex-1 overflow-hidden">

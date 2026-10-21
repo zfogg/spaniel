@@ -1,8 +1,9 @@
+import { logTraceQuery, logTraceUrl } from '@/lib/log-trace'
 import LogLevelBadge from '@/components/LogLevelBadge'
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
@@ -10,7 +11,7 @@ import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
-import { fmtClock, fmtDateTime, fmtRelative } from '@/lib/fmt-relative'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { matchesSevFilter, type SevFilter } from './log-severity-filter'
 import PaginationControls from '@/components/PaginationControls'
 import { AnimatePresence, motion } from 'motion/react'
@@ -142,23 +143,22 @@ function logSource(log: Log): string {
 
 // ── LogRow ────────────────────────────────────────────────────────────────────
 
-function LogRow({
+export function LogRow({
   log,
   i,
-  nowMs,
   selected,
   onSelect,
   navigate,
 }: {
   log: Log
   i: number
-  nowMs: number
   selected: boolean
   onSelect: () => void
   navigate: (path: string) => void
 }) {
   const [hovered, setHovered] = useState(false)
   const c = svcColor(log.service_name)
+  const queryClient = useQueryClient()
 
   const rowBg = selected
     ? `color-mix(in oklch, var(--accent) 14%, var(--surface))`
@@ -186,16 +186,13 @@ function LogRow({
       onMouseLeave={() => setHovered(false)}
       className={`grid items-center h-7 border-b border-line2 px-2 gap-1.5 cursor-pointer transition-[background] duration-[70ms] ${selected ? 'border-l-2 border-l-accent-d' : 'border-l-2 border-l-transparent'}`}
       style={{
-        gridTemplateColumns: '90px 52px 130px 1fr 22px',
+        gridTemplateColumns: '310px 52px 130px minmax(0, 1fr) 22px',
         background: rowBg,
       }}
     >
       {/* timestamp */}
-      <div
-        title={fmtClock(log.timestamp_ns)}
-        className="font-mono text-[11px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap shrink-0"
-      >
-        {fmtRelative(log.timestamp_ns, nowMs)}
+      <div className="font-mono text-[11px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap shrink-0">
+        <TimestampWithAgo nanoseconds={log.timestamp_ns} />
       </div>
 
       {/* severity badge */}
@@ -229,8 +226,13 @@ function LogRow({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              const q = log.span_id && !/^0+$/.test(log.span_id) ? `?spanId=${log.span_id}` : ''
-              navigate(`/traces/${log.trace_id}${q}`)
+              void queryClient
+                .fetchQuery(logTraceQuery(log.trace_id))
+                .then((spans) => {
+                  if (spans.length) navigate(logTraceUrl(log))
+                  else onSelect()
+                })
+                .catch(() => onSelect())
             }}
             title={`view trace ${log.trace_id}`}
             className="bg-none border-none cursor-pointer py-0.5 px-[3px] rounded-[3px] font-mono text-[9px] text-accent-d leading-none flex items-center"
@@ -245,7 +247,7 @@ function LogRow({
 
 // ── LogInspector (right panel) ────────────────────────────────────────────────
 
-function LogInspector({
+export function LogInspector({
   log,
   onClose,
   navigate,
@@ -257,6 +259,17 @@ function LogInspector({
   const c = svcColor(log.service_name)
   const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
 
+  const {
+    data: traceSpans,
+    isPending: tracePending,
+    isError: traceError,
+    refetch: retryTrace,
+  } = useQuery({
+    ...logTraceQuery(log.trace_id),
+    enabled: !!hasTrace,
+  })
+  const traceAvailable = !!traceSpans?.length
+
   let attrs: unknown = {}
   try {
     attrs = JSON.parse(log.attributes || '{}')
@@ -266,9 +279,7 @@ function LogInspector({
   const hasAttrs = attrs !== null && (typeof attrs !== 'object' || Object.keys(attrs).length > 0)
 
   function openTrace() {
-    if (!hasTrace) return
-    const q = log.span_id && !/^0+$/.test(log.span_id) ? `?spanId=${log.span_id}` : ''
-    navigate(`/traces/${log.trace_id}${q}`)
+    if (traceAvailable) navigate(logTraceUrl(log))
   }
 
   return (
@@ -278,7 +289,9 @@ function LogInspector({
     >
       <header className="flex items-center gap-2 px-[14px] py-2.5 border-b border-line shrink-0">
         <LogLevelBadge severity={log.severity} />
-        <span className="font-mono text-[11px] text-ink2">{fmtClock(log.timestamp_ns)}</span>
+        <span className="font-mono text-[11px] text-ink2 min-w-0">
+          <TimestampWithAgo nanoseconds={log.timestamp_ns} />
+        </span>
         <div className="flex-1" />
         <button
           type="button"
@@ -299,54 +312,71 @@ function LogInspector({
 
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 font-mono text-[11px] mb-4 [overflow-wrap:anywhere]">
           <dt className="text-ink3">Timestamp</dt>
-          <dd>{fmtDateTime(log.timestamp_ns)}</dd>
+          <dd>
+            <TimestampWithAgo nanoseconds={log.timestamp_ns} />
+          </dd>
           <dt className="text-ink3">Unix nanoseconds</dt>
           <dd>{log.timestamp_ns}</dd>
           <dt className="text-ink3">Received</dt>
-          <dd>{log.received_at ? fmtDateTime(log.received_at) : '—'}</dd>
+          <dd>{log.received_at ? <TimestampWithAgo nanoseconds={log.received_at} /> : '—'}</dd>
           <dt className="text-ink3">Source</dt>
           <dd>{logSource(log)}</dd>
           <dt className="text-ink3">Session</dt>
           <dd>{log.session_id || '—'}</dd>
+          <dt className="text-ink3">Trace ID</dt>
+          <dd className="min-w-0">
+            {!hasTrace ? (
+              'Not recorded'
+            ) : traceAvailable ? (
+              <Link className="text-accent-d break-all underline" to={logTraceUrl(log)}>
+                {log.trace_id}
+              </Link>
+            ) : (
+              <div>
+                <span className={tracePending ? 'break-all' : 'break-all text-[var(--danger)]'}>
+                  {log.trace_id}
+                </span>
+                <div
+                  role="status"
+                  className={tracePending ? 'mt-1 text-ink3' : 'mt-1 text-[var(--danger)]'}
+                >
+                  {tracePending
+                    ? 'Checking trace…'
+                    : traceError
+                      ? 'Trace lookup failed'
+                      : 'Trace not found'}
+                </div>
+                {!tracePending && (
+                  <>
+                    <div className="mt-1 text-ink3">
+                      {traceError
+                        ? 'Could not check trace availability.'
+                        : 'No spans are stored for this trace. It may have been sampled out, not exported yet, or removed by retention.'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void retryTrace()}
+                      className="mt-1 underline cursor-pointer"
+                    >
+                      Check again
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </dd>
+          {log.span_id && !isZeroTraceId(log.span_id) && (
+            <>
+              <dt className="text-ink3">Span ID</dt>
+              <dd className="break-all">{log.span_id}</dd>
+            </>
+          )}
           <dt className="text-ink3">Severity number</dt>
           <dd>{log.severity}</dd>
         </dl>
-        {/* trace + span IDs */}
-        {(hasTrace || log.span_id) && (
-          <div className="mb-4">
-            <div className="font-mono text-[9px] text-ink3 tracking-[0.1em] uppercase mb-1.5">
-              ids
-            </div>
-            <div
-              className="grid gap-y-[3px] gap-x-2.5 font-mono text-[11px]"
-              style={{ gridTemplateColumns: 'auto 1fr' }}
-            >
-              {hasTrace && (
-                <>
-                  <span className="text-ink3">trace</span>
-                  <Link
-                    className="text-accent-d break-all underline"
-                    to={`/traces/${log.trace_id}${log.span_id && !isZeroTraceId(log.span_id) ? `?spanId=${log.span_id}` : ''}`}
-                  >
-                    {log.trace_id}
-                  </Link>
-                </>
-              )}
-              {log.span_id && !/^0+$/.test(log.span_id) && (
-                <>
-                  <span className="text-ink3">span</span>
-                  <span className="text-ink2 break-all">{log.span_id}</span>
-                </>
-              )}
-            </div>
-          </div>
-        )}
         <h2 className="font-mono text-[10px] text-ink3 uppercase mb-2">Message</h2>
         {/* body (full, wrapped) */}
-        <div
-          className="font-mono text-[11.5px] leading-[1.5] whitespace-pre-wrap [overflow-wrap:anywhere] bg-surface2 border border-line rounded-[5px] p-4 mb-3.5"
-          style={{ color: sevBodyColor(log.severity) }}
-        >
+        <div className="text-foreground font-mono text-[11.5px] leading-[1.5] whitespace-pre-wrap [overflow-wrap:anywhere] bg-surface2 border border-line rounded-[5px] p-4 mb-3.5">
           {log.body || '(empty)'}
         </div>
 
@@ -361,7 +391,7 @@ function LogInspector({
         )}
       </div>
 
-      {hasTrace && (
+      {traceAvailable && (
         <footer className="px-[14px] py-2.5 border-t border-line shrink-0 bg-surface">
           <button
             type="button"
@@ -386,7 +416,6 @@ export default function LogViewer() {
   const [filterSev, setFilterSev] = useState<SevFilter>('ALL')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('1h')
   const [search, setSearch] = useState('')
-  const [nowMs, setNowMs] = useState(() => Date.now())
   const selectedKey = searchParams.get('log')
   const setSelectedLog = useCallback(
     (log: Log | null) => {
@@ -451,12 +480,6 @@ export default function LogViewer() {
   const logs = logResponse?.data ?? []
   const arrivingLogKeys = useNewItemIDs(logs, logKey)
   const logTotal = logResponse?.meta?.total ?? 0
-  // tick relative timestamps every second
-  useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 1_000)
-    return () => clearInterval(id)
-  }, [])
-
   // Esc closes the inspector.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -671,7 +694,7 @@ export default function LogViewer() {
               {/* column header */}
               <div
                 className="grid items-center h-6 pl-2.5 pr-2 gap-1.5 bg-surface border-b border-line shrink-0"
-                style={{ gridTemplateColumns: '90px 52px 130px 1fr 22px' }}
+                style={{ gridTemplateColumns: '310px 52px 130px minmax(0, 1fr) 22px' }}
               >
                 {['time', 'level', 'service', 'body', ''].map((h, i) => (
                   <div
@@ -695,7 +718,6 @@ export default function LogViewer() {
                       <LogRow
                         log={log}
                         i={i}
-                        nowMs={nowMs}
                         selected={selectedKey === logSelectionKey(log)}
                         onSelect={() => setSelectedLog(log)}
                         navigate={navigate}
