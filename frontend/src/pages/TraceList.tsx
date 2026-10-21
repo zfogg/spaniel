@@ -1,3 +1,4 @@
+import ServiceNameBadge from '@/components/ServiceNameBadge'
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useState, useRef, useEffect } from 'react'
@@ -17,7 +18,7 @@ import PaginationControls from '@/components/PaginationControls'
 import { TelemetryArrival } from '@/components/TelemetryArrival'
 import { useNewItemIDs } from '@/lib/use-new-item-ids'
 
-const GRID_COLS = 'minmax(0,1fr) 90px 80px 200px 70px 140px'
+const GRID_COLS = 'minmax(280px,1fr) 190px 80px 55px 90px 65px 140px'
 const SLOW_NS = 250_000_000
 const MAX_SESSIONS = 7
 const PAGE_SIZE = 100
@@ -286,9 +287,16 @@ function TraceRowItem({
               <IssueKindChip key={k} kind={k} />
             ))}
         </div>
-        <div className="font-mono text-[10px] text-[var(--ink3)]">
-          {trace.trace_id.slice(0, 16)}…
+        <div title={trace.trace_id} className="truncate font-mono text-[10px] text-[var(--ink3)]">
+          {trace.trace_id}
         </div>
+      </div>
+
+      <div className="min-w-0 px-2">
+        <ServiceNameBadge
+          name={trace.service_name}
+          additionalCount={Math.max(0, (trace.service_count ?? 1) - 1)}
+        />
       </div>
 
       {/* duration */}
@@ -603,6 +611,7 @@ export default function TraceList() {
               style={{ gridTemplateColumns: GRID_COLS }}
             >
               <div>operation</div>
+              <div className="px-2">service</div>
               <div className="text-right">dur</div>
               <div className="text-right">spans</div>
               <div className="pl-3">shape</div>

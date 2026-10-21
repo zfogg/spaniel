@@ -3065,6 +3065,10 @@ components:
                     type: array
                 name:
                     type: string
+                service_count:
+                    description: Number of distinct services represented by spans in this trace and session, including the initiating service.
+                    minimum: 1
+                    type: integer
                 service_name:
                     type: string
                 session_id:

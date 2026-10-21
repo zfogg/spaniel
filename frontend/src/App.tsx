@@ -303,6 +303,7 @@ function AppShell() {
         <RouteErrorBoundary>
           <Routes>
             <Route path="/" element={<TraceList />} />
+            <Route path="/traces" element={<TraceList />} />
             <Route path="/spans" element={<Spans />} />
             <Route path="/traces/:traceId" element={<TraceDetail />} />
             <Route path="/logs" element={<LogViewer />} />

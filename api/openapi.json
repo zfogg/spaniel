@@ -4254,6 +4254,11 @@
           "name": {
             "type": "string"
           },
+          "service_count": {
+            "description": "Number of distinct services represented by spans in this trace and session, including the initiating service.",
+            "type": "integer",
+            "minimum": 1
+          },
           "service_name": {
             "type": "string"
           },

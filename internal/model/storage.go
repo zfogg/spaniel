@@ -95,6 +95,7 @@ type TraceListRow struct {
 	SessionLabel  string
 	HasN1         bool
 	SpanCount     int
+	ServiceCount  int
 	IssueKindsRaw string
 }
 

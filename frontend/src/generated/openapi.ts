@@ -2314,6 +2314,8 @@ export interface components {
       has_n1: boolean
       issue_kinds?: string[]
       name: string
+      /** @description Number of distinct services represented by spans in this trace and session, including the initiating service. */
+      service_count?: number
       service_name: string
       session_id: string
       session_label: string

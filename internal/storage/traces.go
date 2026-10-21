@@ -22,6 +22,7 @@ type TraceRow struct {
 	SessionLabel  string   `json:"session_label"`
 	HasN1         bool     `json:"has_n1"`
 	SpanCount     int      `json:"span_count"`
+	ServiceCount  int      `json:"service_count,omitempty"`
 	IssueKinds    []string `json:"issue_kinds" gorm:"-"`
 	IssueKindsRaw string   `json:"-" gorm:"column:issue_kinds_raw"`
 }
@@ -54,7 +55,7 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 			Attributes: row.Attributes, StatusCode: row.StatusCode, StartNs: row.StartNs,
 			EndNs: row.EndNs, DurationNs: row.DurationNs, SessionID: row.SessionID,
 			SessionLabel: row.SessionLabel, HasN1: row.HasN1, SpanCount: row.SpanCount,
-			IssueKindsRaw: row.IssueKindsRaw,
+			IssueKindsRaw: row.IssueKindsRaw, ServiceCount: row.ServiceCount,
 		}
 	}
 	for _, row := range result {
