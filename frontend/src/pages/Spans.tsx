@@ -66,9 +66,9 @@ const SPAN_SORTS: Array<{ value: SpanSort; label: string }> = [
   { value: 'name', label: 'name a→z' },
 ]
 
-type SpanDrilldown = Pick<SpanGroup, 'service_name' | 'name' | 'kind'>
+type SpanGroupSelection = Pick<SpanGroup, 'service_name' | 'name' | 'kind'>
 
-function drilldownFromURL(params: URLSearchParams): SpanDrilldown | null {
+function groupSelectionFromURL(params: URLSearchParams): SpanGroupSelection | null {
   const service_name = params.get('groupService')
   const name = params.get('groupName')
   const kind = Number(params.get('groupKind'))
@@ -187,7 +187,7 @@ function SbItem({
 export default function Spans() {
   const now = useRelativeTimeNow()
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialDrilldown = drilldownFromURL(searchParams)
+  const selectedGroup = groupSelectionFromURL(searchParams)
   const [view, setViewState] = useState<SpanView>(() => {
     const fromURL = searchParams.get('view')
     if (fromURL === 'all' || fromURL === 'grouped') return fromURL
@@ -206,8 +206,7 @@ export default function Spans() {
   const [tagSel, setTagSel] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('span'))
   const [page, setPage] = useState(1)
-  const [drilldown, setDrilldown] = useState<SpanDrilldown | null>(() => initialDrilldown)
-  const showingGroups = view === 'grouped' && drilldown === null
+  const showingGroups = view === 'grouped'
 
   useEffect(() => {
     setPage(1)
@@ -222,20 +221,27 @@ export default function Spans() {
 
   const clearSelectedSpan = () => {
     setSelectedId(null)
-    updateURL((params) => params.delete('span'))
+    updateURL((params) => {
+      params.delete('span')
+      params.delete('groupService')
+      params.delete('groupName')
+      params.delete('groupKind')
+    })
   }
 
   const selectSpan = (spanID: string) => {
     setSelectedId(spanID)
-    updateURL((params) => params.set('span', spanID))
+    updateURL((params) => {
+      params.set('span', spanID)
+      params.delete('groupService')
+      params.delete('groupName')
+      params.delete('groupKind')
+    })
   }
 
-  const openGroup = (group: SpanDrilldown) => {
-    setDrilldown(group)
-    setPage(1)
+  const openGroup = (group: SpanGroupSelection) => {
     setSelectedId(null)
     updateURL((params) => {
-      params.set('view', 'grouped')
       params.set('groupService', group.service_name)
       params.set('groupName', group.name)
       params.set('groupKind', String(group.kind))
@@ -244,8 +250,6 @@ export default function Spans() {
   }
 
   useEffect(() => {
-    const urlDrilldown = drilldownFromURL(searchParams)
-    setDrilldown(urlDrilldown)
     setSelectedId(searchParams.get('span'))
   }, [searchParams])
 
@@ -255,15 +259,12 @@ export default function Spans() {
     updateURL((params) => {
       params.set('view', next)
       params.delete('span')
-      if (next === 'grouped') {
-        params.delete('groupService')
-        params.delete('groupName')
-        params.delete('groupKind')
-      }
+      params.delete('groupService')
+      params.delete('groupName')
+      params.delete('groupKind')
     })
     setPage(1)
     setSelectedId(null)
-    if (next === 'grouped') setDrilldown(null)
   }
 
   // sort is part of the server request, so it goes in the query key; live span
@@ -275,7 +276,7 @@ export default function Spans() {
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.spans({ sort: sortBy, page, drilldown, services: svcSel, sessionId }),
+    queryKey: qk.spans({ sort: sortBy, page, services: svcSel, sessionId }),
     queryFn: () =>
       api.spans.list({
         sort: sortBy,
@@ -283,11 +284,8 @@ export default function Spans() {
         sessionId,
         page,
         limit: PAGE_SIZE,
-        service: drilldown?.service_name,
-        name: drilldown?.name,
-        kind: drilldown?.kind,
       }),
-    enabled: view === 'all' || drilldown !== null,
+    enabled: view === 'all',
     // Keep the current page visible while a newly sorted page is loading.
     placeholderData: keepPreviousData,
   })
@@ -298,6 +296,20 @@ export default function Spans() {
     queryKey: ['span', selectedId],
     queryFn: () => api.spans.get(selectedId!),
     enabled: selectedId !== null,
+  })
+  const { data: groupSpanResponse } = useQuery({
+    queryKey: ['span-group-selection', selectedGroup, sessionId],
+    queryFn: () =>
+      api.spans.list({
+        service: selectedGroup!.service_name,
+        name: selectedGroup!.name,
+        kind: selectedGroup!.kind,
+        sessionId,
+        sort: 'time',
+        limit: 1,
+        page: 1,
+      }),
+    enabled: selectedGroup !== null && selectedId === null,
   })
   const {
     data: groupResponse,
@@ -371,7 +383,11 @@ export default function Spans() {
   const filtered = table.getRowModel().rows.map((r) => r.original)
   // A deep link may point to a span outside the currently loaded page. Fetch
   // it directly so reloading that link always restores the inspector.
-  const selected = filtered.find((s) => s.span_id === selectedId) ?? selectedSpan?.data ?? null
+  const selected =
+    filtered.find((s) => s.span_id === selectedId) ??
+    selectedSpan?.data ??
+    groupSpanResponse?.data?.[0] ??
+    null
 
   const activeFilters: { label: string; clear: () => void }[] = []
   if (svcSel.length)
@@ -552,29 +568,6 @@ export default function Spans() {
           )}
         </div>
 
-        {drilldown && (
-          <div className="flex items-center gap-2 px-3.5 py-2 border-b border-border bg-muted font-mono text-[11px]">
-            <button
-              type="button"
-              onClick={() => {
-                setDrilldown(null)
-                setPage(1)
-                updateURL((params) => {
-                  params.delete('groupService')
-                  params.delete('groupName')
-                  params.delete('groupKind')
-                })
-              }}
-              className="border-0 bg-transparent cursor-pointer text-[var(--accent)]"
-            >
-              ← all groups
-            </button>
-            <span className="text-muted-foreground">
-              {drilldown.service_name} / {drilldown.name}
-            </span>
-          </div>
-        )}
-
         <div className="relative flex-1 min-h-0 overflow-hidden">
           {/* Keep the scrollbars beside the inspector without shrinking the columns. */}
           <div
@@ -646,7 +639,12 @@ export default function Spans() {
                         type="button"
                         data-testid={`span-group-${g.service_name}-${g.name}`}
                         onClick={() => openGroup(g)}
-                        className="grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border bg-transparent"
+                        aria-pressed={
+                          selectedGroup?.service_name === g.service_name &&
+                          selectedGroup.name === g.name &&
+                          selectedGroup.kind === g.kind
+                        }
+                        className="grid text-left cursor-pointer gap-2.5 px-3.5 py-2 items-center border-none w-full border-b border-border bg-transparent aria-pressed:bg-muted aria-pressed:shadow-[inset_3px_0_0_var(--accent)]"
                         style={{
                           gridTemplateColumns:
                             'minmax(0,1.3fr) 120px 60px 65px 90px 60px 60px 60px 60px',
