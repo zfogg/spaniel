@@ -23,6 +23,8 @@ func TestIngestMetadataDoesNotWaitForReaders(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			db := openTestDB(t)
 			p := NewPipeline(db, ws.NewHub())
+			// This regression isolates reserved SQL connections from collection latency.
+			p.batches.window = 10 * time.Millisecond
 			if self {
 				p.SetSelfService("metadata-pressure")
 			}

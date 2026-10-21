@@ -19,7 +19,7 @@ import (
 // Appender API instead. The Batcher keeps one long-lived appender per table
 // (each pinned to its own connection from the shared pool) and flushes the
 // buffered rows on three triggers: a row-count threshold, a background
-// interval, and explicitly at the end of every ingest request. Low-frequency
+// interval, and explicitly at the end of each shared ingestion group. Low-frequency
 // writes (sessions, trace_issues, lint_warnings) stay
 // on GORM — only the per-record hot path moves here.
 const (
@@ -27,8 +27,8 @@ const (
 	// bounding memory and visibility latency for very large ingest requests.
 	batchMaxRows = 4096
 	// batchInterval is a liveness backstop: any pending rows are flushed at
-	// least this often. Ingest calls flush at their end (see Pipeline), so in
-	// practice this only fires for unusually long-running requests.
+	// least this often once processing has appended them. Shared ingest groups
+	// flush explicitly at completion; the interval also protects long groups.
 	batchInterval = 200 * time.Millisecond
 )
 
@@ -96,6 +96,11 @@ type Batcher struct {
 	stop   chan struct{}
 	done   chan struct{}
 	closed bool
+	// Keep background/threshold failures until an explicit acknowledgment
+	// barrier observes them. A later successful flush cannot hide lost rows.
+	flushErr       error
+	failureVersion uint64
+	lastFailure    error
 }
 
 // newBatcher pins one appender per hot-path table and starts the interval
@@ -146,7 +151,7 @@ func (b *Batcher) loop() {
 		case <-b.stop:
 			return
 		case <-t.C:
-			_ = b.Flush()
+			_ = b.flush(false)
 		}
 	}
 }
@@ -171,6 +176,7 @@ func (b *Batcher) append(table string, args ...driver.Value) error {
 		return err
 	}
 	if err := ta.app.AppendRow(args...); err != nil {
+		b.failLocked(fmt.Errorf("append %s: %w", table, err))
 		b.recreateLocked(table)
 		return fmt.Errorf("append %s: %w", table, err)
 	}
@@ -220,6 +226,7 @@ func (b *Batcher) flushTableLocked(ta *tableAppender) error {
 	pending := ta.pending
 	started := time.Now()
 	if err := ta.app.Flush(); err != nil {
+		b.failLocked(fmt.Errorf("flush %s: %w", ta.table, err))
 		b.recreateLocked(ta.table)
 		telemetry.Catalog().RecordStorage(context.Background(), "write", "error", int64(pending), float64(time.Since(started).Microseconds())/1000)
 		telemetry.Catalog().RecordStorageFlush(context.Background(), ta.table, "error", int64(pending))
@@ -269,18 +276,23 @@ func estimateRowBytes(args []driver.Value) int64 {
 // Flush flushes every appender's buffered rows so they become visible to
 // readers. It is safe to call concurrently with append.
 func (b *Batcher) Flush() error {
+	return b.flush(true)
+}
+
+func (b *Batcher) flush(acknowledge bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
 		return nil
 	}
-	var errs []error
 	for _, t := range batchTables {
-		if err := b.flushTableLocked(b.apps[t]); err != nil {
-			errs = append(errs, err)
-		}
+		_ = b.flushTableLocked(b.apps[t])
 	}
-	return errors.Join(errs...)
+	err := b.flushErr
+	if acknowledge {
+		b.flushErr = nil
+	}
+	return err
 }
 
 // Maintenance temporarily closes all appenders while fn performs a DuckDB
@@ -315,7 +327,9 @@ func (b *Batcher) Maintenance(ctx context.Context, fn func(pinned int) error) (e
 			// Restoration deliberately ignores the canceled work context: these
 			// leases are already owned, so reopening never waits on the pool.
 			if e := ta.reopen(); e != nil {
-				reopenErrs = append(reopenErrs, fmt.Errorf("reopen appender for %s: %w", table, e))
+				failure := fmt.Errorf("reopen appender for %s: %w", table, e)
+				reopenErrs = append(reopenErrs, failure)
+				b.failLocked(failure)
 			}
 		}
 		b.recordQueueDepthLocked()
@@ -339,7 +353,9 @@ func (b *Batcher) Maintenance(ctx context.Context, fn func(pinned int) error) (e
 	}
 	for _, table := range batchTables {
 		if e := b.apps[table].closeNative(); e != nil {
-			closeErrs = append(closeErrs, fmt.Errorf("close appender for %s: %w", table, e))
+			failure := fmt.Errorf("close appender for %s: %w", table, e)
+			closeErrs = append(closeErrs, failure)
+			b.failLocked(failure)
 		}
 	}
 	b.recordQueueDepthLocked()
@@ -498,4 +514,10 @@ func nullableInt32(v *int32) any {
 		return nil
 	}
 	return *v
+}
+
+func (b *Batcher) failLocked(err error) {
+	b.failureVersion++
+	b.lastFailure = err
+	b.flushErr = errors.Join(b.flushErr, err)
 }

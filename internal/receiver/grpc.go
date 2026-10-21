@@ -2,9 +2,14 @@ package receiver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
+
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"go.opentelemetry.io/collector/pdata/plog/plogotlp"
 	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
@@ -24,8 +29,18 @@ import (
 // ingestGRPCError maps an ingest failure to a gRPC status: a full database is
 // retryable (RESOURCE_EXHAUSTED); everything else passes through (Unknown).
 func ingestGRPCError(err error) error {
+	if errors.Is(err, ingestion.ErrIngestBusy) {
+		retry, detailErr := status.New(codes.ResourceExhausted, err.Error()).WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(time.Second)})
+		if detailErr != nil {
+			return status.Error(codes.Unavailable, err.Error())
+		}
+		return retry.Err()
+	}
 	if storage.IsStorageFull(err) {
-		return status.Error(codes.ResourceExhausted, "storage full: "+err.Error())
+		return status.Error(codes.ResourceExhausted, err.Error())
+	}
+	if errors.Is(err, ingestion.ErrIngestClosed) {
+		return status.Error(codes.Unavailable, err.Error())
 	}
 	return err
 }

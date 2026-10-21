@@ -3,7 +3,6 @@ package ingestion
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	json "github.com/goccy/go-json"
@@ -23,6 +22,7 @@ import (
 )
 
 type Pipeline struct {
+	batches *ingestBatcher
 	store   *storage.DB
 	hub     *ws.Hub
 	tp      *throughputCounter
@@ -43,17 +43,14 @@ type Pipeline struct {
 	// selfService is the service.name Spaniel uses for its own self-telemetry.
 	// Batches from it are stored "quietly" (no instrumentation spans, linter, or
 	// detectors) so self-monitoring doesn't feed back on itself. Empty disables.
-	selfService   string
-	metricSeries  *metricSeriesLimiter
-	ingestSlots   chan struct{}
-	ingestPending atomic.Int64
-	liveNotify    func()
+	selfService  string
+	metricSeries *metricSeriesLimiter
+	liveNotify   func()
 }
 
 const (
 	maxConcurrentLinters   = 2
 	maxConcurrentDetectors = 2
-	maxConcurrentIngests   = 64
 )
 
 // SetSelfService configures the service.name treated as Spaniel's own
@@ -142,46 +139,15 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		lintSlots:    make(chan struct{}, maxConcurrentLinters),
 		tracer:       otel.Tracer("spaniel/ingestion"),
 		metricSeries: newMetricSeriesLimiter(2000),
-		ingestSlots:  make(chan struct{}, maxConcurrentIngests),
 	}
 	if persisted, err := store.MetricSeriesCatalog(); err == nil {
 		for _, row := range persisted {
 			p.metricSeries.Seed(row.SessionID+"\x00"+row.Service+"\x00"+row.Name, row.Attributes)
 		}
 	}
+	p.batches = newIngestBatcher(p.flush, p.notifyLiveState)
+	p.batches.failureVersion = store.BatchFailureVersion
 	return p
-}
-
-func (p *Pipeline) beginIngest(ctx context.Context) (func(), error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	started := time.Now()
-	depth := p.ingestPending.Add(1)
-	telemetry.Catalog().SetIngestQueue(depth, maxConcurrentIngests)
-	decrement := func() {
-		depth := p.ingestPending.Add(-1)
-		telemetry.Catalog().SetIngestQueue(depth, maxConcurrentIngests)
-	}
-	defer func() {
-		telemetry.Catalog().RecordIngestQueueWait(ctx, float64(time.Since(started).Microseconds())/1000)
-	}()
-	select {
-	case p.ingestSlots <- struct{}{}:
-		// Cancellation and an available slot may become ready together.
-		if err := ctx.Err(); err != nil {
-			<-p.ingestSlots
-			decrement()
-			return nil, err
-		}
-		return func() {
-			<-p.ingestSlots
-			decrement()
-		}, nil
-	case <-ctx.Done():
-		decrement()
-		return nil, ctx.Err()
-	}
 }
 
 // Sources returns a per-second stats snapshot for every source seen.
@@ -195,16 +161,22 @@ func (p *Pipeline) Throughput() storage.Throughput {
 // DropCounters returns the sampler's drop counters for surfacing in /api/stats.
 func (p *Pipeline) DropCounters() *Counters { return &p.sampler.Counters }
 
-// flush persists this request's buffered rows, wrapped in a db.flush span so the
-// DuckDB columnar write shows up in the ingestion trace (the Appender bypasses
+// flush stages a request barrier inside a shared group, or persists the group
+// outside it. The db.flush span exposes the DuckDB columnar write in the
+// ingestion trace (the Appender bypasses
 // GORM, so it isn't covered by the storage OTel plugin).
 func (p *Pipeline) flush(ctx context.Context, instrument bool) error {
+	if stage := effects(ctx); stage != nil {
+		stage.flushCtx = ctx
+		stage.instrument = instrument
+		return nil
+	}
 	inFlight := telemetry.Catalog()
 	inFlight.AddFlushInFlight(1)
 	defer inFlight.AddFlushInFlight(-1)
 	started := time.Now()
 	if !instrument {
-		err := p.classifyFlush(p.store.FlushBatch())
+		err := p.classifyFlush(p.flushStore(ctx))
 		result := "ok"
 		if err != nil {
 			result = "error"
@@ -237,12 +209,7 @@ func (p *Pipeline) classifyFlush(err error) error {
 	return err
 }
 
-func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error {
-	finish, admissionErr := p.beginIngest(ctx)
-	if admissionErr != nil {
-		return admissionErr
-	}
-	defer finish()
+func (p *Pipeline) ingestTraces(ctx context.Context, traces ptrace.Traces) error {
 	// Spaniel's own self-telemetry is stored "quietly" — no instrumentation
 	// span, linter, or detectors — so self-monitoring doesn't generate new spans
 	// from ingesting its own spans (which would feed back on itself).
@@ -291,15 +258,15 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 			trace.WithLinks(receivedLinks...),
 		)
 	}
-	defer ingestSpan.End()
+	defer p.endIngest(ctx, ingestSpan)
 
 	// Events and links use the reserved appenders along with their span rows.
 	// General-purpose SQL connections may all be occupied by dashboard reads.
 	store := p.store.WithContext(ctx)
 
-	sessionID := p.store.ActiveSessionID()
+	sessionID := p.ingestSession(ctx).id
 
-	sessionLabel := p.store.ActiveSessionLabel()
+	sessionLabel := p.ingestSession(ctx).label
 
 	spansSeen := 0
 	var droppedRateLimit, droppedSampled, clockSkewFuture, clockSkewPast int
@@ -393,7 +360,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 
 				if !self && p.sampler.NeedsBuffer() {
 					p.bufferSpan(s.TraceID, s, events, links)
-					p.scheduleDetectors(s.TraceID)
+					p.afterPersist(ctx, func() { p.scheduleDetectors(s.TraceID) })
 					continue
 				}
 
@@ -436,7 +403,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					// browser invalidates that event by refetching /api/traces, which
 					// would generate another self trace. Send a complete list row so
 					// the browser can patch its cache without an HTTP request instead.
-					p.hub.Broadcast(ws.NewSelfTraceEvent(&ws.SelfTracePayload{
+					p.broadcast(ctx, ws.NewSelfTraceEvent(&ws.SelfTracePayload{
 						TraceID:      s.TraceID,
 						ServiceName:  s.ServiceName,
 						Name:         s.Name,
@@ -452,7 +419,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					}))
 				}
 				if self {
-					p.hub.Broadcast(ws.NewSelfSpanEvent(&ws.SelfSpanPayload{
+					p.broadcast(ctx, ws.NewSelfSpanEvent(&ws.SelfSpanPayload{
 						TraceID:       s.TraceID,
 						SpanID:        s.SpanID,
 						ParentSpanID:  s.ParentSpanID,
@@ -474,10 +441,10 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					}))
 				}
 				if !self {
-					p.scheduleLint(s)
+					p.afterPersist(ctx, func() { p.scheduleLint(s) })
 				}
 				if !self {
-					p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
+					p.broadcast(ctx, ws.NewSpanEvent(&ws.SpanPayload{
 						TraceID:     s.TraceID,
 						SpanID:      s.SpanID,
 						ServiceName: s.ServiceName,
@@ -488,12 +455,12 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 					}))
 				}
 				if !self {
-					p.scheduleDetectors(s.TraceID)
+					p.afterPersist(ctx, func() { p.scheduleDetectors(s.TraceID) })
 				}
 			}
 		}
 	}
-	// Persist this request's buffered rows before returning so reads-after-ingest
+	// Stage this request's shared flush barrier so reads-after-ingest
 	// (API queries, the post-debounce detectors) observe them.
 	if err := p.flush(ctx, !self); err != nil {
 		ingestSpan.RecordError(err)
@@ -501,9 +468,9 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 		return err
 	}
 	if !self && spansSeen > 0 {
-		p.notifyLiveState()
+		p.notifyPersisted(ctx)
 	}
-	telemetry.Catalog().RecordIngest(ctx, "traces", "accepted", int64(spansSeen))
+	p.afterPersist(ctx, func() { telemetry.Catalog().RecordIngest(ctx, "traces", "accepted", int64(spansSeen)) })
 	if droppedRateLimit+droppedSampled > 0 {
 		telemetry.Catalog().RecordIngest(ctx, "traces", "dropped", int64(droppedRateLimit+droppedSampled))
 	}
@@ -523,12 +490,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 	return nil
 }
 
-func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
-	finish, admissionErr := p.beginIngest(ctx)
-	if admissionErr != nil {
-		return admissionErr
-	}
-	defer finish()
+func (p *Pipeline) ingestLogs(ctx context.Context, logs plog.Logs) error {
 	self := p.isSelfLogs(logs)
 	if !self && p.store.Full() {
 		telemetry.Catalog().RecordIngestStorageFull(ctx, "logs")
@@ -542,9 +504,9 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 		ctx, ingestSpan = p.tracer.Start(ctx, "IngestLogs",
 			trace.WithAttributes(attribute.Int("otel.log_record_count", logs.LogRecordCount())))
 	}
-	defer ingestSpan.End()
+	defer p.endIngest(ctx, ingestSpan)
 
-	sessionID := p.store.ActiveSessionID()
+	sessionID := p.ingestSession(ctx).id
 
 	logsSeen := 0
 	defer func() { p.tp.addLogs(logsSeen) }()
@@ -585,7 +547,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 				telemetry.Catalog().RecordStorageAppend(ctx, "logs", float64(time.Since(t0).Microseconds())/1000)
 				logsSeen++
 				if self {
-					p.hub.Broadcast(ws.NewSelfLogEvent(&ws.SelfLogPayload{
+					p.broadcast(ctx, ws.NewSelfLogEvent(&ws.SelfLogPayload{
 						TimestampNs: l.TimestampNs,
 						TraceID:     l.TraceID,
 						SpanID:      l.SpanID,
@@ -598,7 +560,7 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 					}))
 				}
 				if !self {
-					p.hub.Broadcast(ws.NewLogEvent(&ws.LogPayload{
+					p.broadcast(ctx, ws.NewLogEvent(&ws.LogPayload{
 						TraceID:     l.TraceID,
 						SpanID:      l.SpanID,
 						Severity:    l.Severity,
@@ -616,19 +578,14 @@ func (p *Pipeline) IngestLogs(ctx context.Context, logs plog.Logs) error {
 		return err
 	}
 	if !self && logsSeen > 0 {
-		p.notifyLiveState()
+		p.notifyPersisted(ctx)
 	}
-	telemetry.Catalog().RecordIngest(ctx, "logs", "accepted", int64(logsSeen))
+	p.afterPersist(ctx, func() { telemetry.Catalog().RecordIngest(ctx, "logs", "accepted", int64(logsSeen)) })
 	ingestSpan.SetAttributes(attribute.Int("ingest.stored_count", logsSeen))
 	return nil
 }
 
-func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
-	finish, admissionErr := p.beginIngest(ctx)
-	if admissionErr != nil {
-		return admissionErr
-	}
-	defer finish()
+func (p *Pipeline) ingestMetrics(ctx context.Context, md pmetric.Metrics) error {
 	self := p.isSelfMetrics(md)
 	if !self && p.store.Full() {
 		telemetry.Catalog().RecordIngestStorageFull(ctx, "metrics")
@@ -642,14 +599,14 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 		ctx, ingestSpan = p.tracer.Start(ctx, "IngestMetrics",
 			trace.WithAttributes(attribute.Int("otel.metric_point_count", md.DataPointCount())))
 	}
-	defer ingestSpan.End()
+	defer p.endIngest(ctx, ingestSpan)
 	t0 := time.Now()
-	err := p.ingestMetricsTree(ctx, md, p.store.ActiveSessionID(), self)
+	err := p.ingestMetricsTree(ctx, md, p.ingestSession(ctx).id, self)
 	if err == nil {
 		err = p.flush(ctx, !self)
 	}
 	if err == nil && !self && md.DataPointCount() > 0 {
-		p.notifyLiveState()
+		p.notifyPersisted(ctx)
 	}
 	telemetry.Catalog().RecordStorageAppend(ctx, "metrics", float64(time.Since(t0).Microseconds())/1000)
 	if err != nil {
@@ -660,7 +617,7 @@ func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	if err != nil {
 		result = "dropped"
 	}
-	telemetry.Catalog().RecordIngest(ctx, "metrics", result, int64(md.DataPointCount()))
+	p.afterPersist(ctx, func() { telemetry.Catalog().RecordIngest(ctx, "metrics", result, int64(md.DataPointCount())) })
 	return err
 }
 
@@ -749,6 +706,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	}
 
 	// Accept: store all spans.
+	var accepted []*pendingSpan
 	for _, e := range entries {
 		if err := p.store.AppendSpan(e.span); err != nil {
 			continue
@@ -760,6 +718,15 @@ func (p *Pipeline) flushBuffer(traceID string) {
 		if len(e.links) > 0 {
 			_ = p.store.AppendSpanLinks(e.links)
 		}
+		accepted = append(accepted, e)
+	}
+
+	// This runs in a debounce callback rather than an ingest request, so flush
+	// the appended spans here to make them durable and queryable.
+	if err := p.classifyFlush(p.store.FlushBatch()); err != nil {
+		return
+	}
+	for _, e := range accepted {
 		sp := e.span // capture for goroutine closure
 		p.scheduleLint(sp)
 		p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
@@ -772,10 +739,6 @@ func (p *Pipeline) flushBuffer(traceID string) {
 			SessionID:   e.span.SessionID,
 		}))
 	}
-
-	// This runs in a debounce callback rather than an ingest request, so flush
-	// the appended spans here to make them durable and queryable.
-	_ = p.store.FlushBatch()
 	p.notifyLiveState()
 	// Buffered sampling bypasses runDetectors. Audit the persisted tree here
 	// too, including earlier batches of this trace, after accepted spans flush.

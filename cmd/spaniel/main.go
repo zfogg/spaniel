@@ -629,14 +629,22 @@ func run(cfg runConfig) error {
 	if err := setupOTel(""); err != nil {
 		return fmt.Errorf("self-telemetry setup: %w", err)
 	}
-	defer func() {
+	shutdownOTel := func() {
 		otelMu.Lock()
 		fn := otelActive
+		otelActive = nil
 		otelMu.Unlock()
+		// Flush self telemetry while ingestion and storage are still available.
+		// Exporting to a closed batch coordinator returns UNAVAILABLE, which
+		// otherwise makes the final metrics export retry throughout shutdown.
+		slog.SetDefault(baseSlog)
 		if fn != nil {
-			_ = fn(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_ = fn(ctx)
 		}
-	}()
+	}
+	defer shutdownOTel()
 
 	startCtx, startSpan := otel.Tracer("spaniel").Start(context.Background(), "spaniel.startup")
 
@@ -677,6 +685,10 @@ func run(cfg runConfig) error {
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
 	limiter := ingestion.NewSourceLimiter(cfg.SourceRPS, cfg.SourceBurst)
 	pipeline := ingestion.NewPipelineFull(store, hub, sampler, limiter)
+	defer func() {
+		shutdownOTel()
+		_ = pipeline.Close(context.Background())
+	}() // self-export and accepted work drain before storage closes
 	pipeline.SetLiveNotifier(live.NewPublisher(store, hub, pipeline, pipeline.DropCounters()).Notify)
 	// Store Spaniel's own self-telemetry quietly (no instrumentation/lint/
 	// detectors) so self-monitoring doesn't feed back on itself.
@@ -1036,6 +1048,11 @@ func run(cfg runConfig) error {
 
 	serveErr := serveAll(wrapTLS(lns, tlsCfg), srv)
 
+	shutdownOTel()
+	// Stop accepting exports and drain the shared write batch before retention.
+	if err := pipeline.Close(context.Background()); err != nil {
+		return fmt.Errorf("drain ingestion: %w", err)
+	}
 	// Shutdown tasks: run a final retention pass, flush drop counters, close DB.
 	retCfg := retentionConfig(cfg.RetentionDays, cfg.MaxSessions, 0)
 	retCfg.MaxDBSizeBytes = storagePolicy.RetentionSizeLimit()

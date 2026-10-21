@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -217,6 +218,11 @@ func TestBatcherMaintenanceRestoresOtherTablesAfterReopenFailure(t *testing.T) {
 	d.batcher.mu.Unlock()
 	if err := d.AppendMetric(&Metric{Name: "after_failed_reopen", Type: "gauge", Attributes: `{}`, Exemplars: `[]`}); err != nil {
 		t.Fatal(err)
+	}
+	// Healthy tables still flush, but acknowledgment must first expose the
+	// unobserved restoration failure from the shared ingestion lane.
+	if err := d.FlushBatch(); err == nil || !strings.Contains(err.Error(), "reopen appender for logs") {
+		t.Fatalf("restoration failure was hidden from acknowledgment: %v", err)
 	}
 	if err := d.FlushBatch(); err != nil {
 		t.Fatal(err)

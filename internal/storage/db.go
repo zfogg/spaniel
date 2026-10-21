@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -162,11 +163,30 @@ func (d *DB) WALSize() int64 {
 }
 
 // FlushBatch flushes all buffered hot-path rows so they are visible to readers.
-// Ingest paths call this at the end of a request and before running detectors.
+// Ingest groups call this after processing; other writers flush before readback.
 func (d *DB) FlushBatch() error {
 	err := d.batcher.Flush()
 	if err == nil {
 		registerDBSizeGauge(d.path)
+	}
+	return err
+}
+
+// BatchFailureVersion snapshots failures before a shared export group starts.
+func (d *DB) BatchFailureVersion() uint64 {
+	d.batcher.mu.Lock()
+	defer d.batcher.mu.Unlock()
+	return d.batcher.failureVersion
+}
+
+// FlushBatchSince prevents another explicit flush (for example a tail-sampling
+// callback) from consuming a failure belonging to an executing export group.
+func (d *DB) FlushBatchSince(version uint64) error {
+	err := d.FlushBatch()
+	d.batcher.mu.Lock()
+	defer d.batcher.mu.Unlock()
+	if d.batcher.failureVersion != version {
+		return errors.Join(err, d.batcher.lastFailure)
 	}
 	return err
 }

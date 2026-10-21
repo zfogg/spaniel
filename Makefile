@@ -134,6 +134,27 @@ test-ingest-backpressure:
 	go test -race -c -o $(BIN_DIR)/storage-backpressure.test$(EXE) ./internal/storage
 	./$(BIN_DIR)/storage-backpressure.test$(EXE) -test.run '$(BACKPRESSURE_TEST_RUN)' -test.count=1 -test.timeout=5m -test.v
 
+.PHONY: test-ingest-batching
+test-ingest-batching:
+	$(MAKE) test-ingest-backpressure BACKPRESSURE_TEST_RUN='TestSharedBatch|TestIngestAdmission|TestIngestTraces_Nested|TestIngestMetadata|TestBatcher'
+	go test -race -c -o $(BIN_DIR)/batch-receiver.test$(EXE) ./internal/receiver
+	./$(BIN_DIR)/batch-receiver.test$(EXE) -test.run 'TestBatchAdmission' -test.count=1 -test.timeout=5m -test.v
+	$(MAKE) test-ingest-shutdown
+
+.PHONY: test-ingest-shutdown
+test-ingest-shutdown:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/batch-shutdown.test$(EXE) ./cmd/spaniel
+	./$(BIN_DIR)/batch-shutdown.test$(EXE) -test.run 'TestRun_ShutsDownCleanlyOnSignal|TestRunSelfMonitoringShutdown' -test.count=1 -test.timeout=1m -test.v
+
+# Explicit representative-size qualification; ordinary batching tests use a
+# smaller populated fixture to keep the routine suite inexpensive.
+.PHONY: test-ingest-large-db
+test-ingest-large-db:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/batch-large-db.test$(EXE) ./internal/ingestion
+	SPANIEL_LARGE_DB_REGRESSION=1 ./$(BIN_DIR)/batch-large-db.test$(EXE) -test.run '^TestSharedBatchPopulatedDatabase$$' -test.count=1 -test.timeout=15m -test.v
+
 .PHONY: test-dashboard-reads
 test-dashboard-reads:
 	mkdir -p $(BIN_DIR)

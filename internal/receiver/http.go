@@ -21,8 +21,9 @@ import (
 // writeIngestError maps an ingest failure to an OTLP/HTTP status: a full
 // database is retryable (503), everything else is a 500.
 func writeIngestError(w http.ResponseWriter, err error) {
-	if storage.IsStorageFull(err) {
-		http.Error(w, "storage full: "+err.Error(), http.StatusServiceUnavailable)
+	if storage.IsStorageFull(err) || errors.Is(err, ingestion.ErrIngestBusy) || errors.Is(err, ingestion.ErrIngestClosed) {
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	http.Error(w, "ingest: "+err.Error(), http.StatusInternalServerError)

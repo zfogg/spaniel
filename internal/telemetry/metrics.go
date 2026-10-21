@@ -23,6 +23,9 @@ type Metrics struct {
 	ingestDropped             metric.Int64Counter
 	ingestQueueWait           metric.Float64Histogram
 	ingestBatchSize           metric.Int64Histogram
+	ingestBatchExports        metric.Int64Histogram
+	ingestBatchBytes          metric.Int64Histogram
+	ingestBufferedBytes       atomic.Int64
 	ingestRejected            metric.Int64Counter
 	ingestDecodeErrors        metric.Int64Counter
 	flushDuration             metric.Float64Histogram
@@ -129,6 +132,12 @@ func InitMetrics() *Metrics {
 		apiRequests: newCounter("spaniel.api.requests", "API requests", "{request}"), apiDuration: newDuration("spaniel.api.duration", "API request duration"), wsEvents: newCounter("spaniel.websocket.events", "WebSocket events", "{event}"), wsClientsConnected: newCounter("spaniel.websocket.clients.connected", "WebSocket clients connected", "{client}"), wsClientsDropped: newCounter("spaniel.websocket.clients.dropped", "WebSocket clients dropped", "{client}"), alertEvaluations: newCounter("spaniel.alerts.evaluations", "Alert rule evaluations", "{evaluation}"), cardinalityLimited: newCounter("spaniel.metrics.cardinality_limited", "Metric attributes or series collapsed by cardinality policy", "{attribute}"),
 		ingestRequests: newCounter("spaniel.ingest.requests", "Ingestion requests", "{request}"), ingestRateLimited: newCounter("spaniel.ingest.rate_limited", "Signals rejected by rate limiting", "{signal}"), ingestSampledOut: newCounter("spaniel.ingest.sampled_out", "Signals excluded by sampling", "{signal}"), ingestSeriesLimited: newCounter("spaniel.ingest.series_limited", "Metric series limited by cardinality policy", "{series}"), ingestStorageFull: newCounter("spaniel.ingest.storage_full_rejections", "Ingestion requests rejected because storage is full", "{request}"), storageFlushErrors: newCounter("spaniel.storage.flush.errors", "Storage flush errors", "{error}"), wsMessagesSent: newCounter("spaniel.websocket.messages.sent", "WebSocket messages sent", "{message}"), alertNotifications: newCounter("spaniel.alerts.notifications", "Alert notifications", "{notification}"), storageRetentionRows: newCounter("spaniel.storage.retention.deleted_rows", "Rows deleted by storage retention", "{row}"), lintWarnings: newCounter("spaniel.lint.warnings", "Lint warnings fired during span analysis", "{warning}"), detectorIssues: newCounter("spaniel.detector.issues_found", "Trace issues detected by post-ingestion detectors", "{issue}"),
 	}
+	m.ingestBatchExports, _ = meter.Int64Histogram("spaniel.ingest.batch.exports", metric.WithDescription("Exports sharing a storage flush"), metric.WithUnit("{request}"))
+	m.ingestBatchBytes, _ = meter.Int64Histogram("spaniel.ingest.batch.bytes", metric.WithDescription("Protobuf bytes in a shared ingestion batch"), metric.WithUnit("By"))
+	_, _ = meter.Int64ObservableGauge("spaniel.ingest.queue.bytes", metric.WithDescription("Protobuf bytes retained by queued and executing exports"), metric.WithUnit("By"), metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+		o.Observe(m.ingestBufferedBytes.Load())
+		return nil
+	}))
 	m.ingestRequestDuration = newDuration("spaniel.ingest.request.duration", "Ingestion request duration")
 	m.ingestPayloadBytes, _ = meter.Int64Histogram("spaniel.ingest.payload.bytes", metric.WithDescription("Ingestion request payload bytes"), metric.WithUnit("By"))
 	m.storageFlushRows, _ = meter.Int64Histogram("spaniel.storage.flush.rows", metric.WithDescription("Rows per storage flush"), metric.WithUnit("{row}"))
@@ -387,4 +396,14 @@ func (m *Metrics) RecordWebSocketClientConnected(ctx context.Context) {
 }
 func (m *Metrics) RecordWebSocketClientDropped(ctx context.Context, reason string) {
 	m.wsClientsDropped.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
+}
+
+// SetIngestBatchQueue includes work executing in the shared write batch.
+func (m *Metrics) SetIngestBatchQueue(requests, capacity, bytes int) {
+	m.SetIngestQueue(int64(requests), int64(capacity))
+	m.ingestBufferedBytes.Store(int64(bytes))
+}
+func (m *Metrics) RecordIngestGroup(exports, bytes int) {
+	m.ingestBatchExports.Record(context.Background(), int64(exports))
+	m.ingestBatchBytes.Record(context.Background(), int64(bytes))
 }

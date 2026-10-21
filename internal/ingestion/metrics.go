@@ -113,7 +113,7 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 		// Self-monitoring points need to advance the sidebar counts, but must not
 		// cause metric-query invalidation: that would generate more self telemetry.
 		if p.hub != nil {
-			p.hub.Broadcast(ws.NewMetricEvent(&ws.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Value: value, Type: row.Type, CatalogOnly: catalogOnly}))
+			p.broadcast(ctx, ws.NewMetricEvent(&ws.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Value: value, Type: row.Type, CatalogOnly: catalogOnly}))
 		}
 		return nil
 	}
