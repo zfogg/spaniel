@@ -28,6 +28,9 @@ func TestRouteTemplateTelemetryMiddlewareUsesChiTemplate(t *testing.T) {
 	if len(spans) != 1 {
 		t.Fatalf("ended spans = %d, want 1", len(spans))
 	}
+	if got := spans[0].Name(); got != "spaniel.http.server.GET /api/traces/{traceID}" {
+		t.Fatalf("span name = %q", got)
+	}
 	for _, attr := range spans[0].Attributes() {
 		if attr.Key == "http.route" && attr.Value.AsString() == "/api/traces/{traceID}" {
 			return

@@ -90,7 +90,7 @@ func New(urls []string, sample float64) *Forwarder {
 	}
 	return &Forwarder{
 		upstreams: ups,
-		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil)},
+		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil, otelhttp.WithSpanNameFormatter(telemetry.HTTP.ClientSpanName))},
 		sample:    sample,
 		rand:      rand.Float64,
 		done:      make(chan struct{}),
@@ -130,7 +130,7 @@ func NewWithSpool(urls []string, sample float64, sc SpoolConfig) *Forwarder {
 
 	f := &Forwarder{
 		upstreams: ups,
-		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil)},
+		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil, otelhttp.WithSpanNameFormatter(telemetry.HTTP.ClientSpanName))},
 		sample:    sample,
 		rand:      rand.Float64,
 		done:      make(chan struct{}),

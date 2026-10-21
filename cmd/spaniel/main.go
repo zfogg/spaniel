@@ -823,10 +823,8 @@ func run(cfg runConfig) error {
 	otlpMux.HandleFunc("/v1/metrics", httpRcv.HandleMetrics)
 	// Instrument inbound OTLP/HTTP so an ingest shows as one trace:
 	// "POST /v1/traces" → IngestTraces → db.flush.
-	var otlpHandler http.Handler = otelhttp.NewHandler(otlpMux, "spaniel.otlp",
-		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-			return r.Method + " " + r.URL.Path
-		}),
+	var otlpHandler http.Handler = otelhttp.NewHandler(telemetry.HTTP.RouteMiddleware(nil)(otlpMux), "spaniel.otlp",
+		otelhttp.WithSpanNameFormatter(telemetry.HTTP.ServerSpanName),
 	)
 	if cfg.BearerToken != "" {
 		otlpHandler = receiver.BearerMiddleware(cfg.BearerToken)(otlpHandler)

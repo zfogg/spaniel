@@ -84,14 +84,7 @@ func NewRouterFull(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder, mfs
 	mux.Use(apiMetricsMiddleware)
 	mux.Use(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "spaniel.api",
-			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				if rctx := chi.RouteContext(r.Context()); rctx != nil {
-					if p := rctx.RoutePattern(); p != "" {
-						return r.Method + " " + p
-					}
-				}
-				return r.Method + " " + r.URL.Path
-			}),
+			otelhttp.WithSpanNameFormatter(telemetry.HTTP.ServerSpanName),
 		)
 	})
 	// Chi only knows the final route template after the handler returns. Run
