@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 
@@ -48,6 +49,33 @@ func TestStorageQueryNameIdenticalTemplatesAreAllowed(t *testing.T) {
 	spans := []*storage.Span{queryNameSpan("a", "t", "app.storage.Account", "SELECT id FROM accounts WHERE id=?"), queryNameSpan("b", "t", "app.storage.Account", "SELECT id FROM accounts WHERE id=?")}
 	if got := storageQueryNameLints(spans, 0); len(got) != 0 {
 		t.Fatal(got)
+	}
+}
+
+func TestStorageQueryNamePreparationUsesMetadataNotName(t *testing.T) {
+	for _, attrs := range []string{
+		`"db.operation.name":"PREPARE"`,
+		`"db.operation.name":"prepare"`,
+		`"db.operation":"PREPARE"`,
+		`"db.operation.name":"SELECT","db.operation.already_prepared":false`,
+		`"db.operation.name":"SELECT","db.operation.already_prepared":true`,
+	} {
+		a := queryNameSpan("a", "t", "other.storage.Arbitrary", "SELECT a FROM a")
+		b := queryNameSpan("b", "t", "other.storage.Arbitrary", "SELECT b FROM b")
+		for _, s := range []*storage.Span{a, b} {
+			s.Attributes = strings.TrimSuffix(s.Attributes, "}") + "," + attrs + "}"
+		}
+		if got := storageQueryNameLints([]*storage.Span{a, b}, 0); len(got) != 0 {
+			t.Fatalf("prepare metadata %s: %+v", attrs, got)
+		}
+	}
+	// A real named query is still checked even when its name is Prepare.
+	spans := []*storage.Span{
+		queryNameSpan("a", "t", "app.storage.Prepare", "SELECT a FROM a"),
+		queryNameSpan("b", "t", "app.storage.Prepare", "SELECT b FROM b"),
+	}
+	if got := storageQueryNameLints(spans, 0); len(got) != 2 {
+		t.Fatalf("name alone suppressed collision: %+v", got)
 	}
 }
 

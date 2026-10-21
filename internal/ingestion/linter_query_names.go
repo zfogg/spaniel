@@ -29,6 +29,9 @@ func storageQueryNameLints(spans []*storage.Span, now int64) []*storage.LintWarn
 	}
 	groups := map[key]*group{}
 	for _, s := range spans {
+		if isStatementPreparation(s) {
+			continue
+		}
 		prefix, name, ok := strings.Cut(s.Name, ".storage.")
 		if !ok || prefix == "" || name == "" {
 			continue
@@ -60,4 +63,19 @@ func storageQueryNameLints(spans []*storage.Span, now int64) []*storage.LintWarn
 		}
 	}
 	return result
+}
+
+// Preparation describes a driver operation, not execution of a named query.
+// Do not infer it from a query name (PrepareOrders may be a real named query),
+// or from db.stored_procedure.name (also valid for procedure executions).
+func isStatementPreparation(s *storage.Span) bool {
+	for _, key := range []string{"db.operation.name", "db.operation"} {
+		if strings.EqualFold(extractAttrString(s.Attributes, key), "PREPARE") {
+			return true
+		}
+	}
+	// pgx instrumentation historically reports the underlying SQL verb and
+	// marks prepare spans with this boolean, including false on first prepare.
+	_, present := extractAttrBool(s.Attributes, "db.operation.already_prepared")
+	return present
 }
