@@ -23,6 +23,11 @@ const spanCols = `trace_id, span_id, parent_span_id, service_name, name, kind,
 // each request, so reads-after-ingest within a request observe the row.
 func (d *DB) AppendSpan(s *Span) error { return d.batcher.AppendSpan(s) }
 
+// AppendSpanEvents and AppendSpanLinks buffer OTLP metadata on the reserved
+// ingestion lane. Like AppendSpan, callers must flush before acknowledging.
+func (d *DB) AppendSpanEvents(events []*SpanEvent) error { return d.batcher.AppendSpanEvents(events) }
+func (d *DB) AppendSpanLinks(links []*SpanLink) error    { return d.batcher.AppendSpanLinks(links) }
+
 func (d *DB) InsertSpan(s *Span) error {
 	if s.DurationNs == 0 {
 		s.DurationNs = s.EndNs - s.StartNs

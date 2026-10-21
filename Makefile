@@ -119,6 +119,15 @@ test-ingest-admission:
 	go test -race -c -o $(BIN_DIR)/ingest-admission.test$(EXE) ./internal/ingestion
 	./$(BIN_DIR)/ingest-admission.test$(EXE) -test.run 'TestIngestAdmission|TestTracingGap|TestSynchronousIO|TestHTTP|TestDB' -test.count=1 -test.v
 
+.PHONY: test-ingest-backpressure
+BACKPRESSURE_TEST_RUN ?= TestIngestMetadata|TestPipelineIngestTraces_Span|TestBatcher|TestMaintenance|TestRetention
+test-ingest-backpressure:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/ingest-backpressure.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/ingest-backpressure.test$(EXE) -test.run '$(BACKPRESSURE_TEST_RUN)' -test.count=1 -test.timeout=5m -test.v
+	go test -race -c -o $(BIN_DIR)/storage-backpressure.test$(EXE) ./internal/storage
+	./$(BIN_DIR)/storage-backpressure.test$(EXE) -test.run '$(BACKPRESSURE_TEST_RUN)' -test.count=1 -test.timeout=5m -test.v
+
 generate:
 	go run ./cmd/genquery
 	go run ./cmd/genschema

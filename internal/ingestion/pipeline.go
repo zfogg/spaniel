@@ -293,8 +293,8 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 	}
 	defer ingestSpan.End()
 
-	// ctx-bound store so the per-span gorm writes (events, links) nest under
-	// this ingest span as db.* spans (suppressed for self-telemetry above).
+	// Events and links use the reserved appenders along with their span rows.
+	// General-purpose SQL connections may all be occupied by dashboard reads.
 	store := p.store.WithContext(ctx)
 
 	sessionID := p.store.ActiveSessionID()
@@ -415,7 +415,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				spansSeen++
 				if len(events) > 0 {
 					t1 := time.Now()
-					if err := store.InsertSpanEvents(events); err != nil {
+					if err := store.AppendSpanEvents(events); err != nil {
 						ingestSpan.RecordError(err)
 						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
@@ -424,7 +424,7 @@ func (p *Pipeline) IngestTraces(ctx context.Context, traces ptrace.Traces) error
 				}
 				if len(links) > 0 {
 					t1 := time.Now()
-					if err := store.InsertSpanLinks(links); err != nil {
+					if err := store.AppendSpanLinks(links); err != nil {
 						ingestSpan.RecordError(err)
 						ingestSpan.SetStatus(codes.Error, err.Error())
 						return err
@@ -755,10 +755,10 @@ func (p *Pipeline) flushBuffer(traceID string) {
 		}
 		p.tp.addSpans(1)
 		if len(e.events) > 0 {
-			_ = p.store.InsertSpanEvents(e.events)
+			_ = p.store.AppendSpanEvents(e.events)
 		}
 		if len(e.links) > 0 {
-			_ = p.store.InsertSpanLinks(e.links)
+			_ = p.store.AppendSpanLinks(e.links)
 		}
 		sp := e.span // capture for goroutine closure
 		p.scheduleLint(sp)

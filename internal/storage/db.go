@@ -56,8 +56,8 @@ func (d *DB) namedGORM(name string) *gorm.DB {
 	return d.gorm.WithContext(WithQueryName(ctx, name))
 }
 
-// The batcher pins one database/sql connection for each of spans, logs, and
-// metrics. Keep a small, bounded GORM lane for metadata and read queries.
+// The batcher pins one database/sql connection for each telemetry table,
+// including events/links. Keep a small, bounded GORM lane for metadata and reads.
 // One connection makes an alert-rule read wait behind any unrelated GORM work;
 // an unbounded pool lets concurrent OTLP requests create many native DuckDB
 // connections and exhaust the host.

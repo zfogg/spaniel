@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -14,12 +15,12 @@ import (
 )
 
 // DuckDB is columnar and pays a heavy fixed cost per INSERT statement, so the
-// ingestion hot path writes spans, logs, and metrics through the columnar
+// ingestion hot path writes spans, events, links, logs, and metrics through the columnar
 // Appender API instead. The Batcher keeps one long-lived appender per table
 // (each pinned to its own connection from the shared pool) and flushes the
 // buffered rows on three triggers: a row-count threshold, a background
 // interval, and explicitly at the end of every ingest request. Low-frequency
-// writes (sessions, trace_issues, lint_warnings, span_events, span_links) stay
+// writes (sessions, trace_issues, lint_warnings) stay
 // on GORM — only the per-record hot path moves here.
 const (
 	// batchMaxRows flushes an appender once it has buffered this many rows,
@@ -34,7 +35,7 @@ const (
 var errBatcherClosed = errors.New("storage: batcher is closed")
 
 // batchTables is the set of tables the Batcher manages, in a fixed order.
-var batchTables = []string{"spans", "logs", "metrics"}
+var batchTables = []string{"spans", "span_events", "span_links", "logs", "metrics"}
 
 // tableAppender pairs a DuckDB appender with the connection it is pinned to and
 // the number of rows buffered since the last flush. An appender is not safe for
@@ -231,6 +232,8 @@ func estimateRowBytes(args []driver.Value) int64 {
 			total += int64(len(v))
 		case []byte:
 			total += int64(len(v))
+		case json.RawMessage:
+			total += int64(len(v))
 		case int64, uint64, float64:
 			total += 8
 		case int32, uint32, float32:
@@ -335,6 +338,30 @@ func (b *Batcher) AppendSpan(s *Span) error {
 		s.StatusCode, s.StatusMessage, s.Attributes, s.Resource,
 		s.SessionID, s.SessionLabel, s.ReceivedAt, s.Sampled,
 	)
+}
+
+// AppendSpanEvents uses a pinned appender, so event-bearing OTLP batches do
+// not wait for a general-purpose SQL connection occupied by dashboard reads.
+func (b *Batcher) AppendSpanEvents(events []*SpanEvent) error {
+	for _, e := range events {
+		// These two legacy tables retain JSON columns. The DuckDB appender
+		// JSON-marshals values for them; RawMessage preserves the OTLP object
+		// rather than wrapping its serialized representation in a JSON string.
+		if err := b.append("span_events", e.SpanID, e.TraceID, e.SessionID, e.TimeNs, e.Name, json.RawMessage(e.Attributes)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AppendSpanLinks shares the same flush/maintenance lifecycle as span rows.
+func (b *Batcher) AppendSpanLinks(links []*SpanLink) error {
+	for _, l := range links {
+		if err := b.append("span_links", l.SpanID, l.TraceID, l.SessionID, l.LinkedTraceID, l.LinkedSpanID, l.TraceState, json.RawMessage(l.Attributes)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // AppendLog buffers a log record for batched insertion.
