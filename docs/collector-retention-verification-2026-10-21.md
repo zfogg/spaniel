@@ -58,3 +58,41 @@ stage). Generated API and query artifacts remained unchanged.
 
 Windows: full `make test GOFLAGS=-p=1` passed, including generated-artifact
 verification. The queued-reader cancellation regression also passed natively.
+
+
+## Local rollout
+
+Source commit `554ab0da0267cec69a941e26a2a35a081b8b3d4e` was pushed to `main`.
+The immutable runtime image above contains all 21 storage/CLI source and test
+files recorded by the build manifest, with frontend assets from `827fb21`.
+
+Ratio's existing volume was backed up consistently before replacement (714 MB
+including the saved inspection). The active session, ports and mounts were
+preserved. Its temporary `SPANIEL_AUTO_PRUNE=false` environment override was
+replaced with `true`; both environment and API policy remained true with a
+500 MiB cap after an additional graceful restart. Allocation fell from about
+520 MB to 339 MB while the global span count increased to over 1.19 million.
+There were zero dropped spans/logs/metric points and no storage-full condition.
+No staging tables or pending index-recovery flags remained.
+
+An independent existing five-span Ratio trace retained exactly the same complete
+row-payload digest after rollout. A fresh actual API request also appeared as
+new trace telemetry. All 19 served frontend assets retained their exact hashes.
+The one-hour observer metrics chart rendered 358 raw points into 60 bins; the
+verification browser tab was closed after capture.
+
+Stonkpile was backed up and replaced with the same image. Its original
+`auto_prune=false`, 500 MiB cap, active session, mounts and ports were preserved.
+It retained 240,515 spans / 39,535 traces / 40,043 logs at verification. All 30
+new HTTP exports returned success and their 30 records persisted; maximum export
+latency was 0.063 seconds.
+
+The standalone collector's effective image configuration was staged for this
+same build. Its existing container remained stopped without recreation/start.
+Windows focused retention/recovery/WAL/lease tests passed with the race detector
+(storage 49.721 s, CLI 1.262 s); full native `make test` completed with exit 0.
+
+The final 330-second live one-hour metrics probe passed 34 samples. Queries
+completed in 20–136 ms; the newest point advanced throughout, remained under
+5.455 seconds old, and storage stayed writable with pruning enabled at
+500 MiB. No Ratio lifecycle changes occurred during that acceptance window.
