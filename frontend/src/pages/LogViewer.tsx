@@ -1,3 +1,4 @@
+import LogLevelBadge from '@/components/LogLevelBadge'
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -10,7 +11,7 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
 import { fmtClock, fmtDateTime, fmtRelative } from '@/lib/fmt-relative'
-import { matchesSevFilter, sevLabel, type SevFilter } from './log-severity-filter'
+import { matchesSevFilter, type SevFilter } from './log-severity-filter'
 import PaginationControls from '@/components/PaginationControls'
 import { AnimatePresence, motion } from 'motion/react'
 import { TelemetryArrival } from '@/components/TelemetryArrival'
@@ -30,29 +31,6 @@ function logSelectionKey(log: Log): string {
 }
 
 // ── severity helpers ──────────────────────────────────────────────────────────
-
-function sevBadgeStyle(n: number): React.CSSProperties {
-  const base: React.CSSProperties = {
-    borderRadius: 3,
-    padding: '1px 5px',
-    fontSize: 9,
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    fontFamily: 'var(--font-mono)',
-    flexShrink: 0,
-    display: 'inline-block',
-  }
-  if (n >= 21)
-    return { ...base, color: '#e9d5ff', background: '#6b21a8', border: '1px solid #a855f7' }
-  if (n >= 17)
-    return { ...base, color: '#fecaca', background: '#7f1d1d', border: '1px solid #ef4444' }
-  if (n >= 13)
-    return { ...base, color: '#fef08a', background: '#713f12', border: '1px solid #eab308' }
-  if (n >= 9) return { ...base, color: '#18181b', background: '#fff', border: '1px solid #d4d4d8' }
-  if (n >= 5) return { ...base, color: 'var(--ink3)', background: 'transparent' }
-  return { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
-}
 
 function sevBodyColor(n: number): string {
   if (n >= 13) return 'var(--ink)'
@@ -115,9 +93,9 @@ function chipActiveStyle(chip: SevFilter): React.CSSProperties {
     case 'DEBUG':
       return {
         ...base,
-        color: 'var(--ink3)',
-        background: 'var(--surface3)',
-        border: '1px solid var(--line)',
+        color: '#bfdbfe',
+        background: '#1e3a8a',
+        border: '1px solid #3b82f6',
       }
     case 'TRACE':
       return {
@@ -222,7 +200,7 @@ function LogRow({
 
       {/* severity badge */}
       <div className="flex items-center">
-        <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
+        <LogLevelBadge severity={log.severity} />
       </div>
 
       {/* service chip */}
@@ -299,7 +277,7 @@ function LogInspector({
       className="h-full w-full border-l border-line bg-surface flex flex-col overflow-hidden shadow-2xl"
     >
       <header className="flex items-center gap-2 px-[14px] py-2.5 border-b border-line shrink-0">
-        <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
+        <LogLevelBadge severity={log.severity} />
         <span className="font-mono text-[11px] text-ink2">{fmtClock(log.timestamp_ns)}</span>
         <div className="flex-1" />
         <button

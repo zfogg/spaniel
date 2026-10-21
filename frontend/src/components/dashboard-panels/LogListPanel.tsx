@@ -1,32 +1,7 @@
+import LogLevelBadge from '@/components/LogLevelBadge'
 import { formatValue, columnValue } from './format'
 import { Link } from 'react-router-dom'
-import { logSeverityLabel } from '@/lib/log-severity'
 import type { DashboardPanelRendererProps } from './types'
-
-function severityLabel(value: unknown) {
-  if (
-    typeof value === 'string' &&
-    /^(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL)$/i.test(value.trim())
-  ) {
-    return value.trim().toUpperCase().replace('WARNING', 'WARN')
-  }
-  return value == null || value === '' ? 'UNKNOWN' : logSeverityLabel(value)
-}
-
-function severityTone(level: string) {
-  switch (level) {
-    case 'ERROR':
-      return 'bg-red-500/15 text-red-700 dark:text-red-300'
-    case 'FATAL':
-      return 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
-    case 'WARN':
-      return 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-300'
-    case 'INFO':
-      return 'bg-blue-500/15 text-blue-700 dark:text-blue-300'
-    default:
-      return 'bg-muted text-muted-foreground'
-  }
-}
 
 function logTime(row: Record<string, unknown>): Date | undefined {
   const nanos = row.timestamp_ns ?? row.time_ns
@@ -45,16 +20,13 @@ export function LogListPanel({ rows }: DashboardPanelRendererProps) {
   return (
     <ul className="max-h-80 divide-y divide-border overflow-auto">
       {rows.map((row, index) => {
-        const severity = severityLabel(row.severity ?? row.level)
         const timestamp = logTime(row)
         const traceID = String(columnValue(row, ['trace_id']) ?? '')
         const content = (
           <>
-            <span
-              className={`mt-0.5 h-fit shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${severityTone(severity)}`}
-            >
-              {severity}
-            </span>
+            <div className="mt-0.5 shrink-0">
+              <LogLevelBadge severity={row.severity ?? row.level} />
+            </div>
             <div className="min-w-0">
               <p className="break-words font-mono text-[11px] leading-5">
                 {formatValue(columnValue(row, ['body', 'message', 'name']))}

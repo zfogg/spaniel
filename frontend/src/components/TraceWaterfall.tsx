@@ -1,3 +1,4 @@
+import LogLevelBadge from '@/components/LogLevelBadge'
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -1053,15 +1054,6 @@ function LogsView({ logs }: { logs: Log[] }) {
     'ALL' | 'FATAL' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'TRACE'
   >('ALL')
 
-  const sevLabel = (n: number) => {
-    if (n >= 21) return 'FATAL'
-    if (n >= 17) return 'ERROR'
-    if (n >= 13) return 'WARN'
-    if (n >= 9) return 'INFO'
-    if (n >= 5) return 'DEBUG'
-    return 'TRACE'
-  }
-
   const matchesSevFilter = (severity: number, filter: typeof filterSev) => {
     if (filter === 'ALL') return true
     if (filter === 'FATAL') return severity >= 21
@@ -1082,26 +1074,6 @@ function LogsView({ logs }: { logs: Log[] }) {
     }
     return true
   })
-
-  const sevBadgeStyle = (n: number): React.CSSProperties => {
-    const base: React.CSSProperties = {
-      borderRadius: 3,
-      padding: '1px 5px',
-      fontSize: 9,
-      fontWeight: 700,
-      letterSpacing: '0.06em',
-      textTransform: 'uppercase',
-      fontFamily: 'var(--font-mono)',
-      flexShrink: 0,
-      display: 'inline-block',
-    }
-    if (n >= 21) return { ...base, color: '#fff', background: 'var(--danger)' }
-    if (n >= 17) return { ...base, color: 'var(--danger)', background: 'var(--danger-bg)' }
-    if (n >= 13) return { ...base, color: 'var(--warn)', background: 'var(--warn-bg)' }
-    if (n >= 9) return { ...base, color: 'var(--ink2)', background: 'transparent' }
-    if (n >= 5) return { ...base, color: 'var(--ink3)', background: 'transparent' }
-    return { ...base, color: 'var(--ink3)', background: 'transparent', opacity: 0.7 }
-  }
 
   const sevBodyColor = (n: number): string => {
     if (n >= 13) return 'var(--ink)'
@@ -1174,7 +1146,7 @@ function LogsView({ logs }: { logs: Log[] }) {
 
                 {/* severity badge */}
                 <div className="flex items-center">
-                  <span style={sevBadgeStyle(log.severity)}>{sevLabel(log.severity)}</span>
+                  <LogLevelBadge severity={log.severity} />
                 </div>
 
                 {/* service chip */}
