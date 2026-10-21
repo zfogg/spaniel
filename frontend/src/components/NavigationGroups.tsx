@@ -36,7 +36,7 @@ const content = 'z-[70] min-w-44 rounded-md border border-border bg-background p
 const item =
   'flex items-center justify-between gap-3 rounded px-3 py-2 text-xs text-muted-foreground outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground [&.active]:bg-muted [&.active]:text-foreground'
 
-function isSectionActive(pathname: string, to: string) {
+function isSectionActive(pathname: string, to: string): boolean {
   if (to === '/') return pathname === '/' || isSectionActive(pathname, '/traces')
   return pathname === to || pathname.startsWith(`${to}/`)
 }
