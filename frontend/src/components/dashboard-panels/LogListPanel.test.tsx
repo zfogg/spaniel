@@ -7,7 +7,7 @@ import type { DashboardPanel } from '@/lib/api'
 
 afterEach(cleanup)
 it('shows timestamps and distinct numeric and textual severity colors', () => {
-  const rows = [17, 21, 'WARNING', 9].map((severity, index) => ({
+  const rows = [17, 21, 'WARNING', 9, 5].map((severity, index) => ({
     severity,
     timestamp_ns: '1791288000123000000',
     body: `record ${index}`,
@@ -19,15 +19,15 @@ it('shows timestamps and distinct numeric and textual severity colors', () => {
     </MemoryRouter>,
   )
   for (const [level, color] of [
-    ['ERROR', 'red'],
-    ['FATAL', 'purple'],
-    ['WARN', 'yellow'],
-    ['INFO', 'blue'],
+    ['ERROR', 'rgb(127, 29, 29)'],
+    ['FATAL', 'rgb(107, 33, 168)'],
+    ['WARN', 'rgb(113, 63, 18)'],
+    ['INFO', 'rgb(255, 255, 255)'],
+    ['DEBUG', 'rgb(30, 58, 138)'],
   ]) {
-    expect(screen.getByText(level).className).toContain(`bg-${color}-500/15`)
-    expect(screen.getByText(level).className).toContain(`dark:text-${color}-300`)
+    expect(getComputedStyle(screen.getByText(level)).backgroundColor).toBe(color)
   }
-  expect(container.querySelectorAll('time')).toHaveLength(4)
+  expect(container.querySelectorAll('time')).toHaveLength(5)
   expect(container.querySelector('time')?.dateTime).toBe(new Date(1791288000123).toISOString())
   expect(screen.getAllByRole('link')[0].getAttribute('href')).toBe('/logs?traceId=abc')
 })
