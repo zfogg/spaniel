@@ -1,6 +1,6 @@
 import * as Menu from '@radix-ui/react-dropdown-menu'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 const groups = [
   {
@@ -36,12 +36,23 @@ const content = 'z-[70] min-w-44 rounded-md border border-border bg-background p
 const item =
   'flex items-center justify-between gap-3 rounded px-3 py-2 text-xs text-muted-foreground outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground [&.active]:bg-muted [&.active]:text-foreground'
 
+function isSectionActive(pathname: string, to: string) {
+  if (to === '/') return pathname === '/' || isSectionActive(pathname, '/traces')
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
+
 function MenuLink({ label, to }: { label: string; to: string }) {
+  const { pathname } = useLocation()
+  const active = isSectionActive(pathname, to)
   return (
     <Menu.Item asChild>
-      <NavLink to={to} end={to === '/'} className={item}>
+      <Link
+        to={to}
+        aria-current={active ? 'page' : undefined}
+        className={`${item}${active ? ' active' : ''}`}
+      >
         {label}
-      </NavLink>
+      </Link>
     </Menu.Item>
   )
 }
@@ -51,14 +62,10 @@ export default function NavigationGroups() {
   return (
     <>
       {groups.map((group) => {
+        const docsActive = docs.some(([, to]) => isSectionActive(pathname, to))
         const active =
-          group.items.some(([, to]) =>
-            to === '/'
-              ? pathname === '/' || pathname.startsWith('/traces/')
-              : pathname.startsWith(to),
-          ) ||
-          (group.label === 'Tools' &&
-            (pathname.startsWith('/docs/') || pathname === '/openapi-docs'))
+          group.items.some(([, to]) => isSectionActive(pathname, to)) ||
+          (group.label === 'Tools' && docsActive)
         return (
           <Menu.Root key={group.label}>
             <Menu.Trigger
@@ -75,7 +82,10 @@ export default function NavigationGroups() {
                 ))}
                 {group.label === 'Tools' && (
                   <Menu.Sub>
-                    <Menu.SubTrigger className={item}>
+                    <Menu.SubTrigger
+                      aria-current={docsActive ? 'page' : undefined}
+                      className={`${item}${docsActive ? ' active' : ''}`}
+                    >
                       Docs
                       <ChevronRight size={13} />
                     </Menu.SubTrigger>
