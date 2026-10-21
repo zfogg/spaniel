@@ -332,7 +332,12 @@ test('bookmarked log is retrieved outside the current table page', async ({ page
   await expect(page.getByRole('complementary', { name: 'Log details' })).toBeVisible()
   await page.route('**/api/logs?**', (route) => {
     const params = new URL(route.request().url()).searchParams
-    return jsonResponse(route, params.has('toNs') ? [log] : [])
+    const exactStoredTime = BigInt(log.timestamp_ns) + 55n
+    const inRange =
+      params.has('toNs') &&
+      BigInt(params.get('fromNs')!) <= exactStoredTime &&
+      BigInt(params.get('toNs')!) >= exactStoredTime
+    return jsonResponse(route, inRange ? [log] : [])
   })
   await page.reload()
   const panel = page.getByRole('complementary', { name: 'Log details' })

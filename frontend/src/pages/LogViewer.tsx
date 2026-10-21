@@ -515,8 +515,10 @@ export default function LogViewer() {
       // Look up bookmarked records independently of the current list page/time range.
       for (let page = 1; ; page++) {
         const result = await api.logs.list({
-          fromNs: selectedTime,
-          toNs: selectedTime,
+          // JSON numbers round int64 nanoseconds in the browser. Search a
+          // small envelope, then match the full record fingerprint below.
+          fromNs: selectedTime - 1024,
+          toNs: selectedTime + 1024,
           service: selectedService,
           sessionId: selectedSession,
           page,
