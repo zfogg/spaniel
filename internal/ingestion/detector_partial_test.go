@@ -8,7 +8,7 @@ import (
 func TestPartialTraceSkipsWholeTreeHeuristicsButRetainsFailures(t *testing.T) {
 	partial := []*storage.Span{{Attributes: `{"spaniel.trace.partial":true}`}}
 	complete := []*storage.Span{{Attributes: `{}`}}
-	for _, d := range []Detector{&N1Detector{}, &TracingGapDetector{}, &SerialPromiseDetector{}, &SynchronousIODetector{}} {
+	for _, d := range []Detector{&N1Detector{}, &TracingGapDetector{}, &SerialPromiseDetector{}} {
 		if detectorSupportsTrace(d, partial) {
 			t.Fatalf("%s accepted incomplete detail", d.Kind())
 		}

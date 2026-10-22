@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 
 import { qk } from '@/lib/query'
 
-import { svcColor } from '@/lib/span-utils'
+import { serviceSwatch } from '@/lib/service-color'
 
 export type TelemetrySignal = 'traces' | 'spans' | 'logs' | 'metrics'
 
@@ -81,7 +81,7 @@ export default function ServiceFilter({
             />
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ background: svcColor(service).fg }}
+              style={{ background: serviceSwatch(service) }}
             />
             <span className="truncate" title={service}>
               {service || '(unnamed service)'}

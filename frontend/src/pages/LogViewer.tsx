@@ -1,5 +1,6 @@
 import { logTraceQuery, logTraceUrl } from '@/lib/log-trace'
 import LogLevelBadge from '@/components/LogLevelBadge'
+import ServiceNameBadge from '@/components/ServiceNameBadge'
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -7,7 +8,6 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { qk } from '@/lib/query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, Log } from '@/lib/api'
-import { svcColor } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import JsonView from '@/components/JsonView'
@@ -157,7 +157,6 @@ export function LogRow({
   navigate: (path: string) => void
 }) {
   const [hovered, setHovered] = useState(false)
-  const c = svcColor(log.service_name)
   const queryClient = useQueryClient()
 
   const rowBg = selected
@@ -186,7 +185,7 @@ export function LogRow({
       onMouseLeave={() => setHovered(false)}
       className={`grid items-center h-7 border-b border-line2 px-2 gap-1.5 cursor-pointer transition-[background] duration-[70ms] ${selected ? 'border-l-2 border-l-accent-d' : 'border-l-2 border-l-transparent'}`}
       style={{
-        gridTemplateColumns: '310px 52px 130px minmax(0, 1fr) 22px',
+        gridTemplateColumns: '310px 52px 160px minmax(0, 1fr) 22px',
         background: rowBg,
       }}
     >
@@ -200,15 +199,8 @@ export function LogRow({
         <LogLevelBadge severity={log.severity} />
       </div>
 
-      {/* service chip */}
-      <div className="flex items-center gap-[5px] overflow-hidden min-w-0">
-        <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: c.fg }} />
-        <span
-          title={log.service_name}
-          className="font-mono text-[10.5px] text-ink3 overflow-hidden text-ellipsis whitespace-nowrap"
-        >
-          {log.service_name}
-        </span>
+      <div className="min-w-0">
+        <ServiceNameBadge name={log.service_name} />
       </div>
 
       {/* body */}
@@ -256,7 +248,6 @@ export function LogInspector({
   onClose: () => void
   navigate: (path: string) => void
 }) {
-  const c = svcColor(log.service_name)
   const hasTrace = log.trace_id && !isZeroTraceId(log.trace_id)
 
   const {
@@ -304,10 +295,8 @@ export function LogInspector({
       </header>
 
       <div className="flex-1 overflow-y-auto px-[14px] py-3">
-        {/* service chip */}
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: c.fg }} />
-          <span className="font-mono text-[11px] text-ink2">{log.service_name || '—'}</span>
+        <div className="mb-2.5">
+          <ServiceNameBadge name={log.service_name} />
         </div>
 
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 font-mono text-[11px] mb-4 [overflow-wrap:anywhere]">
@@ -694,7 +683,7 @@ export default function LogViewer() {
               {/* column header */}
               <div
                 className="grid items-center h-6 pl-2.5 pr-2 gap-1.5 bg-surface border-b border-line shrink-0"
-                style={{ gridTemplateColumns: '310px 52px 130px minmax(0, 1fr) 22px' }}
+                style={{ gridTemplateColumns: '310px 52px 160px minmax(0, 1fr) 22px' }}
               >
                 {['time', 'level', 'service', 'body', ''].map((h, i) => (
                   <div

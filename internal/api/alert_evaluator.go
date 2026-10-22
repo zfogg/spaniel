@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
@@ -50,7 +49,7 @@ type alertCondition struct {
 }
 
 func evaluateAlerts(parent context.Context, store *storage.DB, hub *ws.Hub, now time.Time, interval time.Duration) {
-	ctx, span := otel.Tracer("spaniel/alerts").Start(parent, "spaniel.alerts.evaluate", trace.WithSpanKind(trace.SpanKindInternal))
+	ctx, span := telemetry.Tracer("alerts").Start(parent, "alerts.evaluate", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 
 	store = store.WithContext(ctx)

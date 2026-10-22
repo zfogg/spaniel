@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -138,7 +137,7 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		limiter:      lim,
 		debounce:     make(map[string]*time.Timer),
 		lintSlots:    make(chan struct{}, maxConcurrentLinters),
-		tracer:       otel.Tracer("spaniel/ingestion"),
+		tracer:       telemetry.Tracer("ingestion"),
 		metricSeries: newMetricSeriesLimiter(2000),
 	}
 	if persisted, err := store.MetricSeriesCatalog(); err == nil {

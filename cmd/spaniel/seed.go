@@ -47,10 +47,10 @@ is untouched.`,
 }
 
 const (
-	seedSessionRecentID   = "seed-recent-session-0000-0000-0000"
-	seedSessionRecentLbl  = "seed-recent"
-	seedSessionBaseID     = "seed-baseline-session-0000-0000-0000"
-	seedSessionBaseLbl    = "seed-baseline"
+	seedSessionRecentID  = "seed-recent-session-0000-0000-0000"
+	seedSessionRecentLbl = "seed-recent"
+	seedSessionBaseID    = "seed-baseline-session-0000-0000-0000"
+	seedSessionBaseLbl   = "seed-baseline"
 )
 
 var seedServices = []string{"checkout-api", "cart-svc", "payments-svc"}
@@ -216,16 +216,16 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 	stats.logs++
 	stats.traces++
 	if err := store.UpsertTraceIssue(&storage.TraceIssue{
-		ID:           deterministicID(sessionID, "issue", 0, 16),
-		TraceID:      n1TraceID,
-		SessionID:    sessionID,
-		Kind:         "n_plus_one",
-		Fingerprint:  "SELECT users WHERE id = ?",
-		Count:        12,
-		WastedNs:     250 * int64(time.Millisecond),
-		ParentSpanID: n1Spans[0].SpanID,
+		ID:            deterministicID(sessionID, "issue", 0, 16),
+		TraceID:       n1TraceID,
+		SessionID:     sessionID,
+		Kind:          "n_plus_one",
+		Fingerprint:   "SELECT users WHERE id = ?",
+		Count:         12,
+		WastedNs:      250 * int64(time.Millisecond),
+		ParentSpanID:  n1Spans[0].SpanID,
 		ExampleSpanID: n1Spans[1].SpanID,
-		CreatedAt:    time.Now().UnixNano(),
+		CreatedAt:     time.Now().UnixNano(),
 	}); err != nil {
 		return err
 	}
@@ -243,7 +243,7 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				return &storage.TraceIssue{
 					ID: deterministicID(sessionID, "slow_db", 0, 16), TraceID: tid, SessionID: sessionID,
 					Kind: "slow_db", Fingerprint: "SELECT reports", Count: 1,
-					WastedNs: 130 * int64(time.Millisecond),
+					WastedNs:     130 * int64(time.Millisecond),
 					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
 					CreatedAt: time.Now().UnixNano(),
 				}
@@ -256,7 +256,7 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				return &storage.TraceIssue{
 					ID: deterministicID(sessionID, "chatty_http", 0, 16), TraceID: tid, SessionID: sessionID,
 					Kind: "chatty_http", Fingerprint: "pricing.internal", Count: 6,
-					WastedNs: 180 * int64(time.Millisecond),
+					WastedNs:     180 * int64(time.Millisecond),
 					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
 					CreatedAt: time.Now().UnixNano(),
 				}
@@ -269,7 +269,7 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				return &storage.TraceIssue{
 					ID: deterministicID(sessionID, "tracing_gap", 0, 16), TraceID: tid, SessionID: sessionID,
 					Kind: "tracing_gap", Fingerprint: "POST /api/charge", Count: 1,
-					WastedNs: 350 * int64(time.Millisecond),
+					WastedNs:     350 * int64(time.Millisecond),
 					ParentSpanID: "", ExampleSpanID: spans[0].SpanID,
 					CreatedAt: time.Now().UnixNano(),
 				}
@@ -282,7 +282,7 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				return &storage.TraceIssue{
 					ID: deterministicID(sessionID, "error_chain", 0, 16), TraceID: tid, SessionID: sessionID,
 					Kind: "error_chain", Fingerprint: "charge card", Count: 1,
-					WastedNs: 0,
+					WastedNs:     0,
 					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
 					CreatedAt: time.Now().UnixNano(),
 				}
@@ -295,20 +295,7 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				return &storage.TraceIssue{
 					ID: deterministicID(sessionID, "serial_promise", 0, 16), TraceID: tid, SessionID: sessionID,
 					Kind: "serial_promise", Fingerprint: "GET /api/dashboard (4 serial calls)", Count: 4,
-					WastedNs: 300 * int64(time.Millisecond),
-					ParentSpanID: "", ExampleSpanID: spans[0].SpanID,
-					CreatedAt: time.Now().UnixNano(),
-				}
-			},
-		},
-		{
-			kind:  "synchronous_io",
-			build: buildSynchronousIOTrace,
-			issue: func(tid string, spans []*storage.Span) *storage.TraceIssue {
-				return &storage.TraceIssue{
-					ID: deterministicID(sessionID, "synchronous_io", 0, 16), TraceID: tid, SessionID: sessionID,
-					Kind: "synchronous_io", Fingerprint: "GET /api/cart/summary (4 db calls)", Count: 4,
-					WastedNs: 200 * int64(time.Millisecond),
+					WastedNs:     300 * int64(time.Millisecond),
 					ParentSpanID: "", ExampleSpanID: spans[0].SpanID,
 					CreatedAt: time.Now().UnixNano(),
 				}
@@ -321,7 +308,7 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				return &storage.TraceIssue{
 					ID: deterministicID(sessionID, "large_payload", 0, 16), TraceID: tid, SessionID: sessionID,
 					Kind: "large_payload", Fingerprint: "3145728 bytes", Count: 1,
-					WastedNs: 3_145_728,
+					WastedNs:     3_145_728,
 					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
 					CreatedAt: time.Now().UnixNano(),
 				}
@@ -334,7 +321,7 @@ func seedSession(store *storage.DB, sessionID, sessionLabel string, windowStart 
 				return &storage.TraceIssue{
 					ID: deterministicID(sessionID, "cache_miss_storm", 0, 16), TraceID: tid, SessionID: sessionID,
 					Kind: "cache_miss_storm", Fingerprint: "cache miss storm", Count: 12,
-					WastedNs: 12 * int64(2*time.Millisecond),
+					WastedNs:     12 * int64(2*time.Millisecond),
 					ParentSpanID: spans[0].SpanID, ExampleSpanID: spans[1].SpanID,
 					CreatedAt: time.Now().UnixNano(),
 				}
@@ -435,15 +422,15 @@ func buildTraceSpans(rng *rand.Rand, traceID, sessionID, sessionLabel string, st
 	userID := fmt.Sprintf("u_%d", 1000+rng.IntN(9000))
 
 	rootAttrs, _ := json.Marshal(map[string]any{
-		"http.request.method":      method,
-		"http.route":               route,
+		"http.request.method":       method,
+		"http.route":                route,
 		"http.response.status_code": httpStatus,
-		"url.path":                 route,
-		"url.scheme":               "https",
-		"server.address":           rootSvc + ".internal",
-		"client.address":           fmt.Sprintf("10.0.%d.%d", rng.IntN(255), rng.IntN(255)),
-		"user_agent.original":      "Mozilla/5.0 (seed-loadgen)",
-		"enduser.id":               userID,
+		"url.path":                  route,
+		"url.scheme":                "https",
+		"server.address":            rootSvc + ".internal",
+		"client.address":            fmt.Sprintf("10.0.%d.%d", rng.IntN(255), rng.IntN(255)),
+		"user_agent.original":       "Mozilla/5.0 (seed-loadgen)",
+		"enduser.id":                userID,
 	})
 	rootResource, _ := json.Marshal(map[string]any{
 		"service.name":           rootSvc,
@@ -453,23 +440,23 @@ func buildTraceSpans(rng *rand.Rand, traceID, sessionID, sessionLabel string, st
 		"telemetry.sdk.language": "go",
 	})
 	childAttrs, _ := json.Marshal(map[string]any{
-		"rpc.system":      "grpc",
-		"rpc.service":     "cart.v1.CartService",
-		"rpc.method":      "Load",
+		"rpc.system":           "grpc",
+		"rpc.service":          "cart.v1.CartService",
+		"rpc.method":           "Load",
 		"rpc.grpc.status_code": 0,
-		"net.peer.name":   "cart-svc.internal",
-		"net.peer.port":   8443,
-		"enduser.id":      userID,
+		"net.peer.name":        "cart-svc.internal",
+		"net.peer.port":        8443,
+		"enduser.id":           userID,
 	})
 	dbAttrs, _ := json.Marshal(map[string]any{
-		"db.system":         "postgresql",
-		"db.name":           "shop",
-		"db.user":           "app",
-		"db.statement":      "SELECT * FROM cart WHERE user_id = $1",
-		"db.operation":      "SELECT",
-		"db.sql.table":      "cart",
-		"server.address":    "pg-primary.internal",
-		"server.port":       5432,
+		"db.system":      "postgresql",
+		"db.name":        "shop",
+		"db.user":        "app",
+		"db.statement":   "SELECT * FROM cart WHERE user_id = $1",
+		"db.operation":   "SELECT",
+		"db.sql.table":   "cart",
+		"server.address": "pg-primary.internal",
+		"server.port":    5432,
 	})
 	childResource, _ := json.Marshal(map[string]any{
 		"service.name":           "cart-svc",
@@ -527,8 +514,8 @@ func buildN1TraceSpans(traceID, sessionID, sessionLabel string, startNs int64) [
 		child := &storage.Span{
 			TraceID: traceID, SpanID: spanID, ParentSpanID: rootID,
 			ServiceName: "postgres", Name: "SELECT users", Kind: 3,
-			StartNs: startNs + int64(10*time.Millisecond) + int64(i)*int64(20*time.Millisecond),
-			EndNs:   startNs + int64(10*time.Millisecond) + int64(i)*int64(20*time.Millisecond) + int64(18*time.Millisecond),
+			StartNs:    startNs + int64(10*time.Millisecond) + int64(i)*int64(20*time.Millisecond),
+			EndNs:      startNs + int64(10*time.Millisecond) + int64(i)*int64(20*time.Millisecond) + int64(18*time.Millisecond),
 			StatusCode: 1,
 			Attributes: fmt.Sprintf(`{"db.system":"postgresql","db.statement":"SELECT * FROM users WHERE id = %d"}`, i),
 			Resource:   `{"service.name":"postgres"}`,
@@ -578,7 +565,7 @@ func buildChattyHTTPTrace(traceID, sessionID, sessionLabel string, startNs int64
 			StartNs: startNs + int64(i)*int64(40*time.Millisecond), EndNs: startNs + int64(i)*int64(40*time.Millisecond) + int64(30*time.Millisecond),
 			StatusCode: 1,
 			Attributes: `{"url.full":"https://pricing.internal/v1/price","http.method":"GET","server.address":"pricing.internal"}`,
-			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+			Resource:   resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
 		})
 	}
 	return spans
@@ -626,7 +613,7 @@ func buildErrorChainTrace(traceID, sessionID, sessionLabel string, startNs int64
 			StartNs: startNs + int64(50*time.Millisecond), EndNs: startNs + int64(150*time.Millisecond),
 			StatusCode: 2, StatusMessage: "card declined",
 			Attributes: `{"rpc.system":"grpc","rpc.grpc.status_code":13}`,
-			Resource: `{"service.name":"payments-svc"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+			Resource:   `{"service.name":"payments-svc"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
 	}
 }
 
@@ -652,39 +639,7 @@ func buildSerialPromiseTrace(traceID, sessionID, sessionLabel string, startNs in
 			StartNs: startNs + offset, EndNs: startNs + offset + int64(100*time.Millisecond),
 			StatusCode: 1,
 			Attributes: `{"http.method":"GET","server.address":"` + svc + `.internal"}`,
-			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
-		})
-	}
-	return spans
-}
-
-// buildSynchronousIOTrace returns a GET handler that makes 4 DB calls inline.
-func buildSynchronousIOTrace(traceID, sessionID, sessionLabel string, startNs int64) []*storage.Span {
-	rootID := traceID[:16]
-	resource := `{"service.name":"cart-svc","deployment.environment":"seed"}`
-	spans := []*storage.Span{{
-		TraceID: traceID, SpanID: rootID, ParentSpanID: "",
-		ServiceName: "cart-svc", Name: "GET /api/cart/summary", Kind: 2,
-		StartNs: startNs, EndNs: startNs + int64(350*time.Millisecond),
-		StatusCode: 1, Attributes: `{"http.method":"GET","http.route":"/api/cart/summary"}`,
-		Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
-	}}
-	queries := []string{
-		"SELECT * FROM cart WHERE session_id = $1",
-		"SELECT * FROM items WHERE id = ANY($1)",
-		"SELECT * FROM prices WHERE item_id = ANY($1)",
-		"SELECT * FROM promotions WHERE active = true",
-	}
-	for i, q := range queries {
-		cid := deterministicID(traceID+"-syncio", "db", i, 16)
-		offset := int64(i) * int64(60*time.Millisecond)
-		spans = append(spans, &storage.Span{
-			TraceID: traceID, SpanID: cid, ParentSpanID: rootID,
-			ServiceName: "postgres", Name: "SELECT", Kind: 3,
-			StartNs: startNs + offset, EndNs: startNs + offset + int64(50*time.Millisecond),
-			StatusCode: 1,
-			Attributes: `{"db.system":"postgresql","db.statement":"` + q + `"}`,
-			Resource: `{"service.name":"postgres"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+			Resource:   resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
 		})
 	}
 	return spans
@@ -706,7 +661,7 @@ func buildLargePayloadTrace(traceID, sessionID, sessionLabel string, startNs int
 			StartNs: startNs + int64(100*time.Millisecond), EndNs: startNs + int64(1100*time.Millisecond),
 			StatusCode: 1,
 			Attributes: `{"http.response_content_length":3145728,"http.response.body.size":3145728}`,
-			Resource: resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
+			Resource:   resource, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano()},
 	}
 }
 
@@ -728,11 +683,11 @@ func buildCacheMissStormTrace(traceID, sessionID, sessionLabel string, startNs i
 		spans = append(spans, &storage.Span{
 			TraceID: traceID, SpanID: cid, ParentSpanID: rootID,
 			ServiceName: "redis", Name: fmt.Sprintf("GET recommendation:%d", 1000+i),
-			StartNs: startNs + int64(10*time.Millisecond) + offset,
-			EndNs:   startNs + int64(10*time.Millisecond) + offset + int64(2*time.Millisecond),
+			StartNs:    startNs + int64(10*time.Millisecond) + offset,
+			EndNs:      startNs + int64(10*time.Millisecond) + offset + int64(2*time.Millisecond),
 			StatusCode: 1,
 			Attributes: `{"db.system":"redis","cache.hit":false}`,
-			Resource: `{"service.name":"redis"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
+			Resource:   `{"service.name":"redis"}`, SessionID: sessionID, SessionLabel: sessionLabel, ReceivedAt: time.Now().UnixNano(),
 		})
 	}
 	return spans
@@ -782,8 +737,8 @@ func logsForSpan(rng *rand.Rand, sessionID string, sp *storage.Span, n int) []*s
 // errorLogForSpan emits a single ERROR log bound to a failed span.
 func errorLogForSpan(sessionID string, sp *storage.Span) *storage.Log {
 	attrs, _ := json.Marshal(map[string]any{
-		"log.source":      "seed",
-		"exception.type":  "UpstreamError",
+		"log.source":       "seed",
+		"exception.type":   "UpstreamError",
 		"http.status_code": 500,
 	})
 	return &storage.Log{
@@ -863,7 +818,7 @@ func seedMetrics(store *storage.DB, sessionID string, startNs int64) (int, error
 			if err := store.InsertMetric(&storage.Metric{
 				Name: "http.server.requests", Type: "counter", Unit: "1",
 				TimestampNs: ts, Value: float64(100 + i*7), Attributes: string(baseAttrs),
-				Exemplars: exemplars,
+				Exemplars:   exemplars,
 				ServiceName: svc, SessionID: sessionID,
 			}); err != nil {
 				return count, err

@@ -15,7 +15,7 @@ import (
 	"net/http"
 	"sync"
 
-	"go.opentelemetry.io/otel"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
@@ -114,7 +114,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 	h := &handler{
 		store:  store,
 		opts:   opts,
-		tracer: otel.Tracer("spaniel.mcp"),
+		tracer: telemetry.Tracer("mcp"),
 	}
 
 	impl := &mcpsdk.Implementation{

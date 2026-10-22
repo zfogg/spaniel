@@ -14,8 +14,8 @@ import (
 )
 
 // TestIngestTraces_NestedSpans proves the ingestion side of #108: an OTLP ingest
-// produces "IngestTraces" nested under the caller's span (the OTLP HTTP request),
-// and a "db.flush" span nested under IngestTraces for the DuckDB write.
+// produces "spaniel.IngestTraces" nested under the caller's span (the OTLP HTTP
+// request), and a "spaniel.db.flush" span nested under it for the DuckDB write.
 func TestIngestTraces_NestedSpans(t *testing.T) {
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
@@ -44,14 +44,14 @@ func TestIngestTraces_NestedSpans(t *testing.T) {
 		byName[s.Name()] = s
 	}
 
-	ingest, ok := byName["IngestTraces"]
+	ingest, ok := byName["spaniel.IngestTraces"]
 	if !ok {
 		t.Fatalf("no IngestTraces span; got %v", names(sr))
 	}
 	if ingest.Parent().SpanID() != reqSpan.SpanContext().SpanID() {
 		t.Errorf("IngestTraces not nested under the request span")
 	}
-	flush, ok := byName["db.flush"]
+	flush, ok := byName["spaniel.db.flush"]
 	if !ok {
 		t.Fatalf("no db.flush span; got %v", names(sr))
 	}
@@ -88,7 +88,7 @@ func TestIngestTraces_SelfTelemetryQuiet(t *testing.T) {
 	// No instrumentation spans should have been produced by the self ingest.
 	for _, s := range sr.Ended()[pre:] {
 		n := s.Name()
-		if n == "IngestTraces" || n == "db.flush" || n == "lintSpan" || strings.HasPrefix(n, "db.") {
+		if n == "spaniel.IngestTraces" || n == "spaniel.db.flush" || n == "spaniel.lintSpan" || strings.HasPrefix(n, "spaniel.db.") {
 			t.Errorf("self-telemetry ingest produced instrumentation span %q (should be quiet)", n)
 		}
 	}

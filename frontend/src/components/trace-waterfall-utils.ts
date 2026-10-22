@@ -87,17 +87,21 @@ export function detectN1SpanIds(flatSpans: FlatSpan[], issues: TraceIssue[]): Se
       set.add(issue.example_span_id)
     }
   }
-  // Client-side fallback: group by db.statement or db.query.text.
+  // Keep independent parent operations separate and ignore retransmitted spans.
   const counts = new Map<string, string[]>()
+  const seen = new Set<string>()
   for (const flat of flatSpans) {
+    if (seen.has(flat.span.span_id)) continue
+    seen.add(flat.span.span_id)
     const a = attrs(flat.span)
     const stmt =
       (typeof a['db.statement'] === 'string' && a['db.statement']) ||
       (typeof a['db.query.text'] === 'string' && a['db.query.text'])
     if (!stmt) continue
-    const ids = counts.get(stmt) ?? []
+    const key = `${flat.span.parent_span_id}\0${stmt}`
+    const ids = counts.get(key) ?? []
     ids.push(flat.span.span_id)
-    counts.set(stmt, ids)
+    counts.set(key, ids)
   }
   for (const ids of counts.values()) {
     if (ids.length >= N1_THRESHOLD) {
@@ -115,9 +119,13 @@ export interface N1BannerEntry {
 
 /** Returns the n_plus_one TraceIssue that implicates this span, or null.
  *  A span is implicated when it has a `db.statement` attribute and either
- *  it IS the issue's example span or it shares the issue's parent span
- *  (the server clusters by parent + statement fingerprint). */
-export function n1IssueForSpan(span: Span | null, issues: TraceIssue[]): TraceIssue | null {
+ *  it IS the issue's example span or shares both its parent and query text.
+ *  A shared parent alone does not identify the query that caused a finding. */
+export function n1IssueForSpan(
+  span: Span | null,
+  issues: TraceIssue[],
+  spans: Span[] = [],
+): TraceIssue | null {
   if (!span) return null
   let a: Record<string, unknown> = {}
   try {
@@ -130,8 +138,18 @@ export function n1IssueForSpan(span: Span | null, issues: TraceIssue[]): TraceIs
   for (const issue of issues) {
     if (issue.kind !== 'n_plus_one') continue
     if (issue.example_span_id && issue.example_span_id === span.span_id) return issue
-    if (issue.parent_span_id && span.parent_span_id && issue.parent_span_id === span.parent_span_id)
-      return issue
+    if (
+      issue.parent_span_id &&
+      span.parent_span_id &&
+      issue.parent_span_id === span.parent_span_id
+    ) {
+      const example = spans.find((s) => s.span_id === issue.example_span_id)
+      if (!example) continue
+      const exampleAttrs = attrs(example)
+      const statement = a['db.statement'] || a['db.query.text']
+      const exampleStatement = exampleAttrs['db.statement'] || exampleAttrs['db.query.text']
+      if (statement && statement === exampleStatement) return issue
+    }
   }
   return null
 }
@@ -145,22 +163,25 @@ export function n1BannerEntries(flatSpans: FlatSpan[], issues: TraceIssue[]): N1
     .map((i) => ({ fingerprint: i.fingerprint, count: i.count, wastedNs: i.wasted_ns }))
   if (server.length > 0) return server.sort((a, b) => b.wastedNs - a.wastedNs)
 
-  const groups = new Map<string, { ids: string[]; totalNs: number }>()
+  const groups = new Map<string, { fingerprint: string; ids: string[]; totalNs: number }>()
+  const seen = new Set<string>()
   for (const flat of flatSpans) {
+    if (seen.has(flat.span.span_id)) continue
+    seen.add(flat.span.span_id)
     const a = attrs(flat.span)
     const stmt =
       (typeof a['db.statement'] === 'string' && a['db.statement']) ||
       (typeof a['db.query.text'] === 'string' && a['db.query.text'])
     if (!stmt) continue
-    const g = groups.get(stmt) ?? { ids: [], totalNs: 0 }
+    const key = `${flat.span.parent_span_id}\0${stmt}`
+    const g = groups.get(key) ?? { fingerprint: stmt, ids: [], totalNs: 0 }
     g.ids.push(flat.span.span_id)
     g.totalNs += flat.span.duration_ns
-    groups.set(stmt, g)
+    groups.set(key, g)
   }
   const out: N1BannerEntry[] = []
-  for (const [fp, { ids, totalNs }] of groups) {
-    if (ids.length >= N1_THRESHOLD)
-      out.push({ fingerprint: fp, count: ids.length, wastedNs: totalNs })
+  for (const { fingerprint, ids, totalNs } of groups.values()) {
+    if (ids.length >= N1_THRESHOLD) out.push({ fingerprint, count: ids.length, wastedNs: totalNs })
   }
   return out.sort((a, b) => b.wastedNs - a.wastedNs)
 }

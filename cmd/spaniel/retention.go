@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -107,7 +108,7 @@ func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig
 // automatic size-based deletion path without affecting explicit retention.
 func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storageGuardPolicy) {
 	apply := func() {
-		ctx, span := otel.Tracer("spaniel/retention").Start(context.Background(), "spaniel.retention.prune")
+		ctx, span := telemetry.Tracer("retention").Start(context.Background(), "retention.prune")
 		t0 := time.Now()
 		current := cfg
 		current.MaxDBSizeBytes = policy.RetentionSizeLimit()

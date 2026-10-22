@@ -1,3 +1,6 @@
+import MetricServiceBadges from '@/components/MetricServiceBadges'
+import { metricServiceNames } from '@/lib/metric-service-names'
+import { serviceSwatch } from '@/lib/service-color'
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -6,7 +9,6 @@ import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
-import { svcColor } from '@/lib/span-utils'
 import { bucketPoints, type BucketedSeries, type MetricType } from '@/lib/metrics-bucket'
 import { fmtVal, statsFor, type Stat } from '@/lib/metrics-format'
 import { xPosForTrace, valueAtBin } from '@/lib/metrics-correlate'
@@ -170,7 +172,7 @@ function Chart({
   const ticks: number[] = []
   for (let i = 0; i <= 4; i++) ticks.push(min + (span / 4) * i)
 
-  const accent = svcColor(metric.service_name).fg
+  const accent = serviceSwatch(metric.service_name)
   const COLORS = [accent]
   const LABELS = [metric.type === 'histogram' ? operation : 'value']
 
@@ -522,6 +524,10 @@ export default function Metrics() {
       ) ?? null
     )
   }, [catalog, selectedName, selectedService, services])
+  const reportingServices = useMemo(
+    () => (selected ? metricServiceNames(catalog, selected.name) : []),
+    [catalog, selected],
+  )
   const selectedCardinality = useMemo(
     () =>
       cardinality.find(
@@ -755,7 +761,7 @@ export default function Metrics() {
 
         <div className="flex-1 overflow-x-hidden overflow-y-auto">
           {Object.entries(groups).map(([svc, list]) => {
-            const c = svcColor(svc).fg
+            const c = serviceSwatch(svc)
             return (
               <div key={svc}>
                 <div className="pt-2.5 px-3 pb-1 font-mono text-[9px] text-muted-foreground uppercase tracking-[0.14em] bg-[var(--surface)] sticky top-0 flex items-center gap-1.5">
@@ -817,6 +823,7 @@ export default function Metrics() {
         {series && selected ? (
           <MainPanel
             series={series}
+            serviceNames={reportingServices}
             range={range}
             onRangeChange={setRange}
             operation={operation}
@@ -842,6 +849,7 @@ export default function Metrics() {
 
 function MainPanel({
   series,
+  serviceNames,
   range,
   onRangeChange,
   operation,
@@ -850,6 +858,7 @@ function MainPanel({
   onDimensionFiltersChange,
 }: {
   series: MetricSeries
+  serviceNames: string[]
   range: TimeRange
   onRangeChange: (r: TimeRange) => void
   operation: string
@@ -913,15 +922,6 @@ function MainPanel({
       <div className="pt-[18px] px-6 pb-3.5 border-b border-border flex items-start gap-3.5">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2.5">
-            <span
-              className="font-mono text-[10px] font-semibold px-[7px] py-px rounded-[4px]"
-              style={{
-                color: svcColor(series.service_name).fg,
-                background: svcColor(series.service_name).bg,
-              }}
-            >
-              {series.service_name}
-            </span>
             <MetricKindTag type={series.type} />
             {series.unit && (
               <span className="px-[7px] py-0.5 rounded-[5px] bg-muted text-muted-foreground border border-border font-mono text-[10px] font-semibold">
@@ -1054,6 +1054,7 @@ function MainPanel({
           <h1 className="mx-0 mt-2 mb-1 font-mono text-xl font-bold tracking-[-0.01em] text-foreground break-all">
             {series.name}
           </h1>
+          <MetricServiceBadges names={serviceNames} />
           {series.description && (
             <div
               className="italic text-[13px] text-muted-foreground max-w-[720px]"

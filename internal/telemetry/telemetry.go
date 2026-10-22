@@ -6,15 +6,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zfogg/gotel"
 	"github.com/zfogg/gotel/otelhost"
 	goruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/exemplar"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var goruntimeOnce sync.Once
+var application = gotel.NewApplication("spaniel")
+
+func Application() gotel.Application       { return application }
+func Tracer(component string) trace.Tracer { return application.Tracer(component) }
 
 // SelfTelemetryHeader identifies Spaniel's own exports so its receiver can
 // suppress recursive exporter telemetry.

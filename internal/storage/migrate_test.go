@@ -114,6 +114,71 @@ func TestMigrateFreshDB(t *testing.T) {
 	db.Close()
 }
 
+func TestMigration0042RemovesOnlySynchronousIOFindings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "retired-sync-io.duckdb")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open fresh: %v", err)
+	}
+	if err := db.gorm.Exec(`DELETE FROM migrations WHERE id = '0042_remove_synchronous_io_findings'`).Error; err != nil {
+		t.Fatalf("unapply migration 0042: %v", err)
+	}
+	for _, issue := range []*TraceIssue{
+		{ID: "sync", TraceID: "trace", SessionID: "session", Kind: "synchronous_io", Fingerprint: "false positive", Count: 6},
+		{ID: "n1", TraceID: "trace", SessionID: "session", Kind: "n_plus_one", Fingerprint: "SELECT 1", Count: 6},
+	} {
+		if err := db.UpsertTraceIssue(issue); err != nil {
+			t.Fatalf("UpsertTraceIssue(%s): %v", issue.ID, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close before migration: %v", err)
+	}
+
+	db, err = Open(path)
+	if err != nil {
+		t.Fatalf("Open for migration: %v", err)
+	}
+	defer db.Close() //nolint:errcheck
+	issues, err := db.GetTraceIssues("trace")
+	if err != nil {
+		t.Fatalf("GetTraceIssues: %v", err)
+	}
+	if len(issues) != 1 || issues[0].Kind != "n_plus_one" {
+		t.Fatalf("migration retained wrong findings: %+v", issues)
+	}
+}
+
+func TestStartupRemovesLateSynchronousIOFindingAfterMigrationApplied(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "late-sync-io.duckdb")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open fresh: %v", err)
+	}
+	if err := db.UpsertTraceIssue(&TraceIssue{
+		ID: "late-sync", TraceID: "trace", SessionID: "session", Kind: "synchronous_io",
+		Fingerprint: "written by retiring process", Count: 6,
+	}); err != nil {
+		t.Fatalf("UpsertTraceIssue: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close before restart: %v", err)
+	}
+
+	db, err = Open(path)
+	if err != nil {
+		t.Fatalf("Open for startup reconciliation: %v", err)
+	}
+	defer db.Close() //nolint:errcheck
+	issues, err := db.GetTraceIssues("trace")
+	if err != nil {
+		t.Fatalf("GetTraceIssues: %v", err)
+	}
+	if len(issues) != 0 {
+		t.Fatalf("late retired finding survived restart: %+v", issues)
+	}
+}
+
 // TestMigrateAddsMetricScopeAttributesToAlreadyAppliedLosslessSchema covers
 // databases that applied the original 0014 schema before scope_attributes was
 // added to the metric write path.  Their 0014 record prevents that migration

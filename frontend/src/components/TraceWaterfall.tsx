@@ -977,7 +977,7 @@ export default function TraceWaterfall({
               } catch {
                 /* empty */
               }
-              const stmt = attrs['db.statement']
+              const stmt = attrs['db.statement'] || attrs['db.query.text']
               if (typeof stmt === 'string') {
                 for (const flat of flatSpans) {
                   let a: Record<string, unknown> = {}
@@ -986,13 +986,18 @@ export default function TraceWaterfall({
                   } catch {
                     /* empty */
                   }
-                  if (a['db.statement'] === stmt) selN1Count++
+                  if (
+                    flat.span.parent_span_id === selectedSpan.parent_span_id &&
+                    (a['db.statement'] || a['db.query.text']) === stmt
+                  )
+                    selN1Count++
                 }
               }
             }
             return (
               <SpanInspector
                 span={selectedSpan}
+                spans={spans}
                 traceStartNs={traceStartNs}
                 warnings={warnings}
                 issues={issues}

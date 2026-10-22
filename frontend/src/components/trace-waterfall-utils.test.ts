@@ -272,7 +272,14 @@ describe('n1IssueForSpan', () => {
       attributes: '{"db.statement":"SELECT 1"}',
     })
     const i = issue({ id: 'i1', parent_span_id: 'p', example_span_id: 'db1' })
-    expect(n1IssueForSpan(sibling, [i])?.id).toBe('i1')
+    const example = span({ ...sibling, span_id: 'db1' })
+    expect(n1IssueForSpan(sibling, [i], [example, sibling])?.id).toBe('i1')
+    const unrelated = span({
+      ...sibling,
+      attributes: JSON.stringify({ 'db.query.text': 'SELECT * FROM orders' }),
+    })
+    expect(n1IssueForSpan(unrelated, [i], [example, unrelated])).toBeNull()
+    expect(n1IssueForSpan(sibling, [i])).toBeNull()
   })
 
   it('does not match a sibling with a different parent', () => {
@@ -283,5 +290,30 @@ describe('n1IssueForSpan', () => {
     })
     const i = issue({ id: 'i1', parent_span_id: 'p', example_span_id: 'db1' })
     expect(n1IssueForSpan(otherParent, [i])).toBeNull()
+  })
+})
+
+describe('N+1 fallback operation boundaries', () => {
+  it('keeps identical SQL under different parents separate', () => {
+    const rows = Array.from({ length: 12 }, (_, i) =>
+      span({
+        span_id: String(i),
+        parent_span_id: i < 6 ? 'a' : 'b',
+        attributes: JSON.stringify({ 'db.query.text': 'SELECT * FROM items WHERE id=?' }),
+      }),
+    )
+    const flat = rows.map((span) => ({ span, depth: 1, orphan: false }))
+    expect(detectN1SpanIds(flat, [])).toEqual(new Set())
+    expect(n1BannerEntries(flat, [])).toEqual([])
+  })
+  it('does not count a retransmitted span as another query execution', () => {
+    const row = span({
+      span_id: 'same',
+      parent_span_id: 'p',
+      attributes: JSON.stringify({ 'db.query.text': 'SELECT 1' }),
+    })
+    const flat = Array.from({ length: 12 }, () => ({ span: row, depth: 1, orphan: false }))
+    expect(detectN1SpanIds(flat, [])).toEqual(new Set())
+    expect(n1BannerEntries(flat, [])).toEqual([])
   })
 })

@@ -225,6 +225,7 @@ func migrations() []*gormigrate.Migration {
 		{ID: "0039_dashboard_yaml_provenance", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0039_dashboard_yaml_provenance.sql") }},
 		{ID: "0040_remove_unused_span_indexes", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0040_remove_unused_span_indexes.sql") }},
 		{ID: "0041_reclaim_index_journal", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0041_reclaim_index_journal.sql") }},
+		{ID: "0042_remove_synchronous_io_findings", Migrate: func(tx *gorm.DB) error { return execMigrationFile(tx, "0042_remove_synchronous_io_findings.sql") }},
 	}
 }
 
@@ -342,6 +343,13 @@ func (d *DB) migrate() error {
 		return execMigrationFile(tx, "0041_reclaim_index_journal.sql")
 	})
 	if err := m.Migrate(); err != nil {
+		return err
+	}
+	// A retired detector may have been running concurrently while this binary
+	// applied its migration (for example during a local rolling restart). Keep
+	// startup reconciliation idempotent so late writes from that detector do
+	// not survive after the new process takes ownership of the database.
+	if err := d.gorm.Exec(`DELETE FROM trace_issues WHERE kind = 'synchronous_io'`).Error; err != nil {
 		return err
 	}
 	// The inbox was introduced after alert delivery history already existed.

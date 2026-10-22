@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { Span, SpanRow, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
-import { fmtNs, KIND_LABELS, httpDisplayName, svcColor } from '@/lib/span-utils'
+import { fmtNs, KIND_LABELS, httpDisplayName } from '@/lib/span-utils'
 import { n1IssueForSpan } from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
 import JsonView from '@/components/JsonView'
+import ServiceNameBadge from '@/components/ServiceNameBadge'
 import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 
 // ── Inspector helpers ─────────────────────────────────────────────────────────
@@ -357,6 +358,7 @@ function IssueCallout({ issue }: { issue: import('@/lib/api').TraceIssue }) {
 
 export default function SpanInspector({
   span,
+  spans = [],
   traceStartNs,
   warnings = [],
   issues = [],
@@ -365,6 +367,7 @@ export default function SpanInspector({
   onClose,
 }: {
   span: Span | SpanRow
+  spans?: Span[]
   traceStartNs?: number
   warnings?: LintWarning[]
   issues?: TraceIssue[]
@@ -429,9 +432,7 @@ export default function SpanInspector({
       {/* header */}
       <div className="px-4 py-3.5 border-b border-border">
         <div className="flex items-center gap-2 mb-2">
-          <span className="font-mono text-[10px]" style={{ color: svcColor(span.service_name).fg }}>
-            {span.service_name}
-          </span>
+          <ServiceNameBadge name={span.service_name} />
           <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.12em]">
             {kind}
           </span>
@@ -492,7 +493,7 @@ export default function SpanInspector({
         const spanIssues = issues.filter(
           (i) => i.example_span_id === span.span_id || i.parent_span_id === span.span_id,
         )
-        const n1Issue = n1IssueForSpan(span, issues)
+        const n1Issue = n1IssueForSpan(span, issues, spans)
         // Include legacy isN1 signal even without a persisted issue.
         const showN1 = n1Issue || isN1
 

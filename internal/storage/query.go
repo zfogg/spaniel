@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/zfogg/gotel/sqltrace"
-	"go.opentelemetry.io/otel"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -33,7 +33,7 @@ func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, ma
 	// WithoutTracing. Explicit WithQueryName contexts win; otherwise the stable
 	// ReadOnlyQuery fallback is used for user-authored dashboard and alert SQL.
 	rs, err := sqltrace.QueryContext(ctx, d.SQL(), sqltrace.SpanConfig{
-		Tracer: otel.Tracer("spaniel/storage"), Namer: storageNamer, Name: "ReadOnlyQuery",
+		Tracer: telemetry.Tracer("storage"), Namer: storageNamer, Name: "ReadOnlyQuery",
 		Dialect: sqltrace.DialectDuckDB, System: "duckdb", Namespace: "spaniel",
 		Kind: trace.SpanKindInternal, Observe: storageObserver,
 	}, query, args...)

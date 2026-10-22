@@ -30,7 +30,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -646,7 +645,7 @@ func run(cfg runConfig) error {
 	}
 	defer shutdownOTel()
 
-	startCtx, startSpan := otel.Tracer("spaniel").Start(context.Background(), "spaniel.startup")
+	startCtx, startSpan := telemetry.Tracer("startup").Start(context.Background(), "startup")
 
 	store, err := storage.Open(cfg.DBPath)
 	if err != nil {

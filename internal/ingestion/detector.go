@@ -32,7 +32,6 @@ var registry = []Detector{
 	&TracingGapDetector{},
 	&ErrorChainDetector{},
 	&SerialPromiseDetector{},
-	&SynchronousIODetector{},
 }
 
 // runDetectors runs all registered detectors on the trace identified by traceID,
@@ -84,7 +83,7 @@ func detectorSupportsTrace(d Detector, spans []*storage.Span) bool {
 	for _, s := range spans {
 		if partial, ok := extractAttrBool(s.Attributes, "spaniel.trace.partial"); ok && partial {
 			switch d.Kind() {
-			case "n_plus_one", "tracing_gap", "serial_promise", "synchronous_io":
+			case "n_plus_one", "tracing_gap", "serial_promise":
 				return false
 			}
 		}

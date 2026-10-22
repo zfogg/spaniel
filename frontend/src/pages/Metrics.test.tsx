@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Metrics from './Metrics'
@@ -840,4 +840,46 @@ describe('<Metrics />', () => {
     expect(result.p95!.some((v) => v > 0)).toBeTruthy()
     expect(result.p99!.some((v) => v > 0)).toBeTruthy()
   })
+})
+
+it('shows the seven most recent services for a metric independently of sidebar service filters', async () => {
+  setup({
+    catalog: Array.from({ length: 9 }, (_, index) => ({
+      name: 'shared.requests',
+      service_name: `service-${index}`,
+      type: 'gauge',
+      unit: '1',
+      description: '',
+      sample_count: 1,
+      last_timestamp_ns: index,
+    })),
+    series: {
+      'name=shared.requests&service=service-0': {
+        name: 'shared.requests',
+        service_name: 'service-0',
+        type: 'gauge',
+        unit: '1',
+        description: '',
+        points: [{ timestamp_ns: 1, value: 42 }],
+        traces: [],
+      },
+    },
+  })
+  renderMetrics(['/metrics?metric=shared.requests&service=service-0&services=service-0'])
+  await screen.findByRole('heading', { name: 'shared.requests' })
+  const serviceList = screen.getByRole('list', {
+    name: 'Services reporting this metric, newest first',
+  })
+  const items = within(serviceList).getAllByRole('listitem')
+  expect(items.map((item) => item.textContent)).toEqual([
+    'service-8',
+    'service-7',
+    'service-6',
+    'service-5',
+    'service-4',
+    'service-3',
+    'service-2',
+    '... and 2 more',
+  ])
+  expect(items[7].title).toBe('service-1\nservice-0')
 })

@@ -1,3 +1,4 @@
+import ServiceNameBadge from '@/components/ServiceNameBadge'
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useEffect, useMemo, useState } from 'react'
@@ -13,7 +14,7 @@ import {
 } from '@tanstack/react-table'
 import { qk } from '@/lib/query'
 import { api, type SpanGroup, type SpanRow } from '@/lib/api'
-import { svcColor, httpDisplayName } from '@/lib/span-utils'
+import { httpDisplayName } from '@/lib/span-utils'
 import { KIND_LABELS } from '@/lib/span-utils'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -74,24 +75,6 @@ function groupSelectionFromURL(params: URLSearchParams): SpanGroupSelection | nu
   const kind = Number(params.get('groupKind'))
   if (!service_name || !name || !Number.isInteger(kind)) return null
   return { service_name, name, kind }
-}
-
-// ── SvcChip ───────────────────────────────────────────────────────────────────
-
-function SvcChip({ name }: { name: string }) {
-  const { fg, bg } = svcColor(name)
-  return (
-    <span
-      className="inline-flex items-center gap-[5px] px-[7px] py-0.5 rounded-[4px] font-mono text-[10.5px] font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-full border"
-      style={{
-        color: fg,
-        background: bg,
-        borderColor: fg + '44',
-      }}
-    >
-      {name}
-    </span>
-  )
 }
 
 // ── TagBadge ──────────────────────────────────────────────────────────────────
@@ -658,7 +641,7 @@ export default function Spans() {
                           </span>
                         </div>
                         <div>
-                          <SvcChip name={g.service_name} />
+                          <ServiceNameBadge name={g.service_name} />
                         </div>
                         <div className="font-mono text-[10px] text-muted-foreground">
                           {KIND_LABELS[g.kind] ?? 'unknown'}
@@ -760,7 +743,7 @@ export default function Spans() {
                             {httpDisplayName(s)}
                           </div>
                           <div>
-                            <SvcChip name={s.service_name} />
+                            <ServiceNameBadge name={s.service_name} />
                           </div>
                           <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
                             {kindLabel}
