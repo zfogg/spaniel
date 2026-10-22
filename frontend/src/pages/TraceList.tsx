@@ -565,17 +565,17 @@ export default function TraceList() {
               <span className="font-sans text-[13px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
                 Recent traces
               </span>
-              {isFetching && (
-                <span role="status" className="text-xs text-muted-foreground">
-                  Updating traces…
-                </span>
-              )}
               {streaming && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ok)] bg-[var(--ok-bg)] px-2 py-0.5">
                   <span className="pulse-dot size-1.5 rounded-full bg-[var(--ok)]" />
                   <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-[var(--ok-ink)]">
                     streaming
                   </span>
+                </span>
+              )}
+              {isFetching && (
+                <span role="status" className="text-xs text-muted-foreground">
+                  Updating traces…
                 </span>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { useQuery } from '@tanstack/react-query'
 import { Moon, Sun, Search } from 'lucide-react'
@@ -221,10 +221,12 @@ function Chrome() {
     <header className="relative z-50 h-[46px] px-4 border-b border-border bg-background flex items-center gap-[14px] shrink-0 overflow-visible scrollbar-thin">
       {/* brand */}
       <div className="flex items-center gap-2 shrink-0">
-        <SpanielLogo size={22} />
-        <span className="font-sans text-[15px] font-semibold text-foreground tracking-[-0.01em] leading-none">
-          spaniel
-        </span>
+        <Link to="/traces" className="flex items-center gap-2" aria-label="Spaniel traces">
+          <SpanielLogo size={22} />
+          <span className="font-sans text-[15px] font-semibold text-foreground tracking-[-0.01em] leading-none">
+            spaniel
+          </span>
+        </Link>
         <span className="font-mono text-[9px] text-muted-foreground tracking-[0.06em]">v0.1</span>
       </div>
 

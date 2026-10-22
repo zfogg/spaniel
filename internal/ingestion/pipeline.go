@@ -444,6 +444,25 @@ func (p *Pipeline) ingestTraces(ctx context.Context, traces ptrace.Traces) error
 					p.afterPersist(ctx, func() { p.scheduleLint(s) })
 				}
 				if !self {
+					spanRow := &ws.SelfSpanPayload{
+						TraceID: s.TraceID, SpanID: s.SpanID, ParentSpanID: s.ParentSpanID,
+						ServiceName: s.ServiceName, Name: s.Name, Kind: s.Kind,
+						StartNs: s.StartNs, EndNs: s.EndNs, DurationNs: s.EndNs - s.StartNs,
+						StatusCode: s.StatusCode, StatusMessage: s.StatusMessage,
+						Attributes: s.Attributes, Resource: s.Resource,
+						SessionID: s.SessionID, SessionLabel: s.SessionLabel, ReceivedAt: s.ReceivedAt,
+						Events: asAnySlice(events), Links: asAnySlice(links),
+					}
+					var traceRow *ws.SelfTracePayload
+					if s.ParentSpanID == "" {
+						traceRow = &ws.SelfTracePayload{
+							TraceID: s.TraceID, ServiceName: s.ServiceName, Name: s.Name,
+							Attributes: s.Attributes, StatusCode: s.StatusCode,
+							StartNs: s.StartNs, EndNs: s.EndNs, DurationNs: s.EndNs - s.StartNs,
+							SessionID: s.SessionID, SessionLabel: s.SessionLabel,
+							SpanCount: 1, IssueKinds: []string{},
+						}
+					}
 					p.broadcast(ctx, ws.NewSpanEvent(&ws.SpanPayload{
 						TraceID:     s.TraceID,
 						SpanID:      s.SpanID,
@@ -452,6 +471,8 @@ func (p *Pipeline) ingestTraces(ctx context.Context, traces ptrace.Traces) error
 						DurationNs:  s.EndNs - s.StartNs,
 						StatusCode:  s.StatusCode,
 						SessionID:   sessionID,
+						Row:         spanRow,
+						Trace:       traceRow,
 					}))
 				}
 				if !self {
@@ -567,6 +588,11 @@ func (p *Pipeline) ingestLogs(ctx context.Context, logs plog.Logs) error {
 						Body:        l.Body,
 						ServiceName: l.ServiceName,
 						SessionID:   l.SessionID,
+						Row: &ws.SelfLogPayload{
+							TimestampNs: l.TimestampNs, TraceID: l.TraceID, SpanID: l.SpanID,
+							Severity: l.Severity, Body: l.Body, Attributes: l.Attributes,
+							ServiceName: l.ServiceName, SessionID: l.SessionID, ReceivedAt: l.ReceivedAt,
+						},
 					}))
 				}
 			}
@@ -646,6 +672,14 @@ type pendingSpan struct {
 	span   *storage.Span
 	events []*storage.SpanEvent
 	links  []*storage.SpanLink
+}
+
+func asAnySlice[T any](items []*T) []any {
+	result := make([]any, len(items))
+	for i, item := range items {
+		result[i] = item
+	}
+	return result
 }
 
 type traceBuffer struct {
@@ -729,6 +763,25 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	for _, e := range accepted {
 		sp := e.span // capture for goroutine closure
 		p.scheduleLint(sp)
+		spanRow := &ws.SelfSpanPayload{
+			TraceID: sp.TraceID, SpanID: sp.SpanID, ParentSpanID: sp.ParentSpanID,
+			ServiceName: sp.ServiceName, Name: sp.Name, Kind: sp.Kind,
+			StartNs: sp.StartNs, EndNs: sp.EndNs, DurationNs: sp.EndNs - sp.StartNs,
+			StatusCode: sp.StatusCode, StatusMessage: sp.StatusMessage,
+			Attributes: sp.Attributes, Resource: sp.Resource,
+			SessionID: sp.SessionID, SessionLabel: sp.SessionLabel, ReceivedAt: sp.ReceivedAt,
+			Events: asAnySlice(e.events), Links: asAnySlice(e.links),
+		}
+		var traceRow *ws.SelfTracePayload
+		if sp.ParentSpanID == "" {
+			traceRow = &ws.SelfTracePayload{
+				TraceID: sp.TraceID, ServiceName: sp.ServiceName, Name: sp.Name,
+				Attributes: sp.Attributes, StatusCode: sp.StatusCode,
+				StartNs: sp.StartNs, EndNs: sp.EndNs, DurationNs: sp.EndNs - sp.StartNs,
+				SessionID: sp.SessionID, SessionLabel: sp.SessionLabel,
+				SpanCount: 1, IssueKinds: []string{},
+			}
+		}
 		p.hub.Broadcast(ws.NewSpanEvent(&ws.SpanPayload{
 			TraceID:     e.span.TraceID,
 			SpanID:      e.span.SpanID,
@@ -737,6 +790,8 @@ func (p *Pipeline) flushBuffer(traceID string) {
 			DurationNs:  e.span.EndNs - e.span.StartNs,
 			StatusCode:  e.span.StatusCode,
 			SessionID:   e.span.SessionID,
+			Row:         spanRow,
+			Trace:       traceRow,
 		}))
 	}
 	p.notifyLiveState()

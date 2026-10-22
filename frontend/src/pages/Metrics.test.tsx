@@ -503,7 +503,15 @@ describe('<Metrics />', () => {
     for (const notify of liveEvents)
       notify({ type: 'metric', payload: { name: 'older.metric', serviceName: 'api' } })
     expect(screen.getAllByText('2 pts')).toHaveLength(2)
-    await waitFor(() => expect(screen.getByText('3 pts')).toBeTruthy(), { timeout: 4_000 })
+    await waitFor(
+      () => {
+        const metricButtons = screen
+          .getAllByRole('button')
+          .filter((button) => /http\.requests|older\.metric/.test(button.textContent ?? ''))
+        expect(metricButtons[0]?.textContent).toContain('older.metric')
+      },
+      { timeout: 4_000 },
+    )
     const metricButtons = screen
       .getAllByRole('button')
       .filter((button) => /http\.requests|older\.metric/.test(button.textContent ?? ''))

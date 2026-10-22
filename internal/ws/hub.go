@@ -29,13 +29,15 @@ const (
 // Typed payload structs
 
 type SpanPayload struct {
-	TraceID     string `json:"traceId"`
-	SpanID      string `json:"spanId"`
-	ServiceName string `json:"serviceName"`
-	Name        string `json:"name"`
-	DurationNs  int64  `json:"durationNs"`
-	StatusCode  int    `json:"statusCode"`
-	SessionID   string `json:"sessionId"`
+	TraceID     string            `json:"traceId"`
+	SpanID      string            `json:"spanId"`
+	ServiceName string            `json:"serviceName"`
+	Name        string            `json:"name"`
+	DurationNs  int64             `json:"durationNs"`
+	StatusCode  int               `json:"statusCode"`
+	SessionID   string            `json:"sessionId"`
+	Row         *SelfSpanPayload  `json:"row,omitempty"`
+	Trace       *SelfTracePayload `json:"trace,omitempty"`
 }
 
 // SelfTracePayload is a complete trace-list row sent only for Spaniel's own
@@ -95,12 +97,13 @@ type SelfLogPayload struct {
 }
 
 type LogPayload struct {
-	TraceID     string `json:"traceId"`
-	SpanID      string `json:"spanId"`
-	Severity    int    `json:"severity"`
-	Body        string `json:"body"`
-	ServiceName string `json:"serviceName"`
-	SessionID   string `json:"sessionId"`
+	TraceID     string          `json:"traceId"`
+	SpanID      string          `json:"spanId"`
+	Severity    int             `json:"severity"`
+	Body        string          `json:"body"`
+	ServiceName string          `json:"serviceName"`
+	SessionID   string          `json:"sessionId"`
+	Row         *SelfLogPayload `json:"row,omitempty"`
 }
 
 type MetricPayload struct {
@@ -111,6 +114,10 @@ type MetricPayload struct {
 	// CatalogOnly announces a stored self-telemetry point without inviting the
 	// client to refetch metric queries (which would create more self telemetry).
 	CatalogOnly bool `json:"catalogOnly,omitempty"`
+	// Row is the durable point exactly as decoded from OTLP. It lets browser
+	// clients update their caches from the post-persist notification without
+	// immediately reading the same point back from storage.
+	Row any `json:"row,omitempty"`
 }
 
 type IssuePayload struct {

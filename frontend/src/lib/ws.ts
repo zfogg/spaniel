@@ -8,6 +8,8 @@ export interface SpanPayload {
   durationNs: number
   statusCode: number
   sessionId: string
+  row?: SelfSpanPayload
+  trace?: SelfTracePayload
 }
 export type SelfTracePayload = import('./api').TraceRow
 export type SelfSpanPayload = import('./api').SpanRow
@@ -19,6 +21,37 @@ export interface LogPayload {
   body: string
   serviceName: string
   sessionId: string
+  row?: SelfLogPayload
+}
+export interface MetricRowPayload {
+  name: string
+  description: string
+  unit: string
+  type: string
+  aggregation_temporality?: string
+  is_monotonic?: boolean
+  start_timestamp_ns?: number
+  timestamp_ns: number
+  flags?: number
+  value?: number
+  histogram_count?: number
+  histogram_sum?: number
+  histogram_min?: number
+  histogram_max?: number
+  explicit_bounds?: string
+  bucket_counts?: string
+  summary_count?: number
+  summary_sum?: number
+  summary_quantiles?: string
+  attributes: string
+  series_attributes: string
+  scope_name?: string
+  scope_version?: string
+  scope_schema_url?: string
+  scope_attributes?: string
+  exemplars?: string
+  service_name: string
+  session_id: string
 }
 export interface MetricPayload {
   name: string
@@ -26,6 +59,7 @@ export interface MetricPayload {
   value: number
   type: string
   catalogOnly?: boolean
+  row?: MetricRowPayload
 }
 export interface IssuePayload {
   traceId: string

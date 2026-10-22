@@ -2,8 +2,7 @@ import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import debounce from 'debounce-fn'
-import { useQueryClient } from '@tanstack/react-query'
-import { isPageVisible, useVisibleQuery as useQuery } from '@/lib/page-visibility'
+import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import { qk } from '@/lib/query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, MetricCatalogEntry, MetricSeries, TraceOverlay } from '@/lib/api'
@@ -450,109 +449,34 @@ function displayUnit(unit: string): string {
   return names[unit] ?? unit
 }
 
-// The app-wide invalidator keeps every view eventually fresh. The selected
-// chart needs a narrower path: refresh it from its matching metric event,
-// without waiting for the global one-second invalidation sweep or refetching
-// unrelated metric views.
-function useSelectedMetricLiveRefresh(
-  metric: MetricCatalogEntry | null,
-  range: TimeRange,
-  operation: string,
-) {
-  const queryClient = useQueryClient()
-  const name = metric?.name
-  const service = metric?.service_name
-  useEffect(() => {
-    if (!name || !service) return
-    let timer: ReturnType<typeof setTimeout> | null = null
-    const key = qk.metricSeries({
-      name,
-      service,
-      range,
-      operation,
-    })
-    const unsubscribe = onWSEvent((event) => {
-      if (
-        event.type !== 'metric' ||
-        !isPageVisible() ||
-        event.payload.catalogOnly ||
-        event.payload.name !== name ||
-        event.payload.serviceName !== service
-      )
-        return
-      if (timer) return
-      timer = setTimeout(() => {
-        timer = null
-        if (isPageVisible())
-          queryClient.invalidateQueries({ queryKey: key }, { cancelRefetch: false })
-      }, 150)
-    })
-    return () => {
-      unsubscribe()
-      if (timer) clearTimeout(timer)
-    }
-  }, [name, service, operation, queryClient, range])
-}
-
 // Sidebar counts and ordering come from the catalog aggregate. Metric frames
-// arrive much more frequently than the list needs repainting, so coalesce them
-// before reloading it. The server orders the catalog by latest point timestamp.
+// arrive much more frequently than the list needs repainting, so coalesce the
+// visual pulse. The app-wide WebSocket handler patches the catalog and selected
+// series directly from the persisted in-memory point.
 function useMetricCatalogLiveRefresh() {
-  const queryClient = useQueryClient()
   const [recentUpdates, setRecentUpdates] = useState<Record<string, number>>({})
   useEffect(() => {
     let sequence = 0
-    const pendingUpdates = new Map<
-      string,
-      { sequence: number; count: number; catalogOnly: boolean }
-    >()
+    const pendingUpdates = new Map<string, number>()
     const refresh = debounce(
       () => {
-        const updates = Object.fromEntries(
-          [...pendingUpdates].map(([key, update]) => [key, update.sequence]),
-        )
-        const catalogOnlyUpdates = new Map(
-          [...pendingUpdates]
-            .filter(([, update]) => update.catalogOnly)
-            .map(([key, update]) => [key, update.count]),
-        )
-        const hasExternalUpdates = [...pendingUpdates.values()].some(
-          (update) => !update.catalogOnly,
-        )
+        const updates = Object.fromEntries(pendingUpdates)
         pendingUpdates.clear()
         setRecentUpdates((previous) => ({ ...previous, ...updates }))
-        if (catalogOnlyUpdates.size > 0) {
-          queryClient.setQueryData<MetricCatalogEntry[]>(qk.metrics(), (previous) =>
-            previous?.map((metric) => {
-              const count = catalogOnlyUpdates.get(`${metric.service_name}/${metric.name}`)
-              return count === undefined
-                ? metric
-                : { ...metric, sample_count: metric.sample_count + count }
-            }),
-          )
-        }
-        if (hasExternalUpdates && isPageVisible()) {
-          queryClient.invalidateQueries({ queryKey: qk.metrics() }, { cancelRefetch: false })
-        }
       },
       { wait: 2_500 },
     )
     const unsubscribe = onWSEvent((event) => {
-      if (event.type !== 'metric' || !isPageVisible()) return
+      if (event.type !== 'metric') return
       const key = `${event.payload.serviceName}/${event.payload.name}`
-      const previous = pendingUpdates.get(key)
-      pendingUpdates.set(key, {
-        sequence: ++sequence,
-        count: (previous?.count ?? 0) + 1,
-        catalogOnly: (previous?.catalogOnly ?? true) && Boolean(event.payload.catalogOnly),
-      })
+      pendingUpdates.set(key, ++sequence)
       refresh()
     })
     return () => {
       unsubscribe()
       refresh.cancel()
     }
-  }, [queryClient])
+  }, [])
   return recentUpdates
 }
 
@@ -619,7 +543,6 @@ export default function Metrics() {
     }
   }, [selectedMetricName, selectedMetricType, selectedService])
 
-  useSelectedMetricLiveRefresh(selected, range, operation)
   const recentMetricUpdates = useMetricCatalogLiveRefresh()
 
   const selectMetric = useCallback(

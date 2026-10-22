@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/zfogg/spaniel/internal/ws"
+	"github.com/zfogg/spaniel/internal/storage"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
@@ -32,13 +34,20 @@ func TestSharedBatchMetricNotificationsFollowCommit(t *testing.T) {
 						return
 					}
 					var event struct {
-						Type string `json:"type"`
+						Type    string `json:"type"`
+						Payload struct {
+							Row *storage.Metric `json:"row"`
+						} `json:"payload"`
 					}
 					if err = json.Unmarshal(body, &event); err != nil {
 						events <- err
 						return
 					}
 					if event.Type == "metric" {
+						if event.Payload.Row == nil || event.Payload.Row.Name != "commit.metric" {
+							events <- fmt.Errorf("metric event missing persisted row: %#v", event.Payload.Row)
+							return
+						}
 						events <- nil
 						return
 					}
