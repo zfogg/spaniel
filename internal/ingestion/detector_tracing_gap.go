@@ -22,6 +22,13 @@ func (*TracingGapDetector) Analyze(traceID, sessionID string, spans []*storage.S
 	// Build parent → children index.
 	children := map[string][]*storage.Span{}
 	for _, s := range spans {
+		// An INTERNAL span is already explicit coverage for local application
+		// work. Its time need not be tiled by finer child spans. Gap analysis is
+		// useful at server entrypoints, where it identifies request time that has
+		// not been attributed to an application operation.
+		if s.Kind == int(trace.SpanKindInternal) {
+			continue
+		}
 		if s.ParentSpanID != "" {
 			children[s.ParentSpanID] = append(children[s.ParentSpanID], s)
 		}

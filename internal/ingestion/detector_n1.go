@@ -10,9 +10,10 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
-// N1Detector fires when the same SQL fingerprint is executed more than once
-// under a single parent operation. Two executions are already an N+1: a loop
-// of one item is simply the smallest observable case.
+// N1Detector identifies repeated scalar reads under one parent operation.
+// Writes are lifecycle/chattiness concerns rather than N+1 reads, and two
+// executions can be an intentional before/after read. Three provides enough
+// evidence of a data-dependent read loop without flagging that common shape.
 type N1Detector struct{}
 
 func (*N1Detector) Kind() string { return "n_plus_one" }
@@ -44,6 +45,17 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 		if isN1LifecycleSpan(s, raw) {
 			continue
 		}
+		operation := extractAttrString(s.Attributes, "db.operation.name")
+		if operation == "" {
+			operation = extractAttrString(s.Attributes, "db.operation")
+		}
+		if operation != "" && !strings.EqualFold(operation, "SELECT") {
+			continue
+		}
+		lowerSQL := strings.ToLower(raw)
+		if strings.Contains(lowerSQL, "unnest(") || strings.Contains(lowerSQL, "jsonb_to_recordset(") {
+			continue
+		}
 		fp := fingerprintSQL(raw)
 		// SQL reused by independent operations is not an N+1. Keep the parent
 		// in the key so the issue points at the loop that issued it.
@@ -57,7 +69,7 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 
 	var issues []*storage.TraceIssue
 	for _, g := range groups {
-		if len(g.spans) < 2 {
+		if len(g.spans) < 3 {
 			continue
 		}
 		var totalNs int64

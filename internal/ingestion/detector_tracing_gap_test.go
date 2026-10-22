@@ -15,6 +15,7 @@ func gapSpan(id, parentID string, startMs, endMs int) *storage.Span {
 		StartNs:      int64(startMs) * int64(time.Millisecond),
 		EndNs:        int64(endMs) * int64(time.Millisecond),
 		SessionID:    "sess",
+		Kind:         int(trace.SpanKindServer),
 	}
 }
 

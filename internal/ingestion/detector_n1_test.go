@@ -27,19 +27,19 @@ func TestN1Detector_SingleQueryIsNotNPlusOne(t *testing.T) {
 
 func TestN1Detector_RepeatedQueryIsNPlusOne(t *testing.T) {
 	var spans []*storage.Span
-	for i := range 2 {
+	for i := range 3 {
 		spans = append(spans, makeDBSpan(itoa(i), "parent", "SELECT * FROM users WHERE id = 1", int64(i)*int64(time.Millisecond)))
 	}
 	d := &N1Detector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
-		t.Fatalf("expected 1 issue for 2 spans, got %d", len(got))
+		t.Fatalf("expected 1 issue for 3 spans, got %d", len(got))
 	}
 	if got[0].Kind != "n_plus_one" {
 		t.Errorf("wrong kind: %q", got[0].Kind)
 	}
-	if got[0].Count != 2 {
-		t.Errorf("Count = %d, want 2", got[0].Count)
+	if got[0].Count != 3 {
+		t.Errorf("Count = %d, want 3", got[0].Count)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestN1Detector_DoesNotCombineIndependentParents(t *testing.T) {
 
 func TestN1Detector_TwoFingerprintsIndependent(t *testing.T) {
 	var spans []*storage.Span
-	for i := range 2 {
+	for i := range 3 {
 		spans = append(spans, makeDBSpan("a"+itoa(i), "p", "SELECT * FROM users WHERE id = 1", int64(i)*int64(time.Millisecond)))
 		spans = append(spans, makeDBSpan("b"+itoa(i), "p", "SELECT * FROM orders WHERE id = 1", int64(i)*int64(time.Millisecond)))
 	}
@@ -63,6 +63,19 @@ func TestN1Detector_TwoFingerprintsIndependent(t *testing.T) {
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 2 {
 		t.Errorf("expected 2 issues for 2 distinct repeated fingerprints, got %d", len(got))
+	}
+}
+
+func TestN1Detector_IgnoresWritesAndAlreadyBatchedReads(t *testing.T) {
+	var spans []*storage.Span
+	for i := range 5 {
+		write := makeDBSpan("write"+itoa(i), "parent", "UPDATE users SET active = true WHERE id = 1", int64(i)*int64(time.Millisecond))
+		write.Attributes = `{"db.system.name":"postgresql","db.operation.name":"UPDATE","db.query.text":"UPDATE users SET active = true WHERE id = $1"}`
+		spans = append(spans, write)
+		spans = append(spans, makeDBSpan("batch"+itoa(i), "parent", "SELECT * FROM users JOIN unnest(ARRAY[1,2]) ids(id) USING (id)", int64(i)*int64(time.Millisecond)))
+	}
+	if got := (&N1Detector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
+		t.Fatalf("writes or batched reads reported as N+1: %+v", got)
 	}
 }
 
