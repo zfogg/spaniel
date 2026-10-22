@@ -30,10 +30,14 @@ func (*ChattyHTTPDetector) Analyze(traceID, sessionID string, spans []*storage.S
 		if host == "" {
 			continue
 		}
-		if g, ok := groups[host]; ok {
+		// A distributed trace may contain several independent operations that
+		// call the same host. Chattiness is a property of one calling operation,
+		// not the whole trace, so keep parent operations separate.
+		key := s.ParentSpanID + "\x00" + host
+		if g, ok := groups[key]; ok {
 			g.spans = append(g.spans, s)
 		} else {
-			groups[host] = &group{spans: []*storage.Span{s}, host: host}
+			groups[key] = &group{spans: []*storage.Span{s}, host: host}
 		}
 	}
 

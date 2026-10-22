@@ -122,6 +122,17 @@ func TestTracingGap_ClientTransportTimeIsNotMissingApplicationWork(t *testing.T)
 	}
 }
 
+func TestTracingGap_TemporalWorkflowWaitIsNotMissingApplicationWork(t *testing.T) {
+	workflow := gapSpan("workflow", "", 0, 10_000)
+	workflow.Name = "stonkpile.temporal.workflow.NotificationWorkflow"
+	workflow.Attributes = `{"temporalWorkflowID":"notifications"}`
+	activity := gapSpan("activity", "workflow", 100, 200)
+
+	if got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{workflow, activity}, 0); len(got) != 0 {
+		t.Fatalf("durable workflow wait reported as tracing gap: %+v", got)
+	}
+}
+
 func TestTracingGap_ClientDoesNotHideRealServerWorkWithClockSkew(t *testing.T) {
 	client := gapSpan("client", "", 0, 1000)
 	client.Kind, client.ServiceName = int(trace.SpanKindClient), "caller"

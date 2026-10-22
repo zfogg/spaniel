@@ -29,6 +29,14 @@ func (*TracingGapDetector) Analyze(traceID, sessionID string, spans []*storage.S
 
 	var issues []*storage.TraceIssue
 	for _, s := range spans {
+		// A Temporal workflow span covers the workflow's wall-clock lifetime,
+		// including durable timer, signal, and activity waits. Those waits are
+		// represented by Temporal history rather than continuously nested OTel
+		// spans, so uncovered wall time is not missing application tracing.
+		if extractAttrString(s.Attributes, "temporalWorkflowID") != "" ||
+			extractAttrString(s.Attributes, "temporal.workflow.id") != "" {
+			continue
+		}
 		// CLIENT spans measure the entire remote call, including network time.
 		// A remote SERVER child also has its own host clock. Subtracting its
 		// duration from the client is not a measure of missing local work.

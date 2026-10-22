@@ -58,6 +58,20 @@ func TestChattyHTTP_DifferentHosts(t *testing.T) {
 	}
 }
 
+func TestChattyHTTP_IndependentParentOperationsDoNotAccumulate(t *testing.T) {
+	var spans []*storage.Span
+	for parent := range 2 {
+		for i := range 4 {
+			span := httpSpan(fmt.Sprintf("p%d-s%d", parent, i), "api.example.com")
+			span.ParentSpanID = fmt.Sprintf("parent-%d", parent)
+			spans = append(spans, span)
+		}
+	}
+	if got := (&ChattyHTTPDetector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
+		t.Fatalf("independent operations were combined into one chatty group: %+v", got)
+	}
+}
+
 func TestChattyHTTP_URLFullAttribute(t *testing.T) {
 	var spans []*storage.Span
 	for i := range 5 {

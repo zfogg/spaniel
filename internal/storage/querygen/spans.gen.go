@@ -224,9 +224,9 @@ type ISpanDo interface {
 	GetCoverageQuality(sessionID string) (result []model.CoverageQuality, err error)
 	ListTagged(sessionID string, service string, name string, hasKind bool, kind int, sort string, limit int, offset int, services []string) (result []model.SpanRow, err error)
 	ListGroups(sessionID string, limit int, offset int, services []string) (result []model.SpanGroup, err error)
-	ListTraces(sessionID string, service string, limit int, offset int, services []string) (result []model.TraceListRow, err error)
+	ListTraces(sessionID string, service string, operation string, limit int, offset int, services []string) (result []model.TraceListRow, err error)
 	CountGroups(sessionID string, services []string) (result []model.CountValue, err error)
-	CountTraces(sessionID string, service string, services []string) (result []model.CountValue, err error)
+	CountTraces(sessionID string, service string, operation string, services []string) (result []model.CountValue, err error)
 	ListSourceStats(sessionID string) (result []model.SourceStatsRow, err error)
 	ServiceP95(serviceName string) (result []model.P95Value, err error)
 	ListServiceMapNodes(sessionID string) (result []model.ServiceMapNode, err error)
@@ -424,8 +424,8 @@ func (s spanDo) ListGroups(sessionID string, limit int, offset int, services []s
 
 // ListTraces
 //
-// WITH root_spans AS (SELECT trace_id, service_name, name, attributes::VARCHAR AS attributes, status_code, start_ns, end_ns, duration_ns, session_id, session_label FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = ” OR service_name = @service) ORDER BY start_ns DESC LIMIT @limit OFFSET @offset) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, ”) AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count, COALESCE(sc.service_count, 1) AS service_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, session_id, COUNT(*) AS span_count, COUNT(DISTINCT service_name) AS service_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id, session_id) sc ON rs.trace_id = sc.trace_id AND rs.session_id = sc.session_id ORDER BY rs.start_ns DESC
-func (s spanDo) ListTraces(sessionID string, service string, limit int, offset int, services []string) (result []model.TraceListRow, err error) {
+// WITH root_spans AS (SELECT trace_id, service_name, name, attributes::VARCHAR AS attributes, status_code, start_ns, end_ns, duration_ns, session_id, session_label FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = ” OR service_name = @service) AND (@operation = ” OR name ILIKE @operation) ORDER BY start_ns DESC LIMIT @limit OFFSET @offset) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, ”) AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count, COALESCE(sc.service_count, 1) AS service_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, session_id, COUNT(*) AS span_count, COUNT(DISTINCT service_name) AS service_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id, session_id) sc ON rs.trace_id = sc.trace_id AND rs.session_id = sc.session_id ORDER BY rs.start_ns DESC
+func (s spanDo) ListTraces(sessionID string, service string, operation string, limit int, offset int, services []string) (result []model.TraceListRow, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
@@ -438,9 +438,11 @@ func (s spanDo) ListTraces(sessionID string, service string, limit int, offset i
 	}
 	params = append(params, service)
 	params = append(params, service)
+	params = append(params, operation)
+	params = append(params, operation)
 	params = append(params, limit)
 	params = append(params, offset)
-	generateSQL.WriteString("AND (? = '' OR service_name = ?) ORDER BY start_ns DESC LIMIT ? OFFSET ?) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count, COALESCE(sc.service_count, 1) AS service_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, session_id, COUNT(*) AS span_count, COUNT(DISTINCT service_name) AS service_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id, session_id) sc ON rs.trace_id = sc.trace_id AND rs.session_id = sc.session_id ORDER BY rs.start_ns DESC ")
+	generateSQL.WriteString("AND (? = '' OR service_name = ?) AND (? = '' OR name ILIKE ?) ORDER BY start_ns DESC LIMIT ? OFFSET ?) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count, COALESCE(sc.service_count, 1) AS service_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, session_id, COUNT(*) AS span_count, COUNT(DISTINCT service_name) AS service_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id, session_id) sc ON rs.trace_id = sc.trace_id AND rs.session_id = sc.session_id ORDER BY rs.start_ns DESC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -474,8 +476,8 @@ func (s spanDo) CountGroups(sessionID string, services []string) (result []model
 
 // CountTraces
 //
-// SELECT COUNT(*) AS count FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = ” OR service_name = @service)
-func (s spanDo) CountTraces(sessionID string, service string, services []string) (result []model.CountValue, err error) {
+// SELECT COUNT(*) AS count FROM @@table WHERE (parent_span_id = ” OR parent_span_id IS NULL) AND (@sessionID = ” OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = ” OR service_name = @service) AND (@operation = ” OR name ILIKE @operation)
+func (s spanDo) CountTraces(sessionID string, service string, operation string, services []string) (result []model.CountValue, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
@@ -488,7 +490,9 @@ func (s spanDo) CountTraces(sessionID string, service string, services []string)
 	}
 	params = append(params, service)
 	params = append(params, service)
-	generateSQL.WriteString("AND (? = '' OR service_name = ?) ")
+	params = append(params, operation)
+	params = append(params, operation)
+	generateSQL.WriteString("AND (? = '' OR service_name = ?) AND (? = '' OR name ILIKE ?) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
