@@ -24,7 +24,7 @@ func TestN1DetectorRatioNotificationChannels(t *testing.T) {
 
 func TestN1DetectorDistinctIssuesForSharedSQLPrefixAndParents(t *testing.T) {
 	var spans []*storage.Span
-	for i := range 2 {
+	for i := range 3 {
 		spans = append(spans, makeDBSpan("users"+itoa(i), "p", "SELECT * FROM users WHERE id=1", 0), makeDBSpan("orders"+itoa(i), "p", "SELECT * FROM orders WHERE id=1", 0), makeDBSpan("other"+itoa(i), "q", "SELECT * FROM users WHERE id=1", 0))
 	}
 	got := (&N1Detector{}).Analyze("trace1", "session", spans, 1)
