@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"bytes"
+	"compress/gzip"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -38,6 +39,19 @@ func post(handler http.HandlerFunc, contentType string, body []byte) *httptest.R
 	return w
 }
 
+func postGzip(handler http.HandlerFunc, contentType string, body []byte) *httptest.ResponseRecorder {
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	_, _ = writer.Write(body)
+	_ = writer.Close()
+	req := httptest.NewRequest(http.MethodPost, "/", &compressed)
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Content-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	handler(w, req)
+	return w
+}
+
 // ── Traces ────────────────────────────────────────────────────────────────────
 
 const tracesJSON = `{
@@ -58,6 +72,28 @@ func TestHandleTracesJSON(t *testing.T) {
 	w := post(rcv.HandleTraces, "application/json", []byte(tracesJSON))
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleTracesRejectsInvalidOrUnsupportedCompression(t *testing.T) {
+	rcv, _ := newTestReceiver(t)
+	for _, test := range []struct {
+		name, encoding string
+		want           int
+	}{
+		{name: "invalid gzip", encoding: "gzip", want: http.StatusBadRequest},
+		{name: "unsupported", encoding: "br", want: http.StatusUnsupportedMediaType},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte("not compressed")))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Content-Encoding", test.encoding)
+			w := httptest.NewRecorder()
+			rcv.HandleTraces(w, req)
+			if w.Code != test.want {
+				t.Errorf("status = %d, want %d", w.Code, test.want)
+			}
+		})
 	}
 }
 
@@ -198,6 +234,26 @@ const metricsJSON = `{
     }]}]
   }]
 }`
+
+func TestHandleOTLPGzipForEverySignal(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		handler func(*HTTPReceiver) http.HandlerFunc
+		body    string
+	}{
+		{name: "traces", handler: func(r *HTTPReceiver) http.HandlerFunc { return r.HandleTraces }, body: tracesJSON},
+		{name: "logs", handler: func(r *HTTPReceiver) http.HandlerFunc { return r.HandleLogs }, body: logsJSON},
+		{name: "metrics", handler: func(r *HTTPReceiver) http.HandlerFunc { return r.HandleMetrics }, body: metricsJSON},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rcv, _ := newTestReceiver(t)
+			w := postGzip(test.handler(rcv), "application/json", []byte(test.body))
+			if w.Code != http.StatusOK {
+				t.Errorf("expected 200 for gzip OTLP %s, got %d: %s", test.name, w.Code, w.Body.String())
+			}
+		})
+	}
+}
 
 func TestHandleMetricsJSON(t *testing.T) {
 	rcv, _ := newTestReceiver(t)

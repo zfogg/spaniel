@@ -1,6 +1,7 @@
 package receiver
 
 import (
+	"compress/gzip"
 	"errors"
 	"io"
 	"log/slog"
@@ -35,18 +36,39 @@ func writeIngestError(w http.ResponseWriter, err error) {
 // could exhaust process memory.
 const maxOTLPBodyBytes = 64 << 20
 
-// readBody reads the request body with a hard size cap. On failure it writes
-// the response (413 when the cap is exceeded, 400 for any other read error)
-// and reports ok=false so the caller can return immediately.
+// readBody decodes an OTLP request body with hard caps on both the compressed
+// wire payload and the decompressed payload. OTLP/HTTP exporters may use gzip;
+// bounding both sides prevents a large request or compression bomb from
+// exhausting process memory.
 func readBody(w http.ResponseWriter, r *http.Request) (body []byte, ok bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxOTLPBodyBytes)
-	body, err := io.ReadAll(r.Body)
+	reader := io.Reader(r.Body)
+	encoding := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Encoding")))
+	switch encoding {
+	case "", "identity":
+	case "gzip":
+		compressed, err := gzip.NewReader(reader)
+		if err != nil {
+			http.Error(w, "invalid gzip request body", http.StatusBadRequest)
+			return nil, false
+		}
+		defer compressed.Close()
+		reader = compressed
+	default:
+		http.Error(w, "unsupported content encoding", http.StatusUnsupportedMediaType)
+		return nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, maxOTLPBodyBytes+1))
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "request body exceeds 64 MB limit", http.StatusRequestEntityTooLarge)
 		} else {
 			http.Error(w, "read body", http.StatusBadRequest)
 		}
+		return nil, false
+	}
+	if len(body) > maxOTLPBodyBytes {
+		http.Error(w, "request body exceeds 64 MB limit", http.StatusRequestEntityTooLarge)
 		return nil, false
 	}
 	return body, true
