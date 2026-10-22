@@ -126,6 +126,47 @@ func TestStorageQueryNameLateSpansPersistWithoutDuplicateWarnings(t *testing.T) 
 	}
 }
 
+func TestChildStartingBeforeParentPersistsOnce(t *testing.T) {
+	db := openTestDB(t)
+	session, err := db.CreateSession("child-start-order", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetActiveSession(session.ID, session.Label)
+	for _, span := range []*storage.Span{
+		{SessionID: session.ID, TraceID: "temporal", SpanID: "workflow", Name: "ratio.temporal.workflow.LifecycleWorkflow", StartNs: 1_000_000_000, EndNs: 2_000_000_000},
+		{SessionID: session.ID, TraceID: "temporal", SpanID: "schedule", ParentSpanID: "workflow", Name: "ratio.temporal.activity.schedule.Lifecycle", StartNs: 998_900_800, EndNs: 1_000_000_100},
+	} {
+		if err := db.InsertSpan(span); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.FlushBatch(); err != nil {
+		t.Fatal(err)
+	}
+	hub := ws.NewHub()
+	tracer := otel.Tracer("child-start-order-test")
+	runDetectors("temporal", db, hub, tracer)
+	runDetectors("temporal", db, hub, tracer)
+
+	warnings, err := db.ListLintWarnings(session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, warning := range warnings {
+		if warning.RuleID == linter.ChildStartsBeforeParentRule {
+			count++
+			if warning.SpanID != "schedule" {
+				t.Fatalf("warning attached to %q, want scheduling span", warning.SpanID)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("got %d timestamp-order warnings, want exactly 1: %+v", count, warnings)
+	}
+}
+
 func TestStorageQueryNameBufferedSamplerAuditsLateSpans(t *testing.T) {
 	db := openTestDB(t)
 	session, err := db.CreateSession("buffered-query-names", false)
