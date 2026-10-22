@@ -72,6 +72,18 @@ func TestChattyHTTP_IndependentParentOperationsDoNotAccumulate(t *testing.T) {
 	}
 }
 
+func TestChattyHTTP_DifferentOperationsOnOneHostDoNotAccumulate(t *testing.T) {
+	var spans []*storage.Span
+	for i := range 8 {
+		span := httpSpan(fmt.Sprintf("s%d", i), "api.example.com")
+		span.Name = fmt.Sprintf("GET /resources/%d", i)
+		spans = append(spans, span)
+	}
+	if got := (&ChattyHTTPDetector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
+		t.Fatalf("different HTTP operations were combined into one chatty group: %+v", got)
+	}
+}
+
 func TestChattyHTTP_URLFullAttribute(t *testing.T) {
 	var spans []*storage.Span
 	for i := range 5 {

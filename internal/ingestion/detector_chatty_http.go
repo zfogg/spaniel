@@ -18,6 +18,7 @@ func (*ChattyHTTPDetector) Analyze(traceID, sessionID string, spans []*storage.S
 	type group struct {
 		spans []*storage.Span
 		host  string
+		name  string
 	}
 	groups := map[string]*group{}
 	for _, s := range spans {
@@ -33,11 +34,11 @@ func (*ChattyHTTPDetector) Analyze(traceID, sessionID string, spans []*storage.S
 		// A distributed trace may contain several independent operations that
 		// call the same host. Chattiness is a property of one calling operation,
 		// not the whole trace, so keep parent operations separate.
-		key := s.ParentSpanID + "\x00" + host
+		key := s.ParentSpanID + "\x00" + host + "\x00" + s.Name
 		if g, ok := groups[key]; ok {
 			g.spans = append(g.spans, s)
 		} else {
-			groups[key] = &group{spans: []*storage.Span{s}, host: host}
+			groups[key] = &group{spans: []*storage.Span{s}, host: host, name: s.Name}
 		}
 	}
 
@@ -61,11 +62,11 @@ func (*ChattyHTTPDetector) Analyze(traceID, sessionID string, spans []*storage.S
 			}
 		}
 		issues = append(issues, &storage.TraceIssue{
-			ID:            issueID(traceID, "chatty_http", g.host),
+			ID:            issueID(traceID, "chatty_http", g.host+"\x00"+g.name),
 			TraceID:       traceID,
 			SessionID:     sessionID,
 			Kind:          "chatty_http",
-			Fingerprint:   g.host,
+			Fingerprint:   g.host + " " + g.name,
 			Count:         len(g.spans),
 			WastedNs:      totalNs,
 			ParentSpanID:  topParent,
