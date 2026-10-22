@@ -15,7 +15,7 @@ func (h *handler) registerLogTools(s *mcpsdk.Server) {
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "query_logs",
-		Description: "Query stored log records, most recent first. Filter by trace_id or span_id to see logs correlated with a trace, by service, and by minimum severity (e.g. \"WARN\" to see warnings and above). Defaults to the active session.",
+		Description: "Query stored log records, most recent first. Filter by trace_id, span_id, service, severity range, or a [from_ns, to_ns] time window. Defaults to the active session; results are paginated.",
 		Annotations: readOnly,
 	}, h.queryLogs)
 
@@ -34,8 +34,11 @@ type QueryLogsInput struct {
 	SpanID      string `json:"span_id,omitempty" jsonschema:"only logs correlated with this span"`
 	Service     string `json:"service,omitempty" jsonschema:"only logs from this service.name"`
 	MinSeverity string `json:"min_severity,omitempty" jsonschema:"minimum severity: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL"`
+	MaxSeverity string `json:"max_severity,omitempty" jsonschema:"maximum severity: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL"`
+	FromNs      int64  `json:"from_ns,omitempty" jsonschema:"inclusive timestamp lower bound (unix ns); 0 = no bound"`
+	ToNs        int64  `json:"to_ns,omitempty" jsonschema:"inclusive timestamp upper bound (unix ns); 0 = no bound"`
 	Limit       int    `json:"limit,omitempty" jsonschema:"max log records to return (default 100, max 1000)"`
-	Page        int    `json:"page,omitempty" jsonschema:"1-based page (ignored when service/min_severity is set)"`
+	Page        int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
 
 type LogOut struct {
@@ -63,24 +66,19 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 	}
 	sessionID := h.resolveSession(in.SessionID)
 	minSev := severityNum(in.MinSeverity)
-
-	// service/min_severity are filtered in Go (the store's LogFilter doesn't
-	// support them). When set, scan a wider window and ignore page so the filter
-	// sees enough rows; otherwise honor the requested page.
-	fetch := limit
-	page := in.Page
-	goFilter := in.Service != "" || minSev > 0
-	if goFilter {
-		fetch = 1000
-		page = 1
-	}
+	maxSev := severityNum(in.MaxSeverity)
 
 	logs, err := h.store.WithContext(ctx).ListLogs(storage.LogFilter{
-		SessionID: sessionID,
-		TraceID:   in.TraceID,
-		SpanID:    in.SpanID,
-		Limit:     fetch,
-		Page:      page,
+		SessionID:   sessionID,
+		Service:     in.Service,
+		TraceID:     in.TraceID,
+		SpanID:      in.SpanID,
+		MinSeverity: minSev,
+		MaxSeverity: maxSev,
+		FromNs:      in.FromNs,
+		ToNs:        in.ToNs,
+		Limit:       limit,
+		Page:        in.Page,
 	})
 	if err != nil {
 		return nil, QueryLogsOutput{}, fmt.Errorf("query logs: %w", err)
@@ -88,12 +86,6 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 
 	out := QueryLogsOutput{SessionID: sessionID, Logs: []LogOut{}}
 	for _, l := range logs {
-		if in.Service != "" && l.ServiceName != in.Service {
-			continue
-		}
-		if l.Severity < minSev {
-			continue
-		}
 		out.Logs = append(out.Logs, LogOut{
 			TimestampNs: l.TimestampNs,
 			Severity:    severityString(l.Severity),

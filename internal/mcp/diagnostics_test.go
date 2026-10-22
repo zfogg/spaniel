@@ -4,50 +4,6 @@ import (
 	"testing"
 )
 
-func TestListIssues_Session(t *testing.T) {
-	cs, store := connect(t, Options{Version: "t"})
-	seedTrace(t, store, store.ActiveSessionID())
-
-	out := callStructured[ListIssuesOutput](t, cs, "list_issues", nil)
-	if out.Count != 1 {
-		t.Fatalf("expected 1 issue, got %d (%+v)", out.Count, out.Issues)
-	}
-	is := out.Issues[0]
-	if is.Kind != "n_plus_one" {
-		t.Errorf("kind = %q, want n_plus_one", is.Kind)
-	}
-	if is.Count != 5 {
-		t.Errorf("count = %d, want 5", is.Count)
-	}
-	if is.WastedMs != 50.0 {
-		t.Errorf("wasted_ms = %v, want 50", is.WastedMs)
-	}
-	if is.ExampleSpanID != dbSpanID {
-		t.Errorf("example_span_id = %q, want %q", is.ExampleSpanID, dbSpanID)
-	}
-}
-
-func TestListIssues_TraceScope(t *testing.T) {
-	cs, store := connect(t, Options{Version: "t"})
-	seedTrace(t, store, store.ActiveSessionID())
-
-	out := callStructured[ListIssuesOutput](t, cs, "list_issues", map[string]any{"trace_id": testTraceID})
-	if out.TraceID != testTraceID {
-		t.Errorf("trace_id = %q, want %q", out.TraceID, testTraceID)
-	}
-	if out.Count != 1 || out.Issues[0].Kind != "n_plus_one" {
-		t.Errorf("expected one n_plus_one issue, got %+v", out.Issues)
-	}
-}
-
-func TestListIssues_Empty(t *testing.T) {
-	cs, _ := connect(t, Options{Version: "t"})
-	out := callStructured[ListIssuesOutput](t, cs, "list_issues", nil)
-	if out.Count != 0 {
-		t.Errorf("expected 0 issues on empty session, got %d", out.Count)
-	}
-}
-
 func TestListLintWarnings(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
 	seedTrace(t, store, store.ActiveSessionID())
@@ -91,13 +47,26 @@ func TestListLintWarnings_TraceFilter(t *testing.T) {
 	}
 }
 
-// list_issues and list_lint_warnings must be available without --mcp-allow-writes.
+func TestListLintWarnings_RuleSeverityAndTimeFilters(t *testing.T) {
+	cs, store := connect(t, Options{Version: "t"})
+	seedTrace(t, store, store.ActiveSessionID())
+
+	if got := callStructured[ListLintOutput](t, cs, "list_lint_warnings", map[string]any{"rule_id": "db.system_required", "severity": "warn", "from_ns": 1, "to_ns": 1}); got.Count != 1 {
+		t.Fatalf("matching lint filters returned %d warnings: %+v", got.Count, got.Warnings)
+	}
+	if got := callStructured[ListLintOutput](t, cs, "list_lint_warnings", map[string]any{"severity": "error"}); got.Count != 0 {
+		t.Errorf("unmatched severity returned %d warnings", got.Count)
+	}
+}
+
+// list_lint_warnings must be available without --mcp-allow-writes.
 func TestDiagnosticToolsRegistered(t *testing.T) {
 	cs, _ := connect(t, Options{Version: "t"})
 	names := toolNames(t, cs)
-	for _, want := range []string{"list_issues", "list_lint_warnings"} {
-		if !names[want] {
-			t.Errorf("tool %q not registered; have %v", want, names)
-		}
+	if !names["list_lint_warnings"] {
+		t.Errorf("tool %q not registered; have %v", "list_lint_warnings", names)
+	}
+	if names["list_issues"] {
+		t.Error("list_issues must not expose a second public findings shape")
 	}
 }

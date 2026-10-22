@@ -12,76 +12,10 @@ func (h *handler) registerDiagnosticTools(s *mcpsdk.Server) {
 	readOnly := &mcpsdk.ToolAnnotations{ReadOnlyHint: true}
 
 	addTOONTool(s, &mcpsdk.Tool{
-		Name:        "list_issues",
-		Description: "List performance issues Spaniel detected (n_plus_one, error_chain, chatty_http, slow DB, etc.), ordered by time wasted. Pass trace_id to scope to one trace, otherwise lists the session's issues (defaults to the active session). Each issue includes how many times it occurred, the time wasted, and an example span to jump to.",
-		Annotations: readOnly,
-	}, h.listIssues)
-
-	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_lint_warnings",
-		Description: "List OpenTelemetry semantic-convention lint warnings (e.g. missing db.system.name, missing service.name) plus detector findings projected as lint entries. Defaults to the active session; pass trace_id to scope to one trace. Use this to find instrumentation gaps.",
+		Description: "List OpenTelemetry semantic-convention lint warnings (e.g. missing db.system.name, missing service.name) plus detector findings projected as lint entries. Filter by trace, rule, severity, and created-time window; defaults to the active session. Use this to find instrumentation gaps.",
 		Annotations: readOnly,
 	}, h.listLintWarnings)
-}
-
-// ---- list_issues ----
-
-type ListIssuesInput struct {
-	SessionID string `json:"session_id,omitempty" jsonschema:"session to query when trace_id is not set; defaults to the active session"`
-	TraceID   string `json:"trace_id,omitempty" jsonschema:"scope to a single trace; takes precedence over session_id"`
-}
-
-type IssueOut struct {
-	Kind          string  `json:"kind"`
-	TraceID       string  `json:"trace_id"`
-	Count         int     `json:"count"`
-	WastedMs      float64 `json:"wasted_ms"`
-	Fingerprint   string  `json:"fingerprint,omitempty"`
-	ParentSpanID  string  `json:"parent_span_id,omitempty"`
-	ExampleSpanID string  `json:"example_span_id,omitempty"`
-}
-
-type ListIssuesOutput struct {
-	SessionID string     `json:"session_id,omitempty"`
-	TraceID   string     `json:"trace_id,omitempty"`
-	Count     int        `json:"count"`
-	Issues    []IssueOut `json:"issues"`
-}
-
-func (h *handler) listIssues(ctx context.Context, _ *mcpsdk.CallToolRequest, in ListIssuesInput) (*mcpsdk.CallToolResult, ListIssuesOutput, error) {
-	out := ListIssuesOutput{Issues: []IssueOut{}}
-
-	// Trace-scoped takes precedence over session-scoped.
-	if in.TraceID != "" {
-		out.TraceID = in.TraceID
-		rows, err := h.store.WithContext(ctx).GetTraceIssues(in.TraceID)
-		if err != nil {
-			return nil, ListIssuesOutput{}, fmt.Errorf("get trace issues: %w", err)
-		}
-		for _, is := range rows {
-			out.Issues = append(out.Issues, IssueOut{
-				Kind: is.Kind, TraceID: is.TraceID, Count: is.Count, WastedMs: nsToMs(is.WastedNs),
-				Fingerprint: is.Fingerprint, ParentSpanID: is.ParentSpanID, ExampleSpanID: is.ExampleSpanID,
-			})
-		}
-		out.Count = len(out.Issues)
-		return nil, out, nil
-	}
-
-	sessionID := h.resolveSession(in.SessionID)
-	out.SessionID = sessionID
-	rows, err2 := h.store.WithContext(ctx).ListTraceIssuesBySession(sessionID)
-	if err2 != nil {
-		return nil, ListIssuesOutput{}, fmt.Errorf("list session issues: %w", err2)
-	}
-	for _, is := range rows {
-		out.Issues = append(out.Issues, IssueOut{
-			Kind: is.Kind, TraceID: is.TraceID, Count: is.Count, WastedMs: nsToMs(is.WastedNs),
-			Fingerprint: is.Fingerprint, ParentSpanID: is.ParentSpanID, ExampleSpanID: is.ExampleSpanID,
-		})
-	}
-	out.Count = len(out.Issues)
-	return nil, out, nil
 }
 
 // ---- list_lint_warnings ----
@@ -89,15 +23,21 @@ func (h *handler) listIssues(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 type ListLintInput struct {
 	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
 	TraceID   string `json:"trace_id,omitempty" jsonschema:"filter to a single trace"`
+	RuleID    string `json:"rule_id,omitempty" jsonschema:"only this lint or detector rule id"`
+	Severity  string `json:"severity,omitempty" jsonschema:"only this severity, e.g. warn or error"`
+	FromNs    int64  `json:"from_ns,omitempty" jsonschema:"inclusive finding-created lower bound (unix ns); 0 = no bound"`
+	ToNs      int64  `json:"to_ns,omitempty" jsonschema:"inclusive finding-created upper bound (unix ns); 0 = no bound"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"max warnings to return (default 200, max 500)"`
+	Page      int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
 
 type LintWarningOut struct {
-	SpanID   string `json:"span_id"`
-	TraceID  string `json:"trace_id"`
-	RuleID   string `json:"rule_id"`
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
+	SpanID    string `json:"span_id"`
+	TraceID   string `json:"trace_id"`
+	RuleID    string `json:"rule_id"`
+	Severity  string `json:"severity"`
+	Message   string `json:"message"`
+	CreatedAt int64  `json:"created_at"`
 }
 
 type ListLintOutput struct {
@@ -114,6 +54,10 @@ func (h *handler) listLintWarnings(ctx context.Context, _ *mcpsdk.CallToolReques
 	if limit > 500 {
 		limit = 500
 	}
+	page := in.Page
+	if page < 1 {
+		page = 1
+	}
 	sessionID := h.resolveSession(in.SessionID)
 
 	warnings, err := h.store.WithContext(ctx).ListLintWarnings(sessionID)
@@ -122,13 +66,23 @@ func (h *handler) listLintWarnings(ctx context.Context, _ *mcpsdk.CallToolReques
 	}
 
 	out := ListLintOutput{SessionID: sessionID, Warnings: []LintWarningOut{}}
+	matched := 0
+	start := (page - 1) * limit
 	for _, w := range warnings {
 		if in.TraceID != "" && w.TraceID != in.TraceID {
 			continue
 		}
+		if in.RuleID != "" && w.RuleID != in.RuleID || in.Severity != "" && w.Severity != in.Severity || in.FromNs > 0 && w.CreatedAt < in.FromNs || in.ToNs > 0 && w.CreatedAt > in.ToNs {
+			continue
+		}
+		if matched < start {
+			matched++
+			continue
+		}
+		matched++
 		out.Warnings = append(out.Warnings, LintWarningOut{
 			SpanID: w.SpanID, TraceID: w.TraceID, RuleID: w.RuleID,
-			Severity: w.Severity, Message: w.Message,
+			Severity: w.Severity, Message: w.Message, CreatedAt: w.CreatedAt,
 		})
 		if len(out.Warnings) >= limit {
 			break

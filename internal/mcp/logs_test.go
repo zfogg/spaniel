@@ -59,6 +59,12 @@ func TestQueryLogs_Filters(t *testing.T) {
 	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"trace_id": "nope"}); got.Count != 0 {
 		t.Errorf("trace filter (miss): expected 0, got %d", got.Count)
 	}
+	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"from_ns": 2_600_000, "to_ns": 2_600_000, "max_severity": "ERROR"}); got.Count != 1 {
+		t.Errorf("time and maximum severity filters: expected 1, got %d", got.Count)
+	}
+	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"to_ns": 2_599_999}); got.Count != 0 {
+		t.Errorf("time filter before log: expected 0, got %d", got.Count)
+	}
 }
 
 func TestSearch_FreeText(t *testing.T) {
