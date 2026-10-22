@@ -96,6 +96,8 @@ export function shortTraceId(id: string): string {
 
 const HTTP_METHOD_RE =
   /^(?:HTTP\s+)?(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)(?:\s+|$)/i
+const GOTEL_HTTP_NAME_RE =
+  /^[a-z0-9][a-z0-9._-]*\.http\.(?:client|server)\.(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE|[A-Z][A-Z0-9_-]*)\s+/i
 
 /** Build a human-friendly display name for HTTP spans.
  *  Preserve a templated span name: it is the stable operation name, whereas
@@ -103,6 +105,11 @@ const HTTP_METHOD_RE =
  *  try url.full, http.url, url.path, and http.target. When the name contains
  *  "unknown" and we can't build something better, returns just the method. */
 export function httpDisplayName(span: { name: string; attributes?: string | null }): string {
+  // Gotel names are already the canonical, bounded operation identity. Keep
+  // the application and client/server role visible instead of rebuilding a
+  // shorter label from url.full and losing exactly the ownership information
+  // the shared naming contract provides.
+  if (GOTEL_HTTP_NAME_RE.test(span.name)) return span.name
   try {
     const a = JSON.parse(span.attributes ?? '{}')
     // Extract HTTP method: prefer attributes, then accept common span names

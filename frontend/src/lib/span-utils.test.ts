@@ -212,6 +212,24 @@ describe('shortTraceId', () => {
 })
 
 describe('httpDisplayName', () => {
+  it('preserves canonical gotel application and HTTP role names', async () => {
+    const { httpDisplayName } = await import('./span-utils')
+    for (const name of [
+      'stonkpile.http.client.GET paper-api.alpaca.markets/v2/positions',
+      'stonkpile.http.server.GET /api/health',
+    ]) {
+      expect(
+        httpDisplayName({
+          name,
+          attributes: JSON.stringify({
+            'http.request.method': 'GET',
+            'url.full': 'https://paper-api.alpaca.markets/v2/positions',
+          }),
+        }),
+      ).toBe(name)
+    }
+  })
+
   it('prefers the stable http.route template over a concrete request path', async () => {
     const { httpDisplayName } = await import('./span-utils')
     expect(
