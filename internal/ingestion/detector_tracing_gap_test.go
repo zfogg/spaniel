@@ -148,14 +148,13 @@ func TestTracingGap_ClientDoesNotHideRealServerWorkWithClockSkew(t *testing.T) {
 	}
 }
 
-func TestTracingGap_InternalWorkAroundClientCallStillReports(t *testing.T) {
+func TestTracingGap_InternalOperationIsAlreadyExplicitCoverage(t *testing.T) {
 	operation := gapSpan("operation", "", 0, 1000)
 	operation.Kind = int(trace.SpanKindInternal)
 	client := gapSpan("client", "operation", 100, 200)
 	client.Kind = int(trace.SpanKindClient)
-	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, client}, 0)
-	if len(got) != 1 || got[0].ExampleSpanID != "operation" || got[0].WastedNs != int64(900*time.Millisecond) {
-		t.Fatalf("expected uncovered application work around the client call, got %+v", got)
+	if got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, client}, 0); len(got) != 0 {
+		t.Fatalf("named internal operation was treated as missing coverage: %+v", got)
 	}
 }
 
