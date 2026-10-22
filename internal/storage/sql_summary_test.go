@@ -54,6 +54,7 @@ func TestWithQueryNamePanicsOnInvalidName(t *testing.T) {
 
 func TestSQLSummary(t *testing.T) {
 	for _, tt := range []struct{ sql, want string }{
+		{"SELECT ratio_now()", "SELECT ratio_now()"},
 		{"SELECT * FROM spans WHERE trace_id = 'secret' ORDER BY start_ns DESC", "SELECT … FROM spans WHERE … ORDER BY …"},
 		{"SELECT id, service_name FROM spans WHERE trace_id = 'secret' AND kind = 2", "SELECT … FROM spans WHERE …"},
 		{"WITH recent AS (SELECT * FROM spans) SELECT * FROM recent", "WITH recent AS (SELECT … FROM spans) SELECT … FROM recent"},
