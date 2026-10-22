@@ -26,6 +26,9 @@ var rules = []LintRule{
 	{
 		ID: "span.missing_application_prefix", Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
+			if isProtocolSpan(s) {
+				return "", false
+			}
 			prefix := strings.SplitN(s.ServiceName, "-", 2)[0]
 			if prefix == "" || prefix == "unknown_service" || strings.HasPrefix(s.Name, prefix+".") {
 				return "", false
@@ -234,6 +237,25 @@ func IsHTTPSpan(s *storage.Span) bool {
 	}
 	for _, method := range []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "CONNECT", "TRACE"} {
 		if s.Name == method || strings.HasPrefix(s.Name, method+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+// isProtocolSpan identifies spans whose names are defined by an OpenTelemetry
+// protocol or instrumentation library rather than application code.
+func isProtocolSpan(s *storage.Span) bool {
+	if IsHTTPSpan(s) {
+		return true
+	}
+	for _, key := range []string{
+		"db.system.name", "db.system",
+		"rpc.system", "rpc.service", "rpc.method",
+		"messaging.system",
+		"temporalWorkflowType", "temporalActivityType",
+	} {
+		if hasAttr(s.Attributes, key) {
 			return true
 		}
 	}
