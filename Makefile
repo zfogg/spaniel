@@ -195,7 +195,7 @@ setup:
 test-ingestion:
 	mkdir -p $(BIN_DIR)
 	go test -c -o $(BIN_DIR)/ingestion.test$(EXE) ./internal/ingestion
-	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName' -test.v
+	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration' -test.v
 
 .PHONY: test-query-name-race
 test-query-name-race:

@@ -155,6 +155,49 @@ func TestPipelineIngestTraces_LintWarningsCreated(t *testing.T) {
 	}
 }
 
+func TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration(t *testing.T) {
+	db := openTestDB(t)
+	sess, err := db.CreateSession("negative-temporal-duration", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetActiveSession(sess.ID, sess.Label)
+
+	p := NewPipeline(db, ws.NewHub())
+	td := makeTraces("ratio-worker", func(ss ptrace.ScopeSpans) {
+		// Mirrors the negative-duration Temporal scheduling span observed in
+		// Ratio: a server-sourced start timestamp preceded a worker-local end
+		// timestamp by 1.0992ms. The execute span remains valid and must not
+		// be implicated by the lint.
+		putSpan(ss, "t", "s", "", "ratio.temporal.activity.schedule.Lifecycle", ptrace.SpanKindClient, map[string]string{"temporalActivityType": "Lifecycle"})
+		schedule := ss.Spans().At(0)
+		schedule.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+		schedule.SetEndTimestamp(pcommon.Timestamp(998_900_800))
+		putSpan(ss, "t", "e", "s", "ratio.temporal.activity.execute.Lifecycle", ptrace.SpanKindServer, map[string]string{"temporalActivityType": "Lifecycle"})
+	})
+	if err := p.IngestTraces(context.Background(), td); err != nil {
+		t.Fatalf("IngestTraces: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		warnings, queryErr := db.ListLintWarnings(sess.ID)
+		if queryErr != nil {
+			t.Fatal(queryErr)
+		}
+		for _, warning := range warnings {
+			if warning.RuleID == "negative_duration" {
+				if warning.SpanID != td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SpanID().String() {
+					t.Fatalf("negative-duration lint attached to %s, want scheduling span", warning.SpanID)
+				}
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("expected the negative Temporal scheduling duration to be linted")
+}
+
 func TestPipelineIngestTraces_DetectorDebouncedN1(t *testing.T) {
 	db := openTestDB(t)
 	sess, _ := db.CreateSession("n1-session", false)

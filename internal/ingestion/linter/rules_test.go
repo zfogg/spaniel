@@ -333,6 +333,25 @@ func TestZeroDuration_BothZero_DoesNotFire(t *testing.T) {
 	}
 }
 
+// --- negative_duration ---
+
+func TestNegativeDuration_EndBeforeStart_Fires(t *testing.T) {
+	rule := findRule("negative_duration")
+	s := buildSpan(3, "ratio-worker", map[string]string{"temporalActivityType": "Lifecycle"})
+	s.StartNs = 1_000_000_000
+	s.EndNs = 998_900_800 // -1.0992ms, observed on Temporal activity scheduling.
+	if _, fired := rule.Check(s); !fired {
+		t.Fatal("expected a negative-duration Temporal scheduling span to be linted")
+	}
+}
+
+func TestNegativeDuration_ValidSpanDoesNotFire(t *testing.T) {
+	rule := findRule("negative_duration")
+	if _, fired := rule.Check(buildSpan(3, "ratio-worker", map[string]string{"temporalActivityType": "Lifecycle"})); fired {
+		t.Fatal("valid span was incorrectly linted for negative duration")
+	}
+}
+
 // --- rpc.missing_system ---
 
 func TestRPCMissingSystem_WithRPCService_Fires(t *testing.T) {

@@ -168,6 +168,16 @@ var rules = []LintRule{
 		},
 	},
 	{
+		ID:       "negative_duration",
+		Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			if s.EndNs > 0 && s.EndNs < s.StartNs {
+				return "span ends before it starts; use one clock source for its timestamps", true
+			}
+			return "", false
+		},
+	},
+	{
 		ID:       "rpc.missing_system",
 		Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
