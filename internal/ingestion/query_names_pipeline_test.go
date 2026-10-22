@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -36,7 +37,7 @@ func TestStorageQueryNamePreparationDoesNotHideProcedureOrNamedQueryCollisions(t
 				span.Attributes = string(raw)
 				spans = append(spans, span)
 			}
-			if got := storageQueryNameLints(spans, 0); len(got) != 2 {
+			if got := linter.QueryNameLints(spans, 0); len(got) != 2 {
 				t.Fatalf("real executions exempted by incidental metadata: %+v", got)
 			}
 		})
@@ -105,7 +106,7 @@ func TestStorageQueryNamePrepareOTLPAndLateRealQueries(t *testing.T) {
 		}
 		ids := map[string]bool{}
 		for _, w := range all {
-			if w.RuleID == storageQueryNameRule {
+			if w.RuleID == linter.StorageQueryNameRule {
 				ids[w.SpanID] = true
 			}
 		}
@@ -146,7 +147,7 @@ func TestStorageQueryNamePrepareOTLPAndLateRealQueries(t *testing.T) {
 	}
 	count := 0
 	for _, w := range all {
-		if w.RuleID == storageQueryNameRule {
+		if w.RuleID == linter.StorageQueryNameRule {
 			count++
 		}
 	}

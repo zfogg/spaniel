@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 	"go.opentelemetry.io/otel"
@@ -27,14 +28,14 @@ func TestStorageQueryNameCollisionFlagsEveryOccurrence(t *testing.T) {
 		queryNameSpan("g", "trace", "HTTP GET", "SELECT cash FROM accounts"),
 		queryNameSpan("h", "trace", "ratio.storage.Shared", ""),
 	}
-	warnings := storageQueryNameLints(spans, 123)
+	warnings := linter.QueryNameLints(spans, 123)
 	if len(warnings) != 3 {
 		t.Fatalf("got %d warnings, want all 3 colliding spans", len(warnings))
 	}
 	seen := map[string]bool{}
 	for _, w := range warnings {
 		seen[w.SpanID] = true
-		if w.RuleID != storageQueryNameRule {
+		if w.RuleID != linter.StorageQueryNameRule {
 			t.Fatal(w)
 		}
 	}
@@ -47,7 +48,7 @@ func TestStorageQueryNameCollisionFlagsEveryOccurrence(t *testing.T) {
 
 func TestStorageQueryNameIdenticalTemplatesAreAllowed(t *testing.T) {
 	spans := []*storage.Span{queryNameSpan("a", "t", "app.storage.Account", "SELECT id FROM accounts WHERE id=?"), queryNameSpan("b", "t", "app.storage.Account", "SELECT id FROM accounts WHERE id=?")}
-	if got := storageQueryNameLints(spans, 0); len(got) != 0 {
+	if got := linter.QueryNameLints(spans, 0); len(got) != 0 {
 		t.Fatal(got)
 	}
 }
@@ -65,7 +66,7 @@ func TestStorageQueryNamePreparationUsesMetadataNotName(t *testing.T) {
 		for _, s := range []*storage.Span{a, b} {
 			s.Attributes = strings.TrimSuffix(s.Attributes, "}") + "," + attrs + "}"
 		}
-		if got := storageQueryNameLints([]*storage.Span{a, b}, 0); len(got) != 0 {
+		if got := linter.QueryNameLints([]*storage.Span{a, b}, 0); len(got) != 0 {
 			t.Fatalf("prepare metadata %s: %+v", attrs, got)
 		}
 	}
@@ -74,7 +75,7 @@ func TestStorageQueryNamePreparationUsesMetadataNotName(t *testing.T) {
 		queryNameSpan("a", "t", "app.storage.Prepare", "SELECT a FROM a"),
 		queryNameSpan("b", "t", "app.storage.Prepare", "SELECT b FROM b"),
 	}
-	if got := storageQueryNameLints(spans, 0); len(got) != 2 {
+	if got := linter.QueryNameLints(spans, 0); len(got) != 2 {
 		t.Fatalf("name alone suppressed collision: %+v", got)
 	}
 }
@@ -111,7 +112,7 @@ func TestStorageQueryNameLateSpansPersistWithoutDuplicateWarnings(t *testing.T) 
 	}
 	count := 0
 	for _, w := range warnings {
-		if w.RuleID == storageQueryNameRule {
+		if w.RuleID == linter.StorageQueryNameRule {
 			count++
 		}
 	}
@@ -153,7 +154,7 @@ func TestStorageQueryNameBufferedSamplerAuditsLateSpans(t *testing.T) {
 	}
 	count := 0
 	for _, w := range warnings {
-		if w.RuleID == storageQueryNameRule {
+		if w.RuleID == linter.StorageQueryNameRule {
 			count++
 		}
 	}
@@ -164,7 +165,7 @@ func TestStorageQueryNameBufferedSamplerAuditsLateSpans(t *testing.T) {
 
 func TestStorageQueryNameConcurrentAnalysisDeduplicates(t *testing.T) {
 	db := openTestDB(t)
-	warnings := storageQueryNameLints([]*storage.Span{
+	warnings := linter.QueryNameLints([]*storage.Span{
 		queryNameSpan("a", "concurrent", "app.storage.Shared", "SELECT id FROM accounts"),
 		queryNameSpan("b", "concurrent", "app.storage.Shared", "SELECT id FROM pairs"),
 	}, 123)
@@ -173,7 +174,7 @@ func TestStorageQueryNameConcurrentAnalysisDeduplicates(t *testing.T) {
 	errors := make(chan error, 8)
 	for range 8 {
 		work.Go(func() {
-			count, err := db.WithContext(t.Context()).InsertMissingTraceLints("concurrent", storageQueryNameRule, warnings)
+			count, err := db.WithContext(t.Context()).InsertMissingTraceLints("concurrent", linter.StorageQueryNameRule, warnings)
 			results <- count
 			errors <- err
 		})

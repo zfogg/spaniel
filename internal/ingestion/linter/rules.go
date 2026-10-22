@@ -1,4 +1,4 @@
-package ingestion
+package linter
 
 import (
 	"context"
@@ -23,7 +23,7 @@ var rules = []LintRule{
 		ID:       "http.missing_method",
 		Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if !isHTTPSpan(s) {
+			if !IsHTTPSpan(s) {
 				return "", false
 			}
 			if !hasAttr(s.Attributes, "http.request.method") && !hasAttr(s.Attributes, "http.method") {
@@ -36,7 +36,7 @@ var rules = []LintRule{
 		ID:       "http.missing_status_code",
 		Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if !isHTTPSpan(s) {
+			if !IsHTTPSpan(s) {
 				return "", false
 			}
 			if !hasAttr(s.Attributes, "http.response.status_code") && !hasAttr(s.Attributes, "http.status_code") {
@@ -135,7 +135,8 @@ var rules = []LintRule{
 
 // Span kind describes the transport role, not its protocol. SQL clients and
 // message producers must not be asked to invent HTTP attributes.
-func isHTTPSpan(s *storage.Span) bool {
+// IsHTTPSpan reports whether a span carries HTTP semantics.
+func IsHTTPSpan(s *storage.Span) bool {
 	if s.Kind != 2 && s.Kind != 3 {
 		return false
 	} // OTLP server=2, client=3
@@ -152,7 +153,8 @@ func isHTTPSpan(s *storage.Span) bool {
 	return false
 }
 
-func lintSpan(s *storage.Span, sessionID string, store *storage.DB, tracer trace.Tracer) {
+// LintSpan runs the semantic-convention lint rules for a persisted span.
+func LintSpan(s *storage.Span, sessionID string, store *storage.DB, tracer trace.Tracer) {
 	_, lspan := tracer.Start(context.Background(), "lintSpan",
 		trace.WithAttributes(
 			attribute.String("span_id", s.SpanID),

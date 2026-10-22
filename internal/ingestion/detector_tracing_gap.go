@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -38,7 +39,7 @@ func (*TracingGapDetector) Analyze(traceID, sessionID string, spans []*storage.S
 		// HTTP 101 transfers this handler to a long-lived upgraded protocol.
 		// Time between WebSocket messages is connection idle time, not missing
 		// request work. Analyze its child operations normally below.
-		if isHTTPSpan(s) && (extractAttrFloat64(s.Attributes, "http.response.status_code") == 101 || extractAttrFloat64(s.Attributes, "http.status_code") == 101) {
+		if linter.IsHTTPSpan(s) && (extractAttrFloat64(s.Attributes, "http.response.status_code") == 101 || extractAttrFloat64(s.Attributes, "http.status_code") == 101) {
 			continue
 		}
 		kids := children[s.SpanID]

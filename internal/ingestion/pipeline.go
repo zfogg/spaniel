@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
+	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
@@ -798,7 +799,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	// Buffered sampling bypasses runDetectors. Audit the persisted tree here
 	// too, including earlier batches of this trace, after accepted spans flush.
 	if persisted, err := p.store.GetTrace(traceID); err == nil {
-		persistStorageQueryNameLints(traceID, p.store, persisted, time.Now().UnixNano())
+		linter.PersistStorageQueryNameLints(traceID, p.store, persisted, time.Now().UnixNano())
 	}
 
 	// Store N+1 issues and broadcast.
@@ -820,7 +821,7 @@ func (p *Pipeline) scheduleLint(s *storage.Span) {
 	case p.lintSlots <- struct{}{}:
 		goroutine.Go(func() {
 			defer func() { <-p.lintSlots }()
-			lintSpan(s, s.SessionID, p.store, p.tracer)
+			linter.LintSpan(s, s.SessionID, p.store, p.tracer)
 		}, "subsystem", "linter")
 	default:
 		// Do not delay or retain an ingest request for best-effort linting.

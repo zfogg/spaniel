@@ -3,6 +3,7 @@ package ingestion
 import (
 	"fmt"
 
+	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -22,7 +23,7 @@ func (*ChattyHTTPDetector) Analyze(traceID, sessionID string, spans []*storage.S
 	for _, s := range spans {
 		// server.address also identifies PostgreSQL, Redis and RPC peers.
 		// Only outbound HTTP requests contribute to HTTP chattiness.
-		if s.Kind != 3 || !isHTTPSpan(s) {
+		if s.Kind != 3 || !linter.IsHTTPSpan(s) {
 			continue
 		}
 		host := httpHost(s.Attributes)

@@ -9,6 +9,10 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
+func findSubstr(s, sub string) bool {
+	return strings.Contains(s, sub)
+}
+
 // issueID builds a stable primary key for a TraceIssue.
 func issueID(traceID, kind, discriminator string) string {
 	return fmt.Sprintf("%s-%s-%s", traceID[:min(8, len(traceID))], kind, discriminator[:min(12, len(discriminator))])

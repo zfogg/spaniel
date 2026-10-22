@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xwb1989/sqlparser"
+	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -96,7 +97,7 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 // Preparation and transaction boundaries are not repeated data executions.
 // Keep them available to slow/error detectors, which still expose contention.
 func isN1LifecycleSpan(span *storage.Span, sql string) bool {
-	if isStatementPreparation(span) {
+	if linter.IsStatementPreparation(span) {
 		return true
 	}
 	operation := extractAttrString(span.Attributes, "db.operation.name")
