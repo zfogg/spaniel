@@ -1,45 +1,91 @@
-import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { type ReactNode } from 'react'
+import { LayoutGroup, motion, useReducedMotion } from 'motion/react'
+import { telemetryArrivalEase, telemetryArrivalMotion } from '@/lib/telemetry-arrival-motion'
+import { useNewItemIDs } from '@/lib/use-new-item-ids'
 
-const arrivalDurationMs = 5_000
-const arrivalTransition = { duration: arrivalDurationMs / 1_000, ease: [0.2, 0, 0, 1] as const }
-const resting = { opacity: 1, backgroundColor: 'transparent', boxShadow: 'inset 0 0 0 transparent' }
-
-/** A subtle first-seen cue for live telemetry rows. */
+/** One telemetry row: existing rows reflow and new rows enter from the header edge. */
 export function TelemetryArrival({
   arriving,
+  arrivalIndex = 0,
+  arrivalCount = 1,
   children,
 }: {
   arriving: boolean
-  children: React.ReactNode
+  arrivalIndex?: number
+  arrivalCount?: number
+  children: ReactNode
 }) {
-  // Starting this after mount matters: `initial` on a newly inserted row can
-  // be skipped when its parent updates within the same React commit.
-  const [isArriving, setIsArriving] = useState(false)
-
-  useEffect(() => {
-    if (!arriving) return
-    setIsArriving(true)
-    const timer = window.setTimeout(() => setIsArriving(false), arrivalDurationMs)
-    return () => window.clearTimeout(timer)
-  }, [arriving])
+  const reduceMotion = useReducedMotion()
+  const { entryDistance, duration } = telemetryArrivalMotion(arrivalIndex, arrivalCount)
+  const transition = { duration, ease: telemetryArrivalEase }
+  const initial = arriving && !reduceMotion ? { opacity: 0, y: -entryDistance } : false
 
   return (
     <motion.div
-      data-motion-arrival={isArriving ? 'true' : undefined}
-      initial={false}
-      animate={
-        isArriving
-          ? {
-              opacity: [0.35, 1],
-              backgroundColor: ['var(--accent-bg)', 'transparent'],
-              boxShadow: ['inset 4px 0 0 var(--accent)', 'inset 0 0 0 transparent'],
-            }
-          : resting
-      }
-      transition={arrivalTransition}
+      data-motion-arrival={arriving ? 'true' : undefined}
+      layout="position"
+      initial={initial}
+      animate={{
+        opacity: 1,
+        y: 0,
+        backgroundColor:
+          arriving && !reduceMotion ? ['var(--accent-bg)', 'transparent'] : 'transparent',
+        boxShadow:
+          arriving && !reduceMotion
+            ? ['inset 3px 0 0 var(--accent)', 'inset 0 0 0 transparent']
+            : 'inset 0 0 0 transparent',
+      }}
+      transition={{
+        layout: transition,
+        y: transition,
+        opacity: { duration: Math.min(0.2, duration), ease: telemetryArrivalEase },
+        backgroundColor: { duration: Math.max(0.38, duration * 1.6), ease: telemetryArrivalEase },
+        boxShadow: { duration: Math.max(0.38, duration * 1.6), ease: telemetryArrivalEase },
+      }}
     >
       {children}
     </motion.div>
+  )
+}
+
+/** Shared list plumbing for traces, spans, and logs. */
+export function TelemetryArrivalList<T>({
+  items,
+  trackedItems = items,
+  itemKey,
+  renderKey = itemKey,
+  children,
+}: {
+  items: readonly T[]
+  /** Full response used for arrival detection when this list is locally filtered. */
+  trackedItems?: readonly T[]
+  itemKey: (item: T) => string
+  renderKey?: (item: T, index: number) => string
+  children: (item: T, index: number) => ReactNode
+}) {
+  const arrivingIDs = useNewItemIDs(trackedItems, itemKey)
+  const arrivalCount = items.reduce(
+    (count, item) => count + Number(arrivingIDs.has(itemKey(item))),
+    0,
+  )
+  let arrivalIndex = 0
+
+  return (
+    <LayoutGroup>
+      {items.map((item, index) => {
+        const arriving = arrivingIDs.has(itemKey(item))
+        const currentArrivalIndex = arriving ? arrivalIndex++ : 0
+        return (
+          <TelemetryArrival
+            key={renderKey(item, index)}
+            arriving={arriving}
+            arrivalIndex={currentArrivalIndex}
+            arrivalCount={arrivalCount}
+          >
+            {children(item, index)}
+          </TelemetryArrival>
+        )
+      })}
+    </LayoutGroup>
   )
 }

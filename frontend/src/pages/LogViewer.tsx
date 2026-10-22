@@ -15,8 +15,7 @@ import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { matchesSevFilter, type SevFilter } from './log-severity-filter'
 import PaginationControls from '@/components/PaginationControls'
 import { AnimatePresence, motion } from 'motion/react'
-import { TelemetryArrival } from '@/components/TelemetryArrival'
-import { useNewItemIDs } from '@/lib/use-new-item-ids'
+import { TelemetryArrivalList } from '@/components/TelemetryArrival'
 import { logKey } from '@/lib/log-key'
 
 const PAGE_SIZE = 100
@@ -467,7 +466,6 @@ export default function LogViewer() {
       }),
   })
   const logs = logResponse?.data ?? []
-  const arrivingLogKeys = useNewItemIDs(logs, logKey)
   const logTotal = logResponse?.meta?.total ?? 0
   // Esc closes the inspector.
   useEffect(() => {
@@ -697,23 +695,22 @@ export default function LogViewer() {
 
               {/* rows */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden">
-                {filtered.map((log, i) => {
-                  // The backend may legitimately retain byte-for-byte
-                  // identical LogRecords. The position suffix gives React a
-                  // unique sibling key without pretending the records differ.
-                  const k = `${logKey(log)}:${i}`
-                  return (
-                    <TelemetryArrival key={k} arriving={arrivingLogKeys.has(logKey(log))}>
-                      <LogRow
-                        log={log}
-                        i={i}
-                        selected={selectedKey === logSelectionKey(log)}
-                        onSelect={() => setSelectedLog(log)}
-                        navigate={navigate}
-                      />
-                    </TelemetryArrival>
-                  )
-                })}
+                <TelemetryArrivalList
+                  items={filtered}
+                  trackedItems={logs}
+                  itemKey={logKey}
+                  renderKey={(log, i) => `${logKey(log)}:${i}`}
+                >
+                  {(log, i) => (
+                    <LogRow
+                      log={log}
+                      i={i}
+                      selected={selectedKey === logSelectionKey(log)}
+                      onSelect={() => setSelectedLog(log)}
+                      navigate={navigate}
+                    />
+                  )}
+                </TelemetryArrivalList>
               </div>
             </>
           )}

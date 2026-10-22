@@ -12,7 +12,7 @@ export function TimestampWithAgo({
   const now = useRelativeTimeNow()
   const timestamp = useMemo(() => formatTimestamp(nanoseconds), [nanoseconds])
   return (
-    <span className={stacked ? 'inline-flex flex-col' : undefined}>
+    <span className={stacked ? 'inline-flex flex-col' : 'whitespace-nowrap'}>
       <span>{timestamp}</span>
       {!stacked && ' · '}
       <span>{formatAgo(nanoseconds, now)}</span>

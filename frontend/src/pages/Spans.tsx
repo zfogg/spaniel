@@ -23,8 +23,7 @@ import PaginationControls from '@/components/PaginationControls'
 import { useRelativeTimeNow } from '@/components/shared/use-relative-time'
 import { fmtDuration, fmtClock, fmtRelative } from '@/lib/fmt-relative'
 import { AnimatePresence, motion } from 'motion/react'
-import { TelemetryArrival } from '@/components/TelemetryArrival'
-import { useNewItemIDs } from '@/lib/use-new-item-ids'
+import { TelemetryArrivalList } from '@/components/TelemetryArrival'
 
 // Global search: matches a span on its name, service, trace/span id, or any
 // attribute key/value. Used as the react-table globalFilterFn.
@@ -273,7 +272,6 @@ export default function Spans() {
     placeholderData: keepPreviousData,
   })
   const spans = useMemo(() => spanResponse?.data ?? [], [spanResponse])
-  const arrivingSpanIDs = useNewItemIDs(spans, (span) => span.span_id)
   const spanTotal = spanResponse?.meta?.total ?? 0
   const { data: selectedSpan } = useQuery({
     queryKey: ['span', selectedId],
@@ -717,12 +715,16 @@ export default function Spans() {
                     </div>
                   )
                 ) : (
-                  filtered.map((s) => {
-                    const isSel = s.span_id === selectedId
-                    const isSlow = s.duration_ns > SLOW_NS
-                    const kindLabel = KIND_LABELS[s.kind] ?? 'unknown'
-                    return (
-                      <TelemetryArrival key={s.span_id} arriving={arrivingSpanIDs.has(s.span_id)}>
+                  <TelemetryArrivalList
+                    items={filtered}
+                    trackedItems={spans}
+                    itemKey={(span) => span.span_id}
+                  >
+                    {(s) => {
+                      const isSel = s.span_id === selectedId
+                      const isSlow = s.duration_ns > SLOW_NS
+                      const kindLabel = KIND_LABELS[s.kind] ?? 'unknown'
+                      return (
                         <button
                           type="button"
                           data-testid={`span-row-${s.span_id}`}
@@ -772,9 +774,9 @@ export default function Spans() {
                             <TagBadge tag={s.tag} />
                           </div>
                         </button>
-                      </TelemetryArrival>
-                    )
-                  })
+                      )
+                    }}
+                  </TelemetryArrivalList>
                 )}
               </div>
             </div>

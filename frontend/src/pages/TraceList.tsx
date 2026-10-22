@@ -11,14 +11,16 @@ import { qk } from '../lib/query'
 import { api, TraceRow } from '../lib/api'
 import { traceTag } from '../lib/trace-tag'
 import { httpDisplayName } from '@/lib/span-utils'
-import { fmtRelative, fmtDateTime } from '../lib/fmt-relative'
+import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { SEARCH_PALETTE_EVENT } from '../lib/shortcuts'
 import { useLiveActivity } from '../lib/live-activity'
 import PaginationControls from '@/components/PaginationControls'
-import { TelemetryArrival } from '@/components/TelemetryArrival'
-import { useNewItemIDs } from '@/lib/use-new-item-ids'
+import { TelemetryArrivalList } from '@/components/TelemetryArrival'
 
-const GRID_COLS = 'minmax(280px,1fr) 190px 80px 55px 90px 65px 140px'
+// `formatTimestampWithAgo` can render a 40-character, 10px-monospace value
+// (for example, "10/22/2026, 5:34:59 AM · about 24 hours ago"). Keep that
+// unit on one line while leaving the operation column responsive.
+const GRID_COLS = 'minmax(280px,1fr) 190px 80px 55px 90px 244px'
 const SLOW_NS = 250_000_000
 const MAX_SESSIONS = 7
 const PAGE_SIZE = 100
@@ -312,17 +314,9 @@ function TraceRowItem({
         <DurBar durNs={trace.duration_ns} maxNs={maxNs} hot={hot} />
       </div>
 
-      {/* relative time */}
+      {/* timestamp + live relative time */}
       <div className="text-right font-mono text-[10px] text-[var(--ink3)]">
-        {fmtRelative(trace.start_ns)}
-      </div>
-
-      {/* absolute timestamp */}
-      <div
-        className="text-right font-mono text-[10px] text-[var(--ink3)]"
-        title={fmtDateTime(trace.start_ns)}
-      >
-        {fmtDateTime(trace.start_ns)}
+        <TimestampWithAgo nanoseconds={trace.start_ns} />
       </div>
     </div>
   )
@@ -464,7 +458,6 @@ export default function TraceList() {
   // Service/session filtering belongs to the response. Applying the new URL
   // filters to the previous response can briefly erase every visible row.
   const filtered = traces.filter(matchesQuick)
-  const arrivingTraceIDs = useNewItemIDs(traces, (trace) => trace.trace_id)
 
   useEffect(() => {
     setPage(1)
@@ -615,12 +608,15 @@ export default function TraceList() {
               <div className="text-right">dur</div>
               <div className="text-right">spans</div>
               <div className="pl-3">shape</div>
-              <div className="text-right">ago</div>
               <div className="text-right">timestamp</div>
             </div>
 
-            {filtered.map((t, i) => (
-              <TelemetryArrival key={t.trace_id} arriving={arrivingTraceIDs.has(t.trace_id)}>
+            <TelemetryArrivalList
+              items={filtered}
+              trackedItems={traces}
+              itemKey={(trace) => trace.trace_id}
+            >
+              {(t, i) => (
                 <TraceRowItem
                   trace={t}
                   maxNs={maxNs}
@@ -628,8 +624,8 @@ export default function TraceList() {
                   baselineSessionId={baselineSessionId}
                   onClick={() => navigate(`/traces/${t.trace_id}`)}
                 />
-              </TelemetryArrival>
-            ))}
+              )}
+            </TelemetryArrivalList>
           </div>
         )}
       </div>
