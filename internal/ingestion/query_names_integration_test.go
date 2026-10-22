@@ -14,7 +14,8 @@ import (
 
 func queryNameSpan(id, traceID, name, text string) *storage.Span {
 	attrs, _ := json.Marshal(map[string]string{"db.query.text": text, "db.system.name": "postgresql"})
-	return &storage.Span{SpanID: id, TraceID: traceID, Name: name, ServiceName: "test", Kind: 3, Attributes: string(attrs), StartNs: 1000, EndNs: 2000}
+	start := int64(1000 + len(id)*100 + int(id[0]))
+	return &storage.Span{SpanID: id, TraceID: traceID, Name: name, ServiceName: "ratio-api", Kind: 3, Attributes: string(attrs), StartNs: start, EndNs: start + 1000}
 }
 
 func TestStorageQueryNameCollisionFlagsEveryOccurrence(t *testing.T) {
@@ -121,7 +122,7 @@ func TestStorageQueryNameLateSpansPersistWithoutDuplicateWarnings(t *testing.T) 
 	}
 	_, total, err := db.ListNotifications("lint", 1, 100)
 	if err != nil || total != 1 {
-		t.Fatalf("notification flood: count=%d err=%v", total, err)
+		t.Fatalf("notification flood: count=%d err=%v warnings=%+v", total, err, warnings)
 	}
 }
 

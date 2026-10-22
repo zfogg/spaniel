@@ -24,6 +24,35 @@ func TestHTTPRulesRespectProtocolAndOTLPKinds(t *testing.T) {
 	}
 }
 
+func TestGotelConventionRules(t *testing.T) {
+	tests := []struct {
+		rule  string
+		span  *storage.Span
+		fires bool
+	}{
+		{"span.missing_application_prefix", namedSpan("ratio-api", "auth.verify", 1, nil), true},
+		{"span.missing_application_prefix", namedSpan("ratio-api", "ratio.auth.verify", 1, nil), false},
+		{"span.high_cardinality_path", namedSpan("ratio-api", "ratio.http.server.GET /orders/42", 2, map[string]string{"http.request.method": "GET", "url.path": "/orders/42"}), true},
+		{"http.client.missing_destination", namedSpan("ratio-api", "ratio.http.client.GET api.example/orders", 3, map[string]string{"http.request.method": "GET", "url.full": "https://api.example/orders"}), true},
+		{"http.server.raw_url_name", namedSpan("ratio-api", "ratio.http.server.GET https://ratio.test/orders?id=1", 2, map[string]string{"http.request.method": "GET"}), true},
+		{"redis.nonstandard_name", namedSpan("stonkpile-worker", "sscan", 3, map[string]string{"db.system.name": "redis"}), true},
+		{"redis.nonstandard_name", namedSpan("stonkpile-worker", "stonkpile.storage.redis.sscan", 3, map[string]string{"db.system.name": "redis"}), false},
+		{"temporal.nonstandard_name", namedSpan("ratio-worker", "RunActivity:Refresh", 1, map[string]string{"temporalActivityType": "Refresh"}), true},
+		{"temporal.nonstandard_name", namedSpan("ratio-worker", "ratio.temporal.activity.Refresh", 1, map[string]string{"temporalActivityType": "Refresh"}), false},
+	}
+	for _, tc := range tests {
+		if _, got := findRule(tc.rule).Check(tc.span); got != tc.fires {
+			t.Errorf("%s(%s) fired=%v want %v", tc.rule, tc.span.Name, got, tc.fires)
+		}
+	}
+}
+
+func namedSpan(service, name string, kind int, attrs map[string]string) *storage.Span {
+	s := buildSpan(kind, service, attrs)
+	s.Name = name
+	return s
+}
+
 // buildSpan creates a minimal *storage.Span for testing lint rules.
 func buildSpan(kind int, serviceName string, attrs map[string]string) *storage.Span {
 	attrsJSON := "{"

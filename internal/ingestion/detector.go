@@ -52,6 +52,7 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 	sessID := store.ActiveSessionID()
 	now := time.Now().UnixNano()
 	linter.PersistStorageQueryNameLints(traceID, store, spans, now)
+	linter.PersistDuplicateSpanLints(traceID, store, spans, now)
 
 	for _, d := range registry {
 		if !detectorSupportsTrace(d, spans) {

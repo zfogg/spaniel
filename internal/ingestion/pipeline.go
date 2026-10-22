@@ -799,6 +799,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	// too, including earlier batches of this trace, after accepted spans flush.
 	if persisted, err := p.store.GetTrace(traceID); err == nil {
 		linter.PersistStorageQueryNameLints(traceID, p.store, persisted, time.Now().UnixNano())
+		linter.PersistDuplicateSpanLints(traceID, p.store, persisted, time.Now().UnixNano())
 	}
 
 	// Store N+1 issues and broadcast.

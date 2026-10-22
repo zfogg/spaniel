@@ -2,6 +2,8 @@ package linter
 
 import (
 	"context"
+	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 	"github.com/zfogg/spaniel/internal/telemetry"
 )
 
+var dynamicPathSegment = regexp.MustCompile(`/(?:[0-9]+|[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,})(?:/|$)`)
+
 type LintRule struct {
 	ID       string
 	Severity string
@@ -19,6 +23,68 @@ type LintRule struct {
 }
 
 var rules = []LintRule{
+	{
+		ID: "span.missing_application_prefix", Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			prefix := strings.SplitN(s.ServiceName, "-", 2)[0]
+			if prefix == "" || prefix == "unknown_service" || strings.HasPrefix(s.Name, prefix+".") {
+				return "", false
+			}
+			return "span name is not prefixed with application name '" + prefix + ".'", true
+		},
+	},
+	{
+		ID: "span.high_cardinality_path", Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			path := firstAttr(s.Attributes, "http.route", "url.path", "http.target")
+			if dynamicPathSegment.MatchString(path) {
+				return "span contains a raw numeric or UUID path segment; use a route template", true
+			}
+			return "", false
+		},
+	},
+	{
+		ID: "http.client.missing_destination", Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			if s.Kind == 3 && IsHTTPSpan(s) && firstAttr(s.Attributes, "server.address", "net.peer.name", "http.host") == "" {
+				return "HTTP client span missing destination host", true
+			}
+			return "", false
+		},
+	},
+	{
+		ID: "http.server.raw_url_name", Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			if s.Kind == 2 && IsHTTPSpan(s) && (strings.Contains(s.Name, "://") || strings.ContainsAny(s.Name, "?#")) {
+				return "HTTP server span name contains a raw URL, query, or fragment", true
+			}
+			return "", false
+		},
+	},
+	{
+		ID: "redis.nonstandard_name", Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			if strings.EqualFold(firstAttr(s.Attributes, "db.system.name", "db.system"), "redis") {
+				prefix := strings.SplitN(s.ServiceName, "-", 2)[0] + ".storage.redis."
+				if !strings.HasPrefix(strings.ToLower(s.Name), strings.ToLower(prefix)) {
+					return "Redis span name must use " + prefix + "<command>", true
+				}
+			}
+			return "", false
+		},
+	},
+	{
+		ID: "temporal.nonstandard_name", Severity: "warning",
+		Check: func(s *storage.Span) (string, bool) {
+			if strings.Contains(s.Name, "temporal") || hasAttr(s.Attributes, "temporalWorkflowType") || hasAttr(s.Attributes, "temporalActivityType") {
+				prefix := strings.SplitN(s.ServiceName, "-", 2)[0] + ".temporal."
+				if !strings.HasPrefix(s.Name, prefix+"workflow.") && !strings.HasPrefix(s.Name, prefix+"activity.") && !strings.HasPrefix(s.Name, prefix+"workflow.child.") {
+					return "Temporal span name must identify the application and workflow/activity type", true
+				}
+			}
+			return "", false
+		},
+	},
 	{
 		ID:       "http.missing_method",
 		Severity: "warning",
@@ -131,6 +197,21 @@ var rules = []LintRule{
 			return "", false
 		},
 	},
+}
+
+func firstAttr(attrs string, keys ...string) string {
+	var values map[string]any
+	if json.Unmarshal([]byte(attrs), &values) != nil {
+		return ""
+	}
+	for _, key := range keys {
+		if value, ok := values[key]; ok {
+			if text, ok := value.(string); ok {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 // Span kind describes the transport role, not its protocol. SQL clients and
