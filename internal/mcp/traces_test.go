@@ -188,6 +188,17 @@ func TestListTraces_ServiceFilter(t *testing.T) {
 	}
 }
 
+func TestListTraces_OperationFilter(t *testing.T) {
+	cs, store := connect(t, Options{Version: "t"})
+	seedTrace(t, store, store.ActiveSessionID())
+	if got := callStructured[ListTracesOutput](t, cs, "list_traces", map[string]any{"operation": "api/users"}); got.Count != 1 {
+		t.Errorf("operation filter: got %d traces", got.Count)
+	}
+	if got := callStructured[ListTracesOutput](t, cs, "list_traces", map[string]any{"operation": "cart"}); got.Count != 0 {
+		t.Errorf("unmatched operation: got %d traces", got.Count)
+	}
+}
+
 func TestGetTrace(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
 	seedTrace(t, store, store.ActiveSessionID())

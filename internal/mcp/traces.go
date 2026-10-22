@@ -52,6 +52,7 @@ func (h *handler) resolveSession(sessionID string) string {
 type ListTracesInput struct {
 	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
 	Service   string `json:"service,omitempty" jsonschema:"filter to traces whose root span has this service.name"`
+	Operation string `json:"operation,omitempty" jsonschema:"case-insensitive substring of the root operation name"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"max traces to return (default 50, max 200)"`
 	Page      int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
@@ -87,6 +88,7 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 	rows, err := h.store.WithContext(ctx).ListTraces(storage.TraceFilter{
 		SessionID: sessionID,
 		Service:   in.Service,
+		Operation: in.Operation,
 		Limit:     limit,
 		Page:      in.Page,
 	})
@@ -360,6 +362,8 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 
 type ListSlowSpansInput struct {
 	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	Service   string `json:"service,omitempty" jsonschema:"only spans from this service.name"`
+	Operation string `json:"operation,omitempty" jsonschema:"only spans with this exact operation name"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"max spans to return (default 25, max 200)"`
 }
 
@@ -392,6 +396,8 @@ func (h *handler) listSlowSpans(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 
 	rows, err := h.store.WithContext(ctx).ListSpans(storage.SpanFilter{
 		SessionID: sessionID,
+		Service:   in.Service,
+		Name:      in.Operation,
 		Sort:      "dur",
 		Limit:     limit,
 	})

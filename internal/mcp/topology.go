@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -34,7 +35,7 @@ func (h *handler) registerTopologyTools(s *mcpsdk.Server) {
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_metrics",
-		Description: "List the metric catalog for a session: each metric name with its type (gauge/counter/histogram), unit, description, service, and sample count. Use get_metric_series to fetch the actual data points. Defaults to the active session.",
+		Description: "List the metric catalog for a session, filterable by service, name, and type. Each entry has its type, unit, description, service, and sample count. Use get_metric_series for actual data points. Defaults to the active session.",
 		Annotations: readOnly,
 	}, h.getMetrics)
 
@@ -153,6 +154,11 @@ func (h *handler) getStats(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 
 type GetMetricsInput struct {
 	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	Service   string `json:"service,omitempty" jsonschema:"only metrics from this service.name"`
+	Name      string `json:"name,omitempty" jsonschema:"case-insensitive metric-name substring"`
+	Type      string `json:"type,omitempty" jsonschema:"only this metric type: gauge, counter, histogram, or summary"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"max catalog entries to return (default 100, max 500)"`
+	Page      int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
 
 type MetricCatalogOut struct {
@@ -172,16 +178,40 @@ type GetMetricsOutput struct {
 
 func (h *handler) getMetrics(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetMetricsInput) (*mcpsdk.CallToolResult, GetMetricsOutput, error) {
 	sessionID := h.resolveSession(in.SessionID)
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	page := in.Page
+	if page < 1 {
+		page = 1
+	}
 	entries, err := h.store.WithContext(ctx).ListMetricCatalog(sessionID)
 	if err != nil {
 		return nil, GetMetricsOutput{}, fmt.Errorf("get metrics: %w", err)
 	}
 	out := GetMetricsOutput{SessionID: sessionID, Metrics: []MetricCatalogOut{}}
+	start := (page - 1) * limit
+	matched := 0
 	for _, e := range entries {
+		if in.Service != "" && e.ServiceName != in.Service || in.Type != "" && e.Type != in.Type || in.Name != "" && !strings.Contains(strings.ToLower(e.Name), strings.ToLower(in.Name)) {
+			continue
+		}
+		if matched < start {
+			matched++
+			continue
+		}
+		matched++
 		out.Metrics = append(out.Metrics, MetricCatalogOut{
 			Name: e.Name, Type: e.Type, Unit: e.Unit, Description: e.Description,
 			Service: e.ServiceName, SampleCount: e.SampleCount,
 		})
+		if len(out.Metrics) >= limit {
+			break
+		}
 	}
 	out.Count = len(out.Metrics)
 	return nil, out, nil

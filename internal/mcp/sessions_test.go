@@ -60,6 +60,16 @@ func TestListSessions(t *testing.T) {
 	}
 }
 
+func TestListSessions_Filters(t *testing.T) {
+	cs, store := connect(t, Options{Version: "t"})
+	if _, err := store.CreateSession("baseline-run", true); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if got := callStructured[ListSessionsOutput](t, cs, "list_sessions", map[string]any{"search": "baseline", "baseline": true}); got.Count != 1 || got.Sessions[0].Label != "baseline-run" {
+		t.Errorf("filtered sessions = %+v", got.Sessions)
+	}
+}
+
 func TestDiffSessions(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
 

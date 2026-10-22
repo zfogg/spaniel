@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -15,7 +16,7 @@ func (h *handler) registerSessionTools(s *mcpsdk.Server) {
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "list_sessions",
-		Description: "List all sessions (recording runs) with span/trace/error counts, p95 latency, and which one is active or marked as a baseline. Sessions are how Spaniel groups telemetry; use the ids here with the session_id argument of other tools or with diff_sessions.",
+		Description: "List recording sessions with span/trace/error counts, p95 latency, and active/baseline state. Filter by label, baseline/imported state, and created-time window. Use returned ids with session_id arguments or diff_sessions.",
 		Annotations: readOnly,
 	}, h.listSessions)
 
@@ -43,20 +44,51 @@ type SessionOut struct {
 	Note       string  `json:"note,omitempty"`
 }
 
+type ListSessionsInput struct {
+	Search   string `json:"search,omitempty" jsonschema:"case-insensitive label or note substring"`
+	Baseline *bool  `json:"baseline,omitempty" jsonschema:"only baseline (true) or non-baseline (false) sessions"`
+	Imported *bool  `json:"imported,omitempty" jsonschema:"only imported (true) or local (false) sessions"`
+	FromNs   int64  `json:"from_ns,omitempty" jsonschema:"inclusive created-time lower bound (unix ns); 0 = no bound"`
+	ToNs     int64  `json:"to_ns,omitempty" jsonschema:"inclusive created-time upper bound (unix ns); 0 = no bound"`
+	Limit    int    `json:"limit,omitempty" jsonschema:"max sessions to return (default 100, max 500)"`
+	Page     int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
+}
+
 type ListSessionsOutput struct {
 	ActiveSessionID string       `json:"active_session_id"`
 	Count           int          `json:"count"`
 	Sessions        []SessionOut `json:"sessions"`
 }
 
-func (h *handler) listSessions(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ListSessionsOutput, error) {
+func (h *handler) listSessions(ctx context.Context, _ *mcpsdk.CallToolRequest, in ListSessionsInput) (*mcpsdk.CallToolResult, ListSessionsOutput, error) {
 	sessions, err := h.store.WithContext(ctx).ListSessions()
 	if err != nil {
 		return nil, ListSessionsOutput{}, fmt.Errorf("list sessions: %w", err)
 	}
 	active := h.store.ActiveSessionID()
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	page := in.Page
+	if page < 1 {
+		page = 1
+	}
+	needle := strings.ToLower(strings.TrimSpace(in.Search))
 	out := ListSessionsOutput{ActiveSessionID: active, Sessions: []SessionOut{}}
+	start, matched := (page-1)*limit, 0
 	for _, s := range sessions {
+		if needle != "" && !strings.Contains(strings.ToLower(s.Label+"\n"+s.Note), needle) || in.Baseline != nil && s.IsBaseline != *in.Baseline || in.Imported != nil && s.IsImported != *in.Imported || in.FromNs > 0 && s.CreatedAt < in.FromNs || in.ToNs > 0 && s.CreatedAt > in.ToNs {
+			continue
+		}
+		if matched < start {
+			matched++
+			continue
+		}
+		matched++
 		out.Sessions = append(out.Sessions, SessionOut{
 			ID:         s.ID,
 			Label:      s.Label,
@@ -71,6 +103,9 @@ func (h *handler) listSessions(ctx context.Context, _ *mcpsdk.CallToolRequest, _
 			CreatedAt:  s.CreatedAt,
 			Note:       s.Note,
 		})
+		if len(out.Sessions) >= limit {
+			break
+		}
 	}
 	out.Count = len(out.Sessions)
 	return nil, out, nil
