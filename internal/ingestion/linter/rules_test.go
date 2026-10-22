@@ -234,6 +234,19 @@ func TestDBMissingStatement_WithSystemNoStatement_Fires(t *testing.T) {
 	}
 }
 
+func TestDBMissingStatement_RedisOperationWithoutQueryText_DoesNotFire(t *testing.T) {
+	rule := findRule("db.missing_statement")
+	for _, systemAttr := range []string{"db.system.name", "db.system"} {
+		s := buildSpan(3, "ratio-worker", map[string]string{
+			systemAttr:         "redis",
+			"db.operation.name": "PUBLISH",
+		})
+		if _, fired := rule.Check(s); fired {
+			t.Errorf("expected rule NOT to fire for Redis span using %s", systemAttr)
+		}
+	}
+}
+
 func TestDBMissingStatement_NoSystem_DoesNotFire(t *testing.T) {
 	rule := findRule("db.missing_statement")
 	s := buildSpan(0, "svc", map[string]string{})

@@ -129,7 +129,13 @@ var rules = []LintRule{
 		ID:       "db.missing_statement",
 		Severity: "info",
 		Check: func(s *storage.Span) (string, bool) {
-			if !hasAttr(s.Attributes, "db.system.name") && !hasAttr(s.Attributes, "db.system") {
+			system := firstAttr(s.Attributes, "db.system.name", "db.system")
+			if system == "" {
+				return "", false
+			}
+			// Redis protocol operations are fully described by db.operation.name;
+			// unlike SQL database spans, they do not carry db.query.text.
+			if strings.EqualFold(system, "redis") {
 				return "", false
 			}
 			if !hasAttr(s.Attributes, "db.query.text") && !hasAttr(s.Attributes, "db.statement") {
