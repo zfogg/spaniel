@@ -26,7 +26,7 @@ var rules = []LintRule{
 	{
 		ID: "span.missing_application_prefix", Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if isProtocolSpan(s) {
+			if strings.HasSuffix(s.ServiceName, "-keycloak") || isProtocolSpan(s) {
 				return "", false
 			}
 			prefix := strings.SplitN(s.ServiceName, "-", 2)[0]

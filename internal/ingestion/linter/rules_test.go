@@ -33,6 +33,7 @@ func TestGotelConventionRules(t *testing.T) {
 		{"span.missing_application_prefix", namedSpan("ratio-api", "auth.verify", 1, nil), true},
 		{"span.missing_application_prefix", namedSpan("ratio-api", "ratio.auth.verify", 1, nil), false},
 		{"span.missing_application_prefix", namedSpan("ratio-keycloak", "SELECT keycloak.OFFLINE_USER_SESSION", 3, map[string]string{"db.system.name": "postgresql"}), false},
+		{"span.missing_application_prefix", namedSpan("ratio-keycloak", "DefaultKeycloakTransactionManager.commit", 1, nil), false},
 		{"span.missing_application_prefix", namedSpan("ratio-api", "GET /health", 2, map[string]string{"http.request.method": "GET", "http.route": "/health"}), false},
 		{"span.high_cardinality_path", namedSpan("ratio-api", "ratio.http.server.GET /orders/42", 2, map[string]string{"http.request.method": "GET", "url.path": "/orders/42"}), true},
 		{"http.client.missing_destination", namedSpan("ratio-api", "ratio.http.client.GET api.example/orders", 3, map[string]string{"http.request.method": "GET", "url.full": "https://api.example/orders"}), true},
