@@ -32,6 +32,8 @@ go.work.sum
 .env
 
 # spaniel build artifacts
+/bin/
+/.local/
 frontend/dist/*
 !frontend/dist/.placeholder
 frontend/node_modules/
