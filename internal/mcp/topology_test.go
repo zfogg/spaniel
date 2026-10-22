@@ -71,7 +71,7 @@ func TestGetServiceMap_TimeWindow(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
 	seedTrace(t, store, store.ActiveSessionID())
 
-	out := callStructured[ServiceMapOutput](t, cs, "get_service_map", map[string]any{"from_ns": 1_500_000})
+	out := callStructured[ServiceMapOutput](t, cs, "get_service_map", map[string]any{"from_ns": "1500000"})
 	if len(out.Nodes) != 1 || out.Nodes[0].Service != "postgres" {
 		t.Fatalf("windowed service-map nodes = %+v, want postgres only", out.Nodes)
 	}

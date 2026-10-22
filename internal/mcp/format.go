@@ -58,6 +58,41 @@ func parseStatusFilter(value string) (int, bool, error) {
 	}
 }
 
+// UnixNanos is a decimal nanosecond timestamp. It is deliberately a string:
+// JSON numbers cannot exactly represent current Unix nanoseconds in JavaScript.
+type UnixNanos string
+
+func (n *UnixNanos) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*n = ""
+		return nil
+	}
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return fmt.Errorf("unix-nanosecond timestamps must be decimal strings: %w", err)
+	}
+	if value == "" {
+		*n = ""
+		return nil
+	}
+	if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+		return fmt.Errorf("invalid unix-nanosecond timestamp %q: %w", value, err)
+	}
+	*n = UnixNanos(value)
+	return nil
+}
+
+func (n UnixNanos) Int64(field string) (int64, error) {
+	if n == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseInt(string(n), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", field, n, err)
+	}
+	return value, nil
+}
+
 // severityString maps an OTel log severity number to its name.
 func severityString(sev int) string {
 	switch {

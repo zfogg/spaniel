@@ -202,7 +202,7 @@ func TestListTraces_OperationFilter(t *testing.T) {
 func TestListTraces_DeepFilters(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
 	seedTrace(t, store, store.ActiveSessionID())
-	if got := callStructured[ListTracesOutput](t, cs, "list_traces", map[string]any{"status": "ok", "from_ns": 1_000_000, "to_ns": 1_000_000, "min_duration_ms": 150, "issue_kind": "n_plus_one"}); got.Count != 1 {
+	if got := callStructured[ListTracesOutput](t, cs, "list_traces", map[string]any{"status": "ok", "from_ns": "1000000", "to_ns": "1000000", "min_duration_ms": 150, "issue_kind": "n_plus_one"}); got.Count != 1 {
 		t.Errorf("deep filters returned %d traces", got.Count)
 	}
 	if got := callStructured[ListTracesOutput](t, cs, "list_traces", map[string]any{"status": "error"}); got.Count != 0 {
@@ -346,7 +346,7 @@ func TestListSlowSpans_DeepFilters(t *testing.T) {
 	seedTrace(t, store, store.ActiveSessionID())
 
 	out := callStructured[ListSlowSpansOutput](t, cs, "list_slow_spans", map[string]any{
-		"status": "error", "tag": "n+1", "from_ns": 1_000_000, "to_ns": 400_000_000,
+		"status": "error", "tag": "n+1", "from_ns": "1000000", "to_ns": "400000000",
 		"min_duration_ms": 250,
 	})
 	if out.Count != 1 || out.Spans[0].SpanID != dbSpanID {
@@ -354,5 +354,28 @@ func TestListSlowSpans_DeepFilters(t *testing.T) {
 	}
 	if !callToolIsError(t, cs, "list_slow_spans", map[string]any{"tag": "unknown"}) {
 		t.Error("expected invalid tag error")
+	}
+}
+
+func TestListSlowSpans_TagFilteredBeforePagination(t *testing.T) {
+	cs, store := connect(t, Options{Version: "t"})
+	seedTrace(t, store, store.ActiveSessionID())
+	if err := store.InsertSpan(&storage.Span{
+		TraceID: "clean-error-trace", SpanID: "clean-error-span", ServiceName: "api", Name: "GET /error",
+		StartNs: 500_000_000, EndNs: 600_000_000, StatusCode: 2, SessionID: store.ActiveSessionID(), SessionLabel: store.ActiveSessionID(), ReceivedAt: 1,
+	}); err != nil {
+		t.Fatalf("insert clean error span: %v", err)
+	}
+
+	out := callStructured[ListSlowSpansOutput](t, cs, "list_slow_spans", map[string]any{"tag": "error", "limit": 1})
+	if out.Count != 1 || out.Spans[0].SpanID != "clean-error-span" {
+		t.Fatalf("tag-filtered page = %+v, want clean error span", out.Spans)
+	}
+}
+
+func TestMCPTimeBoundsRequireDecimalStrings(t *testing.T) {
+	cs, _ := connect(t, Options{Version: "t"})
+	if !callToolIsError(t, cs, "list_traces", map[string]any{"from_ns": 1_000_000}) {
+		t.Error("expected numeric from_ns to be rejected")
 	}
 }

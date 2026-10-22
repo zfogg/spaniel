@@ -49,10 +49,10 @@ func (h *handler) registerTopologyTools(s *mcpsdk.Server) {
 // ---- get_service_map ----
 
 type GetServiceMapInput struct {
-	SessionID string   `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
-	Services  []string `json:"services,omitempty" jsonschema:"optional service.name allow-list; returned edges require both endpoints"`
-	FromNs    int64    `json:"from_ns,omitempty" jsonschema:"inclusive span-start lower bound (unix ns); 0 = no bound"`
-	ToNs      int64    `json:"to_ns,omitempty" jsonschema:"inclusive span-start upper bound (unix ns); 0 = no bound"`
+	SessionID string    `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	Services  []string  `json:"services,omitempty" jsonschema:"optional service.name allow-list; returned edges require both endpoints"`
+	FromNs    UnixNanos `json:"from_ns,omitempty" jsonschema:"inclusive span-start lower bound as a decimal unix-ns string; omit for no bound"`
+	ToNs      UnixNanos `json:"to_ns,omitempty" jsonschema:"inclusive span-start upper bound as a decimal unix-ns string; omit for no bound"`
 }
 
 type ServiceNodeOut struct {
@@ -78,7 +78,15 @@ type ServiceMapOutput struct {
 
 func (h *handler) getServiceMap(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetServiceMapInput) (*mcpsdk.CallToolResult, ServiceMapOutput, error) {
 	sessionID := h.resolveSession(in.SessionID)
-	data, err := h.store.WithContext(ctx).GetServiceMapInWindow(sessionID, in.FromNs, in.ToNs)
+	fromNs, err := in.FromNs.Int64("from_ns")
+	if err != nil {
+		return nil, ServiceMapOutput{}, err
+	}
+	toNs, err := in.ToNs.Int64("to_ns")
+	if err != nil {
+		return nil, ServiceMapOutput{}, err
+	}
+	data, err := h.store.WithContext(ctx).GetServiceMapInWindow(sessionID, fromNs, toNs)
 	if err != nil {
 		return nil, ServiceMapOutput{}, fmt.Errorf("get service map: %w", err)
 	}

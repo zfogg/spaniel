@@ -50,16 +50,16 @@ func (h *handler) resolveSession(sessionID string) string {
 // ---- list_traces ----
 
 type ListTracesInput struct {
-	SessionID     string  `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
-	Service       string  `json:"service,omitempty" jsonschema:"filter to traces whose root span has this service.name"`
-	Operation     string  `json:"operation,omitempty" jsonschema:"case-insensitive substring of the root operation name"`
-	Status        string  `json:"status,omitempty" jsonschema:"only root spans with this status: unset, ok, or error"`
-	FromNs        int64   `json:"from_ns,omitempty" jsonschema:"inclusive root-start lower bound (unix ns); 0 = no bound"`
-	ToNs          int64   `json:"to_ns,omitempty" jsonschema:"inclusive root-start upper bound (unix ns); 0 = no bound"`
-	MinDurationMs float64 `json:"min_duration_ms,omitempty" jsonschema:"only traces at least this long"`
-	IssueKind     string  `json:"issue_kind,omitempty" jsonschema:"only traces containing this detector finding kind"`
-	Limit         int     `json:"limit,omitempty" jsonschema:"max traces to return (default 50, max 200)"`
-	Page          int     `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
+	SessionID     string    `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	Service       string    `json:"service,omitempty" jsonschema:"filter to traces whose root span has this service.name"`
+	Operation     string    `json:"operation,omitempty" jsonschema:"case-insensitive substring of the root operation name"`
+	Status        string    `json:"status,omitempty" jsonschema:"only root spans with this status: unset, ok, or error"`
+	FromNs        UnixNanos `json:"from_ns,omitempty" jsonschema:"inclusive root-start lower bound as a decimal unix-ns string; omit for no bound"`
+	ToNs          UnixNanos `json:"to_ns,omitempty" jsonschema:"inclusive root-start upper bound as a decimal unix-ns string; omit for no bound"`
+	MinDurationMs float64   `json:"min_duration_ms,omitempty" jsonschema:"only traces at least this long"`
+	IssueKind     string    `json:"issue_kind,omitempty" jsonschema:"only traces containing this detector finding kind"`
+	Limit         int       `json:"limit,omitempty" jsonschema:"max traces to return (default 50, max 200)"`
+	Page          int       `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
 
 type TraceSummary struct {
@@ -93,12 +93,20 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 	if err != nil {
 		return nil, ListTracesOutput{}, err
 	}
+	fromNs, err := in.FromNs.Int64("from_ns")
+	if err != nil {
+		return nil, ListTracesOutput{}, err
+	}
+	toNs, err := in.ToNs.Int64("to_ns")
+	if err != nil {
+		return nil, ListTracesOutput{}, err
+	}
 
 	rows, err := h.store.WithContext(ctx).ListTraces(storage.TraceFilter{
 		SessionID:  sessionID,
 		Service:    in.Service,
 		Operation:  in.Operation,
-		StatusCode: status, HasStatus: hasStatus, FromNs: in.FromNs, ToNs: in.ToNs,
+		StatusCode: status, HasStatus: hasStatus, FromNs: fromNs, ToNs: toNs,
 		MinDurationNs: int64(in.MinDurationMs * 1_000_000), IssueKind: in.IssueKind,
 		Limit: limit,
 		Page:  in.Page,
@@ -372,16 +380,16 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 // ---- list_slow_spans ----
 
 type ListSlowSpansInput struct {
-	SessionID     string  `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
-	Service       string  `json:"service,omitempty" jsonschema:"only spans from this service.name"`
-	Operation     string  `json:"operation,omitempty" jsonschema:"only spans with this exact operation name"`
-	Status        string  `json:"status,omitempty" jsonschema:"only this status: ok, error, or unset"`
-	Tag           string  `json:"tag,omitempty" jsonschema:"only this computed tag: n+1, error, slow, or lint"`
-	FromNs        int64   `json:"from_ns,omitempty" jsonschema:"inclusive span-start lower bound (unix ns); 0 = no bound"`
-	ToNs          int64   `json:"to_ns,omitempty" jsonschema:"inclusive span-start upper bound (unix ns); 0 = no bound"`
-	MinDurationMs float64 `json:"min_duration_ms,omitempty" jsonschema:"only spans at least this duration in milliseconds"`
-	Limit         int     `json:"limit,omitempty" jsonschema:"max spans to return (default 25, max 200)"`
-	Page          int     `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
+	SessionID     string    `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	Service       string    `json:"service,omitempty" jsonschema:"only spans from this service.name"`
+	Operation     string    `json:"operation,omitempty" jsonschema:"only spans with this exact operation name"`
+	Status        string    `json:"status,omitempty" jsonschema:"only this status: ok, error, or unset"`
+	Tag           string    `json:"tag,omitempty" jsonschema:"only this computed tag: n+1, error, slow, or lint"`
+	FromNs        UnixNanos `json:"from_ns,omitempty" jsonschema:"inclusive span-start lower bound as a decimal unix-ns string; omit for no bound"`
+	ToNs          UnixNanos `json:"to_ns,omitempty" jsonschema:"inclusive span-start upper bound as a decimal unix-ns string; omit for no bound"`
+	MinDurationMs float64   `json:"min_duration_ms,omitempty" jsonschema:"only spans at least this duration in milliseconds"`
+	Limit         int       `json:"limit,omitempty" jsonschema:"max spans to return (default 25, max 200)"`
+	Page          int       `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
 
 type SlowSpanOut struct {
@@ -417,6 +425,14 @@ func (h *handler) listSlowSpans(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	if in.Tag != "" && in.Tag != "n+1" && in.Tag != "error" && in.Tag != "slow" && in.Tag != "lint" {
 		return nil, ListSlowSpansOutput{}, fmt.Errorf("invalid tag %q; use n+1, error, slow, or lint", in.Tag)
 	}
+	fromNs, err := in.FromNs.Int64("from_ns")
+	if err != nil {
+		return nil, ListSlowSpansOutput{}, err
+	}
+	toNs, err := in.ToNs.Int64("to_ns")
+	if err != nil {
+		return nil, ListSlowSpansOutput{}, err
+	}
 
 	rows, err := h.store.WithContext(ctx).ListSpans(storage.SpanFilter{
 		SessionID:     sessionID,
@@ -425,8 +441,8 @@ func (h *handler) listSlowSpans(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		HasStatus:     hasStatus,
 		StatusCode:    statusCode,
 		Tag:           in.Tag,
-		FromNs:        in.FromNs,
-		ToNs:          in.ToNs,
+		FromNs:        fromNs,
+		ToNs:          toNs,
 		MinDurationNs: int64(in.MinDurationMs * 1_000_000),
 		Sort:          "dur",
 		Limit:         limit,
