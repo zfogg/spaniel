@@ -69,8 +69,8 @@ func TestStorageWALCheckpointPreservesModesAndPrioritizesEviction(t *testing.T) 
 		{"unlimited", 0, false, 200, true, false},
 		{"preserve", 100, false, 90, true, false},
 		{"preserve at cap", 100, false, 100, true, true},
-		{"auto below high water", 100, true, 79, true, false},
-		{"auto eviction priority", 100, true, 80, false, false},
+		{"auto below high water", 100, true, 94, true, false},
+		{"auto eviction priority", 100, true, 95, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &fakeStorageGuardStore{size: tc.size}
@@ -163,7 +163,7 @@ func TestStorageGuardProactiveMaintenanceKeepsShortBudget(t *testing.T) {
 
 func TestStorageGuardSpacesBelowCapMaintenancePhases(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 90, retainSize: true}
+	store := &fakeStorageGuardStore{size: 95, retainSize: true}
 
 	checkStorageGuard(store, policy)
 	checkStorageGuard(store, policy)
@@ -204,7 +204,7 @@ func TestStorageGuardDisabledPreservesDataUntilCap(t *testing.T) {
 
 func TestStorageGuardEnabledPrunesBeforeCap(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 80, activeID: "active"}
+	store := &fakeStorageGuardStore{size: 95, activeID: "active"}
 
 	checkStorageGuard(store, policy)
 
@@ -221,7 +221,7 @@ func TestStorageGuardEnabledPrunesBeforeCap(t *testing.T) {
 
 func TestStorageGuardEnabledPausesBeforeCapWhenPruneFails(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 85, pruneErr: errors.New("boom")}
+	store := &fakeStorageGuardStore{size: 95, pruneErr: errors.New("boom")}
 
 	checkStorageGuard(store, policy)
 
@@ -242,7 +242,7 @@ func TestStoragePolicyDisablesAutomaticSizeRetention(t *testing.T) {
 }
 
 func TestStorageGuardSoftTargetFailureKeepsBelowCapWritable(t *testing.T) {
-	for _, size := range []int64{400, 499, 500, 501} {
+	for _, size := range []int64{475, 499, 500, 501} {
 		policy := newStorageGuardPolicy(500, true)
 		store := &fakeStorageGuardStore{size: size, pruneErr: storage.ErrRetentionTargetUnreached}
 		checkStorageGuard(store, policy)
@@ -254,7 +254,7 @@ func TestStorageGuardSoftTargetFailureKeepsBelowCapWritable(t *testing.T) {
 		}
 	}
 	policy := newStorageGuardPolicy(500, true)
-	store := &fakeStorageGuardStore{size: 450, pruneErr: errors.Join(storage.ErrRetentionTargetUnreached, errors.New("disk failure"))}
+	store := &fakeStorageGuardStore{size: 490, pruneErr: errors.Join(storage.ErrRetentionTargetUnreached, errors.New("disk failure"))}
 	checkStorageGuard(store, policy)
 	if !store.full {
 		t.Fatal("mixed genuine storage failure must remain blocked")
