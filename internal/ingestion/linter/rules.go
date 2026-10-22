@@ -79,7 +79,7 @@ var rules = []LintRule{
 	{
 		ID: "temporal.nonstandard_name", Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if strings.Contains(s.Name, "temporal") || hasAttr(s.Attributes, "temporalWorkflowType") || hasAttr(s.Attributes, "temporalActivityType") {
+			if hasAttr(s.Attributes, "temporalWorkflowType") || hasAttr(s.Attributes, "temporalActivityType") {
 				prefix := strings.SplitN(s.ServiceName, "-", 2)[0] + ".temporal."
 				if !strings.HasPrefix(s.Name, prefix+"workflow.") && !strings.HasPrefix(s.Name, prefix+"activity.") && !strings.HasPrefix(s.Name, prefix+"workflow.child.") {
 					return "Temporal span name must identify the application and workflow/activity type", true

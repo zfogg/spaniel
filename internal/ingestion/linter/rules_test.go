@@ -41,6 +41,7 @@ func TestGotelConventionRules(t *testing.T) {
 		{"redis.nonstandard_name", namedSpan("stonkpile-worker", "stonkpile.storage.redis.sscan", 3, map[string]string{"db.system.name": "redis"}), false},
 		{"temporal.nonstandard_name", namedSpan("ratio-worker", "RunActivity:Refresh", 1, map[string]string{"temporalActivityType": "Refresh"}), true},
 		{"temporal.nonstandard_name", namedSpan("ratio-worker", "ratio.temporal.activity.Refresh", 1, map[string]string{"temporalActivityType": "Refresh"}), false},
+		{"temporal.nonstandard_name", namedSpan("ratio-api", "ratio.temporal.health", 1, nil), false},
 	}
 	for _, tc := range tests {
 		if _, got := findRule(tc.rule).Check(tc.span); got != tc.fires {
