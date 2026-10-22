@@ -28,12 +28,16 @@ type TraceRow struct {
 }
 
 type TraceFilter struct {
-	Services  []string
-	SessionID string
-	Service   string
-	Operation string
-	Limit     int
-	Page      int
+	Services                    []string
+	SessionID                   string
+	Service                     string
+	Operation                   string
+	IssueKind                   string
+	StatusCode                  int
+	HasStatus                   bool
+	FromNs, ToNs, MinDurationNs int64
+	Limit                       int
+	Page                        int
 }
 
 func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
@@ -48,7 +52,7 @@ func (d *DB) ListTraces(f TraceFilter) ([]*TraceRow, error) {
 		f.Operation = "%" + f.Operation + "%"
 	}
 
-	rows, err := d.query.Span.ListTraces(f.SessionID, f.Service, f.Operation, f.Limit, offset, f.Services)
+	rows, err := d.query.Span.ListTraces(f.SessionID, f.Service, f.Operation, f.HasStatus, f.StatusCode, f.FromNs, f.ToNs, f.MinDurationNs, f.IssueKind, f.Limit, offset, f.Services)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +78,7 @@ func (d *DB) CountTraces(f TraceFilter) (int, error) {
 	if f.Operation != "" {
 		f.Operation = "%" + f.Operation + "%"
 	}
-	rows, err := d.query.Span.CountTraces(f.SessionID, f.Service, f.Operation, f.Services)
+	rows, err := d.query.Span.CountTraces(f.SessionID, f.Service, f.Operation, f.HasStatus, f.StatusCode, f.FromNs, f.ToNs, f.MinDurationNs, f.IssueKind, f.Services)
 	if err != nil {
 		return 0, err
 	}

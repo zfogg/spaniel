@@ -114,15 +114,21 @@ func (d *DB) GetSpan(spanID string) (*Span, error) {
 }
 
 type SpanFilter struct {
-	Services  []string
-	SessionID string
-	Sort      string // "time" | "dur" | "name"
-	Limit     int
-	Page      int
-	Service   string
-	Name      string
-	Kind      int
-	HasKind   bool
+	Services      []string
+	SessionID     string
+	Sort          string // "time" | "dur" | "name"
+	Limit         int
+	Page          int
+	Service       string
+	Name          string
+	Kind          int
+	HasKind       bool
+	StatusCode    int
+	HasStatus     bool
+	FromNs        int64
+	ToNs          int64
+	MinDurationNs int64
+	Tag           string
 }
 
 type SpanRow = model.SpanRow
@@ -137,7 +143,7 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 	if f.Page < 1 {
 		f.Page = 1
 	}
-	rows, err := d.query.Span.ListTagged(f.SessionID, f.Service, f.Name, f.HasKind, f.Kind, f.Sort, f.Limit, (f.Page-1)*f.Limit, f.Services)
+	rows, err := d.query.Span.ListTagged(f.SessionID, f.Service, f.Name, f.HasKind, f.Kind, f.HasStatus, f.StatusCode, f.FromNs, f.ToNs, f.MinDurationNs, f.Tag, f.Sort, f.Limit, (f.Page-1)*f.Limit, f.Services)
 	if err != nil {
 		return nil, err
 	}

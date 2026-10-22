@@ -64,7 +64,13 @@ func (d *DB) ListSignalServices(sessionID, signal string) ([]string, error) {
 }
 
 func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
-	nodeRows, err := d.query.Span.ListServiceMapNodes(sessionID)
+	return d.GetServiceMapInWindow(sessionID, 0, 0)
+}
+
+// GetServiceMapInWindow returns a service dependency graph scoped to an
+// optional inclusive span-start time window. Zero bounds leave that side open.
+func (d *DB) GetServiceMapInWindow(sessionID string, fromNs, toNs int64) (*ServiceMapData, error) {
+	nodeRows, err := d.query.Span.ListServiceMapNodes(sessionID, fromNs, toNs)
 	if err != nil {
 		return nil, fmt.Errorf("service map nodes: %w", err)
 	}
@@ -75,14 +81,14 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 
 	// Top operations per service for the inspector panel.
 	for _, n := range nodes {
-		ops, err := d.topOperationsForService(n.ID, sessionID, 5)
+		ops, err := d.topOperationsForService(n.ID, sessionID, fromNs, toNs, 5)
 		if err != nil {
 			return nil, fmt.Errorf("top ops for %s: %w", n.ID, err)
 		}
 		n.TopOps = ops
 	}
 
-	edgeRows, err := d.query.Span.ListServiceMapEdges(sessionID)
+	edgeRows, err := d.query.Span.ListServiceMapEdges(sessionID, fromNs, toNs)
 	if err != nil {
 		return nil, fmt.Errorf("service map edges: %w", err)
 	}
@@ -102,8 +108,8 @@ func (d *DB) GetServiceMap(sessionID string) (*ServiceMapData, error) {
 
 // topOperationsForService returns the N most-common (service, name) pairs for
 // the inspector panel, with per-op p95 latency.
-func (d *DB) topOperationsForService(service, sessionID string, limit int) ([]ServiceMapOpStat, error) {
-	return d.query.Span.ListTopOperations(service, sessionID, limit)
+func (d *DB) topOperationsForService(service, sessionID string, fromNs, toNs int64, limit int) ([]ServiceMapOpStat, error) {
+	return d.query.Span.ListTopOperations(service, sessionID, fromNs, toNs, limit)
 }
 
 // GetServiceP95 returns the p95 duration_ns for spans of the given service.

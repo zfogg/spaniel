@@ -43,6 +43,21 @@ func statusString(code int) string {
 	}
 }
 
+func parseStatusFilter(value string) (int, bool, error) {
+	switch value {
+	case "":
+		return 0, false, nil
+	case "unset":
+		return 0, true, nil
+	case "ok":
+		return 1, true, nil
+	case "error":
+		return 2, true, nil
+	default:
+		return 0, false, fmt.Errorf("invalid status %q; use unset, ok, or error", value)
+	}
+}
+
 // severityString maps an OTel log severity number to its name.
 func severityString(sev int) string {
 	switch {

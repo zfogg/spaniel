@@ -199,6 +199,17 @@ func TestListTraces_OperationFilter(t *testing.T) {
 	}
 }
 
+func TestListTraces_DeepFilters(t *testing.T) {
+	cs, store := connect(t, Options{Version: "t"})
+	seedTrace(t, store, store.ActiveSessionID())
+	if got := callStructured[ListTracesOutput](t, cs, "list_traces", map[string]any{"status": "ok", "from_ns": 1_000_000, "to_ns": 1_000_000, "min_duration_ms": 150, "issue_kind": "n_plus_one"}); got.Count != 1 {
+		t.Errorf("deep filters returned %d traces", got.Count)
+	}
+	if got := callStructured[ListTracesOutput](t, cs, "list_traces", map[string]any{"status": "error"}); got.Count != 0 {
+		t.Errorf("unmatched status returned %d traces", got.Count)
+	}
+}
+
 func TestGetTrace(t *testing.T) {
 	cs, store := connect(t, Options{Version: "t"})
 	seedTrace(t, store, store.ActiveSessionID())
@@ -327,5 +338,21 @@ func TestListSlowSpans(t *testing.T) {
 	// Both spans belong to a trace with an n+1 issue, so they carry the n+1 tag.
 	if out.Spans[0].Tag != "n+1" {
 		t.Errorf("tag = %q, want n+1", out.Spans[0].Tag)
+	}
+}
+
+func TestListSlowSpans_DeepFilters(t *testing.T) {
+	cs, store := connect(t, Options{Version: "t"})
+	seedTrace(t, store, store.ActiveSessionID())
+
+	out := callStructured[ListSlowSpansOutput](t, cs, "list_slow_spans", map[string]any{
+		"status": "error", "tag": "n+1", "from_ns": 1_000_000, "to_ns": 400_000_000,
+		"min_duration_ms": 250,
+	})
+	if out.Count != 1 || out.Spans[0].SpanID != dbSpanID {
+		t.Fatalf("filtered slow spans = %+v, want only %q", out.Spans, dbSpanID)
+	}
+	if !callToolIsError(t, cs, "list_slow_spans", map[string]any{"tag": "unknown"}) {
+		t.Error("expected invalid tag error")
 	}
 }

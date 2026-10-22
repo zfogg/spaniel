@@ -54,11 +54,11 @@ func TestN1LifecycleFilterPreservesRealQueriesAndAdvisoryLocks(t *testing.T) {
 		"INSERT INTO cycle_phases(phase) VALUES ('ROLLBACK')",
 		"SELECT * FROM prepare_orders WHERE id=1",
 	} {
-		spans := []*storage.Span{makeDBSpan("one", "parent", sql, 0), makeDBSpan("two", "parent", sql, 0)}
+		spans := []*storage.Span{makeDBSpan("one", "parent", sql, 0), makeDBSpan("two", "parent", sql, 0), makeDBSpan("three", "parent", sql, 0)}
 		for _, span := range spans {
 			span.Name = "app.storage.prepare"
 		}
-		if got := (&N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 1 || got[0].Count != 2 {
+		if got := (&N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 1 || got[0].Count != 3 {
 			t.Fatalf("real repeated query hidden: %s %+v", sql, got)
 		}
 	}

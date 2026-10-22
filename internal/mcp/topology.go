@@ -17,7 +17,7 @@ func (h *handler) registerTopologyTools(s *mcpsdk.Server) {
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_service_map",
-		Description: "Get the service dependency graph for a session: nodes (services with span/error counts and p95 latency) and edges (caller→callee with call counts, average duration, and errors). Use to understand how services call each other and where errors concentrate. Defaults to the active session.",
+		Description: "Get the service dependency graph for a session, optionally limited to a span-start time window or service allow-list: nodes include span/error counts and p95 latency; edges include call counts, average duration, and errors. Defaults to the active session.",
 		Annotations: readOnly,
 	}, h.getServiceMap)
 
@@ -51,6 +51,8 @@ func (h *handler) registerTopologyTools(s *mcpsdk.Server) {
 type GetServiceMapInput struct {
 	SessionID string   `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
 	Services  []string `json:"services,omitempty" jsonschema:"optional service.name allow-list; returned edges require both endpoints"`
+	FromNs    int64    `json:"from_ns,omitempty" jsonschema:"inclusive span-start lower bound (unix ns); 0 = no bound"`
+	ToNs      int64    `json:"to_ns,omitempty" jsonschema:"inclusive span-start upper bound (unix ns); 0 = no bound"`
 }
 
 type ServiceNodeOut struct {
@@ -76,7 +78,7 @@ type ServiceMapOutput struct {
 
 func (h *handler) getServiceMap(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetServiceMapInput) (*mcpsdk.CallToolResult, ServiceMapOutput, error) {
 	sessionID := h.resolveSession(in.SessionID)
-	data, err := h.store.WithContext(ctx).GetServiceMap(sessionID)
+	data, err := h.store.WithContext(ctx).GetServiceMapInWindow(sessionID, in.FromNs, in.ToNs)
 	if err != nil {
 		return nil, ServiceMapOutput{}, fmt.Errorf("get service map: %w", err)
 	}
