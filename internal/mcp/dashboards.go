@@ -35,7 +35,10 @@ func (h *handler) registerDashboardTools(s *mcpsdk.Server) {
 }
 
 type ListDashboardsInput struct {
-	Search string `json:"search,omitempty" jsonschema:"case-insensitive name or description substring"`
+	Search        string `json:"search,omitempty" jsonschema:"case-insensitive name or description substring"`
+	ManagedByFile *bool  `json:"managed_by_file,omitempty" jsonschema:"only file-managed (true) or local (false) dashboards"`
+	Limit         int    `json:"limit,omitempty" jsonschema:"max dashboards to return (default 100, max 500)"`
+	Page          int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
 
 type DashboardSummary struct {
@@ -60,12 +63,32 @@ func (h *handler) listDashboards(ctx context.Context, _ *mcpsdk.CallToolRequest,
 		return nil, ListDashboardsOutput{}, fmt.Errorf("list dashboards: %w", err)
 	}
 	needle := strings.ToLower(strings.TrimSpace(in.Search))
+	limit, page := in.Limit, in.Page
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	if page < 1 {
+		page = 1
+	}
 	out := ListDashboardsOutput{Dashboards: []DashboardSummary{}}
+	matched, start := 0, (page-1)*limit
 	for _, dashboard := range dashboards {
-		if needle != "" && !strings.Contains(strings.ToLower(dashboard.Name+"\n"+dashboard.Description), needle) {
+		managed := dashboard.SourceFile != ""
+		if needle != "" && !strings.Contains(strings.ToLower(dashboard.Name+"\n"+dashboard.Description), needle) || in.ManagedByFile != nil && managed != *in.ManagedByFile {
 			continue
 		}
-		out.Dashboards = append(out.Dashboards, DashboardSummary{ID: dashboard.ID, Name: dashboard.Name, Description: dashboard.Description, PanelCount: len(dashboard.Panels), VariableCount: len(dashboard.Variables), ManagedByFile: dashboard.SourceFile != "", UpdatedAt: dashboard.UpdatedAt, Link: "/dashboards?id=" + dashboard.ID})
+		if matched < start {
+			matched++
+			continue
+		}
+		matched++
+		out.Dashboards = append(out.Dashboards, DashboardSummary{ID: dashboard.ID, Name: dashboard.Name, Description: dashboard.Description, PanelCount: len(dashboard.Panels), VariableCount: len(dashboard.Variables), ManagedByFile: managed, UpdatedAt: dashboard.UpdatedAt, Link: "/dashboards?id=" + dashboard.ID})
+		if len(out.Dashboards) >= limit {
+			break
+		}
 	}
 	out.Count = len(out.Dashboards)
 	return nil, out, nil

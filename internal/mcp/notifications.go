@@ -7,6 +7,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/zfogg/spaniel/internal/model"
+	"github.com/zfogg/spaniel/internal/storage"
 )
 
 func (h *handler) registerNotificationTools(s *mcpsdk.Server) {
@@ -19,9 +20,15 @@ func (h *handler) registerNotificationTools(s *mcpsdk.Server) {
 }
 
 type ListNotificationsInput struct {
-	Source string `json:"source,omitempty"`
-	Page   int    `json:"page,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
+	Source       string `json:"source,omitempty" jsonschema:"only this source, e.g. alert, lint, or issue"`
+	Severity     string `json:"severity,omitempty" jsonschema:"only this severity"`
+	Unread       *bool  `json:"unread,omitempty" jsonschema:"true for unread only; false for read only"`
+	Acknowledged *bool  `json:"acknowledged,omitempty" jsonschema:"true for acknowledged only; false for unacknowledged only"`
+	Search       string `json:"search,omitempty" jsonschema:"case-insensitive title or body substring"`
+	FromNs       int64  `json:"from_ns,omitempty" jsonschema:"inclusive created-time lower bound (unix ns); 0 = no bound"`
+	ToNs         int64  `json:"to_ns,omitempty" jsonschema:"inclusive created-time upper bound (unix ns); 0 = no bound"`
+	Page         int    `json:"page,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
 }
 
 type ListNotificationsOutput struct {
@@ -38,7 +45,7 @@ func (h *handler) listNotifications(ctx context.Context, _ *mcpsdk.CallToolReque
 	if limit < 1 || limit > 100 {
 		limit = 30
 	}
-	items, total, err := h.store.WithContext(ctx).ListNotifications(in.Source, page, limit)
+	items, total, err := h.store.WithContext(ctx).ListNotificationsFiltered(storage.NotificationFilter{Source: in.Source, Severity: in.Severity, Unread: in.Unread, Acknowledged: in.Acknowledged, Search: in.Search, FromNs: in.FromNs, ToNs: in.ToNs}, page, limit)
 	if err != nil {
 		return nil, ListNotificationsOutput{}, err
 	}

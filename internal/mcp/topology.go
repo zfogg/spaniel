@@ -49,7 +49,8 @@ func (h *handler) registerTopologyTools(s *mcpsdk.Server) {
 // ---- get_service_map ----
 
 type GetServiceMapInput struct {
-	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	SessionID string   `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	Services  []string `json:"services,omitempty" jsonschema:"optional service.name allow-list; returned edges require both endpoints"`
 }
 
 type ServiceNodeOut struct {
@@ -80,13 +81,23 @@ func (h *handler) getServiceMap(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		return nil, ServiceMapOutput{}, fmt.Errorf("get service map: %w", err)
 	}
 	out := ServiceMapOutput{SessionID: sessionID, Nodes: []ServiceNodeOut{}, Edges: []ServiceEdgeOut{}}
+	allowed := map[string]bool{}
+	for _, service := range in.Services {
+		allowed[service] = true
+	}
 	if data != nil {
 		for _, n := range data.Nodes {
+			if len(allowed) > 0 && !allowed[n.ID] {
+				continue
+			}
 			out.Nodes = append(out.Nodes, ServiceNodeOut{
 				Service: n.ID, SpanCount: n.SpanCount, ErrorCount: n.ErrorCount, P95Ms: nsToMs(n.P95Ns),
 			})
 		}
 		for _, e := range data.Edges {
+			if len(allowed) > 0 && (!allowed[e.From] || !allowed[e.To]) {
+				continue
+			}
 			out.Edges = append(out.Edges, ServiceEdgeOut{
 				From: e.From, To: e.To, CallCount: e.CallCount, AvgMs: nsToMs(e.AvgDurationNs), ErrorCount: e.ErrorCount,
 			})
@@ -97,20 +108,47 @@ func (h *handler) getServiceMap(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 
 // ---- list_services ----
 
+type ListServicesInput struct {
+	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to active"`
+	Signal    string `json:"signal,omitempty" jsonschema:"spans, traces, logs, or metrics; defaults to spans"`
+	Search    string `json:"search,omitempty" jsonschema:"case-insensitive service.name substring"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"max services to return (default 100, max 500)"`
+	Page      int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
+}
+
 type ListServicesOutput struct {
 	Count    int      `json:"count"`
 	Services []string `json:"services"`
 }
 
-func (h *handler) listServices(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ListServicesOutput, error) {
-	services, err := h.store.WithContext(ctx).ListServices("")
+func (h *handler) listServices(ctx context.Context, _ *mcpsdk.CallToolRequest, in ListServicesInput) (*mcpsdk.CallToolResult, ListServicesOutput, error) {
+	limit, page := in.Limit, in.Page
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	if page < 1 {
+		page = 1
+	}
+	services, err := h.store.WithContext(ctx).ListSignalServices(h.resolveSession(in.SessionID), in.Signal)
 	if err != nil {
 		return nil, ListServicesOutput{}, fmt.Errorf("list services: %w", err)
 	}
 	if services == nil {
 		services = []string{}
 	}
-	return nil, ListServicesOutput{Count: len(services), Services: services}, nil
+	filtered := make([]string, 0, len(services))
+	needle := strings.ToLower(in.Search)
+	for _, service := range services {
+		if needle == "" || strings.Contains(strings.ToLower(service), needle) {
+			filtered = append(filtered, service)
+		}
+	}
+	start := min((page-1)*limit, len(filtered))
+	end := min(start+limit, len(filtered))
+	return nil, ListServicesOutput{Count: end - start, Services: filtered[start:end]}, nil
 }
 
 // ---- get_stats ----
@@ -220,12 +258,14 @@ func (h *handler) getMetrics(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 // ---- get_metric_series ----
 
 type GetMetricSeriesInput struct {
-	Name      string `json:"name" jsonschema:"metric name (from get_metrics)"`
-	Service   string `json:"service,omitempty" jsonschema:"narrow to one service"`
-	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
-	FromNs    int64  `json:"from_ns,omitempty" jsonschema:"inclusive lower bound (unix ns); 0 = no bound"`
-	ToNs      int64  `json:"to_ns,omitempty" jsonschema:"inclusive upper bound (unix ns); 0 = no bound"`
-	Limit     int    `json:"limit,omitempty" jsonschema:"max points to return (default 500)"`
+	Name           string `json:"name" jsonschema:"metric name (from get_metrics)"`
+	Service        string `json:"service,omitempty" jsonschema:"narrow to one service"`
+	SessionID      string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	FromNs         int64  `json:"from_ns,omitempty" jsonschema:"inclusive lower bound (unix ns); 0 = no bound"`
+	ToNs           int64  `json:"to_ns,omitempty" jsonschema:"inclusive upper bound (unix ns); 0 = no bound"`
+	Limit          int    `json:"limit,omitempty" jsonschema:"max points to return (default 500)"`
+	AttributeKey   string `json:"attribute_key,omitempty" jsonschema:"only points containing this attribute key"`
+	AttributeValue string `json:"attribute_value,omitempty" jsonschema:"optional exact value for attribute_key"`
 }
 
 type MetricPointOut struct {
@@ -259,6 +299,7 @@ func (h *handler) getMetricSeries(ctx context.Context, _ *mcpsdk.CallToolRequest
 		SessionID: sessionID,
 		FromNs:    in.FromNs,
 		ToNs:      in.ToNs,
+		Limit:     limit,
 	})
 	if err != nil {
 		return nil, GetMetricSeriesOutput{}, fmt.Errorf("get metric series: %w", err)
@@ -266,11 +307,15 @@ func (h *handler) getMetricSeries(ctx context.Context, _ *mcpsdk.CallToolRequest
 
 	out := GetMetricSeriesOutput{SessionID: sessionID, Name: in.Name, Points: []MetricPointOut{}}
 	for _, p := range points {
+		attrs := parseAttrs(p.Attributes)
+		if in.AttributeKey != "" && (attrs[in.AttributeKey] == "" || in.AttributeValue != "" && attrs[in.AttributeKey] != in.AttributeValue) {
+			continue
+		}
 		out.Points = append(out.Points, MetricPointOut{
 			TimestampNs: p.TimestampNs,
 			Value:       p.Value,
 			Service:     p.ServiceName,
-			Attributes:  parseAttrs(p.Attributes),
+			Attributes:  attrs,
 			Exemplars:   p.Exemplars,
 		})
 		if len(out.Points) >= limit {

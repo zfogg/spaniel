@@ -9,6 +9,12 @@ import (
 
 type NotificationRecord = model.NotificationRecord
 
+type NotificationFilter struct {
+	Source, Severity, Search string
+	Unread, Acknowledged     *bool
+	FromNs, ToNs             int64
+}
+
 func (d *DB) RecordNotification(n *NotificationRecord) error {
 	if n.ID == "" {
 		n.ID = uuid.NewString()
@@ -26,6 +32,11 @@ func (d *DB) RecordNotification(n *NotificationRecord) error {
 }
 
 func (d *DB) ListNotifications(source string, page, limit int) ([]*NotificationRecord, int64, error) {
+	return d.ListNotificationsFiltered(NotificationFilter{Source: source}, page, limit)
+}
+
+// ListNotificationsFiltered applies inbox predicates before paging.
+func (d *DB) ListNotificationsFiltered(f NotificationFilter, page, limit int) ([]*NotificationRecord, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -33,8 +44,35 @@ func (d *DB) ListNotifications(source string, page, limit int) ([]*NotificationR
 		limit = 30
 	}
 	q := d.query.NotificationRecord.Where()
-	if source != "" {
-		q = q.Where(d.query.NotificationRecord.Source.Eq(source))
+	if f.Source != "" {
+		q = q.Where(d.query.NotificationRecord.Source.Eq(f.Source))
+	}
+	if f.Severity != "" {
+		q = q.Where(d.query.NotificationRecord.Severity.Eq(f.Severity))
+	}
+	if f.Unread != nil {
+		if *f.Unread {
+			q = q.Where(d.query.NotificationRecord.ReadAt.IsNull())
+		} else {
+			q = q.Where(d.query.NotificationRecord.ReadAt.IsNotNull())
+		}
+	}
+	if f.Acknowledged != nil {
+		if *f.Acknowledged {
+			q = q.Where(d.query.NotificationRecord.AcknowledgedAt.IsNotNull())
+		} else {
+			q = q.Where(d.query.NotificationRecord.AcknowledgedAt.IsNull())
+		}
+	}
+	if f.FromNs > 0 {
+		q = q.Where(d.query.NotificationRecord.CreatedAt.Gte(f.FromNs))
+	}
+	if f.ToNs > 0 {
+		q = q.Where(d.query.NotificationRecord.CreatedAt.Lte(f.ToNs))
+	}
+	if f.Search != "" {
+		pattern := "%" + f.Search + "%"
+		q = q.Where(d.query.NotificationRecord.Title.Like(pattern)).Or(d.query.NotificationRecord.Body.Like(pattern))
 	}
 	total, err := q.Count()
 	if err != nil {

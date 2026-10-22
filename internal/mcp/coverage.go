@@ -54,20 +54,52 @@ func (h *handler) getCoverage(ctx context.Context, _ *mcpsdk.CallToolRequest, in
 	return nil, CoverageOutput{SessionID: sessionID, Report: report}, nil
 }
 
+type ListCoverageSpecsInput struct {
+	Service string `json:"service,omitempty" jsonschema:"only specs for this service.name"`
+	Enabled *bool  `json:"enabled,omitempty" jsonschema:"only enabled (true) or disabled (false) specs"`
+	Search  string `json:"search,omitempty" jsonschema:"case-insensitive spec-name substring"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"max specs to return (default 100, max 500)"`
+	Page    int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
+}
+
 type ListCoverageSpecsOutput struct {
 	Count int                   `json:"count"`
 	Specs []*model.CoverageSpec `json:"specs"`
 }
 
-func (h *handler) listCoverageSpecs(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ListCoverageSpecsOutput, error) {
+func (h *handler) listCoverageSpecs(ctx context.Context, _ *mcpsdk.CallToolRequest, in ListCoverageSpecsInput) (*mcpsdk.CallToolResult, ListCoverageSpecsOutput, error) {
 	specs, err := h.store.WithContext(ctx).ListCoverageSpecs()
 	if err != nil {
 		return nil, ListCoverageSpecsOutput{}, err
 	}
-	for _, spec := range specs {
-		spec.Content = ""
+	limit, page := in.Limit, in.Page
+	if limit <= 0 {
+		limit = 100
 	}
-	return nil, ListCoverageSpecsOutput{Count: len(specs), Specs: specs}, nil
+	if limit > 500 {
+		limit = 500
+	}
+	if page < 1 {
+		page = 1
+	}
+	matched, start := 0, (page-1)*limit
+	filtered := make([]*model.CoverageSpec, 0, limit)
+	for _, spec := range specs {
+		if in.Service != "" && spec.ServiceName != in.Service || in.Enabled != nil && spec.Enabled != *in.Enabled || in.Search != "" && !strings.Contains(strings.ToLower(spec.Name), strings.ToLower(in.Search)) {
+			continue
+		}
+		if matched < start {
+			matched++
+			continue
+		}
+		matched++
+		spec.Content = ""
+		filtered = append(filtered, spec)
+		if len(filtered) >= limit {
+			break
+		}
+	}
+	return nil, ListCoverageSpecsOutput{Count: len(filtered), Specs: filtered}, nil
 }
 
 type CoverageSpecInput struct {
