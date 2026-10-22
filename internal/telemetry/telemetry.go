@@ -3,12 +3,10 @@ package telemetry
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/zfogg/gotel"
 	"github.com/zfogg/gotel/otelhost"
-	goruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/exemplar"
@@ -16,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var goruntimeOnce sync.Once
 var application = gotel.NewApplication("spaniel")
 
 func Application() gotel.Application       { return application }
@@ -66,16 +63,12 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 			sdkmetric.WithView(sdkmetric.NewView(sdkmetric.Instrument{Name: "http.server.request.body.size"}, sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: bodySizeBounds}})),
 			sdkmetric.WithView(sdkmetric.NewView(sdkmetric.Instrument{Name: "http.server.response.body.size"}, sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: bodySizeBounds}})),
 		},
-		Slog: &otelhost.SlogConfig{Scope: "spaniel", Attributes: []slog.Attr{slog.String("spaniel.log.source", "spaniel")}},
+		Slog:           &otelhost.SlogConfig{Scope: "spaniel", Attributes: []slog.Attr{slog.String("spaniel.log.source", "spaniel")}},
+		RuntimeMetrics: true,
 	})
 	if err != nil {
 		return nil, err
 	}
 	InitMetrics()
-	goruntimeOnce.Do(func() {
-		if err := goruntime.Start(); err != nil {
-			slog.Warn("runtime metrics unavailable", "err", err)
-		}
-	})
 	return runtime.Shutdown, nil
 }
