@@ -76,3 +76,38 @@ func TestMaintenanceDrainsSQLAndRestoresIngestion(t *testing.T) {
 		t.Fatalf("logs=%d", count)
 	}
 }
+
+func TestMaintenanceOwnsDuckDBWorkAfterCallerDeadline(t *testing.T) {
+	d, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	err = d.WithContext(ctx).withMaintenance(func(isolated *DB) error {
+		<-ctx.Done()
+		if err := isolated.gorm.Statement.Context.Err(); err != nil {
+			return errors.New("maintenance inherited a canceled caller context")
+		}
+		return isolated.checkpointWithRetry()
+	})
+	if err != nil {
+		t.Fatalf("exclusive maintenance failed after caller deadline: %v", err)
+	}
+
+	if err := d.AppendLog(&Log{Body: "after canceled caller", Attributes: `{}`, ServiceName: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.FlushBatch(); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := d.SQL().QueryRow("SELECT count(*) FROM logs").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("logs=%d", count)
+	}
+}

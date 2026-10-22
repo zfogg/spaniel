@@ -177,9 +177,14 @@ func (d *DB) exclusiveSQLMaintenancePinned(pinned int, fn func(*DB) error) error
 	maintenance := *d
 	maintenance.maintenanceOwned = true
 	// The drain deadline bounds acquisition, not the maintenance transaction.
-	// Retention may need longer than 30s on an existing large file; interrupting
-	// it midway repeatedly prevents the storage guard from restoring headroom.
-	maintenance.gorm = d.gorm.Session(&gorm.Session{NewDB: true, Context: d.gorm.Statement.Context})
+	// Once every SQL lease and native appender is exclusively owned, never
+	// cancel a DuckDB maintenance statement mid-flight. The CGo driver can
+	// leave its column-segment state invalid after a canceled CHECKPOINT or
+	// rebuild, which poisons every later read and write until restart. Retention
+	// may therefore outlive its opportunistic caller budget, but only after the
+	// appender and reader boundary is fully isolated.
+	ownerCtx := context.WithoutCancel(d.gorm.Statement.Context)
+	maintenance.gorm = d.gorm.Session(&gorm.Session{NewDB: true, Context: ownerCtx})
 	maintenance.gorm.Statement.ConnPool = conns[0]
 	maintenance.query = querygen.Use(maintenance.gorm)
 	if err := maintenance.recoverReclaimIndexes(); err != nil {
