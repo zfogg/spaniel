@@ -91,3 +91,28 @@ reclamation without live loss, custom tables, sequences/defaults/views/unique
 constraints, concurrent readers under the race detector, and interrupted rename
 recovery. The guard regression also verifies that tiny live-block usage cannot
 bypass a physical high-water trigger.
+
+Final live verification (2026-10-23): deployed physical recovery plus admission
+follow-up as `feeb92a` at 05:53:32 UTC (01:53:32 EDT), image
+`stonkpile-spaniel:physical-feeb92a`, digest
+`sha256:ad7e50f616b27c69b7ee2c9c174bbe5b13109022e8c621da6d0dc1e161ea9c7d`.
+The guard logged low-water completion at 05:54:15 UTC, measuring
+200,814,592 bytes (191.51 MiB). Independent container `stat` measured that same
+main file and zero WAL immediately after recovery, versus 624,701,440 bytes
+before deployment. The initial clean rewrite was enough; this live recovery
+needed no additional telemetry-eviction batch. Medium-batch convergence is
+covered by the file-level regression.
+
+Five consecutive OTLP log exports then returned 200 with storage_full=false.
+The last acceptance sample at 05:54:41 UTC measured main=200,814,592,
+WAL=485,263, total=201,299,855 bytes; API stats matched physical sizes. MCP
+confirmed feeb92a, healthy/unpaused ingestion, zero reported drops, retained
+133,558 spans and 62,478 logs across six sessions, and readable persisted probe
+logs. Settings remained auto_prune=true/max_db_size_mb=500 (475 MiB trigger,
+350 MiB target), retention_days=7/max_sessions=50. The container was healthy,
+with its original volume/ports/four-CPU cap preserved. The stopped pre-change
+backup is `/home/alarm/.local/state/spaniel/backups/physical-f011679-20261023/`;
+probe evidence is `/tmp/spaniel-autoprune-physical-feeb92a-acceptance.jsonl`.
+`make test` passed for the physical implementation; focused guard/WAL/physical
+tests passed with the race detector, including the final admission correction
+that keeps incomplete physical recovery paused even below the hard cap.
