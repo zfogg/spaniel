@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/zfogg/spaniel/internal/model"
+	"github.com/zfogg/spaniel/internal/sqlformat"
 	"github.com/zfogg/spaniel/internal/storage"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -257,9 +258,9 @@ func Marshal(r *model.AlertRule) ([]byte, error) {
 	e, b, p := r.Enabled, r.BrowserEnabled, r.PushoverEnabled
 	var discovery *InstanceDiscovery
 	if r.InstanceDiscoverySQL != "" {
-		discovery = &InstanceDiscovery{Query: r.InstanceDiscoverySQL, Every: durationString(r.InstanceDiscoveryIntervalNs), StaleAfter: durationString(r.InstanceDiscoveryStaleAfterNs)}
+		discovery = &InstanceDiscovery{Query: sqlformat.Format(r.InstanceDiscoverySQL), Every: durationString(r.InstanceDiscoveryIntervalNs), StaleAfter: durationString(r.InstanceDiscoveryStaleAfterNs)}
 	}
-	return yaml.Marshal(Definition{Version: Version, ID: r.ID, Name: r.Name, Query: r.QuerySQL, Condition: c, GroupBy: groups, PendingFor: durationString(r.PendingForNs), Cooldown: durationString(r.CooldownNs), RepeatInterval: durationString(r.RepeatIntervalNs), Severity: r.Severity, Enabled: &e, BrowserEnabled: &b, PushoverEnabled: &p, InstanceDiscovery: discovery, Annotations: a})
+	return yaml.Marshal(Definition{Version: Version, ID: r.ID, Name: r.Name, Query: sqlformat.Format(r.QuerySQL), Condition: c, GroupBy: groups, PendingFor: durationString(r.PendingForNs), Cooldown: durationString(r.CooldownNs), RepeatInterval: durationString(r.RepeatIntervalNs), Severity: r.Severity, Enabled: &e, BrowserEnabled: &b, PushoverEnabled: &p, InstanceDiscovery: discovery, Annotations: a})
 }
 
 func durationString(ns int64) string {

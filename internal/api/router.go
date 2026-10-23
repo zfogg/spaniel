@@ -23,6 +23,7 @@ import (
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/errtext"
 	"github.com/zfogg/spaniel/internal/forwarder"
+	"github.com/zfogg/spaniel/internal/sqlformat"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
@@ -190,7 +191,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 func respond(w http.ResponseWriter, data any, total, page int) {
 	w.Header().Set("Content-Type", "application/json")
 	fastjson.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
-		"data": data,
+		"data": sqlformat.Presentation(data),
 	})
 }
 
@@ -200,7 +201,7 @@ func respond(w http.ResponseWriter, data any, total, page int) {
 func respondPage(w http.ResponseWriter, data any, total, page int) {
 	w.Header().Set("Content-Type", "application/json")
 	fastjson.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
-		"data": data,
+		"data": sqlformat.Presentation(data),
 		"meta": map[string]any{"total": total, "page": page},
 	})
 }

@@ -4412,14 +4412,14 @@
                       "data": {
                         "items": [
                           {
-                            "annotations_json": "…",
-                            "condition_json": "…",
-                            "enabled": "…",
-                            "group_by_json": "…",
-                            "id": "…",
-                            "name": "…",
-                            "query_sql": "…",
-                            "query_version": "…"
+                            "annotations_json": "\u00e2\u20ac\u00a6",
+                            "condition_json": "\u00e2\u20ac\u00a6",
+                            "enabled": "\u00e2\u20ac\u00a6",
+                            "group_by_json": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "summary": {
@@ -4981,9 +4981,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "…",
-                            "reason": "…",
-                            "status": "…"
+                            "destination": "\u00e2\u20ac\u00a6",
+                            "reason": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "query_version": 1.5,
@@ -6024,9 +6024,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "…",
-                            "reason": "…",
-                            "status": "…"
+                            "destination": "\u00e2\u20ac\u00a6",
+                            "reason": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "query_version": 1.5,
@@ -6596,14 +6596,14 @@
                         },
                         "services": [
                           {
-                            "coverage_pct": "…",
-                            "dark_routes": "…",
-                            "name": "…",
-                            "observed_operations": "…",
-                            "observed_routes": "…",
-                            "source": "…",
-                            "spec": "…",
-                            "total_routes": "…"
+                            "coverage_pct": "\u00e2\u20ac\u00a6",
+                            "dark_routes": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "observed_operations": "\u00e2\u20ac\u00a6",
+                            "observed_routes": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6",
+                            "spec": "\u00e2\u20ac\u00a6",
+                            "total_routes": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -6960,11 +6960,11 @@
                           "id": "session_2026-10-07_1200",
                           "name": "POST /checkout",
                           "panels": [
-                            "…"
+                            "\u00e2\u20ac\u00a6"
                           ],
                           "updated_at": 1.5,
                           "variables": [
-                            "…"
+                            "\u00e2\u20ac\u00a6"
                           ]
                         }
                       ]
@@ -7085,25 +7085,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -7190,25 +7190,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -7455,25 +7455,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -7602,25 +7602,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -8346,9 +8346,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "…",
-                            "reason": "…",
-                            "status": "…"
+                            "destination": "\u00e2\u20ac\u00a6",
+                            "reason": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "query_version": 1.5,
@@ -8646,10 +8646,10 @@
                         "version": "example",
                         "views": [
                           {
-                            "columns": "…",
-                            "name": "…",
-                            "purpose": "…",
-                            "samples": "…"
+                            "columns": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "purpose": "\u00e2\u20ac\u00a6",
+                            "samples": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -8729,14 +8729,14 @@
                         },
                         "baseline_spans": [
                           {
-                            "duration_ns": "…",
-                            "name": "…",
-                            "parent_span_id": "…",
-                            "service_name": "…",
-                            "session_id": "…",
-                            "span_id": "…",
-                            "start_ns": "…",
-                            "trace_id": "…"
+                            "duration_ns": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "parent_span_id": "\u00e2\u20ac\u00a6",
+                            "service_name": "\u00e2\u20ac\u00a6",
+                            "session_id": "\u00e2\u20ac\u00a6",
+                            "span_id": "\u00e2\u20ac\u00a6",
+                            "start_ns": "\u00e2\u20ac\u00a6",
+                            "trace_id": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "compare": {
@@ -8748,25 +8748,25 @@
                         },
                         "compare_spans": [
                           {
-                            "duration_ns": "…",
-                            "name": "…",
-                            "parent_span_id": "…",
-                            "service_name": "…",
-                            "session_id": "…",
-                            "span_id": "…",
-                            "start_ns": "…",
-                            "trace_id": "…"
+                            "duration_ns": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "parent_span_id": "\u00e2\u20ac\u00a6",
+                            "service_name": "\u00e2\u20ac\u00a6",
+                            "session_id": "\u00e2\u20ac\u00a6",
+                            "span_id": "\u00e2\u20ac\u00a6",
+                            "start_ns": "\u00e2\u20ac\u00a6",
+                            "trace_id": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "spans": [
                           {
-                            "baseline_duration_ns": "…",
-                            "compare_duration_ns": "…",
-                            "delta_pct": "…",
-                            "depth": "…",
-                            "name": "…",
-                            "service_name": "…",
-                            "status": "…"
+                            "baseline_duration_ns": "\u00e2\u20ac\u00a6",
+                            "compare_duration_ns": "\u00e2\u20ac\u00a6",
+                            "delta_pct": "\u00e2\u20ac\u00a6",
+                            "depth": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "service_name": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "summary": {
@@ -9485,26 +9485,26 @@
                         "name": "POST /checkout",
                         "points": [
                           {
-                            "bounds": "…",
-                            "buckets": "…",
-                            "count": "…",
-                            "exemplars": "…",
-                            "exp_negative_counts": "…",
-                            "exp_negative_offset": "…",
-                            "timestamp_ns": "…",
-                            "value": "…"
+                            "bounds": "\u00e2\u20ac\u00a6",
+                            "buckets": "\u00e2\u20ac\u00a6",
+                            "count": "\u00e2\u20ac\u00a6",
+                            "exemplars": "\u00e2\u20ac\u00a6",
+                            "exp_negative_counts": "\u00e2\u20ac\u00a6",
+                            "exp_negative_offset": "\u00e2\u20ac\u00a6",
+                            "timestamp_ns": "\u00e2\u20ac\u00a6",
+                            "value": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "service_name": "checkout",
                         "traces": [
                           {
-                            "duration_ns": "…",
-                            "end_ns": "…",
-                            "op": "…",
-                            "service": "…",
-                            "start_ns": "…",
-                            "status_code": "…",
-                            "trace_id": "…"
+                            "duration_ns": "\u00e2\u20ac\u00a6",
+                            "end_ns": "\u00e2\u20ac\u00a6",
+                            "op": "\u00e2\u20ac\u00a6",
+                            "service": "\u00e2\u20ac\u00a6",
+                            "start_ns": "\u00e2\u20ac\u00a6",
+                            "status_code": "\u00e2\u20ac\u00a6",
+                            "trace_id": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "type": "example",
@@ -10026,20 +10026,20 @@
                       "data": {
                         "edges": [
                           {
-                            "avg_duration_ns": "…",
-                            "call_count": "…",
-                            "error_count": "…",
-                            "from": "…",
-                            "to": "…"
+                            "avg_duration_ns": "\u00e2\u20ac\u00a6",
+                            "call_count": "\u00e2\u20ac\u00a6",
+                            "error_count": "\u00e2\u20ac\u00a6",
+                            "from": "\u00e2\u20ac\u00a6",
+                            "to": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "nodes": [
                           {
-                            "error_count": "…",
-                            "id": "…",
-                            "p95_ns": "…",
-                            "span_count": "…",
-                            "top_operations": "…"
+                            "error_count": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "p95_ns": "\u00e2\u20ac\u00a6",
+                            "span_count": "\u00e2\u20ac\u00a6",
+                            "top_operations": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -10983,7 +10983,7 @@
                   },
                   "db_path": {
                     "type": "string",
-                    "description": "Sets the path of Spaniel’s DuckDB telemetry database."
+                    "description": "Sets the path of Spaniel\u00e2\u20ac\u2122s DuckDB telemetry database."
                   },
                   "forward": {
                     "items": {
@@ -11030,7 +11030,7 @@
                   },
                   "self_monitor": {
                     "type": "boolean",
-                    "description": "Enables Spaniel’s own telemetry instrumentation."
+                    "description": "Enables Spaniel\u00e2\u20ac\u2122s own telemetry instrumentation."
                   },
                   "source_burst": {
                     "type": "integer",
@@ -11771,13 +11771,13 @@
                         "last_checkpoint_at": 1.5,
                         "main_bytes": 1.5,
                         "sessions": [
-                          "…"
+                          "\u00e2\u20ac\u00a6"
                         ],
                         "tables": [
                           {
-                            "approx_bytes": "…",
-                            "name": "…",
-                            "row_count": "…"
+                            "approx_bytes": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "row_count": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "wal_bytes": 1.5
@@ -12147,6 +12147,90 @@
         "tags": [
           "Traces"
         ]
+      }
+    },
+    "/api/sql/format": {
+      "post": {
+        "operationId": "formatSQL",
+        "summary": "Format SQL layout without executing it; preserve comments and bind placeholders",
+        "tags": [
+          "SQL"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "sql"
+                ],
+                "properties": {
+                  "sql": {
+                    "type": "string",
+                    "maxLength": 1048576
+                  },
+                  "dialect": {
+                    "type": "string",
+                    "enum": [
+                      "duckdb",
+                      "postgresql",
+                      "mysql",
+                      "sqlite",
+                      "generic"
+                    ],
+                    "default": "duckdb"
+                  }
+                }
+              },
+              "example": {
+                "sql": "SELECT id,name FROM spans WHERE trace_id=$trace_id",
+                "dialect": "duckdb"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Formatted SQL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "sql"
+                      ],
+                      "properties": {
+                        "sql": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "formatted": {
+                    "summary": "Formatted SQL retaining a named bind placeholder",
+                    "value": {
+                      "data": {
+                        "sql": "SELECT\n  id,\n  name\nFROM spans\nWHERE trace_id=$trace_id"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
       }
     }
   },

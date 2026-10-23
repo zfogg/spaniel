@@ -62,7 +62,13 @@ export function RendererSettings({
           Release annotations
         </p>
         {field('Release label', 'annotation_label')}
-        {field('Annotation SQL', 'annotation_query')}
+        <div className="sm:col-span-2">
+          <SqlEditor
+            label="Annotation SQL"
+            value={String(settings.annotation_query ?? '')}
+            onChange={(query) => update({ ...settings, annotation_query: query })}
+          />
+        </div>
       </div>
     )
   if (display === 'entity_list')
@@ -93,3 +99,4 @@ export function RendererSettings({
     )
   return null
 }
+import { SqlEditor } from '@/components/SqlCode'

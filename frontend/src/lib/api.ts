@@ -24,8 +24,10 @@ import { logs } from './api/logs'
 import { sessions } from './api/sessions'
 import { coverage } from './api/coverage'
 import { metrics } from './api/metrics'
+import { sql } from './api/sql'
 
 export const api = {
+  sql,
   databaseSchema,
   dashboards,
   alerts,

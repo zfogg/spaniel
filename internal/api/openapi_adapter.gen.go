@@ -325,6 +325,8 @@ func (r *Router) CompactStorage(w http.ResponseWriter, req *http.Request) { r.co
 
 func (r *Router) PruneStorage(w http.ResponseWriter, req *http.Request) { r.prune(w, req) }
 
+func (r *Router) FormatSQL(w http.ResponseWriter, req *http.Request) { r.formatSQL(w, req) }
+
 func (r *Router) ReplaceCoverageSpec(w http.ResponseWriter, req *http.Request, id string) {
 	r.replaceCoverageSpec(w, req)
 }
