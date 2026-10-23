@@ -3,7 +3,9 @@ import { api } from './api'
 
 export async function formatSQL(sql: string) {
   const result = await api.sql.format({ sql, dialect: 'duckdb' })
-  return result.data.sql
+  const formatted = result.data.sql
+  if (typeof formatted !== 'string') throw new Error('SQL formatter returned an invalid response')
+  return formatted
 }
 
 // Read-only code views also include locally supplied examples and SQL from

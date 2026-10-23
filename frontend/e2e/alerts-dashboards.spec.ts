@@ -21,6 +21,7 @@ test.beforeEach(async ({ page }) => {
     else if (path === '/api/alerts/test-alert') data = rule
     else if (path === '/api/dashboards') data = [dashboard]
     else if (path === '/api/dashboards/test-dashboard') data = dashboard
+    else if (path === '/api/sql/format') data = { sql: route.request().postDataJSON().sql }
     else if (path.endsWith('/config')) {
       await route.fulfill({
         contentType: 'text/yaml',
