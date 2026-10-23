@@ -15,6 +15,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Keep jsdom workers from exhausting local CPU and memory and timing out.
+    maxWorkers: 4,
     // Node by default; tsx component tests opt into jsdom via the file-level
     // // @vitest-environment jsdom pragma.
     environment: 'node',
