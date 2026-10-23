@@ -17,3 +17,13 @@ export function logKey(log: Log): string {
     log.attributes,
   ].join(':')
 }
+
+export function logSelectionKey(log: Log): string {
+  let a = 2166136261
+  let b = 5381
+  for (const char of logKey(log)) {
+    a = Math.imul(a ^ char.charCodeAt(0), 16777619)
+    b = Math.imul(b, 33) ^ char.charCodeAt(0)
+  }
+  return `${(a >>> 0).toString(36)}${(b >>> 0).toString(36)}`
+}

@@ -16,19 +16,9 @@ import { matchesSevFilter, type SevFilter } from './log-severity-filter'
 import PaginationControls from '@/components/PaginationControls'
 import { AnimatePresence, motion } from 'motion/react'
 import { TelemetryArrivalList } from '@/components/TelemetryArrival'
-import { logKey } from '@/lib/log-key'
+import { logKey, logSelectionKey } from '@/lib/log-key'
 
 const PAGE_SIZE = 100
-
-function logSelectionKey(log: Log): string {
-  let a = 2166136261
-  let b = 5381
-  for (const char of logKey(log)) {
-    a = Math.imul(a ^ char.charCodeAt(0), 16777619)
-    b = Math.imul(b, 33) ^ char.charCodeAt(0)
-  }
-  return `${(a >>> 0).toString(36)}${(b >>> 0).toString(36)}`
-}
 
 // ── severity helpers ──────────────────────────────────────────────────────────
 

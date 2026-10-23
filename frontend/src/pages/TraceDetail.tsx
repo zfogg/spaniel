@@ -1,3 +1,5 @@
+import TraceLogPanel from '@/components/TraceLogPanel'
+import { TRACE_LOG_PREFETCH_SIZE } from '@/lib/trace-logs'
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -103,11 +105,18 @@ export default function TraceDetail() {
     queryFn: () => api.issues.get(traceId!).then((r) => r.data ?? []),
     enabled: !!traceId,
   })
-  const { data: logs = [] } = useQuery({
-    queryKey: qk.logs({ traceId: traceId ?? '' }),
-    queryFn: () => api.logs.list({ traceId: traceId! }).then((r) => r.data ?? []),
-    enabled: !!traceId,
+  const logParams = {
+    traceId: traceId ?? '',
+    sessionId: spans[0]?.session_id,
+    page: 1,
+    limit: TRACE_LOG_PREFETCH_SIZE,
+  }
+  const logsQuery = useQuery({
+    queryKey: qk.logs(logParams),
+    queryFn: () => api.logs.list(logParams),
+    enabled: !!traceId && spans.length > 0,
   })
+  const logs = logsQuery.data?.data ?? []
 
   useEffect(
     () => () => {
@@ -197,13 +206,23 @@ export default function TraceDetail() {
           hint="No spans are stored for this trace. It may have been sampled out, not exported yet, or removed by retention."
         />
       ) : (
-        <div className="flex-1 overflow-hidden">
+        <div className="relative min-h-0 flex-1 overflow-hidden pb-9">
           <TraceWaterfall
             spans={spans}
             warnings={warnings}
             issues={issues}
             logs={logs}
             traceId={traceId}
+          />
+          <TraceLogPanel
+            key={traceId}
+            traceId={traceId!}
+            sessionId={spans[0]?.session_id}
+            logs={logs}
+            total={Math.max(logsQuery.data?.meta?.total ?? 0, logs.length)}
+            loading={logsQuery.isPending}
+            error={logsQuery.error}
+            onRetry={() => void logsQuery.refetch()}
           />
         </div>
       )}

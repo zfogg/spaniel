@@ -1,0 +1,2 @@
+export const TRACE_LOG_PAGE_SIZE = 100
+export const TRACE_LOG_PREFETCH_SIZE = 500
