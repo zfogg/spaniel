@@ -115,3 +115,18 @@ The live guard again restored 328.51171875 MiB at 22:11:30 UTC and
 332.01171875 MiB at 22:13:33 UTC. A direct probe overlapping maintenance at
 22:12:37 UTC timed out for all three signals; earlier successful direct probes
 must not be used to claim uninterrupted telemetry.
+
+## Rapid repeat pressure
+
+Live validation found fragmentation-only recovery recurring roughly every two
+minutes: the same survivors expanded on the next indexed checkpoint and forced
+another long copy. Automatic cycles returning within ten minutes of a successful
+rewrite now evict a coherent oldest prefix before copying. The first cycle and
+manual physical reclamation still recover holes before live eviction; errors
+reset the timestamp so committed tombstones are reclaimed before further
+deletion. Per-cycle byte calibration is reset. This is a deliberate retention
+tradeoff under sustained capacity pressure, not a change to the cap or target.
+A file-backed refill regression verifies actual oldest eviction in the first
+repeat phase, shared context state, newest-row survival and writable admission.
+The full focused retention suite passed under the race detector after this
+follow-up, including the refill regression and direct three-signal ingestion.

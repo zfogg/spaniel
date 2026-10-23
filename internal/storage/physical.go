@@ -173,6 +173,7 @@ func (d *DB) rewritePhysicalLocked() (err error) {
 			}
 		}
 		if err == nil {
+			d.retentionPhysicalLast.Store(time.Now().UnixNano())
 			_ = os.Remove(d.path + ".repack-old")
 		}
 	}()
@@ -249,6 +250,7 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 			// A failed copy can leave committed tombstones in the authoritative
 			// file. Retry their reclamation before allowing another live eviction.
 			d.retentionPhysicalReady.Store(false)
+			d.retentionPhysicalLast.Store(0)
 		}
 		if cfg.MaxDuration > 0 && IsRetentionTargetUnreached(err) {
 			d.retentionRetry.Store(time.Now().Add(retentionRetryDelay).UnixNano())
@@ -257,7 +259,17 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 	d.maintenanceMu.Lock()
 	defer d.maintenanceMu.Unlock()
 	defer func() { res.FinalDBSizeBytes = d.FileSize() }()
-	if cfg.MaxDuration == 0 || !d.retentionPhysicalReady.Load() {
+	// Reclaim fragmentation before deleting live data on the first cycle. If
+	// pressure returns within ten minutes of a completed rewrite, copying the
+	// same survivors again only repeats the ingestion pause. Treat that as
+	// sustained capacity pressure and evict an oldest prefix before one copy.
+	if !d.retentionPhysicalReady.Load() {
+		d.retentionPhysicalFreed.Store(0)
+		d.retentionPhysicalRatio.Store(0)
+	}
+	lastCopy := d.retentionPhysicalLast.Load()
+	reclaimFirst := !d.retentionPhysicalReady.Load() && (lastCopy == 0 || time.Since(time.Unix(0, lastCopy)) >= 10*time.Minute)
+	if cfg.MaxDuration == 0 || reclaimFirst {
 		d.retentionPhysicalFreed.Store(0)
 		d.retentionPhysicalRatio.Store(0)
 		if err = d.rewritePhysicalLocked(); err != nil {

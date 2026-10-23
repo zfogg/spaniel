@@ -33,6 +33,7 @@ type DB struct {
 	retentionCheckpointReady *atomic.Bool   // next automatic size pass may rebuild or evict after a separate checkpoint pass
 	retentionReclaimed       *atomic.Bool   // measured allocation progress across one-table rebuild phases
 	retentionRebuildVisited  *atomic.Uint64 // tables already reclaimed in the current oldest-prefix cycle
+	retentionPhysicalLast    *atomic.Int64  // last successful rewrite; rapid repeat pressure requires eviction
 	retentionPhysicalReady   *atomic.Bool   // fragmentation was reclaimed; next automatic phase may evict
 	retentionPhysicalFreed   *atomic.Int64  // measured bytes reclaimed by the previous physical eviction
 	retentionPhysicalRatio   *atomic.Uint64 // float64 bits: fraction of oldest groups selected in that eviction
@@ -114,7 +115,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}}
+	d := &DB{gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalLast: &atomic.Int64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}}
 	if err := d.recoverReclaimIndexes(); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("recover interrupted reclamation: %w", err)
