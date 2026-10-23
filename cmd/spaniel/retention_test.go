@@ -169,8 +169,8 @@ func TestStorageGuardHardCapRecoveryCanFinishLargerRebuild(t *testing.T) {
 func TestStorageGuardProactiveMaintenanceKeepsShortBudget(t *testing.T) {
 	store := &fakeStorageGuardStore{size: 99, requiredBudget: 2 * storageMaintenanceBudget}
 	checkStorageGuard(store, newStorageGuardPolicy(100, true))
-	if store.pruneBudget != storageMaintenanceBudget || store.full || store.size != 99 {
-		t.Fatalf("proactive pass must stay short without marking an under-cap store full: %+v", store)
+	if store.pruneBudget != storageMaintenanceBudget || !store.full || store.size != 99 {
+		t.Fatalf("unfinished proactive pass must preserve physical recovery admission: %+v", store)
 	}
 	// Continued ingestion crosses the cap after the short attempt. The next
 	// automatic pass must make forward progress rather than retry that budget.
@@ -261,12 +261,12 @@ func TestStoragePolicyDisablesAutomaticSizeRetention(t *testing.T) {
 	}
 }
 
-func TestStorageGuardSoftTargetFailureKeepsBelowCapWritable(t *testing.T) {
+func TestStorageGuardUnfinishedPhysicalTargetRemainsPaused(t *testing.T) {
 	for _, size := range []int64{475, 499, 500, 501} {
 		policy := newStorageGuardPolicy(500, true)
 		store := &fakeStorageGuardStore{size: size, pruneErr: storage.ErrRetentionTargetUnreached}
 		checkStorageGuard(store, policy)
-		if store.full != (size >= 500) {
+		if !store.full {
 			t.Fatalf("size=%d full=%v", size, store.full)
 		}
 		if store.pruneCalls != 1 {

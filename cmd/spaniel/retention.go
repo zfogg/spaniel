@@ -233,7 +233,7 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	// Live-row eviction is only the logical phase. Prevent new ingestion from
 	// consuming the space being reclaimed, and let larger table copies finish
 	// without repeatedly canceling the same work at the proactive budget.
-	if after >= maxBytes || (deleted > 0 && after > target) {
+	if after >= maxBytes || ((deleted > 0 || err != nil) && after > target) {
 		policy.recovering.Store(true)
 	}
 	if after <= target {
