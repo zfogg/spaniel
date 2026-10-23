@@ -18,6 +18,8 @@ import (
 )
 
 type DB struct {
+	pool                     *switchablePool
+	maintenanceMu            *sync.Mutex
 	gorm                     *gorm.DB
 	query                    *querygen.Query
 	batcher                  *Batcher
@@ -84,11 +86,20 @@ const (
 var duckDBMaxOpenConnections = len(batchTables) + duckDBGORMConnections
 
 func Open(path string) (*DB, error) {
-	g, err := gorm.Open(duckdb.Open(duckDBDSN(path)), &gorm.Config{
+	if err := recoverPhysicalSwap(path); err != nil {
+		return nil, err
+	}
+	sqlPool, err := openSQLPool(path)
+	if err != nil {
+		return nil, err
+	}
+	pool := &switchablePool{db: sqlPool}
+	g, err := gorm.Open(duckdb.New(duckdb.Config{Conn: pool}), &gorm.Config{
 		Logger:                 logger.Default.LogMode(logger.Silent),
 		SkipDefaultTransaction: true,
 	})
 	if err != nil {
+		_ = sqlPool.Close()
 		return nil, fmt.Errorf("open duckdb: %w", err)
 	}
 	sqlDB, err := g.DB()
@@ -100,12 +111,13 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}}
+	d := &DB{gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}}
 	if err := d.recoverReclaimIndexes(); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("recover interrupted reclamation: %w", err)
 	}
 	if err := d.migrate(); err != nil {
+		_ = sqlDB.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := d.initReclaimIndexSlots(); err != nil {

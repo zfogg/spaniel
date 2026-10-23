@@ -60,7 +60,7 @@ func (d *DB) GetStats(sessionID string) (*Stats, error) {
 	// Use live blocks plus the WAL rather than the file's high-water mark. A
 	// deleted session frees blocks immediately, while DuckDB may retain its file
 	// allocation for future writes.
-	s.DBSize = d.UsedSize()
+	s.DBSize = d.FileSize()
 	return s, nil
 }
 

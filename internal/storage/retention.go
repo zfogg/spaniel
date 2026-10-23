@@ -385,6 +385,11 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64
 		return 0, err
 	}
 	batch := min(int64(pruneTraceBatch), max(int64(1), (groups+99)/100))
+	if len(sizeFraction) > 0 && sizeFraction[0] < 0 {
+		// Physical recovery copies once per medium batch. Keep small stores
+		// conservative while avoiding hundreds of full-file copies on large ones.
+		batch = min(int64(32768), max(int64(1), groups/10))
+	}
 	// Large stores need a physically meaningful oldest prefix. Tiny stores
 	// retain conservative batches and the protection against metadata floors.
 	if len(sizeFraction) > 0 && groups >= 262144 {

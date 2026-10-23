@@ -132,6 +132,12 @@ func (d *DB) flushBeforeCheckpoint() error {
 }
 
 func (d *DB) withMaintenance(fn func(*DB) error) error {
+	d.maintenanceMu.Lock()
+	defer d.maintenanceMu.Unlock()
+	return d.withMaintenanceLocked(fn)
+}
+
+func (d *DB) withMaintenanceLocked(fn func(*DB) error) error {
 	telemetry.Catalog().SetStorageMaintenanceInFlight(1)
 	defer telemetry.Catalog().SetStorageMaintenanceInFlight(0)
 	if d.batcher == nil {

@@ -109,7 +109,7 @@ test-storage: verify-generated
 # Retention/reclamation regressions without unrelated code generation. No
 # generator inputs change in this storage-only check; use test for the full suite.
 .PHONY: test-retention
-RETENTION_TEST_RUN ?= TestPrune|TestRetention|TestCompact|TestMaintenance|TestStorageGuard|TestGetStorage|TestSession|TestReclaim|TestWALDeferral|TestBatcherMaintenance
+RETENTION_TEST_RUN ?= TestPhysical|TestPrune|TestRetention|TestCompact|TestMaintenance|TestStorageGuard|TestGetStorage|TestSession|TestReclaim|TestWALDeferral|TestBatcherMaintenance
 test-retention:
 	go test ./internal/storage ./cmd/spaniel -run '$(RETENTION_TEST_RUN)' -count=1 -timeout=10m -v
 

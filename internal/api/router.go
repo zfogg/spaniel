@@ -854,7 +854,7 @@ func (r *Router) prune(w http.ResponseWriter, req *http.Request) {
 		cfg.MaxDBSizeBytes = int64(mb) * 1024 * 1024
 	}
 	store := r.store.WithContext(req.Context())
-	res, err := store.Prune(cfg, store.ActiveSessionID())
+	res, err := store.PrunePhysical(cfg, store.ActiveSessionID())
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -862,7 +862,7 @@ func (r *Router) prune(w http.ResponseWriter, req *http.Request) {
 	// Clear storage_full if prune brought the DB back under the cap so
 	// ingestion resumes immediately instead of waiting up to 30s for the
 	// background storage guard to notice.
-	if r.store.Full() && cfg.MaxDBSizeBytes > 0 && r.store.UsedSize() < cfg.MaxDBSizeBytes {
+	if r.store.Full() && cfg.MaxDBSizeBytes > 0 && r.store.FileSize() < cfg.MaxDBSizeBytes {
 		r.store.SetFull(false)
 	}
 	respond(w, res, 1, 1)

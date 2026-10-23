@@ -56,7 +56,8 @@ func (d *DB) FileSize() int64 {
 
 // UsedSize returns live DuckDB blocks plus the WAL. DuckDB retains freed blocks
 // in the database file for reuse, so FileSize is a high-water allocation and
-// does not by itself tell the guard whether pruning restored write headroom.
+// is diagnostic only. Storage limits and recovery completion use FileSize;
+// reusable blocks must be physically removed before declaring recovery done.
 func (d *DB) UsedSize() int64 {
 	if d.path == "" || d.path == ":memory:" {
 		return 0

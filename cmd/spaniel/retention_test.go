@@ -118,11 +118,23 @@ func TestStorageWALCheckpointContinuesDuringEvictionBackoff(t *testing.T) {
 	}
 }
 
-func (f *fakeStorageGuardStore) UsedSize() int64           { return f.size }
+func (f *fakeStorageGuardStore) FileSize() int64 { return f.size }
+
+type physicalGuardStore struct{ fakeStorageGuardStore }
+
+func (f *physicalGuardStore) UsedSize() int64 { return 1 }
+
+func TestStorageGuardCountsReusableBlocksInPhysicalCap(t *testing.T) {
+	store := &physicalGuardStore{fakeStorageGuardStore: fakeStorageGuardStore{size: 95}}
+	checkStorageGuard(store, newStorageGuardPolicy(100, true))
+	if store.pruneCalls != 1 || store.size > 70 || store.full {
+		t.Fatalf("physical cap bypassed by low live-block usage: prune=%d size=%d full=%v", store.pruneCalls, store.size, store.full)
+	}
+}
 func (f *fakeStorageGuardStore) ActiveSessionID() string   { return f.activeID }
 func (f *fakeStorageGuardStore) SetFull(full bool)         { f.full = full }
 func (f *fakeStorageGuardStore) RetentionBackingOff() bool { return f.backoff }
-func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID string) (storage.PruneResult, error) {
+func (f *fakeStorageGuardStore) PrunePhysical(cfg storage.RetentionConfig, activeID string) (storage.PruneResult, error) {
 	f.pruneCalls++
 	f.pruneLimit = cfg.MaxDBSizeBytes
 	f.pruneBudget = cfg.MaxDuration

@@ -107,17 +107,17 @@ func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig
 }
 
 // runRetention applies age/count retention immediately and then hourly. The
-// size limit is merged from the live policy so disabling auto-prune stops every
-// automatic size-based deletion path without affecting explicit retention.
+// storage guard alone owns size recovery and its 95% -> 70% admission latch;
+// an independent hourly cap-only pass must not race it and reopen at 100%.
 func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storageGuardPolicy) {
 	apply := func() {
 		ctx, span := telemetry.Tracer("retention").Start(context.Background(), "retention.prune")
 		t0 := time.Now()
 		current := cfg
-		current.MaxDBSizeBytes = policy.RetentionSizeLimit()
+		current.MaxDBSizeBytes = 0
 		current.MaxDuration = storageMaintenanceBudget
 		scopedStore := store.WithContext(ctx)
-		res, err := scopedStore.Prune(current, scopedStore.ActiveSessionID())
+		res, err := scopedStore.PrunePhysical(current, scopedStore.ActiveSessionID())
 		getRetentionDurationHist().Record(ctx, float64(time.Since(t0).Milliseconds()))
 		if err != nil {
 			span.RecordError(err)
@@ -161,9 +161,9 @@ func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storag
 }
 
 type storageGuardStore interface {
-	UsedSize() int64
+	FileSize() int64
 	ActiveSessionID() string
-	Prune(storage.RetentionConfig, string) (storage.PruneResult, error)
+	PrunePhysical(storage.RetentionConfig, string) (storage.PruneResult, error)
 	SetFull(bool)
 	RetentionBackingOff() bool
 }
@@ -179,7 +179,7 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 		return
 	}
 
-	size := store.UsedSize()
+	size := store.FileSize()
 	if !policy.autoPrune.Load() {
 		full := size >= maxBytes
 		store.SetFull(full)
@@ -227,8 +227,8 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	if policy.recovering.Load() {
 		budget = storageRecoveryBudget
 	}
-	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: budget}, store.ActiveSessionID())
-	after := store.UsedSize()
+	res, err := store.PrunePhysical(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: budget}, store.ActiveSessionID())
+	after := store.FileSize()
 	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
 	// Live-row eviction is only the logical phase. Prevent new ingestion from
 	// consuming the space being reclaimed, and let larger table copies finish
@@ -294,7 +294,7 @@ func checkStorageWAL(store storageGuardStore, policy *storageGuardPolicy, walByt
 		return false
 	}
 	maxBytes := policy.maxBytes.Load()
-	size := store.UsedSize()
+	size := store.FileSize()
 	if maxBytes > 0 && policy.autoPrune.Load() && !store.RetentionBackingOff() &&
 		(size >= maxBytes*storageHighWaterPercent/100 || (policy.pruning.Load() && size > maxBytes*storagePruneTargetPercent/100)) {
 		return false
@@ -308,7 +308,7 @@ func checkStorageWAL(store storageGuardStore, policy *storageGuardPolicy, walByt
 	}
 	// A budget expiry alone cannot declare a below-cap durable WAL full.
 	failed := err != nil && !storage.IsMaintenanceTimeout(err)
-	store.SetFull(failed || policy.recovering.Load() || (maxBytes > 0 && store.UsedSize() >= maxBytes))
+	store.SetFull(failed || policy.recovering.Load() || (maxBytes > 0 && store.FileSize() >= maxBytes))
 	return true
 }
 
@@ -336,7 +336,7 @@ func prune(dbPath string, cfg storage.RetentionConfig) error {
 	}
 	defer store.Close()
 
-	res, err := store.Prune(cfg, "")
+	res, err := store.PrunePhysical(cfg, "")
 	if err != nil {
 		return err
 	}
