@@ -1,5 +1,6 @@
 import { Toggle } from '@/components/ui/toggle'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { OTLPEndpoints } from '@/components/OTLPEndpoints'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FormProvider, useForm, useFormContext, useFormState } from 'react-hook-form'
 // zod 4 implements the Standard Schema spec, so we use the standard-schema
@@ -444,6 +445,23 @@ function NetworkSection({
   const [token, setToken] = useState('')
   return (
     <Card id="network" title="Network" sub="OTLP receivers and proxy forwarding" hidden={hidden}>
+      <Row
+        label="Public URL"
+        hint="External UI URL (SPANIEL_PUBLIC_URL). OTLP examples use its hostname with the live receiver ports. Clear to use the browser hostname. MCP links update after restart."
+      >
+        <BindAddressBox
+          value={s.public_url ?? ''}
+          onCommit={(value) => mutate({ public_url: value })}
+          ariaLabel="Public URL"
+          placeholder="https://telemetry.example.com"
+        />
+      </Row>
+      <Row
+        label="OTLP endpoints"
+        hint="Choose either protocol for your exporter. These use the current hostname and live receiver ports."
+      >
+        <OTLPEndpoints settings={s} />
+      </Row>
       <Row
         label="Bearer token"
         hint="Save to config.yaml and SPANIEL_BEARER_TOKEN in this process. Restart Spaniel to apply authentication changes. Leave blank to keep the current token."
@@ -986,6 +1004,32 @@ function GeneralSection({
   mutate: (patch: SettingsUpdate) => void
   hidden: boolean
 }) {
+  const queryClient = useQueryClient()
+  const [installing, setInstalling] = useState(false)
+  const [installMessage, setInstallMessage] = useState('')
+  const install = async (kind: 'dashboards' | 'alerts' | 'both') => {
+    setInstalling(true)
+    setInstallMessage('')
+    try {
+      const results = []
+      if (kind !== 'alerts') results.push((await api.settings.installSelfMonitorDashboards()).data)
+      if (kind !== 'dashboards') results.push((await api.settings.installSelfMonitorAlerts()).data)
+      setInstallMessage(
+        results
+          .map(
+            (r) =>
+              `${r.created} created, ${r.refreshed} refreshed, ${r.skipped} existing alerts kept`,
+          )
+          .join('; '),
+      )
+      await queryClient.invalidateQueries({ queryKey: ['dashboards'] })
+      await queryClient.invalidateQueries({ queryKey: ['alerts'] })
+    } catch (error) {
+      setInstallMessage(`Installation failed: ${String(error)}. Retry to finish installing.`)
+    } finally {
+      setInstalling(false)
+    }
+  }
   const [copied, setCopied] = useState<string | null>(null)
   const endpoint = `${window.location.origin}/mcp`
   const claudeAddCmd = `claude mcp add --transport http spaniel ${endpoint}`
@@ -1029,12 +1073,56 @@ function GeneralSection({
         >
           <Toggle
             on={s.self_monitor}
-            onChange={(v) => mutate({ self_monitor: v })}
+            onChange={(v) => {
+              mutate({ self_monitor: v })
+              if (
+                v &&
+                confirm(
+                  'Create Spaniel dashboards and alerts? Existing dashboards with the same names will be refreshed from this binary, replacing your edits. Existing alerts will be kept.',
+                )
+              ) {
+                void install('both')
+              }
+            }}
             label="self monitor"
           />
           {s.self_monitor && (
             <span className="font-mono text-[11px] text-muted-foreground">
               → localhost:{s.runtime.otlp_grpc_port}
+            </span>
+          )}
+        </Row>
+      </Card>
+
+      <Card
+        id="self-monitor-definitions"
+        title="Self-monitoring definitions"
+        sub="Bundled Spaniel dashboards and alerts"
+        hidden={hidden}
+      >
+        <Row
+          label="Install definitions"
+          hint="Matching dashboard names are refreshed, replacing edits; existing alerts are kept."
+        >
+          <button
+            type="button"
+            disabled={installing}
+            onClick={() => void install('dashboards')}
+            className="rounded border border-border px-3 py-1 text-xs disabled:opacity-50"
+          >
+            Create / refresh Spaniel dashboards
+          </button>
+          <button
+            type="button"
+            disabled={installing}
+            onClick={() => void install('alerts')}
+            className="rounded border border-border px-3 py-1 text-xs disabled:opacity-50"
+          >
+            Create Spaniel alerts
+          </button>
+          {installMessage && (
+            <span role="status" className="basis-full text-xs">
+              {installMessage}
             </span>
           )}
         </Row>

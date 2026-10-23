@@ -1,0 +1,11 @@
+version: 1
+name: Spaniel API errors
+query: |
+  SELECT count(*) AS value FROM spans WHERE service_name = 'spaniel' AND kind = 2 AND status_code = 2 AND start_ns > epoch_ns(current_timestamp) - 300000000000
+condition:
+  kind: threshold
+  operator: ">"
+  threshold: 5
+pending_for: 1m
+cooldown: 5m
+severity: warning

@@ -1264,6 +1264,40 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/settings/self-monitor/dashboards': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create or refresh bundled Spaniel dashboards */
+    post: operations['installSelfMonitorDashboards']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings/self-monitor/alerts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create or refresh bundled Spaniel alerts */
+    post: operations['installSelfMonitorAlerts']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/sql/format': {
     parameters: {
       query?: never
@@ -2140,6 +2174,7 @@ export interface components {
       source_burst: number
       source_rps: number
       tls_enabled: boolean
+      public_url: string
     }
     SettingsResponse: {
       advance_session_on_start: boolean
@@ -2180,6 +2215,7 @@ export interface components {
       source_burst: number
       source_rps: number
       tls_enabled: boolean
+      public_url: string
     }
     SettingsRuntime: {
       channel: string
@@ -5765,7 +5801,7 @@ export interface operations {
           bind_address_v4?: string
           /** @description Sets the IPv6 address on which Spaniel listens for HTTP traffic. */
           bind_address_v6?: string
-          /** @description Sets the path of Spanielâ€™s DuckDB telemetry database. */
+          /** @description Sets the path of Spaniel’s DuckDB telemetry database. */
           db_path?: string
           /** @description Lists upstream OTLP destinations to receive forwarded telemetry. */
           forward?: string[]
@@ -5787,7 +5823,7 @@ export interface operations {
           port?: number
           /** @description Sets how long telemetry is retained before age-based pruning. */
           retention_days?: number
-          /** @description Enables Spanielâ€™s own telemetry instrumentation. */
+          /** @description Enables Spaniel’s own telemetry instrumentation. */
           self_monitor?: boolean
           /** @description Sets the maximum short-term telemetry burst accepted from a source. */
           source_burst?: number
@@ -5795,6 +5831,8 @@ export interface operations {
           source_rps?: number
           /** @description Sets the shared bearer token in the config file and process environment. Empty disables authentication. Takes effect after restart. */
           bearer_token?: string
+          /** @description Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart. */
+          public_url?: string
         }
       }
     }
@@ -6328,6 +6366,76 @@ export interface operations {
         }
       }
       /** @description Spaniel could not complete the request. */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  installSelfMonitorDashboards: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Installation complete */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: {
+              created: number
+              refreshed: number
+              skipped: number
+            }
+          }
+        }
+      }
+      /** @description Installation failed */
+      500: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  installSelfMonitorAlerts: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Installation complete */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: {
+              created: number
+              refreshed: number
+              skipped: number
+            }
+          }
+        }
+      }
+      /** @description Installation failed */
       500: {
         headers: {
           [name: string]: unknown

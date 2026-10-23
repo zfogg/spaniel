@@ -3333,6 +3333,9 @@
           },
           "tls_enabled": {
             "type": "boolean"
+          },
+          "public_url": {
+            "type": "string"
           }
         },
         "required": [
@@ -3363,7 +3366,8 @@
           "alerts_pushover_configured",
           "alerts_browser_template",
           "alerts_pushover_template",
-          "runtime"
+          "runtime",
+          "public_url"
         ],
         "type": "object"
       },
@@ -3495,6 +3499,9 @@
           },
           "tls_enabled": {
             "type": "boolean"
+          },
+          "public_url": {
+            "type": "string"
           }
         },
         "required": [
@@ -3525,7 +3532,8 @@
           "alerts_pushover_configured",
           "alerts_browser_template",
           "alerts_pushover_template",
-          "runtime"
+          "runtime",
+          "public_url"
         ],
         "type": "object"
       },
@@ -4412,14 +4420,14 @@
                       "data": {
                         "items": [
                           {
-                            "annotations_json": "\u00e2\u20ac\u00a6",
-                            "condition_json": "\u00e2\u20ac\u00a6",
-                            "enabled": "\u00e2\u20ac\u00a6",
-                            "group_by_json": "\u00e2\u20ac\u00a6",
-                            "id": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "query_sql": "\u00e2\u20ac\u00a6",
-                            "query_version": "\u00e2\u20ac\u00a6"
+                            "annotations_json": "…",
+                            "condition_json": "…",
+                            "enabled": "…",
+                            "group_by_json": "…",
+                            "id": "…",
+                            "name": "…",
+                            "query_sql": "…",
+                            "query_version": "…"
                           }
                         ],
                         "summary": {
@@ -4981,9 +4989,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "\u00e2\u20ac\u00a6",
-                            "reason": "\u00e2\u20ac\u00a6",
-                            "status": "\u00e2\u20ac\u00a6"
+                            "destination": "…",
+                            "reason": "…",
+                            "status": "…"
                           }
                         ],
                         "query_version": 1.5,
@@ -6024,9 +6032,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "\u00e2\u20ac\u00a6",
-                            "reason": "\u00e2\u20ac\u00a6",
-                            "status": "\u00e2\u20ac\u00a6"
+                            "destination": "…",
+                            "reason": "…",
+                            "status": "…"
                           }
                         ],
                         "query_version": 1.5,
@@ -6596,14 +6604,14 @@
                         },
                         "services": [
                           {
-                            "coverage_pct": "\u00e2\u20ac\u00a6",
-                            "dark_routes": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "observed_operations": "\u00e2\u20ac\u00a6",
-                            "observed_routes": "\u00e2\u20ac\u00a6",
-                            "source": "\u00e2\u20ac\u00a6",
-                            "spec": "\u00e2\u20ac\u00a6",
-                            "total_routes": "\u00e2\u20ac\u00a6"
+                            "coverage_pct": "…",
+                            "dark_routes": "…",
+                            "name": "…",
+                            "observed_operations": "…",
+                            "observed_routes": "…",
+                            "source": "…",
+                            "spec": "…",
+                            "total_routes": "…"
                           }
                         ]
                       }
@@ -6960,11 +6968,11 @@
                           "id": "session_2026-10-07_1200",
                           "name": "POST /checkout",
                           "panels": [
-                            "\u00e2\u20ac\u00a6"
+                            "…"
                           ],
                           "updated_at": 1.5,
                           "variables": [
-                            "\u00e2\u20ac\u00a6"
+                            "…"
                           ]
                         }
                       ]
@@ -7085,25 +7093,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "display_type": "\u00e2\u20ac\u00a6",
-                            "id": "\u00e2\u20ac\u00a6",
-                            "layout_json": "\u00e2\u20ac\u00a6",
-                            "query_sql": "\u00e2\u20ac\u00a6",
-                            "query_version": "\u00e2\u20ac\u00a6",
-                            "settings_json": "\u00e2\u20ac\u00a6",
-                            "title": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "default_value": "\u00e2\u20ac\u00a6",
-                            "kind": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "options_json": "\u00e2\u20ac\u00a6",
-                            "source": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
                           }
                         ]
                       }
@@ -7190,25 +7198,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "display_type": "\u00e2\u20ac\u00a6",
-                            "id": "\u00e2\u20ac\u00a6",
-                            "layout_json": "\u00e2\u20ac\u00a6",
-                            "query_sql": "\u00e2\u20ac\u00a6",
-                            "query_version": "\u00e2\u20ac\u00a6",
-                            "settings_json": "\u00e2\u20ac\u00a6",
-                            "title": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "default_value": "\u00e2\u20ac\u00a6",
-                            "kind": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "options_json": "\u00e2\u20ac\u00a6",
-                            "source": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
                           }
                         ]
                       }
@@ -7455,25 +7463,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "display_type": "\u00e2\u20ac\u00a6",
-                            "id": "\u00e2\u20ac\u00a6",
-                            "layout_json": "\u00e2\u20ac\u00a6",
-                            "query_sql": "\u00e2\u20ac\u00a6",
-                            "query_version": "\u00e2\u20ac\u00a6",
-                            "settings_json": "\u00e2\u20ac\u00a6",
-                            "title": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "default_value": "\u00e2\u20ac\u00a6",
-                            "kind": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "options_json": "\u00e2\u20ac\u00a6",
-                            "source": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
                           }
                         ]
                       }
@@ -7602,25 +7610,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "display_type": "\u00e2\u20ac\u00a6",
-                            "id": "\u00e2\u20ac\u00a6",
-                            "layout_json": "\u00e2\u20ac\u00a6",
-                            "query_sql": "\u00e2\u20ac\u00a6",
-                            "query_version": "\u00e2\u20ac\u00a6",
-                            "settings_json": "\u00e2\u20ac\u00a6",
-                            "title": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "display_type": "…",
+                            "id": "…",
+                            "layout_json": "…",
+                            "query_sql": "…",
+                            "query_version": "…",
+                            "settings_json": "…",
+                            "title": "…"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "\u00e2\u20ac\u00a6",
-                            "default_value": "\u00e2\u20ac\u00a6",
-                            "kind": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "options_json": "\u00e2\u20ac\u00a6",
-                            "source": "\u00e2\u20ac\u00a6"
+                            "dashboard_id": "…",
+                            "default_value": "…",
+                            "kind": "…",
+                            "name": "…",
+                            "options_json": "…",
+                            "source": "…"
                           }
                         ]
                       }
@@ -8346,9 +8354,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "\u00e2\u20ac\u00a6",
-                            "reason": "\u00e2\u20ac\u00a6",
-                            "status": "\u00e2\u20ac\u00a6"
+                            "destination": "…",
+                            "reason": "…",
+                            "status": "…"
                           }
                         ],
                         "query_version": 1.5,
@@ -8646,10 +8654,10 @@
                         "version": "example",
                         "views": [
                           {
-                            "columns": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "purpose": "\u00e2\u20ac\u00a6",
-                            "samples": "\u00e2\u20ac\u00a6"
+                            "columns": "…",
+                            "name": "…",
+                            "purpose": "…",
+                            "samples": "…"
                           }
                         ]
                       }
@@ -8729,14 +8737,14 @@
                         },
                         "baseline_spans": [
                           {
-                            "duration_ns": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "parent_span_id": "\u00e2\u20ac\u00a6",
-                            "service_name": "\u00e2\u20ac\u00a6",
-                            "session_id": "\u00e2\u20ac\u00a6",
-                            "span_id": "\u00e2\u20ac\u00a6",
-                            "start_ns": "\u00e2\u20ac\u00a6",
-                            "trace_id": "\u00e2\u20ac\u00a6"
+                            "duration_ns": "…",
+                            "name": "…",
+                            "parent_span_id": "…",
+                            "service_name": "…",
+                            "session_id": "…",
+                            "span_id": "…",
+                            "start_ns": "…",
+                            "trace_id": "…"
                           }
                         ],
                         "compare": {
@@ -8748,25 +8756,25 @@
                         },
                         "compare_spans": [
                           {
-                            "duration_ns": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "parent_span_id": "\u00e2\u20ac\u00a6",
-                            "service_name": "\u00e2\u20ac\u00a6",
-                            "session_id": "\u00e2\u20ac\u00a6",
-                            "span_id": "\u00e2\u20ac\u00a6",
-                            "start_ns": "\u00e2\u20ac\u00a6",
-                            "trace_id": "\u00e2\u20ac\u00a6"
+                            "duration_ns": "…",
+                            "name": "…",
+                            "parent_span_id": "…",
+                            "service_name": "…",
+                            "session_id": "…",
+                            "span_id": "…",
+                            "start_ns": "…",
+                            "trace_id": "…"
                           }
                         ],
                         "spans": [
                           {
-                            "baseline_duration_ns": "\u00e2\u20ac\u00a6",
-                            "compare_duration_ns": "\u00e2\u20ac\u00a6",
-                            "delta_pct": "\u00e2\u20ac\u00a6",
-                            "depth": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "service_name": "\u00e2\u20ac\u00a6",
-                            "status": "\u00e2\u20ac\u00a6"
+                            "baseline_duration_ns": "…",
+                            "compare_duration_ns": "…",
+                            "delta_pct": "…",
+                            "depth": "…",
+                            "name": "…",
+                            "service_name": "…",
+                            "status": "…"
                           }
                         ],
                         "summary": {
@@ -9485,26 +9493,26 @@
                         "name": "POST /checkout",
                         "points": [
                           {
-                            "bounds": "\u00e2\u20ac\u00a6",
-                            "buckets": "\u00e2\u20ac\u00a6",
-                            "count": "\u00e2\u20ac\u00a6",
-                            "exemplars": "\u00e2\u20ac\u00a6",
-                            "exp_negative_counts": "\u00e2\u20ac\u00a6",
-                            "exp_negative_offset": "\u00e2\u20ac\u00a6",
-                            "timestamp_ns": "\u00e2\u20ac\u00a6",
-                            "value": "\u00e2\u20ac\u00a6"
+                            "bounds": "…",
+                            "buckets": "…",
+                            "count": "…",
+                            "exemplars": "…",
+                            "exp_negative_counts": "…",
+                            "exp_negative_offset": "…",
+                            "timestamp_ns": "…",
+                            "value": "…"
                           }
                         ],
                         "service_name": "checkout",
                         "traces": [
                           {
-                            "duration_ns": "\u00e2\u20ac\u00a6",
-                            "end_ns": "\u00e2\u20ac\u00a6",
-                            "op": "\u00e2\u20ac\u00a6",
-                            "service": "\u00e2\u20ac\u00a6",
-                            "start_ns": "\u00e2\u20ac\u00a6",
-                            "status_code": "\u00e2\u20ac\u00a6",
-                            "trace_id": "\u00e2\u20ac\u00a6"
+                            "duration_ns": "…",
+                            "end_ns": "…",
+                            "op": "…",
+                            "service": "…",
+                            "start_ns": "…",
+                            "status_code": "…",
+                            "trace_id": "…"
                           }
                         ],
                         "type": "example",
@@ -10026,20 +10034,20 @@
                       "data": {
                         "edges": [
                           {
-                            "avg_duration_ns": "\u00e2\u20ac\u00a6",
-                            "call_count": "\u00e2\u20ac\u00a6",
-                            "error_count": "\u00e2\u20ac\u00a6",
-                            "from": "\u00e2\u20ac\u00a6",
-                            "to": "\u00e2\u20ac\u00a6"
+                            "avg_duration_ns": "…",
+                            "call_count": "…",
+                            "error_count": "…",
+                            "from": "…",
+                            "to": "…"
                           }
                         ],
                         "nodes": [
                           {
-                            "error_count": "\u00e2\u20ac\u00a6",
-                            "id": "\u00e2\u20ac\u00a6",
-                            "p95_ns": "\u00e2\u20ac\u00a6",
-                            "span_count": "\u00e2\u20ac\u00a6",
-                            "top_operations": "\u00e2\u20ac\u00a6"
+                            "error_count": "…",
+                            "id": "…",
+                            "p95_ns": "…",
+                            "span_count": "…",
+                            "top_operations": "…"
                           }
                         ]
                       }
@@ -10983,7 +10991,7 @@
                   },
                   "db_path": {
                     "type": "string",
-                    "description": "Sets the path of Spaniel\u00e2\u20ac\u2122s DuckDB telemetry database."
+                    "description": "Sets the path of Spaniel’s DuckDB telemetry database."
                   },
                   "forward": {
                     "items": {
@@ -11030,7 +11038,7 @@
                   },
                   "self_monitor": {
                     "type": "boolean",
-                    "description": "Enables Spaniel\u00e2\u20ac\u2122s own telemetry instrumentation."
+                    "description": "Enables Spaniel’s own telemetry instrumentation."
                   },
                   "source_burst": {
                     "type": "integer",
@@ -11044,6 +11052,10 @@
                     "type": "string",
                     "writeOnly": true,
                     "description": "Sets the shared bearer token in the config file and process environment. Empty disables authentication. Takes effect after restart."
+                  },
+                  "public_url": {
+                    "type": "string",
+                    "description": "Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart."
                   }
                 },
                 "type": "object"
@@ -11771,13 +11783,13 @@
                         "last_checkpoint_at": 1.5,
                         "main_bytes": 1.5,
                         "sessions": [
-                          "\u00e2\u20ac\u00a6"
+                          "…"
                         ],
                         "tables": [
                           {
-                            "approx_bytes": "\u00e2\u20ac\u00a6",
-                            "name": "\u00e2\u20ac\u00a6",
-                            "row_count": "\u00e2\u20ac\u00a6"
+                            "approx_bytes": "…",
+                            "name": "…",
+                            "row_count": "…"
                           }
                         ],
                         "wal_bytes": 1.5
@@ -12147,6 +12159,140 @@
         "tags": [
           "Traces"
         ]
+      }
+    },
+    "/api/settings/self-monitor/dashboards": {
+      "post": {
+        "operationId": "installSelfMonitorDashboards",
+        "summary": "Create or refresh bundled Spaniel dashboards",
+        "tags": [
+          "Administration"
+        ],
+        "responses": {
+          "200": {
+            "description": "Installation complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "created",
+                        "refreshed",
+                        "skipped"
+                      ],
+                      "properties": {
+                        "created": {
+                          "type": "integer"
+                        },
+                        "refreshed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Bundled definitions installed",
+                    "value": {
+                      "data": {
+                        "created": 3,
+                        "refreshed": 0,
+                        "skipped": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Installation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/self-monitor/alerts": {
+      "post": {
+        "operationId": "installSelfMonitorAlerts",
+        "summary": "Create or refresh bundled Spaniel alerts",
+        "tags": [
+          "Administration"
+        ],
+        "responses": {
+          "200": {
+            "description": "Installation complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "created",
+                        "refreshed",
+                        "skipped"
+                      ],
+                      "properties": {
+                        "created": {
+                          "type": "integer"
+                        },
+                        "refreshed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Bundled definitions installed",
+                    "value": {
+                      "data": {
+                        "created": 3,
+                        "refreshed": 0,
+                        "skipped": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Installation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/sql/format": {

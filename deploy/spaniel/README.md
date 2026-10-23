@@ -1,4 +1,4 @@
-# Spaniel's own dashboards
+# Spaniel's own monitoring definitions
 
 The local Compose service loads `dashboards/*.yaml` from
 `/etc/spaniel/dashboards` at startup. Each file contains a stable `id`, so
@@ -43,3 +43,16 @@ On a running build with definition-reload support, the files can also be
 reconciled without a restart using `POST /api/dashboards/reload`. This is
 useful on Docker Desktop, where native Windows bind-mount edits may not
 produce Linux filesystem-watch events.
+
+
+The binary embeds these dashboards and the rules in `alerts/*.yaml`.
+Settings → General offers buttons to install them, and enabling self-monitoring
+offers the same installation through a confirmation dialog. Installation matches
+exact names: dashboards are refreshed from the binary (including panels and
+variables), while existing alerts retain their settings. New copies remain
+editable in the UI. File-managed dashboards retain their file provenance.
+
+The bundled alerts cover storage-full state, database budget above 90%, and
+more than five server error spans over five minutes. They require one minute
+pending and use a five-minute cooldown. Metric alerts consider only samples
+from the last five minutes; missing gauges do not masquerade as healthy zeros.

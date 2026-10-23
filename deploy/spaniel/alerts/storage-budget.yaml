@@ -1,0 +1,11 @@
+version: 1
+name: Spaniel storage budget high
+query: |
+  WITH latest AS (SELECT name, arg_max(value, timestamp_ns) AS value FROM metrics WHERE service_name = 'spaniel' AND name IN ('spaniel.storage.db_size.current', 'spaniel.storage.db_size.limit') AND timestamp_ns > epoch_ns(current_timestamp) - 300000000000 GROUP BY name) SELECT 100.0 * max(value) FILTER (WHERE name = 'spaniel.storage.db_size.current') / nullif(max(value) FILTER (WHERE name = 'spaniel.storage.db_size.limit'), 0) AS value FROM latest
+condition:
+  kind: threshold
+  operator: ">"
+  threshold: 90
+pending_for: 1m
+cooldown: 5m
+severity: warning

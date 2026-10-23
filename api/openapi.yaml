@@ -2349,6 +2349,8 @@ components:
                     type: number
                 port:
                     type: number
+                public_url:
+                    type: string
                 retention_days:
                     type: number
                 runtime:
@@ -2417,6 +2419,7 @@ components:
                 - alerts_browser_template
                 - alerts_pushover_template
                 - runtime
+                - public_url
             type: object
         SettingsResponse:
             $schema: https://json-schema.org/draft/2020-12/schema
@@ -2469,6 +2472,8 @@ components:
                     type: number
                 port:
                     type: number
+                public_url:
+                    type: string
                 retention_days:
                     type: number
                 runtime:
@@ -2537,6 +2542,7 @@ components:
                 - alerts_browser_template
                 - alerts_pushover_template
                 - runtime
+                - public_url
             type: object
         SettingsRuntime:
             $schema: https://json-schema.org/draft/2020-12/schema
@@ -3182,14 +3188,14 @@ paths:
                                     value:
                                         data:
                                             items:
-                                                - annotations_json: â€¦
-                                                  condition_json: â€¦
-                                                  enabled: â€¦
-                                                  group_by_json: â€¦
-                                                  id: â€¦
-                                                  name: â€¦
-                                                  query_sql: â€¦
-                                                  query_version: â€¦
+                                                - annotations_json: …
+                                                  condition_json: …
+                                                  enabled: …
+                                                  group_by_json: …
+                                                  id: …
+                                                  name: …
+                                                  query_sql: …
+                                                  query_version: …
                                             summary:
                                                 instance_counts: {}
                                                 rule_counts: {}
@@ -3925,9 +3931,9 @@ paths:
                                                 value: 1.5
                                             display_type: example
                                             notification_preview:
-                                                - destination: â€¦
-                                                  reason: â€¦
-                                                  status: â€¦
+                                                - destination: …
+                                                  reason: …
+                                                  status: …
                                             query_version: 1.5
                                             rows:
                                                 - {}
@@ -4514,9 +4520,9 @@ paths:
                                                 value: 1.5
                                             display_type: example
                                             notification_preview:
-                                                - destination: â€¦
-                                                  reason: â€¦
-                                                  status: â€¦
+                                                - destination: …
+                                                  reason: …
+                                                  status: …
                                             query_version: 1.5
                                             rows:
                                                 - {}
@@ -4613,14 +4619,14 @@ paths:
                                                 generic_route_spans: 1.5
                                                 missing_route_spans: 1.5
                                             services:
-                                                - coverage_pct: â€¦
-                                                  dark_routes: â€¦
-                                                  name: â€¦
-                                                  observed_operations: â€¦
-                                                  observed_routes: â€¦
-                                                  source: â€¦
-                                                  spec: â€¦
-                                                  total_routes: â€¦
+                                                - coverage_pct: …
+                                                  dark_routes: …
+                                                  name: …
+                                                  observed_operations: …
+                                                  observed_routes: …
+                                                  source: …
+                                                  spec: …
+                                                  total_routes: …
                             schema:
                                 properties:
                                     data:
@@ -4797,10 +4803,10 @@ paths:
                                               id: session_2026-10-07_1200
                                               name: POST /checkout
                                               panels:
-                                                - â€¦
+                                                - …
                                               updated_at: 1.5
                                               variables:
-                                                - â€¦
+                                                - …
                             schema:
                                 properties:
                                     data:
@@ -4881,22 +4887,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: â€¦
-                                                  display_type: â€¦
-                                                  id: â€¦
-                                                  layout_json: â€¦
-                                                  query_sql: â€¦
-                                                  query_version: â€¦
-                                                  settings_json: â€¦
-                                                  title: â€¦
+                                                - dashboard_id: …
+                                                  display_type: …
+                                                  id: …
+                                                  layout_json: …
+                                                  query_sql: …
+                                                  query_version: …
+                                                  settings_json: …
+                                                  title: …
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: â€¦
-                                                  default_value: â€¦
-                                                  kind: â€¦
-                                                  name: â€¦
-                                                  options_json: â€¦
-                                                  source: â€¦
+                                                - dashboard_id: …
+                                                  default_value: …
+                                                  kind: …
+                                                  name: …
+                                                  options_json: …
+                                                  source: …
                             schema:
                                 properties:
                                     data:
@@ -4992,22 +4998,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: â€¦
-                                                  display_type: â€¦
-                                                  id: â€¦
-                                                  layout_json: â€¦
-                                                  query_sql: â€¦
-                                                  query_version: â€¦
-                                                  settings_json: â€¦
-                                                  title: â€¦
+                                                - dashboard_id: …
+                                                  display_type: …
+                                                  id: …
+                                                  layout_json: …
+                                                  query_sql: …
+                                                  query_version: …
+                                                  settings_json: …
+                                                  title: …
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: â€¦
-                                                  default_value: â€¦
-                                                  kind: â€¦
-                                                  name: â€¦
-                                                  options_json: â€¦
-                                                  source: â€¦
+                                                - dashboard_id: …
+                                                  default_value: …
+                                                  kind: …
+                                                  name: …
+                                                  options_json: …
+                                                  source: …
                             schema:
                                 properties:
                                     data:
@@ -5093,22 +5099,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: â€¦
-                                                  display_type: â€¦
-                                                  id: â€¦
-                                                  layout_json: â€¦
-                                                  query_sql: â€¦
-                                                  query_version: â€¦
-                                                  settings_json: â€¦
-                                                  title: â€¦
+                                                - dashboard_id: …
+                                                  display_type: …
+                                                  id: …
+                                                  layout_json: …
+                                                  query_sql: …
+                                                  query_version: …
+                                                  settings_json: …
+                                                  title: …
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: â€¦
-                                                  default_value: â€¦
-                                                  kind: â€¦
-                                                  name: â€¦
-                                                  options_json: â€¦
-                                                  source: â€¦
+                                                - dashboard_id: …
+                                                  default_value: …
+                                                  kind: …
+                                                  name: …
+                                                  options_json: …
+                                                  source: …
                             schema:
                                 properties:
                                     data:
@@ -5572,9 +5578,9 @@ paths:
                                                 value: 1.5
                                             display_type: example
                                             notification_preview:
-                                                - destination: â€¦
-                                                  reason: â€¦
-                                                  status: â€¦
+                                                - destination: …
+                                                  reason: …
+                                                  status: …
                                             query_version: 1.5
                                             rows:
                                                 - {}
@@ -5776,22 +5782,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: â€¦
-                                                  display_type: â€¦
-                                                  id: â€¦
-                                                  layout_json: â€¦
-                                                  query_sql: â€¦
-                                                  query_version: â€¦
-                                                  settings_json: â€¦
-                                                  title: â€¦
+                                                - dashboard_id: …
+                                                  display_type: …
+                                                  id: …
+                                                  layout_json: …
+                                                  query_sql: …
+                                                  query_version: …
+                                                  settings_json: …
+                                                  title: …
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: â€¦
-                                                  default_value: â€¦
-                                                  kind: â€¦
-                                                  name: â€¦
-                                                  options_json: â€¦
-                                                  source: â€¦
+                                                - dashboard_id: …
+                                                  default_value: …
+                                                  kind: …
+                                                  name: …
+                                                  options_json: …
+                                                  source: …
                             schema:
                                 properties:
                                     data:
@@ -5932,10 +5938,10 @@ paths:
                                                 - example
                                             version: example
                                             views:
-                                                - columns: â€¦
-                                                  name: â€¦
-                                                  purpose: â€¦
-                                                  samples: â€¦
+                                                - columns: …
+                                                  name: …
+                                                  purpose: …
+                                                  samples: …
                             schema:
                                 properties:
                                     data:
@@ -5985,14 +5991,14 @@ paths:
                                                 span_count: 1.5
                                                 total_duration_ns: 1.5
                                             baseline_spans:
-                                                - duration_ns: â€¦
-                                                  name: â€¦
-                                                  parent_span_id: â€¦
-                                                  service_name: â€¦
-                                                  session_id: â€¦
-                                                  span_id: â€¦
-                                                  start_ns: â€¦
-                                                  trace_id: â€¦
+                                                - duration_ns: …
+                                                  name: …
+                                                  parent_span_id: …
+                                                  service_name: …
+                                                  session_id: …
+                                                  span_id: …
+                                                  start_ns: …
+                                                  trace_id: …
                                             compare:
                                                 db_calls: 1.5
                                                 label: checkout regression
@@ -6000,22 +6006,22 @@ paths:
                                                 span_count: 1.5
                                                 total_duration_ns: 1.5
                                             compare_spans:
-                                                - duration_ns: â€¦
-                                                  name: â€¦
-                                                  parent_span_id: â€¦
-                                                  service_name: â€¦
-                                                  session_id: â€¦
-                                                  span_id: â€¦
-                                                  start_ns: â€¦
-                                                  trace_id: â€¦
+                                                - duration_ns: …
+                                                  name: …
+                                                  parent_span_id: …
+                                                  service_name: …
+                                                  session_id: …
+                                                  span_id: …
+                                                  start_ns: …
+                                                  trace_id: …
                                             spans:
-                                                - baseline_duration_ns: â€¦
-                                                  compare_duration_ns: â€¦
-                                                  delta_pct: â€¦
-                                                  depth: â€¦
-                                                  name: â€¦
-                                                  service_name: â€¦
-                                                  status: â€¦
+                                                - baseline_duration_ns: …
+                                                  compare_duration_ns: …
+                                                  delta_pct: …
+                                                  depth: …
+                                                  name: …
+                                                  service_name: …
+                                                  status: …
                                             summary:
                                                 db_call_delta: 1.5
                                                 duration_delta_ns: 1.5
@@ -6477,23 +6483,23 @@ paths:
                                             description: example
                                             name: POST /checkout
                                             points:
-                                                - bounds: â€¦
-                                                  buckets: â€¦
-                                                  count: â€¦
-                                                  exemplars: â€¦
-                                                  exp_negative_counts: â€¦
-                                                  exp_negative_offset: â€¦
-                                                  timestamp_ns: â€¦
-                                                  value: â€¦
+                                                - bounds: …
+                                                  buckets: …
+                                                  count: …
+                                                  exemplars: …
+                                                  exp_negative_counts: …
+                                                  exp_negative_offset: …
+                                                  timestamp_ns: …
+                                                  value: …
                                             service_name: checkout
                                             traces:
-                                                - duration_ns: â€¦
-                                                  end_ns: â€¦
-                                                  op: â€¦
-                                                  service: â€¦
-                                                  start_ns: â€¦
-                                                  status_code: â€¦
-                                                  trace_id: â€¦
+                                                - duration_ns: …
+                                                  end_ns: …
+                                                  op: …
+                                                  service: …
+                                                  start_ns: …
+                                                  status_code: …
+                                                  trace_id: …
                                             type: example
                                             unit: example
                             schema:
@@ -6821,17 +6827,17 @@ paths:
                                     value:
                                         data:
                                             edges:
-                                                - avg_duration_ns: â€¦
-                                                  call_count: â€¦
-                                                  error_count: â€¦
-                                                  from: â€¦
-                                                  to: â€¦
+                                                - avg_duration_ns: …
+                                                  call_count: …
+                                                  error_count: …
+                                                  from: …
+                                                  to: …
                                             nodes:
-                                                - error_count: â€¦
-                                                  id: â€¦
-                                                  p95_ns: â€¦
-                                                  span_count: â€¦
-                                                  top_operations: â€¦
+                                                - error_count: …
+                                                  id: …
+                                                  p95_ns: …
+                                                  span_count: …
+                                                  top_operations: …
                             schema:
                                 properties:
                                     data:
@@ -7441,7 +7447,7 @@ paths:
                                     description: Sets the IPv6 address on which Spaniel listens for HTTP traffic.
                                     type: string
                                 db_path:
-                                    description: Sets the path of Spanielâ€™s DuckDB telemetry database.
+                                    description: Sets the path of Spaniel’s DuckDB telemetry database.
                                     type: string
                                 forward:
                                     description: Lists upstream OTLP destinations to receive forwarded telemetry.
@@ -7472,11 +7478,14 @@ paths:
                                 port:
                                     description: Sets the port serving the Spaniel web app and HTTP API.
                                     type: integer
+                                public_url:
+                                    description: Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart.
+                                    type: string
                                 retention_days:
                                     description: Sets how long telemetry is retained before age-based pruning.
                                     type: integer
                                 self_monitor:
-                                    description: Enables Spanielâ€™s own telemetry instrumentation.
+                                    description: Enables Spaniel’s own telemetry instrumentation.
                                     type: boolean
                                 source_burst:
                                     description: Sets the maximum short-term telemetry burst accepted from a source.
@@ -7692,6 +7701,92 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Spaniel could not complete the request.
             summary: prune Storage
+            tags:
+                - Administration
+    /api/settings/self-monitor/alerts:
+        post:
+            operationId: installSelfMonitorAlerts
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Bundled definitions installed
+                                    value:
+                                        data:
+                                            created: 3
+                                            refreshed: 0
+                                            skipped: 0
+                            schema:
+                                properties:
+                                    data:
+                                        properties:
+                                            created:
+                                                type: integer
+                                            refreshed:
+                                                type: integer
+                                            skipped:
+                                                type: integer
+                                        required:
+                                            - created
+                                            - refreshed
+                                            - skipped
+                                        type: object
+                                required:
+                                    - data
+                                type: object
+                    description: Installation complete
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Installation failed
+            summary: Create or refresh bundled Spaniel alerts
+            tags:
+                - Administration
+    /api/settings/self-monitor/dashboards:
+        post:
+            operationId: installSelfMonitorDashboards
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Bundled definitions installed
+                                    value:
+                                        data:
+                                            created: 3
+                                            refreshed: 0
+                                            skipped: 0
+                            schema:
+                                properties:
+                                    data:
+                                        properties:
+                                            created:
+                                                type: integer
+                                            refreshed:
+                                                type: integer
+                                            skipped:
+                                                type: integer
+                                        required:
+                                            - created
+                                            - refreshed
+                                            - skipped
+                                        type: object
+                                required:
+                                    - data
+                                type: object
+                    description: Installation complete
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Installation failed
+            summary: Create or refresh bundled Spaniel dashboards
             tags:
                 - Administration
     /api/sources:
@@ -8012,11 +8107,11 @@ paths:
                                             last_checkpoint_at: 1.5
                                             main_bytes: 1.5
                                             sessions:
-                                                - â€¦
+                                                - …
                                             tables:
-                                                - approx_bytes: â€¦
-                                                  name: â€¦
-                                                  row_count: â€¦
+                                                - approx_bytes: …
+                                                  name: …
+                                                  row_count: …
                                             wal_bytes: 1.5
                             schema:
                                 properties:
