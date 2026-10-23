@@ -137,6 +137,15 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
     )
     .toBeGreaterThan(15)
   await page.setViewportSize({ width: 1280, height: 900 })
+  await page.getByRole('button', { name: 'Dashboard settings', exact: true }).click()
+  const live = page.getByRole('switch', { name: 'Live rolling time window', exact: true })
+  await live.check()
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
+  await page.reload()
+  await page.getByRole('button', { name: 'Dashboard settings', exact: true }).click()
+  await expect(live).toBeChecked()
+  await live.uncheck()
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
   await page.goto('/dashboards/charts')
   for (const [kind, label] of [
     ['bar', 'Bar Compare categories'],

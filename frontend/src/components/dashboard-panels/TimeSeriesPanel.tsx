@@ -30,12 +30,24 @@ export function TimeSeriesPanel({
   panel,
   annotations = [],
 }: DashboardPanelRendererProps & { annotations?: DashboardPanelRendererProps['rows'] }) {
-  let settings: { scroll?: boolean; max_height_px?: number; min_width_px?: number } = {}
+  let settings: {
+    scroll?: boolean
+    max_height_px?: number
+    min_width_px?: number
+    time_window_seconds?: number
+  } = {}
   try {
     settings = JSON.parse(panel.settings_json) as typeof settings
   } catch {
     /* optional settings */
   }
+  const [now, setNow] = useState(Date.now)
+  const timeWindow = settings.time_window_seconds
+  useEffect(() => {
+    if (!timeWindow || timeWindow <= 0) return
+    const timer = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(timer)
+  }, [timeWindow])
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(720)
   useEffect(() => {
@@ -50,7 +62,7 @@ export function TimeSeriesPanel({
   const series = points(rows)
   if (!series.length) return null
   const minWidth = settings.min_width_px ?? 0
-  const width = Math.max(containerWidth, minWidth, 240)
+  const width = Math.max(containerWidth, minWidth, 1)
   const height = 210
   const left = 88
   const right = 14
@@ -59,8 +71,10 @@ export function TimeSeriesPanel({
   const min = Math.min(...series.map((point) => point.value))
   const max = Math.max(...series.map((point) => point.value))
   const range = max - min || 1
-  const minTime = Math.min(...series.map((point) => point.time))
-  const maxTime = Math.max(...series.map((point) => point.time))
+  const maxTime = timeWindow ? now * 1e6 : Math.max(...series.map((point) => point.time))
+  const minTime = timeWindow
+    ? maxTime - timeWindow * 1e9
+    : Math.min(...series.map((point) => point.time))
   const timeRange = maxTime - minTime || 1
   const grouped = new Map<string, Point[]>()
   for (const point of series) grouped.set(point.group, [...(grouped.get(point.group) ?? []), point])
@@ -70,11 +84,8 @@ export function TimeSeriesPanel({
     y: height - bottom - ((point.value - min) / range) * (height - top - bottom),
   })
   const yTicks = [max, min + range / 2, min]
-  const xTicks = [
-    series[0].label,
-    series[Math.floor((series.length - 1) / 2)]?.label ?? series[0].label,
-    series[series.length - 1].label,
-  ]
+  const xTicks = [minTime, minTime + timeRange / 2, maxTime].map(timeLabel)
+
   // Match SVG units to the viewport so axis text keeps its screen font size.
   const scroll = settings.scroll ?? minWidth > 0
   return (

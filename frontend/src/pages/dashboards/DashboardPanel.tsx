@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 type Props = {
   panel: DashboardPanel
+  live?: boolean
   dashboardId: string
   variables?: Record<string, string>
   onStatus?: (id: string, state: 'loading' | 'ready' | 'error', message?: string) => void
@@ -20,6 +21,7 @@ type Props = {
 
 export function DashboardPanel({
   panel,
+  live,
   dashboardId,
   variables: sharedVariables,
   onStatus,
@@ -124,6 +126,7 @@ export function DashboardPanel({
         <PanelRenderer
           dashboardId={dashboardId}
           panel={panel}
+          live={live}
           variables={sharedVariables ?? variables}
           onStatus={onStatus}
         />
