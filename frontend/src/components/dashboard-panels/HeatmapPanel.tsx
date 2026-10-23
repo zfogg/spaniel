@@ -77,7 +77,7 @@ export function HeatmapPanel({ rows, panel }: DashboardPanelRendererProps) {
                 y={yi * cellHeight + 16}
                 textAnchor="end"
                 fill="currentColor"
-                fontSize={10}
+                fontSize={14}
               >
                 {labelY(y)}
               </text>
@@ -115,14 +115,14 @@ export function HeatmapPanel({ rows, panel }: DashboardPanelRendererProps) {
               y={height - 10}
               textAnchor={index === 0 ? 'start' : index === xs.length - 1 ? 'end' : 'middle'}
               fill="currentColor"
-              fontSize={10}
+              fontSize={14}
             >
               {labelX(xs[index])}
             </text>
           ))}
         </svg>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>
           {temporal ? 'Time → · ' : ''}
           {duration ? 'Duration ↑ · ' : ''}Frequency

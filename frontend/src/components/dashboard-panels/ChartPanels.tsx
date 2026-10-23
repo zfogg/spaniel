@@ -67,7 +67,7 @@ export function CategoryPanel({ panel, rows }: DashboardPanelRendererProps) {
       )}
       <ul className="min-w-0 basis-32 flex-1 space-y-2" aria-label={`${panel.title} values`}>
         {data.map(({ label, value }, index) => (
-          <li key={index} className="text-xs">
+          <li key={index} className="text-sm">
             <div className="flex flex-wrap justify-between gap-3">
               <span className="break-all">{label}</span>
               <span className="shrink-0 font-mono">
@@ -144,12 +144,12 @@ export function GaugePanel({ panel, rows }: DashboardPanelRendererProps) {
           {formatValue(value)} {unit}
         </text>
       </svg>
-      <div className="flex justify-between text-xs text-muted-foreground">
+      <div className="flex justify-between text-sm text-muted-foreground">
         <span>{formatValue(min)}</span>
         <span>{formatValue(max)}</span>
       </div>
       {(value < min || value > max) && (
-        <p className="text-xs">Value is outside the configured range.</p>
+        <p className="text-sm">Value is outside the configured range.</p>
       )}
     </div>
   )

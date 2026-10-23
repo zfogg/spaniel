@@ -38,10 +38,10 @@ export function TimeSeriesPanel({
   if (!series.length) return null
   const width = 720
   const height = 210
-  const left = 48
+  const left = 72
   const right = 14
-  const top = 12
-  const bottom = 30
+  const top = 18
+  const bottom = 36
   const min = Math.min(...series.map((point) => point.value))
   const max = Math.max(...series.map((point) => point.value))
   const range = max - min || 1
@@ -125,7 +125,7 @@ export function TimeSeriesPanel({
               x={left - 8}
               y={top + (index * (height - top - bottom)) / 2 + 3}
               textAnchor="end"
-              className="fill-muted-foreground font-mono text-[10px]"
+              className="fill-muted-foreground font-mono text-sm"
             >
               {formatValue(value)}
             </text>
@@ -136,7 +136,7 @@ export function TimeSeriesPanel({
               x={left + (index * (width - left - right)) / 2}
               y={height - 9}
               textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'}
-              className="fill-muted-foreground font-mono text-[10px]"
+              className="fill-muted-foreground font-mono text-sm"
             >
               {label}
             </text>
@@ -179,7 +179,7 @@ export function TimeSeriesPanel({
           {[...grouped.keys()].map((group, index) => (
             <span
               key={group}
-              className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground"
+              className="flex items-center gap-1 font-mono text-sm text-muted-foreground"
             >
               <i
                 className="h-2 w-2 rounded-full"
