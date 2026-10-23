@@ -1,3 +1,4 @@
+import { useAxisGutter } from './axis-gutter'
 import { durationLabel, formatValue, numberValue, timeLabel } from './format'
 import type { DashboardPanelRendererProps } from './types'
 
@@ -21,6 +22,10 @@ export function HeatmapPanel({ rows, panel }: DashboardPanelRendererProps) {
     const value = numberValue(row.value)
     return x == null || value == null || value < 0 ? [] : [{ x: String(x), y: String(y), value }]
   })
+  const { axisRef, gutter } = useAxisGutter(
+    points.map((point) => (duration ? durationLabel(Number(point.y) * 1e6) : formatValue(point.y))),
+    14,
+  )
   if (!points.length)
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -51,7 +56,7 @@ export function HeatmapPanel({ rows, panel }: DashboardPanelRendererProps) {
   const labelY = (y: string) => (duration ? durationLabel(Number(y) * 1e6) : formatValue(y))
   const cellWidth = Math.max(12, 300 / xs.length),
     cellHeight = 24
-  const width = 80 + xs.length * cellWidth,
+  const width = gutter + xs.length * cellWidth,
     height = 30 + ys.length * cellHeight
   const ticks = new Set([0, Math.floor((xs.length - 1) / 2), xs.length - 1])
   return (
@@ -70,48 +75,50 @@ export function HeatmapPanel({ rows, panel }: DashboardPanelRendererProps) {
           }}
           className="block text-muted-foreground"
         >
-          {ys.map((y, yi) => (
-            <g key={y}>
-              <text
-                x={70}
-                y={yi * cellHeight + 16}
-                textAnchor="end"
-                fill="currentColor"
-                fontSize={14}
-              >
-                {labelY(y)}
-              </text>
-              {xs.map((x, xi) => {
-                const value = values.get(x)?.get(y)
-                const intensity = Math.round(100 * Math.sqrt((value ?? 0) / max))
-                const detail = `${labelX(x)} · ${duration ? 'Duration bucket ≥ ' : 'Bucket '}${labelY(y)} · ${value == null ? 'No data' : `Count: ${formatValue(value)}`}`
-                return (
-                  <rect
-                    key={x}
-                    data-heatmap-cell=""
-                    x={80 + xi * cellWidth}
-                    y={yi * cellHeight}
-                    width={cellWidth - 2}
-                    height={cellHeight - 2}
-                    rx={2}
-                    aria-label={detail}
-                    style={{
-                      fill:
-                        value == null
-                          ? 'var(--muted)'
-                          : `color-mix(in srgb, var(--heatmap-high) ${intensity}%, var(--heatmap-low))`,
-                    }}
-                  >
-                    <title>{detail}</title>
-                  </rect>
-                )
-              })}
-            </g>
-          ))}
+          <g ref={axisRef}>
+            {ys.map((y, yi) => (
+              <g key={y}>
+                <text
+                  x={gutter - 8}
+                  y={yi * cellHeight + 16}
+                  textAnchor="end"
+                  fill="currentColor"
+                  fontSize={14}
+                >
+                  {labelY(y)}
+                </text>
+                {xs.map((x, xi) => {
+                  const value = values.get(x)?.get(y)
+                  const intensity = Math.round(100 * Math.sqrt((value ?? 0) / max))
+                  const detail = `${labelX(x)} · ${duration ? 'Duration bucket ≥ ' : 'Bucket '}${labelY(y)} · ${value == null ? 'No data' : `Count: ${formatValue(value)}`}`
+                  return (
+                    <rect
+                      key={x}
+                      data-heatmap-cell=""
+                      x={gutter + xi * cellWidth}
+                      y={yi * cellHeight}
+                      width={cellWidth - 2}
+                      height={cellHeight - 2}
+                      rx={2}
+                      aria-label={detail}
+                      style={{
+                        fill:
+                          value == null
+                            ? 'var(--muted)'
+                            : `color-mix(in srgb, var(--heatmap-high) ${intensity}%, var(--heatmap-low))`,
+                      }}
+                    >
+                      <title>{detail}</title>
+                    </rect>
+                  )
+                })}
+              </g>
+            ))}
+          </g>
           {[...ticks].map((index) => (
             <text
               key={index}
-              x={80 + (index + 0.5) * cellWidth}
+              x={gutter + (index + 0.5) * cellWidth}
               y={height - 10}
               textAnchor={index === 0 ? 'start' : index === xs.length - 1 ? 'end' : 'middle'}
               fill="currentColor"

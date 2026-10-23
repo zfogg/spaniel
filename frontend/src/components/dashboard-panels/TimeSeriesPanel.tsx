@@ -1,3 +1,5 @@
+import { useAxisGutter } from './axis-gutter'
+import { useEffect, useRef, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatValue, numberValue, timeLabel } from './format'
 import type { DashboardPanelRendererProps } from './types'
@@ -29,25 +31,53 @@ export function TimeSeriesPanel({
   panel,
   annotations = [],
 }: DashboardPanelRendererProps & { annotations?: DashboardPanelRendererProps['rows'] }) {
-  let settings: { scroll?: boolean; max_height_px?: number; min_width_px?: number } = {}
+  let settings: {
+    scroll?: boolean
+    max_height_px?: number
+    min_width_px?: number
+    time_window_seconds?: number
+  } = {}
   try {
     settings = JSON.parse(panel.settings_json) as typeof settings
   } catch {
     /* optional settings */
   }
+  const [now, setNow] = useState(Date.now)
+  const timeWindow = settings.time_window_seconds
+  useEffect(() => {
+    if (!timeWindow || timeWindow <= 0) return
+    const timer = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(timer)
+  }, [timeWindow])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(720)
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setContainerWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [rows.length])
   const series = points(rows)
+  const min = series.length ? Math.min(...series.map((point) => point.value)) : 0
+  const max = series.length ? Math.max(...series.map((point) => point.value)) : 0
+  const range = max - min || 1
+  const yTicks = [max, min + range / 2, min]
+  const { axisRef, gutter } = useAxisGutter(yTicks.map(formatValue), 12)
   if (!series.length) return null
-  const width = 720
+  const minWidth = settings.min_width_px ?? 0
+  const width = Math.max(containerWidth, minWidth, 1)
   const height = 210
-  const left = 72
+  const left = gutter
   const right = 14
   const top = 18
-  const bottom = 36
-  const min = Math.min(...series.map((point) => point.value))
-  const max = Math.max(...series.map((point) => point.value))
-  const range = max - min || 1
-  const minTime = Math.min(...series.map((point) => point.time))
-  const maxTime = Math.max(...series.map((point) => point.time))
+  const bottom = 40
+  const maxTime = timeWindow ? now * 1e6 : Math.max(...series.map((point) => point.time))
+  const minTime = timeWindow
+    ? maxTime - timeWindow * 1e9
+    : Math.min(...series.map((point) => point.time))
   const timeRange = maxTime - minTime || 1
   const grouped = new Map<string, Point[]>()
   for (const point of series) grouped.set(point.group, [...(grouped.get(point.group) ?? []), point])
@@ -56,18 +86,12 @@ export function TimeSeriesPanel({
     x: left + ((point.time - minTime) / timeRange) * (width - left - right),
     y: height - bottom - ((point.value - min) / range) * (height - top - bottom),
   })
-  const yTicks = [max, min + range / 2, min]
-  const xTicks = [
-    series[0].label,
-    series[Math.floor((series.length - 1) / 2)]?.label ?? series[0].label,
-    series[series.length - 1].label,
-  ]
-  // SVG viewBoxes scale dense series to the available panel width. Only panels
-  // that explicitly ask for a minimum width need a horizontal scroll container.
-  const minWidth = settings.min_width_px ?? 0
+  const xTicks = [minTime, minTime + timeRange / 2, maxTime].map(timeLabel)
+
+  // Match SVG units to the viewport so axis text keeps its screen font size.
   const scroll = settings.scroll ?? minWidth > 0
   return (
-    <div className="min-w-0">
+    <div ref={containerRef} className="min-w-0">
       <div
         className={scroll ? 'overflow-auto' : ''}
         style={scroll ? { maxHeight: settings.max_height_px ?? 360 } : undefined}
@@ -120,24 +144,26 @@ export function TimeSeriesPanel({
               </g>
             )
           })}
-          {yTicks.map((value, index) => (
-            <text
-              key={index}
-              x={left - 8}
-              y={top + (index * (height - top - bottom)) / 2 + 3}
-              textAnchor="end"
-              className="fill-muted-foreground font-mono text-base"
-            >
-              {formatValue(value)}
-            </text>
-          ))}
+          <g ref={axisRef}>
+            {yTicks.map((value, index) => (
+              <text
+                key={index}
+                x={left - 8}
+                y={top + (index * (height - top - bottom)) / 2 + 3}
+                textAnchor="end"
+                className="fill-muted-foreground font-mono text-xs"
+              >
+                {formatValue(value)}
+              </text>
+            ))}
+          </g>
           {xTicks.map((label, index) => (
             <text
               key={`${label}-${index}`}
               x={left + (index * (width - left - right)) / 2}
               y={height - 9}
               textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'}
-              className="fill-muted-foreground font-mono text-base"
+              className="fill-muted-foreground font-mono text-xs"
             >
               {label}
             </text>
