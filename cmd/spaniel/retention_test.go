@@ -19,6 +19,7 @@ type fakeStorageGuardStore struct {
 	backoff        bool
 	pruneBudget    time.Duration
 	requiredBudget time.Duration
+	pruneSizes     []int64
 	retainSize     bool
 }
 
@@ -130,7 +131,9 @@ func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID stri
 	if f.pruneErr != nil {
 		return storage.PruneResult{}, f.pruneErr
 	}
-	if !f.retainSize {
+	if len(f.pruneSizes) > 0 {
+		f.size, f.pruneSizes = f.pruneSizes[0], f.pruneSizes[1:]
+	} else if !f.retainSize {
 		f.size = cfg.MaxDBSizeBytes - 1
 	}
 	return storage.PruneResult{DeletedBySize: 2, FinalDBSizeBytes: f.size}, nil
@@ -258,5 +261,56 @@ func TestStorageGuardSoftTargetFailureKeepsBelowCapWritable(t *testing.T) {
 	checkStorageGuard(store, policy)
 	if !store.full {
 		t.Fatal("mixed genuine storage failure must remain blocked")
+	}
+}
+
+func TestStorageGuardRecoveryStaysPausedUntilLowWater(t *testing.T) {
+	policy := newStorageGuardPolicy(100, true)
+	store := &fakeStorageGuardStore{size: 101, requiredBudget: 2 * storageMaintenanceBudget, pruneSizes: []int64{99, 94, 71, 70}}
+	for pass, want := range []int64{99, 94, 71, 70} {
+		checkStorageGuard(store, policy)
+		if store.size != want || store.pruneCalls != pass+1 || store.pruneBudget != storageRecoveryBudget {
+			t.Fatalf("recovery stalled after crossing below cap/high water at pass %d: %+v", pass, store)
+		}
+		if store.full != (want > 70) {
+			t.Fatalf("reopened before low water at pass %d: full=%v size=%d", pass, store.full, store.size)
+		}
+	}
+	checkStorageGuard(store, policy)
+	if store.pruneCalls != 4 || store.full {
+		t.Fatal("low water did not finish recovery")
+	}
+	store.size = 94
+	checkStorageGuard(store, policy)
+	if store.pruneCalls != 4 {
+		t.Fatal("idle storage retriggered below high water")
+	}
+}
+
+func TestStorageGuardProactivePhasesContinueBelowHighWater(t *testing.T) {
+	policy := newStorageGuardPolicy(100, true)
+	store := &fakeStorageGuardStore{size: 95, pruneSizes: []int64{90, 80, 70}}
+	for pass, want := range []int64{90, 80, 70} {
+		policy.nextPruneAfter.Store(0) // elapsed read/ingest window between phases
+		checkStorageGuard(store, policy)
+		if store.pruneCalls != pass+1 || store.size != want || store.full {
+			t.Fatalf("proactive low-water cycle stopped early at pass %d: %+v", pass, store)
+		}
+	}
+}
+
+func TestStorageWALCannotResumeIncompleteHardCapRecovery(t *testing.T) {
+	policy := newStorageGuardPolicy(100, true)
+	store := &fakeStorageGuardStore{size: 100, pruneSizes: []int64{99}}
+	checkStorageGuard(store, policy)
+	store.backoff = true
+	called := checkStorageWAL(store, policy, storageWALCheckpointBytes, func(context.Context) error { store.size = 90; return nil })
+	if !called || !store.full {
+		t.Fatal("WAL checkpoint reopened ingestion before recovery reached low water")
+	}
+	policy.Update(100, false)
+	checkStorageGuard(store, policy)
+	if store.full {
+		t.Fatal("disabling autoprune did not restore preserve-mode cap semantics")
 	}
 }

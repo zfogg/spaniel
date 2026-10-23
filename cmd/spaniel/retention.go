@@ -22,10 +22,9 @@ const (
 	storageHighWaterPercent   = int64(95)
 	storagePruneTargetPercent = int64(70)
 	storageMaintenanceBudget  = 8 * time.Second
-	// A bounded proactive phase may successfully checkpoint or rebuild one
-	// table without reaching the target. Do not immediately monopolize DuckDB
-	// again: leave a useful read/ingest window between below-cap phases.
-	storageProactiveCooldown = time.Minute
+	// Leave a read/ingest window between bounded proactive phases, without
+	// waiting a minute per table and allowing the small high-water gap to refill.
+	storageProactiveCooldown = storageGuardInterval
 	// At the hard cap ingestion is already paused. Reusing the short proactive
 	// budget can repeatedly roll back the same larger table rebuild forever.
 	// Keep one bounded table phase, but allow it to finish before retrying.
@@ -47,6 +46,8 @@ type storageGuardPolicy struct {
 	maxBytes       atomic.Int64
 	autoPrune      atomic.Bool
 	nextPruneAfter atomic.Int64
+	pruning        atomic.Bool
+	recovering     atomic.Bool
 }
 
 func newStorageGuardPolicy(maxBytes int64, autoPrune bool) *storageGuardPolicy {
@@ -59,6 +60,8 @@ func (p *storageGuardPolicy) Update(maxBytes int64, autoPrune bool) {
 	p.maxBytes.Store(maxBytes)
 	p.autoPrune.Store(autoPrune)
 	p.nextPruneAfter.Store(0)
+	p.pruning.Store(false)
+	p.recovering.Store(false)
 }
 
 func (p *storageGuardPolicy) RetentionSizeLimit() int64 {
@@ -196,36 +199,55 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	if target <= 0 || target >= highWater {
 		target = highWater - 1
 	}
-	if size < highWater {
+	if size <= target {
+		policy.pruning.Store(false)
+		policy.recovering.Store(false)
 		store.SetFull(false)
 		return
 	}
-	if size < maxBytes && time.Now().UnixNano() < policy.nextPruneAfter.Load() {
+	if size >= highWater {
+		policy.pruning.Store(true)
+	}
+	if !policy.pruning.Load() {
 		store.SetFull(false)
 		return
 	}
-	// Enforce the real cap before maintenance; failure to reach the proactive
-	// target alone is not full.
-	store.SetFull(size >= maxBytes)
+	if size >= maxBytes {
+		policy.recovering.Store(true)
+	}
+	if !policy.recovering.Load() && time.Now().UnixNano() < policy.nextPruneAfter.Load() {
+		store.SetFull(false)
+		return
+	}
+	// Proactive maintenance remains writable; hard-cap recovery stays paused
+	// until the whole reclamation cycle reaches its low-water target.
+	store.SetFull(policy.recovering.Load())
 
 	budget := storageMaintenanceBudget
-	if size >= maxBytes {
+	if policy.recovering.Load() {
 		budget = storageRecoveryBudget
 	}
 	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: budget}, store.ActiveSessionID())
 	after := store.UsedSize()
-	if size < maxBytes && after >= highWater && after < maxBytes {
+	if after >= maxBytes {
+		policy.recovering.Store(true)
+	}
+	if after <= target {
+		policy.pruning.Store(false)
+		policy.recovering.Store(false)
+		slog.Info("storage guard restored low-water headroom", "db_mb", float64(after)/1024/1024, "target_mb", float64(target)/1024/1024)
+	}
+	if !policy.recovering.Load() && after > target {
 		policy.nextPruneAfter.Store(time.Now().Add(storageProactiveCooldown).UnixNano())
 	}
 	soft := storage.IsRetentionTargetUnreached(err)
 	if err != nil && !soft {
 		slog.Error("storage guard auto-prune failed", "err", err)
 	}
-	// Staying above the proactive high-water mark after one pass is not a
-	// storage-full condition: queued ingestion may flush as appenders reopen,
-	// and the next guard pass can prune again. Reject writes only when pruning
-	// failed or the hard cap itself is still reached.
-	blocked := (err != nil && !soft) || after >= maxBytes
+	// Once the hard cap has paused exporters, do not reopen them into a nearly
+	// full store between bounded phases. Finish the same low-water recovery,
+	// retaining its larger rebuild budget even below the cap/high-water trigger.
+	blocked := (err != nil && !soft) || policy.recovering.Load()
 	store.SetFull(blocked)
 	if blocked {
 		slog.Warn("storage guard could not restore headroom; ingestion paused",
@@ -269,10 +291,11 @@ func checkStorageWAL(store storageGuardStore, policy *storageGuardPolicy, walByt
 	}
 	maxBytes := policy.maxBytes.Load()
 	size := store.UsedSize()
-	if maxBytes > 0 && policy.autoPrune.Load() && !store.RetentionBackingOff() && size >= maxBytes*storageHighWaterPercent/100 {
+	if maxBytes > 0 && policy.autoPrune.Load() && !store.RetentionBackingOff() &&
+		(size >= maxBytes*storageHighWaterPercent/100 || (policy.pruning.Load() && size > maxBytes*storagePruneTargetPercent/100)) {
 		return false
 	}
-	store.SetFull(maxBytes > 0 && size >= maxBytes)
+	store.SetFull(policy.recovering.Load() || (maxBytes > 0 && size >= maxBytes))
 	ctx, cancel := context.WithTimeout(context.Background(), storageMaintenanceBudget)
 	defer cancel()
 	err := checkpoint(ctx)
@@ -281,7 +304,7 @@ func checkStorageWAL(store storageGuardStore, policy *storageGuardPolicy, walByt
 	}
 	// A budget expiry alone cannot declare a below-cap durable WAL full.
 	failed := err != nil && !storage.IsMaintenanceTimeout(err)
-	store.SetFull(failed || (maxBytes > 0 && store.UsedSize() >= maxBytes))
+	store.SetFull(failed || policy.recovering.Load() || (maxBytes > 0 && store.UsedSize() >= maxBytes))
 	return true
 }
 

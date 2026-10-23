@@ -32,7 +32,8 @@ max_sessions: 50
 # Retention: shrink DB to at most N MB (0 = unlimited)
 max_db_size_mb: 500
 
-# Automatically delete the oldest sessions as storage approaches the size cap.
+# Automatically evict oldest telemetry at 95% until storage reaches 70%.
+# After the hard cap pauses ingestion, recovery stays paused until that target.
 # When false, Spaniel preserves all data and pauses ingestion at the cap.
 auto_prune: true
 
