@@ -4,17 +4,19 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
   page,
 }) => {
   const requests: string[] = []
-  const panels = ['single_value', 'bar', 'pie', 'gauge', 'time_series'].map((kind, position) => ({
-    id: kind,
-    dashboard_id: 'charts',
-    title: `${kind} requests`,
-    display_type: kind,
-    query_sql: "SELECT 'orders' AS label, 25 AS value",
-    query_version: 1,
-    settings_json: kind === 'gauge' ? '{"min":0,"max":200,"unit":"ms"}' : '{}',
-    layout_json: JSON.stringify({ x: 1, y: position + 1, w: 12, h: 1 }),
-    position,
-  }))
+  const panels = ['single_value', 'bar', 'pie', 'gauge', 'time_series', 'heatmap'].map(
+    (kind, position) => ({
+      id: kind,
+      dashboard_id: 'charts',
+      title: `${kind} requests`,
+      display_type: kind,
+      query_sql: "SELECT 'orders' AS label, 25 AS value",
+      query_version: 1,
+      settings_json: kind === 'gauge' ? '{"min":0,"max":200,"unit":"ms"}' : '{}',
+      layout_json: JSON.stringify({ x: 1, y: position + 1, w: 12, h: 1 }),
+      position,
+    }),
+  )
   const dashboard = {
     id: 'charts',
     name: 'Chart coverage',
@@ -38,28 +40,33 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
         rows:
           kind === 'gauge'
             ? [{ value: 50 }]
-            : kind === 'time_series'
-              ? Array.from({ length: 20 }, (_, i) => ({
-                  timestamp_ns: 1000000000,
-                  group_value: `ascii-chat-mirror / ascii-chat.pipeline-long-series-${i}`,
-                  value: i,
-                }))
-              : [
-                  { label: 'orders', value: 25 },
-                  ...(kind === 'bar'
-                    ? [
-                        {
-                          label:
-                            'ascii-chat-client / ascii-chat.audio.buffer.overruns-with-a-long-label',
-                          value: 99,
-                        },
-                      ]
-                    : []),
-                  { label: 'payments', value: 75 },
-                  ...(kind === 'bar'
-                    ? Array.from({ length: 30 }, (_, i) => ({ label: `category-${i}`, value: i }))
-                    : []),
-                ],
+            : kind === 'heatmap'
+              ? [
+                  { timestamp_ns: 1000000000, bucket_ms: 0, value: 1 },
+                  { timestamp_ns: 2000000000, bucket_ms: 32, value: 2 },
+                ]
+              : kind === 'time_series'
+                ? Array.from({ length: 20 }, (_, i) => ({
+                    timestamp_ns: 1000000000,
+                    group_value: `ascii-chat-mirror / ascii-chat.pipeline-long-series-${i}`,
+                    value: i,
+                  }))
+                : [
+                    { label: 'orders', value: 25 },
+                    ...(kind === 'bar'
+                      ? [
+                          {
+                            label:
+                              'ascii-chat-client / ascii-chat.audio.buffer.overruns-with-a-long-label',
+                            value: 99,
+                          },
+                        ]
+                      : []),
+                    { label: 'payments', value: 75 },
+                    ...(kind === 'bar'
+                      ? Array.from({ length: 30 }, (_, i) => ({ label: `category-${i}`, value: i }))
+                      : []),
+                  ],
         warnings: [],
       }
     } else if (path === '/api/sessions/active') data = { id: 'session', label: 'Session' }
@@ -104,6 +111,14 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
   await bars.focus()
   await page.keyboard.press('End')
   await expect(bars.getByText('category-29', { exact: true })).toBeInViewport()
+  const lineGutter = await page
+    .getByRole('heading', { name: 'time_series requests', exact: true })
+    .evaluate((el) => el.closest('article')!.querySelector('svg line')!.getAttribute('x1'))
+  expect(Number(lineGutter)).toBeLessThan(60)
+  const heatGutter = await page
+    .getByRole('img', { name: /Heatmap:/ })
+    .evaluate((el) => el.querySelector('rect[data-heatmap-cell]')!.getAttribute('x'))
+  expect(Number(heatGutter)).toBeLessThan(60)
   const legend = page.getByRole('region', { name: 'time_series requests legend', exact: true })
   expect(await legend.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
   const seriesLabel = legend.getByRole('button').first()
@@ -128,7 +143,28 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
       kind,
     ).toBe(true)
   }
+  await expect
+    .poll(() =>
+      page.getByRole('heading', { name: 'time_series requests', exact: true }).evaluate((el) => {
+        const text = el.closest('article')!.querySelector('svg text') as SVGTextElement
+        return parseFloat(getComputedStyle(text).fontSize) * text.getScreenCTM()!.a
+      }),
+    )
+    .toBeGreaterThan(11)
   await page.setViewportSize({ width: 1280, height: 900 })
+  await page.getByRole('button', { name: 'Dashboard settings', exact: true }).click()
+  await expect(page).toHaveURL(/settings=open/)
+  await page.reload()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  const live = page.getByRole('switch', { name: 'Live rolling time window', exact: true })
+  await live.check()
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
+  await expect(page).not.toHaveURL(/settings=open/)
+  await page.reload()
+  await page.getByRole('button', { name: 'Dashboard settings', exact: true }).click()
+  await expect(live).toBeChecked()
+  await live.uncheck()
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
   await page.goto('/dashboards/charts')
   for (const [kind, label] of [
     ['bar', 'Bar Compare categories'],

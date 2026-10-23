@@ -1,3 +1,4 @@
+import { liveDashboardPanel } from './dashboard-live'
 import { useEffect } from 'react'
 import { CategoryPanel, GaugePanel } from './ChartPanels'
 import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
@@ -16,15 +17,18 @@ import { qk } from '@/lib/query'
 
 export function PanelRenderer({
   dashboardId,
-  panel,
+  panel: savedPanel,
+  live = false,
   variables = {},
   onStatus,
 }: {
   dashboardId: string
   panel: DashboardPanel
+  live?: boolean
   variables?: Record<string, string>
   onStatus?: (id: string, status: 'loading' | 'ready' | 'error', message?: string) => void
 }) {
+  const panel = liveDashboardPanel(savedPanel, live)
   let annotationQuery = ''
   try {
     annotationQuery =
@@ -61,9 +65,9 @@ export function PanelRenderer({
           signal,
         )
         .then((response) => response.data),
-    staleTime: 15_000,
+    staleTime: 5000,
     enabled: !usesSession || Boolean(session.data?.id),
-    refetchInterval: 30_000,
+    refetchInterval: live ? 5000 : 30_000,
     retry: 1,
     refetchOnWindowFocus: false,
   })
@@ -88,8 +92,8 @@ export function PanelRenderer({
       panel.display_type === 'deploy_correlation' &&
       Boolean(annotationQuery) &&
       (!annotationUsesSession || Boolean(session.data?.id)),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 5000,
+    refetchInterval: live ? 5000 : 30_000,
     retry: 1,
     refetchOnWindowFocus: false,
   })
