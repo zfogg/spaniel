@@ -1,10 +1,12 @@
 package storage
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/model"
+	"gorm.io/gorm"
 )
 
 type NotificationRecord = model.NotificationRecord
@@ -16,6 +18,8 @@ type NotificationFilter struct {
 }
 
 func (d *DB) RecordNotification(n *NotificationRecord) error {
+	d.notificationMu.Lock()
+	defer d.notificationMu.Unlock()
 	if n.ID == "" {
 		n.ID = uuid.NewString()
 	}
@@ -24,8 +28,15 @@ func (d *DB) RecordNotification(n *NotificationRecord) error {
 	}
 	if n.DedupeKey != "" {
 		existing, err := d.query.NotificationRecord.Where(d.query.NotificationRecord.DedupeKey.Eq(n.DedupeKey)).Order(d.query.NotificationRecord.CreatedAt.Desc()).First()
-		if err == nil && n.CreatedAt-existing.CreatedAt < int64(time.Minute) {
-			return nil
+		if err == nil {
+			// Findings have stable identities. Late spans may update their
+			// evidence for hours; they must not recreate an acknowledged inbox
+			// item every minute. Alert lifecycle deliveries retain their cooldown.
+			if n.Source == "issue" || n.Source == "lint" || n.CreatedAt-existing.CreatedAt < int64(time.Minute) {
+				return nil
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
 		}
 	}
 	return d.namedQuery("RecordNotification").NotificationRecord.Create(n)
