@@ -57,6 +57,8 @@ type SettingsService struct {
 	// nil = settings are persisted but take effect on the next restart.
 	SetMCPAllowWrites func(bool)
 
+	ReloadDashboards func() error
+
 	// ReloadAlerts revalidates and reconciles configured alert YAML files.
 	ReloadAlerts func() error
 

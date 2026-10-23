@@ -158,6 +158,10 @@ func (r *Router) getDashboard(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 404, "dashboard not found")
 		return
 	}
+	if err := r.store.WithContext(req.Context()).MarkDefinitionSeen("dashboard", x.ID, x.SourceHash, x.UpdatedAt); err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
 	respond(w, x, 1, 1)
 }
 func (r *Router) exportDashboardConfig(w http.ResponseWriter, req *http.Request) {

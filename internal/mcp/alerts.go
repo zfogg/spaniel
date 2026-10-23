@@ -153,6 +153,9 @@ func (h *handler) getAlert(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 	if err != nil {
 		return nil, AlertOutput{}, err
 	}
+	if err := h.store.WithContext(ctx).MarkDefinitionSeen("alert", rule.ID, rule.SourceHash, rule.UpdatedAt); err != nil {
+		return nil, AlertOutput{}, err
+	}
 	return nil, AlertOutput{Rule: rule, State: alertState(rule), Events: events, Silences: silences, Link: "/alerts?id=" + rule.ID}, nil
 }
 

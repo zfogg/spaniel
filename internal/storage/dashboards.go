@@ -102,6 +102,11 @@ func (d *DB) GetDashboard(id string) (*Dashboard, error) {
 	return x, d.hydrateDashboard(x)
 }
 func (d *DB) hydrateDashboard(x *Dashboard) error {
+	var err error
+	x.Updated, err = d.DefinitionUpdated("dashboard", x.ID, x.SourceHash, x.UpdatedAt)
+	if err != nil {
+		return err
+	}
 	variables, err := d.query.DashboardVariable.Where(d.query.DashboardVariable.DashboardID.Eq(x.ID)).Order(d.query.DashboardVariable.Name).Find()
 	if err != nil {
 		return err

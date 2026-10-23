@@ -216,6 +216,9 @@ components:
                                 type: boolean
                             source_hash:
                                 type: string
+                            updated:
+                                description: True until this file revision is first accessed through a detail API or MCP call. Shared across clients.
+                                type: boolean
                             updated_at:
                                 type: number
                         required:
@@ -384,6 +387,9 @@ components:
                     type: boolean
                 source_hash:
                     type: string
+                updated:
+                    description: True until this file revision is first accessed through a detail API or MCP call. Shared across clients.
+                    type: boolean
                 updated_at:
                     type: number
             required:
@@ -727,6 +733,9 @@ components:
                     type: boolean
                 source_hash:
                     type: string
+                updated:
+                    description: True until this file revision is first accessed through a detail API or MCP call. Shared across clients.
+                    type: boolean
                 updated_at:
                     type: number
                 variables:
@@ -5804,6 +5813,50 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Spaniel could not complete the request.
             summary: import Dashboard Config
+            tags:
+                - Dashboards
+    /api/dashboards/reload:
+        post:
+            operationId: reloadDashboardDefinitions
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: false
+                            properties: {}
+                            type: object
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative Spaniel response
+                                    value:
+                                        data:
+                                            ok: true
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/Ok'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: The request was invalid.
+                "501":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: This optional capability is not configured.
+            summary: Reload dashboard YAML definitions
             tags:
                 - Dashboards
     /api/dashboards/reorder:

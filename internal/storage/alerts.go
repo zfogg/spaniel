@@ -40,6 +40,10 @@ func (d *DB) ListAlertRules() ([]*AlertRule, error) {
 	}
 	for _, rule := range xs {
 		rule.Instances = byRuleID[rule.ID]
+		rule.Updated, err = d.DefinitionUpdated("alert", rule.ID, rule.SourceHash, rule.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return xs, nil
 }
@@ -49,6 +53,10 @@ func (d *DB) GetAlertRule(id string) (*AlertRule, error) {
 		return nil, err
 	}
 	instances, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(id)).Order(d.query.AlertInstance.LastEvaluatedAt.Desc()).Find()
+	if err != nil {
+		return nil, err
+	}
+	x.Updated, err = d.DefinitionUpdated("alert", x.ID, x.SourceHash, x.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

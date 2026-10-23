@@ -367,6 +367,7 @@ type Metric struct {
 func (Metric) TableName() string { return "metrics" }
 
 type Dashboard struct {
+	Updated            bool                 `json:"updated" gorm:"-"`
 	ID                 string               `json:"id"`
 	Name               string               `json:"name"`
 	Description        string               `json:"description"`
@@ -408,6 +409,7 @@ type DashboardPanel struct {
 func (DashboardPanel) TableName() string { return "dashboard_panels" }
 
 type AlertRule struct {
+	Updated                       bool             `json:"updated" gorm:"-"`
 	ID                            string           `json:"id"`
 	Name                          string           `json:"name"`
 	QuerySQL                      string           `json:"query_sql"`

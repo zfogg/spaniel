@@ -17,12 +17,14 @@ import (
 // state. ID-less files receive a UUID in place so the same object is recreated
 // on a fresh machine, updated after edits, and removed when its file is removed.
 func loadDashboardDefinitions(store *storage.DB, dir string) error {
+	definitionReloadMu.Lock()
+	defer definitionReloadMu.Unlock()
 	if dir == "" {
 		return nil
 	}
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
-		return nil
+		err = nil // A removed directory is an empty declarative configuration.
 	}
 	if err != nil {
 		return fmt.Errorf("read dashboards directory %s: %w", dir, err)

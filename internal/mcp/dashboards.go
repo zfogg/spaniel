@@ -42,6 +42,7 @@ type ListDashboardsInput struct {
 }
 
 type DashboardSummary struct {
+	Updated       bool   `json:"updated"`
 	ID            string `json:"id"`
 	Name          string `json:"name"`
 	Description   string `json:"description,omitempty"`
@@ -85,7 +86,7 @@ func (h *handler) listDashboards(ctx context.Context, _ *mcpsdk.CallToolRequest,
 			continue
 		}
 		matched++
-		out.Dashboards = append(out.Dashboards, DashboardSummary{ID: dashboard.ID, Name: dashboard.Name, Description: dashboard.Description, PanelCount: len(dashboard.Panels), VariableCount: len(dashboard.Variables), ManagedByFile: managed, UpdatedAt: dashboard.UpdatedAt, Link: "/dashboards?id=" + dashboard.ID})
+		out.Dashboards = append(out.Dashboards, DashboardSummary{Updated: dashboard.Updated, ID: dashboard.ID, Name: dashboard.Name, Description: dashboard.Description, PanelCount: len(dashboard.Panels), VariableCount: len(dashboard.Variables), ManagedByFile: managed, UpdatedAt: dashboard.UpdatedAt, Link: "/dashboards?id=" + dashboard.ID})
 		if len(out.Dashboards) >= limit {
 			break
 		}
@@ -107,6 +108,9 @@ func (h *handler) getDashboard(ctx context.Context, _ *mcpsdk.CallToolRequest, i
 	dashboard, err := h.store.WithContext(ctx).GetDashboard(in.DashboardID)
 	if err != nil {
 		return nil, DashboardOutput{}, fmt.Errorf("dashboard not found")
+	}
+	if err := h.store.WithContext(ctx).MarkDefinitionSeen("dashboard", dashboard.ID, dashboard.SourceHash, dashboard.UpdatedAt); err != nil {
+		return nil, DashboardOutput{}, err
 	}
 	return nil, DashboardOutput{Dashboard: dashboard, Link: "/dashboards?id=" + dashboard.ID}, nil
 }

@@ -379,7 +379,7 @@ func (h *Hub) Broadcast(ev *Event) {
 	h.mu.RLock()
 	queued, dropped := int64(0), int64(0)
 	for c := range h.clients {
-		if c.hidden && ev.Type != "alert" && ev.Type != "alert_sync" && ev.Type != "notification" {
+		if c.hidden && ev.Type != "alert" && ev.Type != "alert_sync" && ev.Type != "notification" && ev.Type != "definition_sync" {
 			continue
 		}
 		select {

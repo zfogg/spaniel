@@ -20,8 +20,9 @@ port: 8080
 # Path to the DuckDB database file
 db_path: ~/.spaniel/spaniel.duckdb
 
-# Directory containing declarative dashboard YAML files, loaded at startup.
+# Directories containing declarative YAML files, loaded at startup and watched live.
 dashboards_dir: ~/.spaniel/dashboards
+alerts_dir: ~/.spaniel/alerts
 
 # Retention: delete sessions older than N days (0 = disabled)
 retention_days: 7
@@ -117,6 +118,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("port", 8080)
 	v.SetDefault("db_path", defaultDBPath())
 	v.SetDefault("dashboards_dir", "~/.spaniel/dashboards")
+	v.SetDefault("alerts_dir", "~/.spaniel/alerts")
 	v.SetDefault("retention_days", 7)
 	v.SetDefault("max_sessions", 50)
 	v.SetDefault("max_db_size_mb", 500)
@@ -188,7 +190,7 @@ func bootstrapConfig() error {
 // bindRootFlags makes viper aware of the cobra flag values so CLI flags win.
 // Call after ParseFlags (i.e. in PersistentPreRunE or the command's RunE).
 func bindRootFlags(v *viper.Viper, cmd *cobra.Command) {
-	for _, name := range []string{"port", "db-path", "retention", "max-sessions", "max-db-size", "advance-session-on-start", "no-browser", "dev"} {
+	for _, name := range []string{"port", "db-path", "retention", "max-sessions", "max-db-size", "advance-session-on-start", "no-browser", "dev", "dashboards-dir", "alerts-dir"} {
 		f := cmd.Flags().Lookup(name)
 		if f == nil {
 			f = cmd.PersistentFlags().Lookup(name)

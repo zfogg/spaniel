@@ -16,12 +16,14 @@ import (
 // loadAlertDefinitions loads YAML definitions into the alert store at startup
 // and when Settings requests a reload.
 func loadAlertDefinitions(store *storage.DB, dir string) error {
+	definitionReloadMu.Lock()
+	defer definitionReloadMu.Unlock()
 	if dir == "" {
 		return nil
 	}
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
-		return nil
+		err = nil // A removed directory is an empty declarative configuration.
 	}
 	if err != nil {
 		return err

@@ -263,6 +263,10 @@ func (r *Router) getAlert(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 404, "alert not found")
 		return
 	}
+	if err := r.store.WithContext(q.Context()).MarkDefinitionSeen("alert", x.ID, x.SourceHash, x.UpdatedAt); err != nil {
+		respondErr(w, q, 500, err.Error())
+		return
+	}
 	respond(w, x, 1, 1)
 }
 func (r *Router) createAlert(w http.ResponseWriter, q *http.Request) {
@@ -391,19 +395,13 @@ func (r *Router) acknowledgeAlertYamlUpdate(w http.ResponseWriter, q *http.Reque
 }
 
 func (r *Router) reloadAlertDefinitions(w http.ResponseWriter, q *http.Request) {
-	if r.settings == nil || r.settings.ReloadAlerts == nil {
-		respondErr(w, q, http.StatusNotImplemented, "alert directory reload is not configured")
-		return
+	var reload func() error
+	if r.settings != nil {
+		reload = r.settings.ReloadAlerts
 	}
-	if err := r.settings.ReloadAlerts(); err != nil {
-		respondErr(w, q, http.StatusBadRequest, "alert YAML reload failed: "+err.Error())
-		return
-	}
-	if r.hub != nil {
-		r.hub.Broadcast(&ws.Event{Type: "alert", Timestamp: time.Now().UnixNano(), Payload: map[string]any{"transition": "reloaded"}})
-	}
-	respond(w, map[string]bool{"ok": true}, 1, 1)
+	r.reloadDefinitions(w, q, "alert", reload)
 }
+
 func (r *Router) acknowledgeAlert(w http.ResponseWriter, q *http.Request) {
 	store := r.store.WithContext(q.Context())
 	id := chi.URLParam(q, "id")

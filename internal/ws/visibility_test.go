@@ -45,6 +45,13 @@ func TestViewerVisibilityKeepsBackgroundAlertsConnected(t *testing.T) {
 	if event.Type != "alert" {
 		t.Fatalf("background socket received %s instead of its alert", event.Type)
 	}
+	h.Broadcast(&Event{Type: "definition_sync", Payload: map[string]string{"kind": "dashboard", "status": "updated"}})
+	if err := json.Unmarshal(readMsg(t, conn), &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Type != "definition_sync" {
+		t.Fatal("background client missed definition update")
+	}
 	setVisibility(true)
 	h.Broadcast(NewSpanEvent(&SpanPayload{TraceID: "visible"}))
 	if err := json.Unmarshal(readMsg(t, conn), &event); err != nil {

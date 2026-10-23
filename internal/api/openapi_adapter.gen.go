@@ -269,6 +269,10 @@ func (r *Router) ImportDashboardConfig(w http.ResponseWriter, req *http.Request)
 	r.importDashboardConfig(w, req)
 }
 
+func (r *Router) ReloadDashboardDefinitions(w http.ResponseWriter, req *http.Request) {
+	r.reloadDashboardDefinitions(w, req)
+}
+
 func (r *Router) ReorderDashboards(w http.ResponseWriter, req *http.Request) {
 	r.reorderDashboards(w, req)
 }

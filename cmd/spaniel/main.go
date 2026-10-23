@@ -928,6 +928,9 @@ func run(cfg runConfig) error {
 				mcpHandler.SetAllowWrites(enabled)
 			}
 		},
+		ReloadDashboards: func() error {
+			return loadDashboardDefinitions(store, expandHome(cfg.Viper.GetString("dashboards_dir")))
+		},
 		ReloadAlerts: func() error {
 			return loadAlertDefinitions(store, expandHome(cfg.Viper.GetString("alerts_dir")))
 		},
@@ -1015,6 +1018,11 @@ func run(cfg runConfig) error {
 
 	ctx, stop := notifyShutdown(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	stopDefinitionWatcher, err := watchDefinitionDirectories(ctx, store, hub, cfg.DashboardsDir, cfg.AlertsDir)
+	if err != nil {
+		return fmt.Errorf("watch YAML directories: %w", err)
+	}
+	defer stopDefinitionWatcher()
 	go broadcastUILoop(ctx, hub, pipeline, fwd)
 	api.ConfigureAlertDelivery(api.AlertDelivery{BrowserEnabled: func() bool { return cfg.Viper.GetBool("alerts.browser_enabled") }, PushoverEnabled: func() bool { return cfg.Viper.GetBool("alerts.pushover_enabled") }, BrowserTemplate: func() string { return cfg.Viper.GetString("alerts.browser_template") }, PushoverTemplate: func() string { return cfg.Viper.GetString("alerts.pushover_template") }, PushoverUserKey: os.Getenv("SPANIEL_ALERTS_PUSHOVER_USER_KEY"), PushoverAPIToken: os.Getenv("SPANIEL_ALERTS_PUSHOVER_API_TOKEN"), RecordEvent: func(e *storage.AlertEvent) { _ = store.RecordAlertEvent(e) }, RecordNotification: func(n *storage.NotificationRecord) { _ = store.RecordNotification(n) }})
 	api.StartAlertEvaluator(ctx, store, hub, 15*time.Second)

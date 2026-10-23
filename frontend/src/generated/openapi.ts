@@ -352,6 +352,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/dashboards/reload': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Reload dashboard YAML definitions */
+    post: operations['reloadDashboardDefinitions']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/dashboards': {
     parameters: {
       query?: never
@@ -1323,6 +1340,8 @@ export interface components {
         severity: 'info' | 'warning' | 'critical'
         source_file: string
         source_hash: string
+        /** @description True until this file revision is first accessed through a detail API or MCP call. Shared across clients. */
+        updated?: boolean
         source_file_modified: boolean
         updated_at: number
       }[]
@@ -1378,6 +1397,8 @@ export interface components {
       severity: 'info' | 'warning' | 'critical'
       source_file: string
       source_hash: string
+      /** @description True until this file revision is first accessed through a detail API or MCP call. Shared across clients. */
+      updated?: boolean
       source_file_modified: boolean
       updated_at: number
     }
@@ -1473,6 +1494,8 @@ export interface components {
       name: string
       source_file: string
       source_hash: string
+      /** @description True until this file revision is first accessed through a detail API or MCP call. Shared across clients. */
+      updated?: boolean
       source_file_modified: boolean
       /** @default [] */
       panels: {
@@ -3633,6 +3656,50 @@ export interface operations {
           'application/json': {
             data: components['schemas']['JSONValue']
           }
+        }
+      }
+    }
+  }
+  reloadDashboardDefinitions: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: {
+      content: {
+        'application/json': Record<string, never>
+      }
+    }
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['Ok']
+          }
+        }
+      }
+      /** @description The request was invalid. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description This optional capability is not configured. */
+      501: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
     }
