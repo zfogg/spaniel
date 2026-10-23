@@ -68,8 +68,17 @@ func walk(value any) {
 			v[key] = item
 			if query, ok := item.(string); ok {
 				switch key {
-				case "query", "query_sql", "instance_discovery_sql", "annotation_query", "db.query.text", "db.statement":
+				case "query", "query_sql", "instance_discovery_sql", "annotation_query":
 					v[key] = Format(query)
+				case "db.query.text", "db.statement":
+					dialect := sqltrace.DialectGeneric
+					for _, systemKey := range []string{"db.system.name", "db.system"} {
+						if system, ok := v[systemKey].(string); ok {
+							dialect = sqltrace.Dialect(system)
+							break
+						}
+					}
+					v[key] = sqltrace.FormatSQLOrOriginal(dialect, query)
 				case "attributes", "attributes_json", "settings_json":
 					if strings.Contains(query, "db.query.text") || strings.Contains(query, "db.statement") || (key == "settings_json" && strings.Contains(query, "annotation_query")) {
 						decoder := json.NewDecoder(strings.NewReader(query))

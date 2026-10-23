@@ -68,3 +68,11 @@ func TestPresentationFormatsNamedQueryResultColumns(t *testing.T) {
 		t.Fatalf("unexpected row: %#v", row)
 	}
 }
+
+func TestPresentationUsesTelemetryDatabaseDialect(t *testing.T) {
+	input := map[string]any{"attributes": map[string]any{"db.system.name": "mysql", "db.query.text": "select id,name # keep SELECT and WHERE opaque\nfrom accounts where id=?"}}
+	out := Presentation(input).(map[string]any)["attributes"].(map[string]any)["db.query.text"].(string)
+	if out != "select\n  id,\n  name # keep SELECT and WHERE opaque\nfrom accounts\nwhere\n  id = ?" {
+		t.Fatal(out)
+	}
+}
