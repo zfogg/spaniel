@@ -35,7 +35,7 @@ RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
 # ── Stage 3: minimal runtime ─────────────────────────────────────────────────
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates tzdata wget \
+        ca-certificates tzdata wget libstdc++6 \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd -r spaniel \
  && useradd -r -g spaniel -d /data -s /usr/sbin/nologin spaniel \
