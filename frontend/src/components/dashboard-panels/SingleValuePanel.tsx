@@ -7,7 +7,7 @@ export function SingleValuePanel({ rows }: DashboardPanelRendererProps) {
   const secondary =
     rows.length > 1 ? `${rows.length.toLocaleString()} groups returned` : 'Current value'
   return (
-    <div className="flex min-h-32 flex-col justify-center px-1 py-3">
+    <div className="flex min-h-16 flex-col justify-center px-1 py-3">
       <data value={number} className="font-mono text-3xl font-semibold tracking-tight tabular-nums">
         {formatValue(current)}
       </data>

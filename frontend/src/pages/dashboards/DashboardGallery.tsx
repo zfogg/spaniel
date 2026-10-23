@@ -221,7 +221,7 @@ export function DashboardGallery() {
                 </label>
               ))}
             </div>
-            <div className="grid auto-rows-[420px] gap-4 lg:grid-cols-12">
+            <div className="grid auto-rows-auto items-start gap-4 lg:grid-cols-12">
               {selected.panels.map((panel) => (
                 <Panel
                   key={panel.id}
