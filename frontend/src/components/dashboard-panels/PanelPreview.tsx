@@ -6,6 +6,7 @@ export function PanelPreview({
   title,
   query,
   display,
+  settingsJSON = '{}',
   result,
   pending,
   error,
@@ -13,6 +14,7 @@ export function PanelPreview({
   title: string
   query: string
   display: string
+  settingsJSON?: string
   result?: PreviewSnapshot
   pending: boolean
   error: Error | null
@@ -25,7 +27,7 @@ export function PanelPreview({
     query_sql: result.querySQL,
     display_type: result.displayType as DashboardPanel['display_type'],
     query_version: 1,
-    settings_json: '{}',
+    settings_json: settingsJSON,
     layout_json: '{}',
     position: 0,
     updated_at: 0,

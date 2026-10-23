@@ -43,6 +43,18 @@ export function RendererSettings({
       />
     </label>
   )
+  if (['bar', 'pie', 'gauge'].includes(display))
+    return (
+      <div className="grid gap-2 sm:col-span-2 sm:grid-cols-3">
+        {field('Unit', 'unit')}
+        {display === 'gauge' && (
+          <>
+            {field('Minimum', 'min')}
+            {field('Maximum', 'max')}
+          </>
+        )}
+      </div>
+    )
   if (display === 'deploy_correlation')
     return (
       <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2">

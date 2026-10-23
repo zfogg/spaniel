@@ -22,7 +22,11 @@ func ValidatePanelResult(display string, columns []string) error {
 		return false
 	}
 	switch display {
-	case "single_value":
+	case "bar", "pie":
+		if !has("label") || !has("value") {
+			return fmt.Errorf("%s panels require label and value columns", display)
+		}
+	case "single_value", "gauge":
 		if !has("value") {
 			return fmt.Errorf("single value panels require a value column")
 		}

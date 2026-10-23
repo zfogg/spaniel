@@ -1,0 +1,95 @@
+import { expect, test } from '@playwright/test'
+
+test('bar, pie and gauge panels render saved query results and survive reload', async ({
+  page,
+}) => {
+  const requests: string[] = []
+  const panels = ['bar', 'pie', 'gauge'].map((kind, position) => ({
+    id: kind,
+    dashboard_id: 'charts',
+    title: `${kind} requests`,
+    display_type: kind,
+    query_sql: "SELECT 'orders' AS label, 25 AS value",
+    query_version: 1,
+    settings_json: kind === 'gauge' ? '{"min":0,"max":200,"unit":"ms"}' : '{}',
+    layout_json: JSON.stringify({ x: 1, y: position + 1, w: 12, h: 2 }),
+    position,
+  }))
+  const dashboard = {
+    id: 'charts',
+    name: 'Chart coverage',
+    description: '',
+    variables: [],
+    panels,
+    created_at: 1,
+    updated_at: 1,
+  }
+  await page.routeWebSocket('**/ws', () => {})
+  await page.route(/^https?:\/\/[^/]+\/api\//, async (route) => {
+    const path = new URL(route.request().url()).pathname
+    let data: unknown = []
+    if (path === '/api/dashboards') data = [dashboard]
+    else if (path === '/api/dashboards/charts') data = dashboard
+    else if (path.endsWith('/query-preview')) {
+      const kind = route.request().postDataJSON().display_type as string
+      requests.push(kind)
+      data = {
+        columns: ['label', 'value'],
+        rows:
+          kind === 'gauge'
+            ? [{ value: 50 }]
+            : [
+                { label: 'orders', value: 25 },
+                { label: 'payments', value: 75 },
+              ],
+        warnings: [],
+      }
+    } else if (path === '/api/sessions/active') data = { id: 'session', label: 'Session' }
+    else if (path === '/api/stats')
+      data = { span_count: 0, trace_count: 0, log_count: 0, db_size: 0, session_count: 1 }
+    await route.fulfill({ json: { data } })
+  })
+  await page.goto('/dashboards')
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const kind of ['bar', 'pie', 'gauge'])
+      await expect(page.getByTestId(`${kind}-panel`)).toBeVisible()
+    await expect(page.getByRole('img', { name: 'orders: 25', exact: true })).toBeVisible()
+    await expect(page.getByTestId('pie-panel')).toContainText('25 (25%)')
+    await expect(page.getByTestId('gauge-panel').getByRole('img')).toHaveAttribute(
+      'aria-label',
+      'gauge requests: 50 ms; range 0 to 200',
+    )
+    if (attempt === 0) await page.reload()
+  }
+  for (const kind of ['bar', 'pie', 'gauge']) expect(requests).toContain(kind)
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const kind of ['bar', 'pie', 'gauge']) {
+    const panel = page.getByTestId(`${kind}-panel`)
+    await panel.scrollIntoViewIfNeeded()
+    await expect(panel).toBeVisible()
+    expect(
+      await panel.evaluate((element) => element.scrollWidth <= element.clientWidth),
+      kind,
+    ).toBe(true)
+  }
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/dashboards/charts')
+  for (const [kind, label] of [
+    ['bar', 'Bar Compare categories'],
+    ['pie', 'Pie Share of a total'],
+    ['gauge', 'Gauge Value within a range'],
+  ]) {
+    await page.getByRole('button', { name: new RegExp(label) }).click()
+    await page.getByRole('button', { name: 'Use generated SQL', exact: true }).click()
+    if (kind === 'gauge') {
+      await page.getByLabel('Minimum', { exact: true }).fill('0')
+      await page.getByLabel('Maximum', { exact: true }).fill('200')
+      await page.getByLabel('Unit', { exact: true }).fill('ms')
+    }
+    await page.getByRole('button', { name: 'Run preview', exact: true }).click()
+    const preview = page.getByRole('region', { name: 'Panel preview', exact: true })
+    await expect(preview.getByTestId(`${kind}-panel`)).toBeVisible()
+    if (kind === 'gauge')
+      await expect(preview.getByRole('img')).toHaveAttribute('aria-label', /range 0 to 200/)
+  }
+})

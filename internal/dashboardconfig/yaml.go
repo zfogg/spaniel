@@ -32,7 +32,7 @@ const (
 var (
 	variableNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	variableKinds       = map[string]struct{}{"attribute": {}, "string": {}, "number": {}, "boolean": {}, "duration": {}, "time": {}, "enum": {}, "service": {}, "operation": {}, "trace_id": {}, "span_id": {}, "log_id": {}}
-	displayTypes        = map[string]struct{}{"single_value": {}, "time_series": {}, "table": {}, "heatmap": {}, "entity_list": {}, "trace_list": {}, "span_list": {}, "log_list": {}, "deploy_correlation": {}}
+	displayTypes        = map[string]struct{}{"bar": {}, "pie": {}, "gauge": {}, "single_value": {}, "time_series": {}, "table": {}, "heatmap": {}, "entity_list": {}, "trace_list": {}, "span_list": {}, "log_list": {}, "deploy_correlation": {}}
 )
 
 type Definition struct {

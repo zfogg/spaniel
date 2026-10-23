@@ -1488,6 +1488,9 @@ export interface components {
           | 'span_list'
           | 'log_list'
           | 'deploy_correlation'
+          | 'bar'
+          | 'pie'
+          | 'gauge'
         id: string
         layout_json: string
         position: number
@@ -1534,6 +1537,9 @@ export interface components {
         | 'span_list'
         | 'log_list'
         | 'deploy_correlation'
+        | 'bar'
+        | 'pie'
+        | 'gauge'
       id: string
       layout_json: string
       position: number

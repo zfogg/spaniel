@@ -236,10 +236,14 @@ func TestSlowClientDropped(t *testing.T) {
 
 	// The client never reads. Flood far past the send buffer; Broadcast must not
 	// block, and the hub must eventually drop the unresponsive client.
+	// Tiny frames can all fit in the OS socket buffers, especially when race
+	// instrumentation slows the broadcaster. Fill the transport buffers too,
+	// so this exercises backpressure rather than depending on writer scheduling.
+	event := NewSpanEvent(&SpanPayload{TraceID: "flood", Name: strings.Repeat("x", 16*1024)})
 	done := make(chan struct{})
 	go func() {
 		for range clientSendBuffer * 4 {
-			h.Broadcast(NewSpanEvent(&SpanPayload{TraceID: "flood"}))
+			h.Broadcast(event)
 		}
 		close(done)
 	}()

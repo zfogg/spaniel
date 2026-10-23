@@ -33,7 +33,9 @@ export function PanelBuilderControls({
           ? 'spans'
           : options.source
   const isSpanOrTrace = source === 'spans' || source === 'traces'
-  const aggregate = ['single_value', 'time_series', 'entity_list'].includes(display)
+  const aggregate = ['single_value', 'gauge', 'bar', 'pie', 'time_series', 'entity_list'].includes(
+    display,
+  )
   const services = useQuery({
     queryKey: ['builder-services'],
     queryFn: () => api.services.list().then((x) => x.data),
@@ -171,12 +173,14 @@ export function PanelBuilderControls({
           source === 'metrics' ? 'latest' : 'count',
         )}
       {display === 'time_series' && select('Interval', 'interval', intervalOptions)}
-      {['time_series', 'entity_list'].includes(display) &&
+      {['bar', 'pie', 'time_series', 'entity_list'].includes(display) &&
         select(
-          display === 'entity_list' ? 'Entity' : 'Group by',
+          ['entity_list', 'bar', 'pie'].includes(display) ? 'Entity' : 'Group by',
           'group',
-          groupOptions(source).filter(([key]) => display !== 'entity_list' || key !== ''),
-          display === 'entity_list' ? 'service_name' : '',
+          groupOptions(source).filter(
+            ([key]) => !['entity_list', 'bar', 'pie'].includes(display) || key !== '',
+          ),
+          ['entity_list', 'bar', 'pie'].includes(display) ? 'service_name' : '',
         )}
       {source !== 'metrics' &&
         select('Filter', 'filter', [
@@ -233,12 +237,14 @@ export function PanelBuilderControls({
           'bucket',
           ['1', '5', '10', '50', '100', '500', '1000'].map((value) => [value, value]),
         )}
-      {['table', 'span_list', 'trace_list', 'log_list', 'entity_list'].includes(display) && (
+      {['table', 'span_list', 'trace_list', 'log_list', 'entity_list', 'bar', 'pie'].includes(
+        display,
+      ) && (
         <>
           {select(
             'Sort order',
             'order',
-            display === 'entity_list'
+            ['entity_list', 'bar', 'pie'].includes(display)
               ? [
                   ['highest', 'Highest value first'],
                   ['lowest', 'Lowest value first'],

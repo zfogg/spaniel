@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { CategoryPanel, GaugePanel } from './ChartPanels'
 import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 import { api, type DashboardPanel } from '@/lib/api'
 import { HeatmapPanel } from './HeatmapPanel'
@@ -134,6 +135,11 @@ export function PanelResult(props: DashboardPanelRendererProps) {
       </div>
     )
   switch (panel.display_type) {
+    case 'bar':
+    case 'pie':
+      return <CategoryPanel {...props} />
+    case 'gauge':
+      return <GaugePanel {...props} />
     case 'single_value':
       return <SingleValuePanel {...props} />
     case 'time_series':
