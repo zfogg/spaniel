@@ -1,3 +1,4 @@
+import { Toggle } from '@/components/ui/toggle'
 import * as Dialog from '@radix-ui/react-dialog'
 
 import { DefinitionUpdatedBadge } from '@/components/DefinitionUpdatedBadge'
@@ -231,18 +232,11 @@ export function DashboardGallery() {
                   </Dialog.Description>
                   <label className="my-5 flex items-center justify-between gap-4 text-sm">
                     Live rolling time window
-                    <input
-                      type="checkbox"
-
-                      role="switch"
-
-                      checked={live}
-
-                      onChange={(event) => {
-                        const enabled = event.target.checked
-
+                    <Toggle
+                      label="Live rolling time window"
+                      on={live}
+                      onChange={(enabled) => {
                         setLive(enabled)
-
                         try {
                           localStorage.setItem('spaniel.dashboard.live', String(enabled))
                         } catch {
