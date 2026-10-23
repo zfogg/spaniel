@@ -29,3 +29,12 @@ Three deterministic regressions failed before the fix: phased recovery at
 WAL checkpoint during incomplete emergency recovery. They verify admission,
 budget selection, completion, idle hysteresis, and switching to preserve mode.
 Validation and deployment evidence will be appended after live verification.
+
+Live-load follow-up: the first rollout continued pruning below the trigger, but
+incoming writes consumed much of each physical reclamation gain. The guard now
+also latches recovery after committed live-row eviction whose measured allocation
+remains above target. Checkpoint-only/tombstone-only proactive phases remain
+writable. Once live data is evicted, the collector holds retryable admission and
+the larger budget through physical reclamation to low water. A fourth regression
+fails against the first rollout and verifies 95 -> logical deletion at 96 ->
+physical reclamation at 90 -> completion at 70 without reopening prematurely.

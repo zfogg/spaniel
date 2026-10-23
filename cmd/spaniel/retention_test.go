@@ -20,6 +20,7 @@ type fakeStorageGuardStore struct {
 	pruneBudget    time.Duration
 	requiredBudget time.Duration
 	pruneSizes     []int64
+	noDeletion     bool
 	retainSize     bool
 }
 
@@ -136,7 +137,11 @@ func (f *fakeStorageGuardStore) Prune(cfg storage.RetentionConfig, activeID stri
 	} else if !f.retainSize {
 		f.size = cfg.MaxDBSizeBytes - 1
 	}
-	return storage.PruneResult{DeletedBySize: 2, FinalDBSizeBytes: f.size}, nil
+	deleted := 2
+	if f.noDeletion {
+		deleted = 0
+	}
+	return storage.PruneResult{DeletedBySize: deleted, FinalDBSizeBytes: f.size}, nil
 }
 
 func TestStorageGuardHardCapRecoveryCanFinishLargerRebuild(t *testing.T) {
@@ -166,7 +171,7 @@ func TestStorageGuardProactiveMaintenanceKeepsShortBudget(t *testing.T) {
 
 func TestStorageGuardSpacesBelowCapMaintenancePhases(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 95, retainSize: true}
+	store := &fakeStorageGuardStore{size: 95, retainSize: true, noDeletion: true}
 
 	checkStorageGuard(store, policy)
 	checkStorageGuard(store, policy)
@@ -289,7 +294,7 @@ func TestStorageGuardRecoveryStaysPausedUntilLowWater(t *testing.T) {
 
 func TestStorageGuardProactivePhasesContinueBelowHighWater(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
-	store := &fakeStorageGuardStore{size: 95, pruneSizes: []int64{90, 80, 70}}
+	store := &fakeStorageGuardStore{size: 95, pruneSizes: []int64{90, 80, 70}, noDeletion: true}
 	for pass, want := range []int64{90, 80, 70} {
 		policy.nextPruneAfter.Store(0) // elapsed read/ingest window between phases
 		checkStorageGuard(store, policy)
@@ -312,5 +317,20 @@ func TestStorageWALCannotResumeIncompleteHardCapRecovery(t *testing.T) {
 	checkStorageGuard(store, policy)
 	if store.full {
 		t.Fatal("disabling autoprune did not restore preserve-mode cap semantics")
+	}
+}
+
+func TestStorageGuardLiveEvictionPausesThroughPhysicalReclamation(t *testing.T) {
+	policy := newStorageGuardPolicy(100, true)
+	store := &fakeStorageGuardStore{size: 95, pruneSizes: []int64{96, 90, 70}}
+	checkStorageGuard(store, policy)
+	if !store.full || store.pruneBudget != storageMaintenanceBudget {
+		t.Fatal("logical eviction reopened while allocation still needs compaction")
+	}
+	for pass, want := range []int64{90, 70} {
+		checkStorageGuard(store, policy)
+		if store.size != want || store.pruneBudget != storageRecoveryBudget || store.full != (want > 70) {
+			t.Fatalf("eviction recovery did not retain budget/admission at pass %d: %+v", pass, store)
+		}
 	}
 }

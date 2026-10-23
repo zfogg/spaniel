@@ -229,7 +229,11 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	}
 	res, err := store.Prune(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: budget}, store.ActiveSessionID())
 	after := store.UsedSize()
-	if after >= maxBytes {
+	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
+	// Live-row eviction is only the logical phase. Prevent new ingestion from
+	// consuming the space being reclaimed, and let larger table copies finish
+	// without repeatedly canceling the same work at the proactive budget.
+	if after >= maxBytes || (deleted > 0 && after > target) {
 		policy.recovering.Store(true)
 	}
 	if after <= target {
@@ -244,7 +248,8 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	if err != nil && !soft {
 		slog.Error("storage guard auto-prune failed", "err", err)
 	}
-	// Once the hard cap has paused exporters, do not reopen them into a nearly
+	// Once the hard cap or a committed eviction has paused exporters, do not
+	// reopen them into a nearly
 	// full store between bounded phases. Finish the same low-water recovery,
 	// retaining its larger rebuild budget even below the cap/high-water trigger.
 	blocked := (err != nil && !soft) || policy.recovering.Load()
@@ -257,7 +262,6 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 			"maintenance_budget", budget, "error", err)
 		return
 	}
-	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
 	if deleted > 0 {
 		slog.Info("storage guard auto-pruned oldest telemetry",
 			"deleted", deleted,
