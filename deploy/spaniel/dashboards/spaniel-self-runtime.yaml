@@ -32,7 +32,7 @@ panels:
     x: 1
     y: 1
     w: 4
-    h: 2
+    h: 1
   position: 0
 - title: HTTP server errors (%)
   display_type: gauge
@@ -49,7 +49,7 @@ panels:
     x: 5
     y: 1
     w: 4
-    h: 2
+    h: 1
   position: 1
 - title: Self-telemetry age (seconds)
   display_type: single_value
@@ -60,7 +60,7 @@ panels:
     x: 9
     y: 1
     w: 4
-    h: 2
+    h: 1
   position: 2
 - title: Process uptime (hours)
   display_type: single_value
@@ -69,9 +69,9 @@ panels:
   settings: {}
   layout:
     x: 1
-    y: 3
+    y: 2
     w: 4
-    h: 2
+    h: 1
   position: 3
 - title: Live goroutines
   display_type: single_value
@@ -80,9 +80,9 @@ panels:
   settings: {}
   layout:
     x: 5
-    y: 3
+    y: 2
     w: 4
-    h: 2
+    h: 1
   position: 4
 - title: GC heap target (MiB)
   display_type: single_value
@@ -91,9 +91,9 @@ panels:
   settings: {}
   layout:
     x: 9
-    y: 3
+    y: 2
     w: 4
-    h: 2
+    h: 1
   position: 5
 - title: Database size and budget (MiB)
   display_type: time_series
@@ -109,9 +109,9 @@ panels:
   settings: {}
   layout:
     x: 1
-    y: 5
+    y: 3
     w: 6
-    h: 2
+    h: 1
   position: 6
 - title: Reported Go memory by type (MiB)
   display_type: pie
@@ -124,9 +124,9 @@ panels:
     unit: MiB
   layout:
     x: 7
-    y: 5
+    y: 3
     w: 6
-    h: 2
+    h: 1
   position: 7
 - title: Goroutines over time
   display_type: time_series
@@ -139,9 +139,9 @@ panels:
   settings: {}
   layout:
     x: 1
-    y: 7
+    y: 4
     w: 6
-    h: 2
+    h: 1
   position: 8
 - title: Reported Go memory over time (MiB)
   display_type: time_series
@@ -155,9 +155,9 @@ panels:
   settings: {}
   layout:
     x: 7
-    y: 7
+    y: 4
     w: 6
-    h: 2
+    h: 1
   position: 9
 - title: Recent Spaniel warnings and errors
   display_type: log_list
@@ -166,7 +166,7 @@ panels:
   settings: {}
   layout:
     x: 1
-    y: 9
+    y: 5
     w: 12
-    h: 3
+    h: 1
   position: 10

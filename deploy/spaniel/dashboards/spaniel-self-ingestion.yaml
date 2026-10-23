@@ -30,7 +30,7 @@ panels:
     x: 1
     y: 1
     w: 6
-    h: 2
+    h: 1
   position: 0
 - title: Ingest request outcomes - process lifetime
   display_type: bar
@@ -44,7 +44,7 @@ panels:
     x: 7
     y: 1
     w: 6
-    h: 2
+    h: 1
   position: 1
 - title: Storage rejecting ingestion (0 = no, 1 = yes)
   display_type: gauge
@@ -55,9 +55,9 @@ panels:
     max: 1
   layout:
     x: 1
-    y: 3
+    y: 2
     w: 4
-    h: 2
+    h: 1
   position: 2
 - title: Pending ingestion work
   display_type: single_value
@@ -66,9 +66,9 @@ panels:
   settings: {}
   layout:
     x: 5
-    y: 3
+    y: 2
     w: 4
-    h: 2
+    h: 1
   position: 3
 - title: Indexed active metric series
   display_type: single_value
@@ -77,9 +77,9 @@ panels:
   settings: {}
   layout:
     x: 9
-    y: 3
+    y: 2
     w: 4
-    h: 2
+    h: 1
   position: 4
 - title: Accepted points per bucket (observed counter deltas)
   display_type: time_series
@@ -100,9 +100,9 @@ panels:
   settings: {}
   layout:
     x: 1
-    y: 5
+    y: 3
     w: 6
-    h: 2
+    h: 1
   position: 5
 - title: Stored log severity distribution
   display_type: pie
@@ -116,9 +116,9 @@ panels:
     unit: logs
   layout:
     x: 7
-    y: 5
+    y: 3
     w: 6
-    h: 2
+    h: 1
   position: 6
 - title: Logs linked to a trace (%)
   display_type: gauge
@@ -132,9 +132,9 @@ panels:
     unit: '%'
   layout:
     x: 1
-    y: 7
+    y: 4
     w: 4
-    h: 2
+    h: 1
   position: 7
 - title: Pending ingestion payload (MiB)
   display_type: single_value
@@ -143,9 +143,9 @@ panels:
   settings: {}
   layout:
     x: 5
-    y: 7
+    y: 4
     w: 4
-    h: 2
+    h: 1
   position: 8
 - title: Active ingestion requests
   display_type: single_value
@@ -154,9 +154,9 @@ panels:
   settings: {}
   layout:
     x: 9
-    y: 7
+    y: 4
     w: 4
-    h: 2
+    h: 1
   position: 9
 - title: WebSocket delivery outcomes - process lifetime
   display_type: bar
@@ -168,9 +168,9 @@ panels:
     unit: events
   layout:
     x: 1
-    y: 9
+    y: 5
     w: 6
-    h: 2
+    h: 1
   position: 10
 - title: Storage failures - process lifetime
   display_type: bar
@@ -181,7 +181,7 @@ panels:
     unit: failures
   layout:
     x: 7
-    y: 9
+    y: 5
     w: 6
-    h: 2
+    h: 1
   position: 11

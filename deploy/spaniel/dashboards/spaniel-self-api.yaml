@@ -26,7 +26,7 @@ panels:
     x: 1
     y: 1
     w: 6
-    h: 2
+    h: 1
   position: 0
 - title: Slowest HTTP routes - p95 (ms)
   display_type: bar
@@ -38,7 +38,7 @@ panels:
     x: 7
     y: 1
     w: 6
-    h: 2
+    h: 1
   position: 1
 - title: HTTP response classes
   display_type: pie
@@ -50,9 +50,9 @@ panels:
     unit: requests
   layout:
     x: 1
-    y: 3
+    y: 2
     w: 6
-    h: 2
+    h: 1
   position: 2
 - title: HTTP request volume by response class
   display_type: time_series
@@ -65,9 +65,9 @@ panels:
   settings: {}
   layout:
     x: 7
-    y: 3
+    y: 2
     w: 6
-    h: 2
+    h: 1
   position: 3
 - title: HTTP request latency - p95 (ms, health excluded)
   display_type: time_series
@@ -76,9 +76,9 @@ panels:
   settings: {}
   layout:
     x: 1
-    y: 5
+    y: 3
     w: 6
-    h: 2
+    h: 1
   position: 4
 - title: Busiest storage operations
   display_type: bar
@@ -88,9 +88,9 @@ panels:
     unit: calls
   layout:
     x: 7
-    y: 5
+    y: 3
     w: 6
-    h: 2
+    h: 1
   position: 5
 - title: Slowest storage operations - p95 (ms)
   display_type: bar
@@ -100,9 +100,9 @@ panels:
     unit: ms
   layout:
     x: 1
-    y: 7
+    y: 4
     w: 6
-    h: 2
+    h: 1
   position: 6
 - title: SQL calls and latency (ms)
   display_type: table
@@ -119,9 +119,9 @@ panels:
   settings: {}
   layout:
     x: 7
-    y: 7
+    y: 4
     w: 6
-    h: 2
+    h: 1
   position: 7
 - title: Slow Spaniel spans - investigate their traces
   display_type: span_list
@@ -130,7 +130,7 @@ panels:
   settings: {}
   layout:
     x: 1
-    y: 9
+    y: 5
     w: 12
-    h: 3
+    h: 1
   position: 8
