@@ -238,6 +238,10 @@ export function buildPanelSQL(type: string, options: BuilderOptions): string {
           ? 'timestamp_ns, severity, body, service_name, trace_id, span_id'
           : 'timestamp_ns, name, service_name, type, unit, value, attributes'
   switch (type) {
+    case 'bar':
+    case 'pie':
+      return `SELECT ${group || 'service_name'} AS label, ${measure} AS value\n${from}\nGROUP BY 1\nORDER BY value ${options.order === 'lowest' ? 'ASC' : 'DESC'}\nLIMIT ${limit}`
+    case 'gauge':
     case 'single_value':
       return `SELECT ${measure} AS value\n${from}`
     case 'time_series':

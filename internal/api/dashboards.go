@@ -103,7 +103,7 @@ type dashboardInput struct {
 }
 type panelInput struct {
 	Title        string `json:"title" validate:"required,max=160"`
-	DisplayType  string `json:"display_type" validate:"required,oneof=single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
+	DisplayType  string `json:"display_type" validate:"required,oneof=bar pie gauge single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
 	QuerySQL     string `json:"query_sql" validate:"required,max=16000"`
 	SettingsJSON string `json:"settings_json"`
 	LayoutJSON   string `json:"layout_json"`
@@ -495,7 +495,7 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 	var in struct {
 		QuerySQL    string            `json:"query_sql" validate:"required,max=16000"`
 		Name        string            `json:"name" validate:"omitempty,max=200"`
-		DisplayType string            `json:"display_type" validate:"omitempty,oneof=single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
+		DisplayType string            `json:"display_type" validate:"omitempty,oneof=bar pie gauge single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
 		Variables   map[string]string `json:"variables"`
 	}
 	if !decodeAndValidate(w, req, &in) {

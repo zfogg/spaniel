@@ -121,7 +121,15 @@ export function PanelStudio({
             </div>
           </fieldset>
           <RendererSettings display={display} value={settingsJSON} onChange={setSettingsJSON} />
-          {['deploy_correlation', 'entity_list', 'time_series', 'heatmap'].includes(display) ? (
+          {[
+            'bar',
+            'pie',
+            'gauge',
+            'deploy_correlation',
+            'entity_list',
+            'time_series',
+            'heatmap',
+          ].includes(display) ? (
             <label className="sm:col-span-2 font-mono text-[10px] text-muted-foreground">
               Advanced renderer settings JSON
               <textarea
@@ -157,6 +165,7 @@ export function PanelStudio({
           title={title}
           query={query}
           display={display}
+          settingsJSON={settingsJSON}
           result={previewState.data}
           pending={previewState.isPending}
           error={previewState.error}

@@ -3,6 +3,40 @@ export const localKey = 'spaniel.local-dashboards'
 
 export const panelRecipes = [
   {
+    type: 'bar',
+    icon: '▥',
+    label: 'Bar',
+    description: 'Compare categories',
+    fields: [['Measure', 'count(*)']],
+    hint: 'Return a label and numeric value per category.',
+    shape: [
+      ['label', 'string'],
+      ['value', 'number'],
+    ],
+  },
+  {
+    type: 'pie',
+    icon: '◔',
+    label: 'Pie',
+    description: 'Share of a total',
+    fields: [['Measure', 'count(*)']],
+    hint: 'Return a label and numeric value per category.',
+    shape: [
+      ['label', 'string'],
+      ['value', 'number'],
+    ],
+  },
+  {
+    type: 'gauge',
+    icon: '◴',
+    label: 'Gauge',
+    description: 'Value within a range',
+    fields: [['Measure', 'count(*)']],
+    hint: 'Return one value; set minimum and maximum in renderer settings.',
+    shape: [['value', 'number']],
+  },
+
+  {
     type: 'single_value',
     icon: '#',
     label: 'Single value',

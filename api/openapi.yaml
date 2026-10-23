@@ -688,6 +688,9 @@ components:
                                     - span_list
                                     - log_list
                                     - deploy_correlation
+                                    - bar
+                                    - pie
+                                    - gauge
                                 type: string
                             id:
                                 type: string
@@ -794,6 +797,9 @@ components:
                         - span_list
                         - log_list
                         - deploy_correlation
+                        - bar
+                        - pie
+                        - gauge
                     type: string
                 id:
                     type: string

@@ -1,7 +1,7 @@
 services:
   spaniel:
     image: ${SPANIEL_IMAGE:-ghcr.io/zfogg/spaniel:latest}
-    command: ["--db-path", "/data/spaniel.duckdb", "--no-browser", "--mcp-allow-writes"]
+    command: ["--db-path", "/data/spaniel.duckdb", "--no-browser", "--mcp-allow-writes", "--dashboards-dir", "/etc/spaniel/dashboards"]
     container_name: spaniel
     restart: unless-stopped
     ports:
@@ -10,6 +10,7 @@ services:
       - "4318:4318"   # OTLP HTTP
     volumes:
       - spaniel-data:/data
+      - ./deploy/spaniel/dashboards:/etc/spaniel/dashboards:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
       interval: 30s

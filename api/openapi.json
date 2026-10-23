@@ -967,7 +967,10 @@
                     "trace_list",
                     "span_list",
                     "log_list",
-                    "deploy_correlation"
+                    "deploy_correlation",
+                    "bar",
+                    "pie",
+                    "gauge"
                   ],
                   "type": "string"
                 },
@@ -1097,7 +1100,10 @@
               "trace_list",
               "span_list",
               "log_list",
-              "deploy_correlation"
+              "deploy_correlation",
+              "bar",
+              "pie",
+              "gauge"
             ],
             "type": "string"
           },
