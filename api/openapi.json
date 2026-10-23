@@ -12148,6 +12148,140 @@
           "Traces"
         ]
       }
+    },
+    "/api/settings/self-monitor/dashboards": {
+      "post": {
+        "operationId": "installSelfMonitorDashboards",
+        "summary": "Create or refresh bundled Spaniel dashboards",
+        "tags": [
+          "Administration"
+        ],
+        "responses": {
+          "200": {
+            "description": "Installation complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "created",
+                        "refreshed",
+                        "skipped"
+                      ],
+                      "properties": {
+                        "created": {
+                          "type": "integer"
+                        },
+                        "refreshed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Bundled definitions installed",
+                    "value": {
+                      "data": {
+                        "created": 3,
+                        "refreshed": 0,
+                        "skipped": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Installation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/self-monitor/alerts": {
+      "post": {
+        "operationId": "installSelfMonitorAlerts",
+        "summary": "Create or refresh bundled Spaniel alerts",
+        "tags": [
+          "Administration"
+        ],
+        "responses": {
+          "200": {
+            "description": "Installation complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "created",
+                        "refreshed",
+                        "skipped"
+                      ],
+                      "properties": {
+                        "created": {
+                          "type": "integer"
+                        },
+                        "refreshed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Bundled definitions installed",
+                    "value": {
+                      "data": {
+                        "created": 3,
+                        "refreshed": 0,
+                        "skipped": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Installation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "servers": [

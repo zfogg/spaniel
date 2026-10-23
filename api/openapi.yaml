@@ -7694,6 +7694,92 @@ paths:
             summary: prune Storage
             tags:
                 - Administration
+    /api/settings/self-monitor/alerts:
+        post:
+            operationId: installSelfMonitorAlerts
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Bundled definitions installed
+                                    value:
+                                        data:
+                                            created: 3
+                                            refreshed: 0
+                                            skipped: 0
+                            schema:
+                                properties:
+                                    data:
+                                        properties:
+                                            created:
+                                                type: integer
+                                            refreshed:
+                                                type: integer
+                                            skipped:
+                                                type: integer
+                                        required:
+                                            - created
+                                            - refreshed
+                                            - skipped
+                                        type: object
+                                required:
+                                    - data
+                                type: object
+                    description: Installation complete
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Installation failed
+            summary: Create or refresh bundled Spaniel alerts
+            tags:
+                - Administration
+    /api/settings/self-monitor/dashboards:
+        post:
+            operationId: installSelfMonitorDashboards
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Bundled definitions installed
+                                    value:
+                                        data:
+                                            created: 3
+                                            refreshed: 0
+                                            skipped: 0
+                            schema:
+                                properties:
+                                    data:
+                                        properties:
+                                            created:
+                                                type: integer
+                                            refreshed:
+                                                type: integer
+                                            skipped:
+                                                type: integer
+                                        required:
+                                            - created
+                                            - refreshed
+                                            - skipped
+                                        type: object
+                                required:
+                                    - data
+                                type: object
+                    description: Installation complete
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Installation failed
+            summary: Create or refresh bundled Spaniel dashboards
+            tags:
+                - Administration
     /api/sources:
         get:
             operationId: listSources

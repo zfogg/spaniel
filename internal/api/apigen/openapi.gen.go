@@ -2733,6 +2733,12 @@ type ServerInterface interface {
 	// PruneStorage prune Storage
 	// (POST /api/settings/prune)
 	PruneStorage(w http.ResponseWriter, r *http.Request)
+	// InstallSelfMonitorAlerts Create or refresh bundled Spaniel alerts
+	// (POST /api/settings/self-monitor/alerts)
+	InstallSelfMonitorAlerts(w http.ResponseWriter, r *http.Request)
+	// InstallSelfMonitorDashboards Create or refresh bundled Spaniel dashboards
+	// (POST /api/settings/self-monitor/dashboards)
+	InstallSelfMonitorDashboards(w http.ResponseWriter, r *http.Request)
 	// ListSources list Sources
 	// (GET /api/sources)
 	ListSources(w http.ResponseWriter, r *http.Request, params ListSourcesParams)
@@ -3243,6 +3249,18 @@ func (_ Unimplemented) DropAllData(w http.ResponseWriter, r *http.Request) {
 // PruneStorage prune Storage
 // (POST /api/settings/prune)
 func (_ Unimplemented) PruneStorage(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// InstallSelfMonitorAlerts Create or refresh bundled Spaniel alerts
+// (POST /api/settings/self-monitor/alerts)
+func (_ Unimplemented) InstallSelfMonitorAlerts(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// InstallSelfMonitorDashboards Create or refresh bundled Spaniel dashboards
+// (POST /api/settings/self-monitor/dashboards)
+func (_ Unimplemented) InstallSelfMonitorDashboards(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5778,6 +5796,34 @@ func (siw *ServerInterfaceWrapper) PruneStorage(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// InstallSelfMonitorAlerts operation middleware
+func (siw *ServerInterfaceWrapper) InstallSelfMonitorAlerts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.InstallSelfMonitorAlerts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// InstallSelfMonitorDashboards operation middleware
+func (siw *ServerInterfaceWrapper) InstallSelfMonitorDashboards(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.InstallSelfMonitorDashboards(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListSources operation middleware
 func (siw *ServerInterfaceWrapper) ListSources(w http.ResponseWriter, r *http.Request) {
 
@@ -6536,6 +6582,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/settings/prune", wrapper.PruneStorage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/settings/self-monitor/alerts", wrapper.InstallSelfMonitorAlerts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/settings/self-monitor/dashboards", wrapper.InstallSelfMonitorDashboards)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/sources", wrapper.ListSources)
@@ -10278,6 +10330,88 @@ func (response PruneStorage500JSONResponse) VisitPruneStorageResponse(w http.Res
 	return err
 }
 
+type InstallSelfMonitorAlertsRequestObject struct {
+}
+
+type InstallSelfMonitorAlertsResponseObject interface {
+	VisitInstallSelfMonitorAlertsResponse(w http.ResponseWriter) error
+}
+
+type InstallSelfMonitorAlerts200JSONResponse struct {
+	Data struct {
+		Created   int `json:"created"`
+		Refreshed int `json:"refreshed"`
+		Skipped   int `json:"skipped"`
+	} `json:"data"`
+}
+
+func (response InstallSelfMonitorAlerts200JSONResponse) VisitInstallSelfMonitorAlertsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallSelfMonitorAlerts500JSONResponse Error
+
+func (response InstallSelfMonitorAlerts500JSONResponse) VisitInstallSelfMonitorAlertsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallSelfMonitorDashboardsRequestObject struct {
+}
+
+type InstallSelfMonitorDashboardsResponseObject interface {
+	VisitInstallSelfMonitorDashboardsResponse(w http.ResponseWriter) error
+}
+
+type InstallSelfMonitorDashboards200JSONResponse struct {
+	Data struct {
+		Created   int `json:"created"`
+		Refreshed int `json:"refreshed"`
+		Skipped   int `json:"skipped"`
+	} `json:"data"`
+}
+
+func (response InstallSelfMonitorDashboards200JSONResponse) VisitInstallSelfMonitorDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallSelfMonitorDashboards500JSONResponse Error
+
+func (response InstallSelfMonitorDashboards500JSONResponse) VisitInstallSelfMonitorDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListSourcesRequestObject struct {
 	Params ListSourcesParams
 }
@@ -10903,6 +11037,12 @@ type StrictServerInterface interface {
 	// PruneStorage prune Storage
 	// (POST /api/settings/prune)
 	PruneStorage(ctx context.Context, request PruneStorageRequestObject) (PruneStorageResponseObject, error)
+	// InstallSelfMonitorAlerts Create or refresh bundled Spaniel alerts
+	// (POST /api/settings/self-monitor/alerts)
+	InstallSelfMonitorAlerts(ctx context.Context, request InstallSelfMonitorAlertsRequestObject) (InstallSelfMonitorAlertsResponseObject, error)
+	// InstallSelfMonitorDashboards Create or refresh bundled Spaniel dashboards
+	// (POST /api/settings/self-monitor/dashboards)
+	InstallSelfMonitorDashboards(ctx context.Context, request InstallSelfMonitorDashboardsRequestObject) (InstallSelfMonitorDashboardsResponseObject, error)
 	// ListSources list Sources
 	// (GET /api/sources)
 	ListSources(ctx context.Context, request ListSourcesRequestObject) (ListSourcesResponseObject, error)
@@ -13334,6 +13474,54 @@ func (sh *strictHandler) PruneStorage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// InstallSelfMonitorAlerts operation middleware
+func (sh *strictHandler) InstallSelfMonitorAlerts(w http.ResponseWriter, r *http.Request) {
+	var request InstallSelfMonitorAlertsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.InstallSelfMonitorAlerts(ctx, request.(InstallSelfMonitorAlertsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "InstallSelfMonitorAlerts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(InstallSelfMonitorAlertsResponseObject); ok {
+		if err := validResponse.VisitInstallSelfMonitorAlertsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// InstallSelfMonitorDashboards operation middleware
+func (sh *strictHandler) InstallSelfMonitorDashboards(w http.ResponseWriter, r *http.Request) {
+	var request InstallSelfMonitorDashboardsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.InstallSelfMonitorDashboards(ctx, request.(InstallSelfMonitorDashboardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "InstallSelfMonitorDashboards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(InstallSelfMonitorDashboardsResponseObject); ok {
+		if err := validResponse.VisitInstallSelfMonitorDashboardsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListSources operation middleware
 func (sh *strictHandler) ListSources(w http.ResponseWriter, r *http.Request, params ListSourcesParams) {
 	var request ListSourcesRequestObject
@@ -13789,21 +13977,25 @@ var swaggerSpec = []string{
 	"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",
-	"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",
+	"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",
+	"2o8aYbYFiRXN+N9uOww/ffj0/wcA",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

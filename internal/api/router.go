@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -49,14 +50,15 @@ type SourcesProvider interface {
 }
 
 type Router struct {
-	store     *storage.DB
-	hub       *ws.Hub
-	forwarder *forwarder.Forwarder // nil when no upstream configured
-	manifests *coverage.Manifests  // nil when no spec file is loaded
-	settings  *SettingsService     // nil disables /api/settings
-	tp        ThroughputProvider   // nil when no pipeline wired in
-	dc        DropCounterProvider  // nil when sampling disabled
-	sp        SourcesProvider      // nil when no pipeline wired in
+	selfMonitorInstallMu sync.Mutex
+	store                *storage.DB
+	hub                  *ws.Hub
+	forwarder            *forwarder.Forwarder // nil when no upstream configured
+	manifests            *coverage.Manifests  // nil when no spec file is loaded
+	settings             *SettingsService     // nil disables /api/settings
+	tp                   ThroughputProvider   // nil when no pipeline wired in
+	dc                   DropCounterProvider  // nil when sampling disabled
+	sp                   SourcesProvider      // nil when no pipeline wired in
 }
 
 func NewRouter(store *storage.DB, hub *ws.Hub, fwd *forwarder.Forwarder) http.Handler {

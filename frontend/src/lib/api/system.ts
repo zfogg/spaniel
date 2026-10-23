@@ -49,6 +49,9 @@ export const forwarders = {
 }
 
 export const settings = {
+  installSelfMonitorDashboards: () =>
+    unwrap(openapiClient.POST('/api/settings/self-monitor/dashboards')),
+  installSelfMonitorAlerts: () => unwrap(openapiClient.POST('/api/settings/self-monitor/alerts')),
   get: () => unwrap(openapiClient.GET('/api/settings')),
   update: (patchBody: SettingsUpdate) =>
     unwrap(openapiClient.PUT('/api/settings', { body: patchBody })),

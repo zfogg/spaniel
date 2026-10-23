@@ -411,3 +411,74 @@ test.describe('Settings page', () => {
     )
   })
 })
+
+test.describe('Self-monitoring definitions', () => {
+  test('buttons install dashboards and alerts, including refresh feedback and retry', async ({
+    page,
+  }) => {
+    await stubChrome(page)
+    await stubSettings(page, makeSettings({ self_monitor: false }))
+    let dashboards = 0
+    let alerts = 0
+    await page.route('**/api/settings/self-monitor/dashboards', (r) => {
+      dashboards++
+      return jsonResponse(r, {
+        created: dashboards === 1 ? 3 : 0,
+        refreshed: dashboards === 1 ? 0 : 3,
+        skipped: 0,
+      })
+    })
+    await page.route('**/api/settings/self-monitor/alerts', (r) => {
+      alerts++
+      if (alerts === 1)
+        return r.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'test failure' }),
+        })
+      return jsonResponse(r, { created: 3, refreshed: 0, skipped: 0 })
+    })
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'Create / refresh Spaniel dashboards' }).click()
+    await expect(page.getByRole('status')).toContainText('3 created')
+    await page.getByRole('button', { name: 'Create / refresh Spaniel dashboards' }).click()
+    await expect(page.getByRole('status')).toContainText('3 refreshed')
+    await page.getByRole('button', { name: 'Create Spaniel alerts', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('Installation failed')
+    await page.getByRole('button', { name: 'Create Spaniel alerts', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('3 created')
+    expect(dashboards).toBe(2)
+    expect(alerts).toBe(2)
+  })
+
+  for (const accept of [true, false]) {
+    test(`self-monitor switch offers installation: confirm=${accept}`, async ({ page }) => {
+      await stubChrome(page)
+      const settings = await stubSettings(page, makeSettings({ self_monitor: false }))
+      const installs: string[] = []
+      await page.route('**/api/settings/self-monitor/*', (r) => {
+        installs.push(new URL(r.request().url()).pathname)
+        return jsonResponse(r, { created: 3, refreshed: 0, skipped: 0 })
+      })
+      await page.goto('/settings')
+      let dialogs = 0
+      page.on('dialog', async (dialog) => {
+        dialogs++
+        expect(dialog.type()).toBe('confirm')
+        expect(dialog.message()).toContain('replacing your edits')
+        if (accept) await dialog.accept()
+        else await dialog.dismiss()
+      })
+      const toggle = page.getByRole('switch', { name: 'self monitor', exact: true })
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-checked', 'true')
+      await expect.poll(() => settings.lastPut()).toMatchObject({ self_monitor: true })
+      if (accept) await expect.poll(() => installs.length).toBe(2)
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-checked', 'false')
+      await expect.poll(() => settings.lastPut()).toMatchObject({ self_monitor: false })
+      expect(dialogs).toBe(1)
+      expect(installs.length).toBe(accept ? 2 : 0)
+    })
+  }
+})
