@@ -17,6 +17,40 @@ vi.mock('./ws', () => ({
 import { patchSelfTrace, useLiveInvalidation } from './query'
 
 describe('useLiveInvalidation', () => {
+  it('patches only matching span logs and exact severity bands', () => {
+    const client = new QueryClient()
+    const filters = [
+      { spanId: 'selected' },
+      { spanId: 'other' },
+      { severity: 'warn' },
+      { severity: 'error' },
+      { severity: 'fatal' },
+    ]
+    for (const params of filters)
+      client.setQueryData(['logs', params], { data: [], meta: { total: 0 } })
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children)
+    const hook = renderHook(() => useLiveInvalidation(), { wrapper })
+    captured!({
+      type: 'log',
+      payload: {
+        row: {
+          span_id: 'selected',
+          trace_id: 'trace',
+          severity: 17,
+          body: 'error',
+          timestamp_ns: 1,
+        },
+      },
+    })
+    expect(
+      filters.map(
+        (params) => client.getQueryData<{ data: unknown[] }>(['logs', params])?.data.length,
+      ),
+    ).toEqual([1, 0, 0, 1, 0])
+    hook.unmount()
+  })
+
   beforeEach(() => {
     vi.useFakeTimers()
     captured = null

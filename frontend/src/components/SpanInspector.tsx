@@ -1,7 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '@/lib/query'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
-import { Span, SpanRow, SpanEvent, LintWarning, TraceIssue, Log, api } from '@/lib/api'
+import { Span, SpanRow, SpanEvent, LintWarning, TraceIssue, api } from '@/lib/api'
 import { fmtNs, KIND_LABELS, httpDisplayName } from '@/lib/span-utils'
 import { n1IssueForSpan } from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
@@ -33,21 +35,21 @@ function inspFmtRelative(ns: number): string {
 
 // ── SpanLogs ──────────────────────────────────────────────────────────────────
 
-function SpanLogs({ spanId }: { spanId: string }) {
-  const [logs, setLogs] = useState<Log[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    setLogs([])
-    api.logs
-      .list({ spanId })
-      .then((r) => {
-        setLogs(r.data ?? [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [spanId])
+function SpanLogs({
+  spanId,
+  traceId,
+  sessionId,
+}: {
+  spanId: string
+  traceId: string
+  sessionId?: string
+}) {
+  const params = { spanId, traceId, sessionId }
+  const { data: logs = [], isPending: loading } = useQuery({
+    queryKey: qk.logs(params),
+    queryFn: () => api.logs.list(params),
+    select: (response) => response.data ?? [],
+  })
 
   if (loading) {
     return <div className="px-4 py-3.5 font-mono text-[11px] text-ink3">…</div>
@@ -88,21 +90,24 @@ function SpanLogs({ spanId }: { spanId: string }) {
 
 // ── SpanEventsList — events section for the Inspector ────────────────────────
 
-function SpanEventsList({ spanId, spanStartNs }: { spanId: string; spanStartNs: number }) {
-  const [events, setEvents] = useState<SpanEvent[]>([])
-  const [loading, setLoading] = useState(true)
+function useInspectorSpan(spanId: string, traceId: string) {
+  return useQuery({
+    queryKey: ['trace-span', { spanId, traceId }],
+    queryFn: () => api.spans.get(spanId).then((response) => response.data),
+  })
+}
 
-  useEffect(() => {
-    setLoading(true)
-    setEvents([])
-    api.spans
-      .get(spanId)
-      .then((r) => {
-        setEvents(r.data?.events ?? [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [spanId])
+function SpanEventsList({
+  spanId,
+  traceId,
+  spanStartNs,
+}: {
+  spanId: string
+  traceId: string
+  spanStartNs: number
+}) {
+  const { data, isPending: loading } = useInspectorSpan(spanId, traceId)
+  const events: SpanEvent[] = data?.events ?? []
 
   if (loading) {
     return <div className="px-3.5 py-1.5 font-mono text-[10px] text-[var(--ink3)]">…</div>
@@ -200,39 +205,19 @@ function SpanEventRow({
 // ── SpanLinksList — outbound + incoming links section for the Inspector ─────
 
 function SpanLinksList({ spanId, traceId }: { spanId: string; traceId: string }) {
-  const [outbound, setOutbound] = useState<import('@/lib/api').SpanLink[]>([])
-  const [incoming, setIncoming] = useState<import('@/lib/api').SpanLink[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancel = false
-    setLoading(true)
-    setOutbound([])
-    setIncoming([])
-    api.spans
-      .get(spanId)
-      .then((r) => {
-        if (!cancel) setOutbound(r.data?.links ?? [])
-      })
-      .catch(() => {
-        /* leave empty */
-      })
-      .finally(() => {
-        if (!cancel) setLoading(false)
-      })
-    // Reverse lookup: who else links into this trace?
-    fetch(`/api/traces/${encodeURIComponent(traceId)}/incoming-links`)
-      .then((r) => (r.ok ? r.json() : { data: [] }))
-      .then((j) => {
-        if (!cancel) setIncoming((j?.data as import('@/lib/api').SpanLink[]) ?? [])
-      })
-      .catch(() => {
-        /* leave empty */
-      })
-    return () => {
-      cancel = true
-    }
-  }, [spanId, traceId])
+  const span = useInspectorSpan(spanId, traceId)
+  const links = useQuery({
+    queryKey: ['trace-incoming-links', traceId],
+    queryFn: async () => {
+      const response = await fetch(`/api/traces/${encodeURIComponent(traceId)}/incoming-links`)
+      if (!response.ok) throw new Error('Unable to load incoming links')
+      const result = await response.json()
+      return (result.data ?? []) as import('@/lib/api').SpanLink[]
+    },
+  })
+  const outbound = span.data?.links ?? []
+  const incoming = links.data ?? []
+  const loading = span.isPending || links.isPending
 
   if (loading) {
     return <div className="px-3.5 py-1.5 font-mono text-[10px] text-[var(--ink3)]">…</div>
@@ -597,7 +582,11 @@ export default function SpanInspector({
               <JsonView data={Object.fromEntries(resEntries)} />
             </>
           )}
-          <SpanEventsList spanId={span.span_id} spanStartNs={span.start_ns} />
+          <SpanEventsList
+            spanId={span.span_id}
+            traceId={span.trace_id}
+            spanStartNs={span.start_ns}
+          />
           <SpanLinksList spanId={span.span_id} traceId={span.trace_id} />
           {attrEntries.length === 0 && resEntries.length === 0 && (
             <div className="px-4 py-[18px] font-mono text-[11px] text-muted-foreground">
@@ -608,7 +597,9 @@ export default function SpanInspector({
       )}
 
       {/* logs tab */}
-      {activeTab === 'logs' && <SpanLogs spanId={span.span_id} />}
+      {activeTab === 'logs' && (
+        <SpanLogs spanId={span.span_id} traceId={span.trace_id} sessionId={span.session_id} />
+      )}
     </aside>
   )
 }

@@ -1,3 +1,4 @@
+import { useLiveTrace } from '@/lib/use-live-trace'
 import TraceLogPanel from '@/components/TraceLogPanel'
 import { TRACE_LOG_PREFETCH_SIZE } from '@/lib/trace-logs'
 import { useEffect, useRef, useState } from 'react'
@@ -79,6 +80,7 @@ function HeaderButton({
 
 export default function TraceDetail() {
   const { traceId } = useParams<{ traceId: string }>()
+  useLiveTrace(traceId)
   const navigate = useNavigate()
   const [copied, setCopied] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -144,9 +146,10 @@ export default function TraceDetail() {
   }
 
   // Compute trace metadata from spans
-  const rootSpan = spans.length > 0 ? spans[0] : null
-  const traceStartNs = rootSpan?.start_ns ?? 0
-  const traceDurationNs = rootSpan?.duration_ns ?? 0
+  const traceStartNs = spans.length ? Math.min(...spans.map((span) => span.start_ns)) : 0
+  const traceDurationNs = spans.length
+    ? Math.max(...spans.map((span) => span.end_ns)) - traceStartNs
+    : 0
 
   return (
     <div className="flex min-h-0 flex-col h-full overflow-hidden">
@@ -208,6 +211,7 @@ export default function TraceDetail() {
       ) : (
         <div className="relative min-h-0 flex-1 overflow-hidden pb-9">
           <TraceWaterfall
+            key={traceId}
             spans={spans}
             warnings={warnings}
             issues={issues}

@@ -812,8 +812,16 @@ export default function TraceWaterfall({
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [zoom, setZoom] = useState<[number, number]>([traceStartNs, traceEndNs])
 
+  const previousExtent = useRef<[number, number]>([traceStartNs, traceEndNs])
   useEffect(() => {
-    if (Number.isFinite(traceStartNs)) setZoom([traceStartNs, traceEndNs])
+    const previous = previousExtent.current
+    if (Number.isFinite(traceStartNs))
+      setZoom((current) =>
+        current[0] === previous[0] && current[1] === previous[1]
+          ? [traceStartNs, traceEndNs]
+          : current,
+      )
+    previousExtent.current = [traceStartNs, traceEndNs]
   }, [traceStartNs, traceEndNs])
 
   const resetZoom = useCallback(() => {

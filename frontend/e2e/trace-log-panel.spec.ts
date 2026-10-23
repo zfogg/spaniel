@@ -17,7 +17,7 @@ function log(index: number, severity = 9, body = `log message ${index}`) {
   }
 }
 async function backend(page: Page, logs: ReturnType<typeof log>[] = []) {
-  const state = { logs, fail: false }
+  const state = { logs, fail: false, child: false, completed: false, event: false }
   const requests: URLSearchParams[] = []
   const sockets: WebSocketRoute[] = []
   await page.routeWebSocket('**/ws', (socket) => sockets.push(socket))
@@ -46,6 +46,28 @@ async function backend(page: Page, logs: ReturnType<typeof log>[] = []) {
             resource: '{}',
           },
         ]
+      if (url.pathname === `/api/traces/${TRACE}` && Array.isArray(data)) {
+        if (state.completed)
+          Object.assign(data[0], {
+            name: 'completed orders',
+            attributes: '{"live.attribute":"updated"}',
+            end_ns: (Date.now() + 500) * 1e6,
+          })
+        if (state.child)
+          data.push({
+            ...(data[0] as object),
+            span_id: 'child',
+            parent_span_id: 'root',
+            name: 'new live child',
+          })
+      }
+      if (url.pathname === '/api/spans/root')
+        data = {
+          events: state.event
+            ? [{ name: 'live span event', time_ns: Date.now() * 1e6, attributes: '{}' }]
+            : [],
+          links: [],
+        }
       else if (url.pathname === '/api/sessions/active')
         data = { id: 'different-active-session', label: 'Live' }
       else if (url.pathname === '/api/stats')
@@ -229,4 +251,69 @@ test('a failed log query is not reported as zero and can be retried', async ({ p
   await page.getByRole('button', { name: 'Retry trace logs' }).click()
   await expect(page.getByTestId('trace-log-count')).toHaveText('1 logs')
   await expect(page.getByTestId('trace-log-row')).toHaveCount(1)
+})
+
+test('trace metadata, spans, inspector attributes and events refresh while selection survives', async ({
+  page,
+}) => {
+  const { state, sockets } = await backend(page)
+  await page.goto(`/traces/${TRACE}?view=waterfall&span=root`)
+  await expect(page.getByText('1 spans', { exact: true })).toBeVisible()
+  state.completed = true
+  state.child = true
+  state.event = true
+  for (const socket of sockets)
+    socket.send(
+      JSON.stringify({
+        type: 'span',
+        payload: { traceId: TRACE, spanId: 'child' },
+        timestamp_ns: 0,
+      }),
+    )
+  await expect(page.getByText('2 spans', { exact: true })).toBeVisible()
+  await expect(page.getByText('new live child', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('treeitem', { name: 'live.attribute:"updated"', exact: true }),
+  ).toBeVisible()
+  await expect(page.getByTestId('span-events')).toContainText('live span event')
+  expect(new URL(page.url()).searchParams.get('span')).toBe('root')
+  expect(new URL(page.url()).searchParams.get('view')).toBe('waterfall')
+})
+
+test('rowless and self log events refresh the trace log panel without resetting its URL state', async ({
+  page,
+}) => {
+  const { state, sockets } = await backend(page, [log(1)])
+  await page.goto(`/traces/${TRACE}?traceLogs=open&view=waterfall`)
+  await expect(page.getByTestId('trace-log-count')).toHaveText('1 logs')
+  await page.getByRole('button', { name: 'Expand log message 1', exact: true }).click()
+  const selection = new URL(page.url()).searchParams.get('traceLog')
+  state.logs.push(log(2, 17))
+  for (const socket of sockets)
+    socket.send(
+      JSON.stringify({ type: 'log', payload: { traceId: TRACE, spanId: 'root' }, timestamp_ns: 0 }),
+    )
+  await expect(page.getByTestId('trace-log-count')).toHaveText('2 logs')
+  state.logs.push(log(3, 13))
+  for (const socket of sockets)
+    socket.send(JSON.stringify({ type: 'self_log', payload: state.logs[2], timestamp_ns: 0 }))
+  await expect(page.getByTestId('trace-log-count')).toHaveText('3 logs')
+  await expect(page.getByRole('img', { name: 'Warning logs present' })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('traceLog')).toBe(selection)
+  await expect(page.getByTestId('trace-log-toggle')).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('live logs refresh later pages and retain pagination', async ({ page }) => {
+  const { state, sockets } = await backend(
+    page,
+    Array.from({ length: 102 }, (_, i) => log(i + 1)),
+  )
+  await page.goto(`/traces/${TRACE}?traceLogs=open&traceLogsPage=2`)
+  await expect(page.getByTestId('trace-log-row')).toHaveCount(2)
+  state.logs.push(log(103, 17, 'arrived on page two'))
+  for (const socket of sockets)
+    socket.send(JSON.stringify({ type: 'log', payload: { traceId: TRACE }, timestamp_ns: 0 }))
+  await expect(page.getByTestId('trace-log-row')).toHaveCount(3)
+  await expect(page.getByText('arrived on page two', { exact: true })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('traceLogsPage')).toBe('2')
 })

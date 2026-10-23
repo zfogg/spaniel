@@ -95,7 +95,8 @@ function matchesLogSeverity(value: number, filter: unknown) {
     error: 17,
     fatal: 21,
   }
-  return typeof filter === 'string' && value >= (minimum[filter] ?? Number.POSITIVE_INFINITY)
+  if (typeof filter !== 'string' || minimum[filter] === undefined) return false
+  return value >= minimum[filter] && (filter === 'fatal' || value < minimum[filter] + 4)
 }
 
 function parseNumberArray(value?: string): number[] | undefined {
@@ -307,14 +308,13 @@ export function useLiveInvalidation() {
             predicate: (query) => {
               const [prefix, params] = query.queryKey
               if (prefix !== 'logs' || !params || typeof params !== 'object') return false
-              const { page, severity, traceId, services, sessionId, fromNs } = params as Record<
-                string,
-                unknown
-              >
+              const { page, severity, traceId, spanId, services, sessionId, fromNs } =
+                params as Record<string, unknown>
               return (
                 (page === 1 || page === undefined) &&
                 matchesLogSeverity(row.severity, severity) &&
                 (traceId === undefined || traceId === null || traceId === row.trace_id) &&
+                (spanId === undefined || spanId === null || spanId === row.span_id) &&
                 (sessionId === undefined || sessionId === null || sessionId === row.session_id) &&
                 (fromNs === undefined || fromNs === null || row.timestamp_ns >= Number(fromNs)) &&
                 (!Array.isArray(services) ||

@@ -674,3 +674,75 @@ test.describe('Trace detail page', () => {
     await expect(page.getByText('db.statement').first()).toBeVisible()
   })
 })
+
+test('live trace updates include lint, issues, links and the selected inspector logs', async ({
+  page,
+}) => {
+  const sockets: import('@playwright/test').WebSocketRoute[] = []
+  const fx: Fixture = { spans: [span({ span_id: 'root', name: 'live root' })] }
+  await stubBackend(page, fx)
+  await page.routeWebSocket('**/ws', (socket) => sockets.push(socket))
+  await page.goto(`/traces/${TRACE_ID}?span=root&view=waterfall`)
+  const inspector = page.getByRole('complementary', { name: 'Span inspector' })
+  await expect(inspector).toBeVisible()
+  fx.warnings = [
+    {
+      span_id: 'root',
+      trace_id: TRACE_ID,
+      session_id: 's1',
+      rule_id: 'live.rule',
+      message: 'New live warning',
+      severity: 'warning',
+      created_at: 0,
+    },
+  ]
+  fx.issues = [
+    {
+      id: 'live-issue',
+      trace_id: TRACE_ID,
+      session_id: 's1',
+      kind: 'slow_span',
+      fingerprint: 'live fingerprint',
+      count: 1,
+      wasted_ns: 1000,
+      parent_span_id: 'root',
+      example_span_id: 'root',
+      created_at: 0,
+    },
+  ]
+  fx.spanLinks = { root: [{ linked_trace_id: 'linked-live-trace', linked_span_id: 'linked-span' }] }
+  for (const socket of sockets)
+    socket.send(JSON.stringify({ type: 'issue', payload: { traceId: TRACE_ID }, timestamp_ns: 0 }))
+  await expect(inspector.getByText('New live warning', { exact: true })).toBeVisible()
+  await expect(inspector.locator('[data-kind="slow_span"]')).toBeVisible()
+  await expect(inspector.getByTestId('span-links').getByRole('link')).toHaveAttribute(
+    'href',
+    '/traces/linked-live-trace',
+  )
+  await inspector.getByRole('button', { name: 'logs', exact: true }).click()
+  await expect(inspector.getByText('no logs for this span', { exact: true })).toBeVisible()
+  fx.logs = [
+    {
+      timestamp_ns: Date.now() * 1e6,
+      trace_id: TRACE_ID,
+      span_id: 'root',
+      severity: 9,
+      body: 'new inspector log',
+      attributes: '{}',
+      service_name: 'api',
+      session_id: 's1',
+      received_at: 0,
+    },
+  ]
+  for (const socket of sockets)
+    socket.send(
+      JSON.stringify({
+        type: 'log',
+        payload: { traceId: TRACE_ID, spanId: 'root' },
+        timestamp_ns: 0,
+      }),
+    )
+  await expect(inspector.getByText('new inspector log', { exact: true })).toBeVisible()
+  await expect(inspector.getByRole('button', { name: 'logs', exact: true })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('span')).toBe('root')
+})
