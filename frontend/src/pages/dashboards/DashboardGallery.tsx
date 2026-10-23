@@ -11,7 +11,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { useVisibleQuery as useQuery } from '@/lib/page-visibility'
 
-import { Plus } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 
 import { api, type Dashboard } from '@/lib/api'
 
@@ -219,9 +219,23 @@ export function DashboardGallery() {
             </p>
           </div>
           <div className="ml-auto flex shrink-0 gap-2">
-            <Dialog.Root>
-              <Dialog.Trigger className="rounded-md border border-border px-3 py-2 text-xs">
-                Dashboard settings
+            <Dialog.Root
+              open={searchParams.get('settings') === 'open'}
+              onOpenChange={(open) => {
+                setSearchParams((current) => {
+                  const next = new URLSearchParams(current)
+                  if (open) next.set('settings', 'open')
+                  else next.delete('settings')
+                  return next
+                })
+              }}
+            >
+              <Dialog.Trigger
+                aria-label="Dashboard settings"
+                title="Dashboard settings"
+                className="rounded-md border border-border p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Settings size={16} aria-hidden="true" />
               </Dialog.Trigger>
               <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
