@@ -64,5 +64,39 @@ data and destructive qualification operate only on the disposable copy.
 
 Commands: `make test-retention RETENTION_TEST_RUN=Test` (complete storage and
 command suites), `make test-ingest-admission` (race-enabled), and the explicit
-snapshot probe with SPANIEL_REPRO_DB and SPANIEL_REPRO_GUARD=1. Final focused
-race and runtime deployment evidence follows after qualification.
+snapshot probe with SPANIEL_REPRO_DB and SPANIEL_REPRO_GUARD=1.
+`GOFLAGS=-race make test-retention` also passed the focused physical, native-copy,
+maintenance, guard, reclamation and direct-ingestion regressions.
+
+## Pi deployment
+
+Deployed code `bdcca63970b9deb812e58a91a086ffa684432062` as
+`stonkpile-spaniel:retention-bdcca63` (image
+`sha256:02ddc162fd6bfeb98ea19b9fa0ecab3f14dbd599eabda52ae6b99203ac358a02`),
+reporting `v0.2.2-312-gbdcca63`. The ARM64 backend was cross-built through
+`make build-server` using the Debian-compatible cross compiler; the native
+Pi toolchain required newer glibc than the runtime image. The existing live
+UI was retained and the served index, JS and CSS hashes match its captured
+assets. The unchanged four-CPU limit and original database volume remain.
+
+At 21:53:18 UTC the live guard restored 342.26171875 MiB, below its 350 MiB
+low-water target with the unchanged 500 MiB cap. The optional concurrent
+age/count pass logged its bounded-maintenance deferral; it did not prevent
+physical recovery. Sustained backlog delivery was slow and generated receiver
+context timeouts during staged validation, so a one-shot HTTP health check
+alone is not sufficient delivery evidence.
+
+At 22:04:31 UTC, after fleet ports 4345/4346 returned to direct Spaniel
+reception, trace/log/metric HTTP acknowledgments were 200 in 535/1253/1211 ms.
+Trace `63b18527a1304c71a910843fcc0cf153`, its correlated log and gauge
+`stonkpile.telemetry.direct_pruning_probe=1` were independently read through
+MCP in session `59359e7b-d44a-489c-9180-1c359d7b8ffd`. Ingestion health was
+healthy, storage_full=false, zero recorded drops, physical main+WAL
+370,001,144 bytes. The temporary collector was disconnected from fleet ingress
+and retained solely to drain accepted backlog before removal.
+
+A subsequent live oldest-prefix pass at 22:09:48 UTC deleted 94,932 telemetry
+groups and reduced physical main+WAL from 373,273,611 to 339,226,624 bytes
+(323.51171875 MiB), below low water. The guard reopened admission. On this
+I/O-bound Pi, physical replacement still causes exporter timeouts during the
+exclusive file swap; this repair does not establish uninterrupted ingestion.
