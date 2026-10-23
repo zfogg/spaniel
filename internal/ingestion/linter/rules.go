@@ -29,11 +29,11 @@ var rules = []LintRule{
 			if strings.HasSuffix(s.ServiceName, "-keycloak") || isProtocolSpan(s) {
 				return "", false
 			}
-			prefix := strings.SplitN(s.ServiceName, "-", 2)[0]
+			prefix := applicationPrefix(s)
 			if prefix == "" || prefix == "unknown_service" || strings.HasPrefix(s.Name, prefix+".") {
 				return "", false
 			}
-			return "span name is not prefixed with application name '" + prefix + ".'", true
+			return "span name is not prefixed with application name '" + prefix + "' (expected '" + prefix + ".')", true
 		},
 	},
 	{
@@ -68,7 +68,7 @@ var rules = []LintRule{
 		ID: "redis.nonstandard_name", Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
 			if strings.EqualFold(firstAttr(s.Attributes, "db.system.name", "db.system"), "redis") {
-				prefix := strings.SplitN(s.ServiceName, "-", 2)[0] + ".storage.redis."
+				prefix := applicationPrefix(s) + ".storage.redis."
 				if !strings.HasPrefix(strings.ToLower(s.Name), strings.ToLower(prefix)) {
 					return "Redis span name must use " + prefix + "<command>", true
 				}
@@ -80,7 +80,7 @@ var rules = []LintRule{
 		ID: "temporal.nonstandard_name", Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
 			if hasAttr(s.Attributes, "temporalWorkflowType") || hasAttr(s.Attributes, "temporalActivityType") {
-				prefix := strings.SplitN(s.ServiceName, "-", 2)[0] + ".temporal."
+				prefix := applicationPrefix(s) + ".temporal."
 				if !strings.HasPrefix(s.Name, prefix+"workflow.") && !strings.HasPrefix(s.Name, prefix+"activity.") && !strings.HasPrefix(s.Name, prefix+"workflow.child.") {
 					return "Temporal span name must identify the application and workflow/activity type", true
 				}
@@ -161,7 +161,8 @@ var rules = []LintRule{
 		ID:       "zero_duration",
 		Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
-			if s.EndNs > 0 && s.EndNs == s.StartNs {
+			// Internal spans may describe instantaneous observations at clock resolution.
+			if s.Kind != 1 && s.EndNs > 0 && s.EndNs == s.StartNs {
 				return "span has zero duration", true
 			}
 			return "", false
@@ -270,6 +271,19 @@ func isProtocolSpan(s *storage.Span) bool {
 		}
 	}
 	return false
+}
+
+func applicationPrefix(s *storage.Span) string {
+	// Remove a service role, never the first hyphenated component of an application name.
+	if mode := firstAttr(s.Resource, "ascii_chat.mode"); mode != "" {
+		return strings.TrimSuffix(s.ServiceName, "-"+mode)
+	}
+	for _, role := range []string{"discovery-service", "discovery", "server", "client", "mirror", "worker", "api", "web", "keycloak"} {
+		if prefix, found := strings.CutSuffix(s.ServiceName, "-"+role); found && prefix != "" {
+			return prefix
+		}
+	}
+	return s.ServiceName
 }
 
 // LintSpan runs the semantic-convention lint rules for a persisted span.

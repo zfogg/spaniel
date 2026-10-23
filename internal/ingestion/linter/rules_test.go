@@ -32,6 +32,12 @@ func TestGotelConventionRules(t *testing.T) {
 	}{
 		{"span.missing_application_prefix", namedSpan("ratio-api", "auth.verify", 1, nil), true},
 		{"span.missing_application_prefix", namedSpan("ratio-api", "ratio.auth.verify", 1, nil), false},
+		{"span.missing_application_prefix", namedSpan("ascii-chat-server", "ascii-chat.cli", 1, nil), false},
+		{"span.missing_application_prefix", namedSpan("ascii-chat-server", "ascii-chat.thread.deadlock", 1, nil), false},
+		{"span.missing_application_prefix", namedSpan("ascii-chat-discovery-service", "ascii-chat.cli", 1, nil), false},
+		{"span.missing_application_prefix", namedSpan("ascii-chat", "ascii-chat.cli", 1, nil), false},
+		{"span.missing_application_prefix", namedSpan("ascii-chat-server", "ascii.cli", 1, nil), true},
+		{"span.missing_application_prefix", namedSpan("my-cool-app-worker", "my-cool-app.run", 1, nil), false},
 		{"span.missing_application_prefix", namedSpan("ratio-keycloak", "SELECT keycloak.OFFLINE_USER_SESSION", 3, map[string]string{"db.system.name": "postgresql"}), false},
 		{"span.missing_application_prefix", namedSpan("ratio-keycloak", "DefaultKeycloakTransactionManager.commit", 1, nil), false},
 		{"span.missing_application_prefix", namedSpan("ratio-api", "GET /health", 2, map[string]string{"http.request.method": "GET", "http.route": "/health"}), false},
@@ -299,6 +305,27 @@ func TestUnknownService_NormalName_DoesNotFire(t *testing.T) {
 }
 
 // --- zero_duration ---
+
+func TestZeroDurationInstantaneousInternalSpan(t *testing.T) {
+	s := namedSpan("ascii-chat-server", "ascii-chat.thread.deadlock", 1, nil)
+	s.StartNs, s.EndNs = 1000, 1000
+	if _, fired := findRule("zero_duration").Check(s); fired {
+		t.Fatal("instantaneous internal observation is valid")
+	}
+	s.EndNs = 999
+	if _, fired := findRule("negative_duration").Check(s); !fired {
+		t.Fatal("negative internal duration must still be reported")
+	}
+}
+
+func TestHyphenatedApplicationPrefixMessage(t *testing.T) {
+	s := namedSpan("ascii-chat-server", "ascii.thread.deadlock", 1, nil)
+	s.Resource = `{"ascii_chat.mode":"server"}`
+	message, fired := findRule("span.missing_application_prefix").Check(s)
+	if !fired || message != "span name is not prefixed with application name 'ascii-chat' (expected 'ascii-chat.')" {
+		t.Fatalf("unexpected prefix diagnostic: %q, fired=%v", message, fired)
+	}
+}
 
 func TestZeroDuration_StartEqualsEnd_Fires(t *testing.T) {
 	rule := findRule("zero_duration")

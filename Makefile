@@ -62,6 +62,12 @@ verify-generated:
 	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
 	test -z "$$(git ls-files --others --exclude-standard -- api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
 
+.PHONY: test-linter
+test-linter:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/linter.test$(EXE) ./internal/ingestion/linter
+	./$(BIN_DIR)/linter.test$(EXE) -test.count=1 -test.timeout=2m
+
 test: verify-generated
 	@set -e; \
 	  mkdir -p $(BIN_DIR); \
@@ -209,3 +215,14 @@ test-mcp-e2e:
 	mkdir -p $(BIN_DIR)
 	go test -c -o $(BIN_DIR)/mcp-inspector.test$(EXE) ./internal/mcp
 	SPANIEL_MCP_INSPECTOR_INTEGRATION=1 ./$(BIN_DIR)/mcp-inspector.test$(EXE) -test.run '^TestMCPInspector$$' -test.timeout=10m -test.v
+
+# Focused alert lifecycle checks; no generator inputs are changed by this target.
+.PHONY: test-alerts
+test-alerts:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/alertconfig.test$(EXE) ./internal/alertconfig
+	./$(BIN_DIR)/alertconfig.test$(EXE) -test.timeout=2m
+	go test -c -o $(BIN_DIR)/alerts.test$(EXE) ./internal/api
+	./$(BIN_DIR)/alerts.test$(EXE) -test.run 'Test.*Alert|TestEvent' -test.timeout=5m
+	go test -c -o $(BIN_DIR)/alerts-mcp.test$(EXE) ./internal/mcp
+	./$(BIN_DIR)/alerts-mcp.test$(EXE) -test.run 'Test.*Alert' -test.timeout=2m
