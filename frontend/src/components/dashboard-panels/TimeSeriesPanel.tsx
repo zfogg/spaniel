@@ -148,7 +148,7 @@ export function TimeSeriesPanel({
               x={left - 8}
               y={top + (index * (height - top - bottom)) / 2 + 3}
               textAnchor="end"
-              className="fill-muted-foreground font-mono text-base"
+              className="fill-muted-foreground font-mono text-xs"
             >
               {formatValue(value)}
             </text>
@@ -159,7 +159,7 @@ export function TimeSeriesPanel({
               x={left + (index * (width - left - right)) / 2}
               y={height - 9}
               textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'}
-              className="fill-muted-foreground font-mono text-base"
+              className="fill-muted-foreground font-mono text-xs"
             >
               {label}
             </text>

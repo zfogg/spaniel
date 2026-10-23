@@ -135,7 +135,7 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
         return parseFloat(getComputedStyle(text).fontSize) * text.getScreenCTM()!.a
       }),
     )
-    .toBeGreaterThan(15)
+    .toBeGreaterThan(11)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.getByRole('button', { name: 'Dashboard settings', exact: true }).click()
   const live = page.getByRole('switch', { name: 'Live rolling time window', exact: true })
