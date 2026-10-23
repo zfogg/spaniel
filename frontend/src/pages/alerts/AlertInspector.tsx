@@ -18,6 +18,7 @@ import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 import { GroupBadge, InspectorSection, Field, LabelWithHelp } from './AlertFields'
 import { EventTimeline } from './EventTimeline'
 import { Silences } from './Silences'
+import { SilenceAllDialog } from './SilenceAllDialog'
 import { AlertEditor } from './AlertEditor'
 export function Inspector({
   rule,
@@ -107,6 +108,7 @@ export function Inspector({
   const [editing, setEditing] = useState(editingFromURL)
   const [ackNote, setAckNote] = useState('')
   const [silenceGroup, setSilenceGroup] = useState<string | null>(null)
+  const [silencingAll, setSilencingAll] = useState(false)
   const [draft, setDraft] = useState<Draft>(() => draftFor(rule))
   const fileManaged = Boolean(rule.source_file)
   const instances = rule.instances ?? []
@@ -130,6 +132,7 @@ export function Inspector({
     setDraft(draftFor(rule))
     setInstancesPage(1)
     setEventsPage(1)
+    setSilencingAll(false)
   }, [rule, editingFromURL])
   useEffect(() => {
     setInstancesPage((page) =>
@@ -509,15 +512,25 @@ export function Inspector({
       <InspectorSection
         title="Instances"
         actions={
-          <button
-            type="button"
-            onClick={() => acknowledge.mutate()}
-            disabled={unacknowledgedCount === 0 || acknowledge.isPending}
-            title={`Acknowledge all ${unacknowledgedCount} pending or firing instances, including other pages`}
-            className="rounded border border-ok bg-ok-bg px-2.5 py-1.5 text-xs text-ok-ink disabled:cursor-default disabled:opacity-40"
-          >
-            {acknowledge.isPending ? 'Acknowledging…' : 'Acknowledge all'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => acknowledge.mutate()}
+              disabled={unacknowledgedCount === 0 || acknowledge.isPending}
+              title={`Acknowledge all ${unacknowledgedCount} pending or firing instances, including other pages`}
+              className="rounded border border-ok bg-ok-bg px-2.5 py-1.5 text-xs text-ok-ink disabled:cursor-default disabled:opacity-40"
+            >
+              {acknowledge.isPending ? 'Acknowledging…' : 'Acknowledge all'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSilencingAll(true)}
+              title="Silence this alert rule, including new instances, for a chosen duration"
+              className="rounded border border-warn bg-warn-bg px-2.5 py-1.5 text-xs text-warn-ink"
+            >
+              Silence all
+            </button>
+          </div>
         }
       >
         {acknowledge.error && (
@@ -624,6 +637,14 @@ export function Inspector({
           operator={condition.operator}
         />
       </InspectorSection>
+      {silencingAll && (
+        <SilenceAllDialog
+          key={rule.id}
+          ruleID={rule.id}
+          ruleName={rule.name}
+          onClose={() => setSilencingAll(false)}
+        />
+      )}
       <InspectorSection title="Silences">
         <Silences
           ruleID={rule.id}
