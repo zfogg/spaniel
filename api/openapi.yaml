@@ -2349,6 +2349,8 @@ components:
                     type: number
                 port:
                     type: number
+                public_url:
+                    type: string
                 retention_days:
                     type: number
                 runtime:
@@ -2417,6 +2419,7 @@ components:
                 - alerts_browser_template
                 - alerts_pushover_template
                 - runtime
+                - public_url
             type: object
         SettingsResponse:
             $schema: https://json-schema.org/draft/2020-12/schema
@@ -2469,6 +2472,8 @@ components:
                     type: number
                 port:
                     type: number
+                public_url:
+                    type: string
                 retention_days:
                     type: number
                 runtime:
@@ -2537,6 +2542,7 @@ components:
                 - alerts_browser_template
                 - alerts_pushover_template
                 - runtime
+                - public_url
             type: object
         SettingsRuntime:
             $schema: https://json-schema.org/draft/2020-12/schema
@@ -7472,6 +7478,9 @@ paths:
                                 port:
                                     description: Sets the port serving the Spaniel web app and HTTP API.
                                     type: integer
+                                public_url:
+                                    description: Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart.
+                                    type: string
                                 retention_days:
                                     description: Sets how long telemetry is retained before age-based pruning.
                                     type: integer

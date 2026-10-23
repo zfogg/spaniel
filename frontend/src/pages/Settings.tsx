@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { OTLPEndpoints } from '@/components/OTLPEndpoints'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FormProvider, useForm, useFormContext, useFormState } from 'react-hook-form'
 // zod 4 implements the Standard Schema spec, so we use the standard-schema
@@ -469,6 +470,23 @@ function NetworkSection({
   const [token, setToken] = useState('')
   return (
     <Card id="network" title="Network" sub="OTLP receivers and proxy forwarding" hidden={hidden}>
+      <Row
+        label="Public URL"
+        hint="External UI URL (SPANIEL_PUBLIC_URL). OTLP examples use its hostname with the live receiver ports. Clear to use the browser hostname. MCP links update after restart."
+      >
+        <BindAddressBox
+          value={s.public_url ?? ''}
+          onCommit={(value) => mutate({ public_url: value })}
+          ariaLabel="Public URL"
+          placeholder="https://telemetry.example.com"
+        />
+      </Row>
+      <Row
+        label="OTLP endpoints"
+        hint="Choose either protocol for your exporter. These use the current hostname and live receiver ports."
+      >
+        <OTLPEndpoints settings={s} />
+      </Row>
       <Row
         label="Bearer token"
         hint="Save to config.yaml and SPANIEL_BEARER_TOKEN in this process. Restart Spaniel to apply authentication changes. Leave blank to keep the current token."

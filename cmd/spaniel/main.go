@@ -224,6 +224,7 @@ func main() {
 	root.Flags().StringVar(&routesFile, "routes-file", "", "OpenAPI 3 JSON or YAML file used as the coverage denominator")
 	root.Flags().StringVar(&tlsCert, "tls-cert", "", "TLS certificate file (PEM)")
 	root.Flags().StringVar(&tlsKey, "tls-key", "", "TLS key file (PEM)")
+	root.Flags().String("public-url", "", "Public UI URL; its hostname is advertised for OTLP (env: SPANIEL_PUBLIC_URL)")
 	root.Flags().StringVar(&bearerToken, "bearer-token", "", "Require this bearer token on all requests (env: SPANIEL_BEARER_TOKEN)")
 	root.Flags().IntVar(&sampleRate, "sample-rate", 0, "Max uninteresting spans/sec to store (0 = unlimited)")
 	root.Flags().StringVar(&sampleAlwaysKeep, "sample-always-keep", "error,n_plus_one,slow", "Signals that bypass the rate limit: error,n_plus_one,slow,none")

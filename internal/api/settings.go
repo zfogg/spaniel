@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -86,6 +87,7 @@ type UpdateCheckResult struct {
 // SettingsResponse is the JSON shape returned by GET /api/settings.
 // Persistable fields live at the top level; read-only info is under Runtime.
 type SettingsResponse struct {
+	PublicURL                string   `json:"public_url"`
 	Port                     int      `json:"port"`
 	DBPath                   string   `json:"db_path"`
 	AlertsDir                string   `json:"alerts_dir"`
@@ -132,6 +134,7 @@ type SettingsRuntime struct {
 // SettingsUpdate is the writable subset accepted by PUT /api/settings.
 // Pointer fields let clients send partial updates — nil = "leave as-is".
 type SettingsUpdate struct {
+	PublicURL              *string   `json:"public_url,omitempty"`
 	BearerToken            *string   `json:"bearer_token,omitempty"`
 	Port                   *int      `json:"port,omitempty"`
 	DBPath                 *string   `json:"db_path,omitempty"`
@@ -212,6 +215,7 @@ func (r *Router) buildSettings() SettingsResponse {
 	delivery := currentAlertDelivery()
 
 	resp := SettingsResponse{
+		PublicURL:                v.GetString("public_url"),
 		Port:                     v.GetInt("port"),
 		DBPath:                   v.GetString("db_path"),
 		AlertsDir:                v.GetString("alerts_dir"),
@@ -261,6 +265,12 @@ func (r *Router) buildSettings() SettingsResponse {
 // We're strict about ports (1–65535) and non-negative integers; permissive
 // about everything else (the user's file is their file).
 func validateSettings(u *SettingsUpdate) error {
+	if u.PublicURL != nil && *u.PublicURL != "" {
+		parsed, err := url.Parse(*u.PublicURL)
+		if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil {
+			return fmt.Errorf("public_url must be an HTTP or HTTPS URL without credentials, or empty")
+		}
+	}
 	if u.BearerToken != nil && strings.ContainsAny(*u.BearerToken, "\x00\r\n") {
 		return fmt.Errorf("bearer_token cannot contain NUL or line breaks")
 	}
@@ -328,6 +338,9 @@ func validateSettings(u *SettingsUpdate) error {
 // fresh viper instance so we don't accidentally bake any project-level
 // .spaniel.yaml merges into the global file.
 func applySettings(s *SettingsService, u *SettingsUpdate) error {
+	if u.PublicURL != nil {
+		s.Viper.Set("public_url", *u.PublicURL)
+	}
 	if u.Port != nil {
 		s.Viper.Set("port", *u.Port)
 	}
@@ -452,6 +465,7 @@ func (s *SettingsService) Save() error {
 	out := viper.New()
 	out.SetConfigPermissions(0o600)
 	out.SetConfigFile(s.ConfigPath)
+	out.Set("public_url", s.Viper.GetString("public_url"))
 	out.Set("bearer_token", s.Viper.GetString("bearer_token"))
 	for _, k := range []string{"port", "db_path", "alerts_dir", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor", "mcp_enabled", "mcp_allow_writes", "alerts.browser_enabled", "alerts.pushover_enabled", "alerts.browser_template", "alerts.pushover_template"} {
 		out.Set(k, s.Viper.Get(k))

@@ -59,6 +59,40 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 
 // ── GET ──────────────────────────────────────────────────────────────────────
 
+func TestSettingsPublicURL(t *testing.T) {
+	router, svc, _ := newSettingsRouter(t)
+	for _, value := range []string{"https://telemetry.example.com:8443/spaniel/", ""} {
+		body, _ := json.Marshal(SettingsUpdate{PublicURL: &value})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/api/settings", bytes.NewReader(body)))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", w.Code, w.Body.String())
+		}
+		var response struct {
+			Data SettingsResponse `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Data.PublicURL != value {
+			t.Fatal("public URL missing from response")
+		}
+		persisted := viper.New()
+		persisted.SetConfigFile(svc.ConfigPath)
+		if err := persisted.ReadInConfig(); err != nil {
+			t.Fatal(err)
+		}
+		if persisted.GetString("public_url") != value {
+			t.Fatal("public URL not persisted")
+		}
+	}
+	for _, value := range []string{"telemetry.example.com", "ftp://example.com", "https://user:secret@example.com"} {
+		if validateSettings(&SettingsUpdate{PublicURL: &value}) == nil {
+			t.Fatal("accepted invalid public URL")
+		}
+	}
+}
+
 func TestSettingsBearerTokenPersistence(t *testing.T) {
 	t.Setenv("SPANIEL_BEARER_TOKEN", "old-token")
 	router, svc, _ := newSettingsRouter(t)

@@ -3333,6 +3333,9 @@
           },
           "tls_enabled": {
             "type": "boolean"
+          },
+          "public_url": {
+            "type": "string"
           }
         },
         "required": [
@@ -3363,7 +3366,8 @@
           "alerts_pushover_configured",
           "alerts_browser_template",
           "alerts_pushover_template",
-          "runtime"
+          "runtime",
+          "public_url"
         ],
         "type": "object"
       },
@@ -3495,6 +3499,9 @@
           },
           "tls_enabled": {
             "type": "boolean"
+          },
+          "public_url": {
+            "type": "string"
           }
         },
         "required": [
@@ -3525,7 +3532,8 @@
           "alerts_pushover_configured",
           "alerts_browser_template",
           "alerts_pushover_template",
-          "runtime"
+          "runtime",
+          "public_url"
         ],
         "type": "object"
       },
@@ -11044,6 +11052,10 @@
                     "type": "string",
                     "writeOnly": true,
                     "description": "Sets the shared bearer token in the config file and process environment. Empty disables authentication. Takes effect after restart."
+                  },
+                  "public_url": {
+                    "type": "string",
+                    "description": "Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart."
                   }
                 },
                 "type": "object"

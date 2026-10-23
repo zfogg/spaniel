@@ -99,3 +99,18 @@ func TestResolveConfig_MCPKeys(t *testing.T) {
 		t.Errorf("PublicURL = %q, want environment override", cfg.PublicURL)
 	}
 }
+
+func TestPublicURLFlagOverridesEnvironment(t *testing.T) {
+	t.Setenv("SPANIEL_PUBLIC_URL", "https://env.example.com")
+	v := viper.New()
+	initViper(v)
+	cmd := &cobra.Command{}
+	cmd.Flags().String("public-url", "", "")
+	if err := cmd.Flags().Set("public-url", "https://flag.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	bindRootFlags(v, cmd)
+	if v.GetString("public_url") != "https://flag.example.com" {
+		t.Fatal("public URL flag did not override environment")
+	}
+}
