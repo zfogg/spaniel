@@ -57,7 +57,7 @@ export function DashboardPanel({
         gridRow: `span ${Math.max(1, Math.min(6, layout.h ?? 1))} / span ${Math.max(1, Math.min(6, layout.h ?? 1))}`,
         gridRowStart: layout.y ? Math.max(1, layout.y) : undefined,
       }}
-      className="min-h-[180px] overflow-hidden rounded-lg border border-border bg-surface"
+      className={`${panel.display_type === 'single_value' ? 'min-h-[180px]' : 'min-h-[420px]'} overflow-hidden rounded-lg border border-border bg-surface`}
     >
       <header className="border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">

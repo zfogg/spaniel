@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatValue, numberValue } from './format'
 import type { DashboardPanelRendererProps } from './types'
 
@@ -75,8 +76,18 @@ export function CategoryPanel({ panel, rows }: DashboardPanelRendererProps) {
         <ul className="min-w-0 basis-32 flex-1 space-y-2" aria-label={`${panel.title} values`}>
           {data.map(({ label, value }, index) => (
             <li key={index} className="text-sm">
-              <div className="flex flex-wrap justify-between gap-3">
-                <span className="break-all">{label}</span>
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <Tooltip>
+                  <TooltipTrigger className="min-w-0 flex-1 truncate text-left">
+                    {label}
+                  </TooltipTrigger>
+                  <TooltipContent
+                    role="tooltip"
+                    className="max-w-[min(38rem,calc(100vw-2rem))] break-all"
+                  >
+                    {label}
+                  </TooltipContent>
+                </Tooltip>
                 <span className="shrink-0 font-mono">
                   {formatValue(value)} {unit}
                   {pie ? ` (${formatValue((value / scale / total) * 100)}%)` : ''}

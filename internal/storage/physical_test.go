@@ -237,3 +237,59 @@ func TestPhysicalSwapRecoversBetweenRenames(t *testing.T) {
 		t.Fatalf("recovery answer=%d err=%v", n, err)
 	}
 }
+
+// Rapid pressure after a successful low-water recovery must make room for
+// live data rather than spending another whole pause copying the same rows.
+func TestPhysicalPruneRapidRepeatEvictsBeforeCopy(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "repeat.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	seed := func(start int) {
+		t.Helper()
+		for i := start; i < start+1000; i++ {
+			payload := make([]byte, 4096)
+			if _, err := rand.Read(payload); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.AppendSpan(&Span{TraceID: fmt.Sprint(i), SpanID: fmt.Sprint(i), StartNs: int64(i + 1), EndNs: int64(i + 2), Attributes: `{"payload":"` + hex.EncodeToString(payload) + `"}`}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := d.Checkpoint(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed(0)
+	target := d.FileSize() * 7 / 10
+	cfg := RetentionConfig{MaxDBSizeBytes: target, MaxDuration: time.Minute}
+	for phase := 0; phase < 12 && d.FileSize() > target; phase++ {
+		if _, err := d.PrunePhysical(cfg, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if d.FileSize() > target {
+		t.Fatal("first recovery did not reach low water")
+	}
+	// Retain the shared timestamp across request/context clones as in production.
+	clone := d.WithContext(context.Background())
+	seed(1000)
+	if d.FileSize() <= target {
+		t.Fatal("refill did not create capacity pressure")
+	}
+	result, err := clone.PrunePhysical(cfg, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.DeletedBySize == 0 {
+		t.Fatal("rapid repeat copied survivors without evicting oldest telemetry")
+	}
+	var newest int
+	if err := d.SQL().QueryRow("SELECT count(*) FROM spans WHERE start_ns=2000").Scan(&newest); err != nil || newest != 1 {
+		t.Fatalf("newest span lost: count=%d err=%v", newest, err)
+	}
+	if d.Full() {
+		t.Fatal("successful repeat proactive phase paused admission")
+	}
+}

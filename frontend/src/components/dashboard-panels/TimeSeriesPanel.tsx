@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatValue, numberValue, timeLabel } from './format'
 import type { DashboardPanelRendererProps } from './types'
 
@@ -125,7 +126,7 @@ export function TimeSeriesPanel({
               x={left - 8}
               y={top + (index * (height - top - bottom)) / 2 + 3}
               textAnchor="end"
-              className="fill-muted-foreground font-mono text-sm"
+              className="fill-muted-foreground font-mono text-base"
             >
               {formatValue(value)}
             </text>
@@ -136,7 +137,7 @@ export function TimeSeriesPanel({
               x={left + (index * (width - left - right)) / 2}
               y={height - 9}
               textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'}
-              className="fill-muted-foreground font-mono text-sm"
+              className="fill-muted-foreground font-mono text-base"
             >
               {label}
             </text>
@@ -175,17 +176,32 @@ export function TimeSeriesPanel({
         </svg>
       </div>
       {grouped.size > 1 && (
-        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+        <div
+          className="mt-2 max-h-24 space-y-1 overflow-auto"
+          role="region"
+          tabIndex={0}
+          aria-label={`${panel.title} legend`}
+        >
           {[...grouped.keys()].map((group, index) => (
             <span
               key={group}
-              className="flex items-center gap-1 font-mono text-sm text-muted-foreground"
+              className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground"
             >
               <i
-                className="h-2 w-2 rounded-full"
+                className="h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: colors[index % colors.length] }}
               />
-              {group}
+              <Tooltip>
+                <TooltipTrigger className="min-w-0 flex-1 truncate text-left">
+                  {group}
+                </TooltipTrigger>
+                <TooltipContent
+                  role="tooltip"
+                  className="max-w-[min(38rem,calc(100vw-2rem))] break-all"
+                >
+                  {group}
+                </TooltipContent>
+              </Tooltip>
             </span>
           ))}
         </div>

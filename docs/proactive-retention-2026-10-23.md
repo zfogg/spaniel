@@ -100,3 +100,49 @@ groups and reduced physical main+WAL from 373,273,611 to 339,226,624 bytes
 (323.51171875 MiB), below low water. The guard reopened admission. On this
 I/O-bound Pi, physical replacement still causes exporter timeouts during the
 exclusive file swap; this repair does not establish uninterrupted ingestion.
+
+At 22:13 UTC the external collector and its init container were removed.
+Backlog recovery had resumed, but competed with fleet ingestion on an
+I/O-bound Pi; the remaining roughly 3.25 MB of logs and 15.98 MB of traces
+were preserved offline in `stonkpile_stonkpile_otel_queue`, with a separate
+consistent pre-drain copy at
+`/home/alarm/.local/state/spaniel/build-bdcca63/queue-before-offline-drain`.
+No queue volume was deleted. Recovery state/configuration and final collector
+metrics are recorded alongside that copy. This is preserved historical data,
+not an active collector or a dependency of fleet OTLP.
+
+The live guard again restored 328.51171875 MiB at 22:11:30 UTC and
+332.01171875 MiB at 22:13:33 UTC. A direct probe overlapping maintenance at
+22:12:37 UTC timed out for all three signals; earlier successful direct probes
+must not be used to claim uninterrupted telemetry.
+
+## Rapid repeat pressure
+
+Live validation found fragmentation-only recovery recurring roughly every two
+minutes: the same survivors expanded on the next indexed checkpoint and forced
+another long copy. Automatic cycles returning within ten minutes of a successful
+rewrite now evict a coherent oldest prefix before copying. The first cycle and
+manual physical reclamation still recover holes before live eviction; errors
+reset the timestamp so committed tombstones are reclaimed before further
+deletion. Per-cycle byte calibration is reset. This is a deliberate retention
+tradeoff under sustained capacity pressure, not a change to the cap or target.
+A file-backed refill regression verifies actual oldest eviction in the first
+repeat phase, shared context state, newest-row survival and writable admission.
+The full focused retention suite passed under the race detector after this
+follow-up, including the refill regression and direct three-signal ingestion.
+
+Follow-up deployment: `v0.2.2-327-g0f69e87`, image
+`sha256:fbed5eeeb72762886c42c5b1fdcab1cfcefd0a681f07a9c4498dff5a870dac2a`.
+
+At 22:27:01 UTC the follow-up's rapid-repeat path evicted 266,878 oldest
+telemetry groups and reduced main+WAL from 533,341,064 to 289,681,408 bytes
+(276.26171875 MiB) in one pass, reaching low water. At 22:27:13 UTC the
+after-prune direct probe returned 200 for traces/logs/metrics in
+6313/1467/1100 ms; trace `4deed8ac631d49629325f5eb198fa855` identifies that
+probe. Health afterward reported 180.8 spans/sec, 86.3 logs/sec, 78.5 metric
+points/sec, storage_full=false, zero recorded drops, and 296,012,112 physical
+bytes. This verifies resumed direct delivery and real oldest-first reclamation;
+file replacement still causes timeouts during maintenance, and the probe's
+6.3-second trace acknowledgment illustrates the remaining latency limitation.
+The collector is absent; Spaniel directly owns 4345/4346 and retains its
+four-CPU limit. No trading services or broker settings were changed.
