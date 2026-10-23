@@ -9,12 +9,23 @@ export function GroupBadge({ groupKey }: { groupKey: string }) {
   )
 }
 
-export function InspectorSection({ title, children }: { title: string; children: ReactNode }) {
+export function InspectorSection({
+  title,
+  actions,
+  children,
+}: {
+  title: string
+  actions?: ReactNode
+  children: ReactNode
+}) {
   return (
     <section>
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h3>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h3>
+        {actions}
+      </div>
       {children}
     </section>
   )

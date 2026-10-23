@@ -49,12 +49,17 @@ export function Inspector({
     queryKey: ['alert-events', rule.id, eventsPage],
     queryFn: () => api.alerts.events(rule.id, { page: eventsPage, limit: 15 }),
   })
+  const refreshAcknowledgements = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+      queryClient.invalidateQueries({ queryKey: ['alert-rule', rule.id] }),
+      queryClient.invalidateQueries({ queryKey: ['alert-events', rule.id] }),
+      queryClient.invalidateQueries({ queryKey: ['alert-history'] }),
+      queryClient.invalidateQueries({ queryKey: qk.notifications() }),
+    ])
   const acknowledge = useMutation({
     mutationFn: () => api.alerts.acknowledge(rule.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.alerts() })
-      queryClient.invalidateQueries({ queryKey: ['alert-events', rule.id] })
-    },
+    onSuccess: refreshAcknowledgements,
   })
   const acknowledgeYAMLUpdate = useMutation({
     mutationFn: () => api.alerts.acknowledgeYAMLUpdate(rule.id),
@@ -73,10 +78,7 @@ export function Inspector({
       acknowledged
         ? api.alerts.unacknowledgeInstance(rule.id, groupKey)
         : api.alerts.acknowledgeInstance(rule.id, groupKey, note),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.alerts() })
-      queryClient.invalidateQueries({ queryKey: ['alert-events', rule.id] })
-    },
+    onSuccess: refreshAcknowledgements,
   })
   const remove = useMutation({
     mutationFn: () => api.alerts.remove(rule.id),
@@ -108,6 +110,9 @@ export function Inspector({
   const [draft, setDraft] = useState<Draft>(() => draftFor(rule))
   const fileManaged = Boolean(rule.source_file)
   const instances = rule.instances ?? []
+  const unacknowledgedCount = instances.filter(
+    (instance) => ['pending', 'firing'].includes(instance.state) && !instance.acknowledged_at,
+  ).length
   const instancePageSize = 15
   const instancePageStart = (instancesPage - 1) * instancePageSize
   const visibleInstances = instances.slice(instancePageStart, instancePageStart + instancePageSize)
@@ -195,17 +200,6 @@ export function Inspector({
               >
                 Edit
               </button>
-              {rule.instances?.some(
-                (instance) =>
-                  ['pending', 'firing'].includes(instance.state) && !instance.acknowledged_at,
-              ) && (
-                <button
-                  onClick={() => acknowledge.mutate()}
-                  className="rounded border border-border px-2.5 py-1.5 text-xs"
-                >
-                  Acknowledge
-                </button>
-              )}
               <button
                 onClick={showYaml}
                 className="rounded border border-border px-2.5 py-1.5 text-xs"
@@ -510,7 +504,25 @@ export function Inspector({
         </InspectorSection>
       )}
 
-      <InspectorSection title="Instances">
+      <InspectorSection
+        title="Instances"
+        actions={
+          <button
+            type="button"
+            onClick={() => acknowledge.mutate()}
+            disabled={unacknowledgedCount === 0 || acknowledge.isPending}
+            title={`Acknowledge all ${unacknowledgedCount} pending or firing instances, including other pages`}
+            className="rounded border border-ok bg-ok-bg px-2.5 py-1.5 text-xs text-ok-ink disabled:cursor-default disabled:opacity-40"
+          >
+            {acknowledge.isPending ? 'Acknowledging…' : 'Acknowledge all'}
+          </button>
+        }
+      >
+        {acknowledge.error && (
+          <p role="alert" className="mb-2 text-sm text-danger">
+            {acknowledge.error.message}
+          </p>
+        )}
         {instances.length ? (
           <div className="space-y-2">
             <div className="max-h-96 space-y-2 overflow-auto pr-1">
