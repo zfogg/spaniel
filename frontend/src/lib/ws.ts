@@ -114,6 +114,15 @@ export interface NotificationPayload {
 }
 
 export type WsEvent =
+  | {
+      type: 'definition_sync'
+      timestamp_ns: number
+      payload: {
+        kind: 'dashboard' | 'alert'
+        status: 'updating' | 'updated' | 'error'
+        message?: string
+      }
+    }
   | { type: 'span'; timestamp_ns: number; payload: SpanPayload }
   | { type: 'self_trace'; timestamp_ns: number; payload: SelfTracePayload }
   | { type: 'self_span'; timestamp_ns: number; payload: SelfSpanPayload }

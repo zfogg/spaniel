@@ -1,3 +1,4 @@
+import { UpdatedBadge } from '@/components/DefinitionUpdatedBadge'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
@@ -350,7 +351,7 @@ export function Alerts() {
                   >
                     <span>
                       <b className="block text-sm" style={{ color: visual.ink }}>
-                        {rule.name}
+                        {rule.name} <UpdatedBadge updated={rule.updated} />
                       </b>
                       <span className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
                         <span>{rule.instances?.length ?? 0} instances</span>

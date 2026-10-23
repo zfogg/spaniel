@@ -1,3 +1,4 @@
+import { UpdatedBadge } from '@/components/DefinitionUpdatedBadge'
 import { Fragment, useState } from 'react'
 import {
   DndContext,
@@ -80,6 +81,7 @@ function DashboardRow({
       >
         <LayoutDashboard size={14} className="shrink-0" />
         <span className="min-w-0 flex-1 truncate">{dashboard.name}</span>
+        <UpdatedBadge updated={dashboard.updated} />
         <small className="font-mono text-[10px] text-muted-foreground">
           {dashboard.panels.length}
         </small>

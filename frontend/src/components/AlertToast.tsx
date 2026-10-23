@@ -1,8 +1,27 @@
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { useWS } from '@/lib/ws'
 import { showNotification } from './NotificationToast'
 
 export default function AlertToast() {
+  const qc = useQueryClient()
   useWS((event) => {
+    if (event.type === 'definition_sync') {
+      const { kind, status, message } = event.payload
+      const label = kind === 'dashboard' ? 'Dashboards' : 'Alerts'
+      const id = `definition-sync:${kind}`
+      if (status === 'updating') toast.loading(`Updating ${label.toLowerCase()} from YAML…`, { id })
+      else if (status === 'error') toast.error(`${label} could not update: ${message}`, { id })
+      else {
+        toast.success(`${label} updated from YAML`, { id })
+        for (const prefix of kind === 'dashboard'
+          ? ['dashboards', 'dashboard-runtime', 'dashboard-panel', 'dashboard-annotations']
+          : ['alerts', 'alert-rule', 'alert-events', 'alert-history']) {
+          void qc.invalidateQueries({ queryKey: [prefix] })
+        }
+      }
+      return
+    }
     if (event.type !== 'alert') return
     const p = event.payload
     const group = Object.values(p.groupLabels ?? {}).join(', ')

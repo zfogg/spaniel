@@ -1,3 +1,4 @@
+import { DefinitionUpdatedBadge } from '@/components/DefinitionUpdatedBadge'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -166,12 +167,19 @@ export function DashboardGallery() {
                 failed. Healthy panels are still shown.
               </p>
             )}
+            <DefinitionUpdatedBadge
+              key={selected.id}
+              kind="dashboard"
+              id={selected.id}
+              revision={`${selected.id}:${selected.source_hash}:${selected.updated_at}`}
+              updated={selected.updated}
+            />
             {selected.source_file && (
               <div className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     File-managed dashboard: <code>{selected.source_file}</code> is authoritative and
-                    reloads on startup.
+                    reloads automatically when the file changes.
                   </span>
                   {selected.source_file_modified && (
                     <button

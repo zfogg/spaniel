@@ -1,3 +1,4 @@
+import { DefinitionUpdatedBadge } from '@/components/DefinitionUpdatedBadge'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type AlertRule } from '@/lib/api'
@@ -184,7 +185,16 @@ export function Inspector({
             <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
               Alert rule
             </p>
-            <h2 className="mt-1 text-lg font-semibold">{rule.name}</h2>
+            <h2 className="mt-1 text-lg font-semibold">
+              {rule.name}{' '}
+              <DefinitionUpdatedBadge
+                key={rule.id}
+                kind="alert"
+                id={rule.id}
+                revision={`${rule.id}:${rule.source_hash}:${rule.updated_at}`}
+                updated={rule.updated}
+              />
+            </h2>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             <div className="flex items-center gap-2">
@@ -270,7 +280,7 @@ export function Inspector({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
               This rule is managed by <code>{rule.source_file}</code>. Edit that YAML file and
-              reload alerts from Settings; duplicate it to start a database-managed copy.
+              Spaniel reloads changes automatically; duplicate it to start a database-managed copy.
             </span>
             {rule.source_file_modified && (
               <button
