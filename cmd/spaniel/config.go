@@ -87,6 +87,9 @@ forward_sample: 1.0
 # Per-source burst capacity (0 = source_rps * 5)
 # source_burst: 0
 
+# Collect Spaniel's own traces, metrics and logs only when explicitly enabled.
+self_monitor: false
+
 # MCP server: expose telemetry to MCP clients (Claude Code/Desktop) at /mcp.
 mcp_enabled: true
 
@@ -137,7 +140,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("self_telemetry_endpoint", "")
 	v.SetDefault("self_telemetry_service", "spaniel")
 	v.SetDefault("self_telemetry_insecure", true)
-	v.SetDefault("self_monitor", true)
+	v.SetDefault("self_monitor", false)
 	v.SetDefault("mcp_enabled", true)
 	v.SetDefault("mcp_allow_writes", false)
 	v.SetDefault("alerts.browser_enabled", true)
