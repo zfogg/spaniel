@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 )
@@ -91,8 +91,8 @@ func syncFile(path string) error {
 	return f.Sync()
 }
 
-// rewritePhysicalLocked runs with all maintenance serialized. Export/import
-// copies live contents, schema, sequences and indexes to a fresh physical file;
+// rewritePhysicalLocked runs with all maintenance serialized. Native copying
+// moves live contents, schema, sequences and indexes to a fresh physical file;
 // a checkpoint alone cannot remove holes inside the old single-file database.
 func (d *DB) rewritePhysicalLocked() (err error) {
 	if d.path == "" || d.path == ":memory:" {
@@ -188,34 +188,7 @@ func (d *DB) rewritePhysicalLocked() (err error) {
 	old := d.path + ".repack-old"
 	// Only this private connection permits file I/O. The serving pool keeps its
 	// external-access/extension restrictions and is closed throughout the copy.
-	copyDB, e := sql.Open("duckdb", d.path+"?threads=4&memory_limit=2GB&storage_compatibility_version=latest")
-	if e != nil {
-		return e
-	}
-	copyDB.SetMaxOpenConns(1)
-	quote := func(v string) string { return "'" + strings.ReplaceAll(v, "'", "''") + "'" }
-	exportDir := filepath.Join(work, "export")
-	if _, e = copyDB.Exec("EXPORT DATABASE " + quote(exportDir) + " (FORMAT PARQUET)"); e != nil {
-		_ = copyDB.Close()
-		return fmt.Errorf("export physical rewrite: %w", e)
-	}
-	if err = copyDB.Close(); err != nil {
-		return err
-	}
-	copyDB, e = sql.Open("duckdb", candidate+"?threads=4&memory_limit=2GB&storage_compatibility_version=latest")
-	if e != nil {
-		return e
-	}
-	copyDB.SetMaxOpenConns(1)
-	if _, e = copyDB.Exec("IMPORT DATABASE " + quote(exportDir)); e != nil {
-		_ = copyDB.Close()
-		return fmt.Errorf("import physical rewrite: %w", e)
-	}
-	if _, e = copyDB.Exec("CHECKPOINT"); e != nil {
-		_ = copyDB.Close()
-		return e
-	}
-	if err = copyDB.Close(); err != nil {
+	if err = copyPhysicalDatabase(d.path, candidate); err != nil {
 		return err
 	}
 	// Catalog-qualified indexes in this DuckDB version require the same base
@@ -264,13 +237,19 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 		return res, err
 	}
 	if d.FileSize() <= cfg.MaxDBSizeBytes {
+		d.retentionPhysicalReady.Store(false)
 		return res, nil
 	}
-	d.SetFull(true)
+	// Admission belongs to the guard: proactive compaction is not a full store.
 	if cfg.MaxDuration > 0 && d.RetentionBackingOff() {
 		return res, fmt.Errorf("%w: automatic physical reclamation backing off", ErrRetentionTargetUnreached)
 	}
 	defer func() {
+		if err != nil {
+			// A failed copy can leave committed tombstones in the authoritative
+			// file. Retry their reclamation before allowing another live eviction.
+			d.retentionPhysicalReady.Store(false)
+		}
 		if cfg.MaxDuration > 0 && IsRetentionTargetUnreached(err) {
 			d.retentionRetry.Store(time.Now().Add(retentionRetryDelay).UnixNano())
 		}
@@ -278,18 +257,37 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 	d.maintenanceMu.Lock()
 	defer d.maintenanceMu.Unlock()
 	defer func() { res.FinalDBSizeBytes = d.FileSize() }()
-	if err = d.rewritePhysicalLocked(); err != nil {
-		return res, err
+	if cfg.MaxDuration == 0 || !d.retentionPhysicalReady.Load() {
+		d.retentionPhysicalFreed.Store(0)
+		d.retentionPhysicalRatio.Store(0)
+		if err = d.rewritePhysicalLocked(); err != nil {
+			return res, err
+		}
+		d.retentionPhysicalReady.Store(d.FileSize() > cfg.MaxDBSizeBytes)
+		if cfg.MaxDuration > 0 {
+			// One physical copy per automatic pass. Reopen serving handles and
+			// give ingestion a window before any eviction/copy phase follows.
+			return res, nil
+		}
 	}
 	for d.FileSize() > cfg.MaxDBSizeBytes {
 		if err = d.gorm.Statement.Context.Err(); err != nil {
 			return res, err
 		}
 		before := d.FileSize()
+		fraction := float64(before-cfg.MaxDBSizeBytes) / float64(before)
+		if freed := d.retentionPhysicalFreed.Load(); freed > 0 {
+			// Counts are not bytes: an old metric can be much smaller than a
+			// recent log. Calibrate with the last measured copy instead of
+			// repeating dozens of tiny full-database rewrites on that mix.
+			last := math.Float64frombits(d.retentionPhysicalRatio.Load())
+			fraction = max(fraction, float64(before-cfg.MaxDBSizeBytes)*last/float64(freed))
+		}
+		fraction = min(0.5, max(0.1, fraction))
 		n := 0
 		err = d.withMaintenanceLocked(func(isolated *DB) error {
 			var e error
-			n, e = isolated.deleteOldestTelemetryBatch(activeID, -1)
+			n, e = isolated.deleteOldestTelemetryBatch(activeID, -fraction)
 			return e
 		})
 		res.DeletedBySize += n
@@ -307,6 +305,13 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 		if after >= before {
 			return res, fmt.Errorf("%w: physical rewrite made no progress; refusing further deletion", ErrRetentionTargetUnreached)
 		}
+		d.retentionPhysicalFreed.Store(before - after)
+		d.retentionPhysicalRatio.Store(math.Float64bits(fraction))
+		d.retentionPhysicalReady.Store(after > cfg.MaxDBSizeBytes)
+		if cfg.MaxDuration > 0 {
+			return res, nil
+		}
 	}
+	d.retentionPhysicalReady.Store(false)
 	return res, nil
 }

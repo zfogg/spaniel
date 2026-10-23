@@ -19,7 +19,7 @@ import (
 
 const (
 	storageGuardInterval      = 5 * time.Second
-	storageHighWaterPercent   = int64(95)
+	storageHighWaterPercent   = int64(80)
 	storagePruneTargetPercent = int64(70)
 	storageMaintenanceBudget  = 8 * time.Second
 	// Leave a read/ingest window between bounded proactive phases, without
@@ -107,7 +107,7 @@ func retentionConfig(days, maxSessions, maxDBSizeMB int) storage.RetentionConfig
 }
 
 // runRetention applies age/count retention immediately and then hourly. The
-// storage guard alone owns size recovery and its 95% -> 70% admission latch;
+// storage guard alone owns size recovery and its 80% -> 70% admission latch;
 // an independent hourly cap-only pass must not race it and reopen at 100%.
 func runRetention(store *storage.DB, cfg storage.RetentionConfig, policy *storageGuardPolicy) {
 	apply := func() {
@@ -170,7 +170,7 @@ type storageGuardStore interface {
 
 // checkStorageGuard applies one storage policy pass. With auto-prune disabled,
 // it never deletes and marks storage full only at the hard cap. With it enabled,
-// pruning begins at 95% and targets 70%, leaving headroom for ingest bursts. If
+// pruning begins at 80% and targets 70%, leaving headroom for ingest bursts. If
 // pruning cannot restore that headroom, ingestion pauses before the hard cap.
 func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	maxBytes := policy.maxBytes.Load()
@@ -230,10 +230,10 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	res, err := store.PrunePhysical(storage.RetentionConfig{MaxDBSizeBytes: target, MaxDuration: budget}, store.ActiveSessionID())
 	after := store.FileSize()
 	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
-	// Live-row eviction is only the logical phase. Prevent new ingestion from
-	// consuming the space being reclaimed, and let larger table copies finish
-	// without repeatedly canceling the same work at the proactive budget.
-	if after >= maxBytes || ((deleted > 0 || err != nil) && after > target) {
+	// Each successful phase includes a completed physical copy. Remaining
+	// proactive work is not a full store; only the hard cap or failed recovery
+	// acquires the emergency admission latch.
+	if after >= maxBytes || (err != nil && after > target) {
 		policy.recovering.Store(true)
 	}
 	if after <= target {

@@ -32,15 +32,17 @@ func TestAutoPruneExistingSnapshotDiagnosis(t *testing.T) {
 		t.Logf("table=%s estimated=%d live=%d", table, estimated, live)
 	}
 	if os.Getenv("SPANIEL_REPRO_GUARD") == "1" {
+		policy := newStorageGuardPolicy(500<<20, true)
 		for i := range 16 {
 			started := time.Now()
-			checkStorageGuard(d, newStorageGuardPolicy(500<<20, true))
+			policy.nextPruneAfter.Store(0) // simulate the read/ingest window without sleeping
+			checkStorageGuard(d, policy)
 			t.Logf("guard pass=%d duration=%s live=%d full=%v", i, time.Since(started), d.UsedSize(), d.Full())
-			if !d.Full() && d.UsedSize() < 500<<20 {
+			if !d.Full() && d.FileSize() < 350<<20 {
 				break
 			}
 		}
-		if d.Full() || d.UsedSize() >= 500<<20 {
+		if d.Full() || d.FileSize() > 350<<20 {
 			t.Fatalf("automatic guard never recovered: live=%d full=%v", d.UsedSize(), d.Full())
 		}
 		session, err := d.CreateSession("auto-prune-recovery-probe", false)
@@ -50,7 +52,7 @@ func TestAutoPruneExistingSnapshotDiagnosis(t *testing.T) {
 		d.SetActiveSession(session.ID, session.Label)
 		for cycle := range 2 {
 			added := 0
-			for ; added < 1024 && d.UsedSize() < 500<<20; added++ {
+			for ; added < 4096 && d.FileSize() < 500<<20; added++ {
 				body := make([]byte, 64<<10)
 				if _, err := rand.Read(body); err != nil {
 					t.Fatal(err)
@@ -63,7 +65,7 @@ func TestAutoPruneExistingSnapshotDiagnosis(t *testing.T) {
 				}
 			}
 			t.Logf("cycle=%d added=%d live=%d", cycle, added, d.UsedSize())
-			if d.UsedSize() < 500<<20 {
+			if d.FileSize() < 500<<20 {
 				t.Fatal("fixture did not cross hard cap")
 			}
 			for pass := range 20 {
@@ -71,13 +73,14 @@ func TestAutoPruneExistingSnapshotDiagnosis(t *testing.T) {
 					time.Sleep(100 * time.Millisecond)
 				}
 				started := time.Now()
-				checkStorageGuard(d, newStorageGuardPolicy(500<<20, true))
+				policy.nextPruneAfter.Store(0) // simulate the read/ingest window without sleeping
+				checkStorageGuard(d, policy)
 				t.Logf("cycle=%d pass=%d duration=%s live=%d full=%v", cycle, pass, time.Since(started), d.UsedSize(), d.Full())
-				if !d.Full() && d.UsedSize() < 500<<20 {
+				if !d.Full() && d.FileSize() < 350<<20 {
 					break
 				}
 			}
-			if d.Full() || d.UsedSize() >= 500<<20 {
+			if d.Full() || d.FileSize() > 350<<20 {
 				t.Fatalf("automatic guard did not recover cycle %d", cycle)
 			}
 		}
