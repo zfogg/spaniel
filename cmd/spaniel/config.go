@@ -17,6 +17,10 @@ const defaultConfig = `# spaniel configuration
 # HTTP port for the spaniel UI and API
 port: 8080
 
+# Public UI URL for MCP links and the hostname advertised in OTLP setup.
+# OTLP uses its own receiver ports and TLS setting. Env: SPANIEL_PUBLIC_URL.
+public_url: ""
+
 # Path to the DuckDB database file
 db_path: ~/.spaniel/spaniel.duckdb
 
@@ -116,6 +120,7 @@ func globalConfigPath() string {
 func initViper(v *viper.Viper) {
 	// Defaults
 	v.SetDefault("port", 8080)
+	v.SetDefault("public_url", "")
 	v.SetDefault("db_path", defaultDBPath())
 	v.SetDefault("dashboards_dir", "~/.spaniel/dashboards")
 	v.SetDefault("alerts_dir", "~/.spaniel/alerts")
@@ -190,7 +195,7 @@ func bootstrapConfig() error {
 // bindRootFlags makes viper aware of the cobra flag values so CLI flags win.
 // Call after ParseFlags (i.e. in PersistentPreRunE or the command's RunE).
 func bindRootFlags(v *viper.Viper, cmd *cobra.Command) {
-	for _, name := range []string{"port", "db-path", "retention", "max-sessions", "max-db-size", "advance-session-on-start", "no-browser", "dev", "dashboards-dir", "alerts-dir"} {
+	for _, name := range []string{"public-url", "port", "db-path", "retention", "max-sessions", "max-db-size", "advance-session-on-start", "no-browser", "dev", "dashboards-dir", "alerts-dir"} {
 		f := cmd.Flags().Lookup(name)
 		if f == nil {
 			f = cmd.PersistentFlags().Lookup(name)

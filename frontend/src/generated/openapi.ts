@@ -2123,6 +2123,7 @@ export interface components {
       source_burst: number
       source_rps: number
       tls_enabled: boolean
+      public_url: string
     }
     SettingsResponse: {
       advance_session_on_start: boolean
@@ -2163,6 +2164,7 @@ export interface components {
       source_burst: number
       source_rps: number
       tls_enabled: boolean
+      public_url: string
     }
     SettingsRuntime: {
       channel: string
@@ -5778,6 +5780,8 @@ export interface operations {
           source_rps?: number
           /** @description Sets the shared bearer token in the config file and process environment. Empty disables authentication. Takes effect after restart. */
           bearer_token?: string
+          /** @description Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart. */
+          public_url?: string
         }
       }
     }

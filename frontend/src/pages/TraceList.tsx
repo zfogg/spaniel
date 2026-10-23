@@ -1,4 +1,5 @@
 import ServiceNameBadge from '@/components/ServiceNameBadge'
+import { OTLPEndpoints } from '@/components/OTLPEndpoints'
 import ServiceFilter from '@/components/ServiceFilter'
 import { useServiceSelection } from '@/lib/use-service-selection'
 import { useState, useRef, useEffect } from 'react'
@@ -117,16 +118,6 @@ function SpanielWaiting() {
   )
 }
 
-function EndpointPill({ port, proto }: { port: string; proto: string }) {
-  return (
-    <div className="flex items-center gap-1.5 rounded-md border border-[var(--ok)] bg-[var(--ok-bg)] px-2.5 py-1">
-      <span className="pulse-dot inline-block size-1.5 shrink-0 rounded-full bg-[var(--ok)]" />
-      <span className="font-mono text-[11px] text-[var(--ok-ink)]">:{port}</span>
-      <span className="font-sans text-[10px] text-[var(--ok-ink)] opacity-70">{proto}</span>
-    </div>
-  )
-}
-
 function EmptyState() {
   const [lang, setLang] = useState<Lang>('python')
   // Pull live OTLP ports from /api/settings so the empty state reflects the
@@ -137,10 +128,6 @@ function EmptyState() {
     queryKey: qk.settings(),
     queryFn: () => api.settings.get().then((r) => r.data),
   })
-  const ports = {
-    http: settings?.runtime?.otlp_http_port || 4318,
-    grpc: settings?.runtime?.otlp_grpc_port || 4317,
-  }
 
   return (
     <div className="fade-up flex h-full flex-col items-center justify-center gap-7 overflow-y-auto px-6 py-8">
@@ -150,19 +137,19 @@ function EmptyState() {
         <h2 className="mb-2.5 text-xl font-semibold tracking-tight text-foreground">
           Waiting for traces…
         </h2>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <EndpointPill port={String(ports.http)} proto="HTTP/OTLP" />
-          <EndpointPill port={String(ports.grpc)} proto="gRPC/OTLP" />
-        </div>
       </div>
 
       <div className="w-full max-w-[520px]">
         <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Step 1 — point your app at spaniel
         </p>
-        <pre className="m-0 overflow-x-auto rounded-lg border border-[var(--ok)] bg-[var(--ok-bg)] px-4 py-3 font-mono text-xs leading-relaxed text-[var(--ok-ink)]">
-          {`export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:${ports.http}\nexport OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`}
-        </pre>
+        {settings ? (
+          <OTLPEndpoints settings={settings} />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Receiver endpoints are available in Settings → Network.
+          </p>
+        )}
       </div>
 
       <div className="w-full max-w-[520px]">

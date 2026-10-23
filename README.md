@@ -233,6 +233,12 @@ host and port. Behind a reverse proxy, set `SPANIEL_PUBLIC_URL` to the public
 base URL (for example `https://telemetry.example.com` or
 `https://example.com/spaniel`) to override the advertised URL.
 
+You can also set `--public-url` or `public_url` in `config.yaml`, or edit
+**Settings → Network → Public URL**. The Settings page and empty trace homepage
+show HTTP/protobuf and gRPC exporter examples using this URL's hostname (or
+the browser hostname when unset), each receiver's live port, and receiver TLS.
+MCP links pick up changes after restart.
+
 | Tool | What it does |
 |------|--------------|
 | `get_server_info` | version + how much data is stored |
