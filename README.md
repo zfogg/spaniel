@@ -318,15 +318,41 @@ forward:
 
 To version-control dashboards and alerts, point `dashboards_dir` and
 `alerts_dir` at directories in your project. Spaniel reconciles those YAML
-files at startup: existing IDs update the same objects, IDs recreate them on a
+files at startup and whenever a YAML file is created, edited, renamed, or deleted: existing IDs update the same objects, IDs recreate them on a
 fresh database, and removing a file removes its file-managed object.
 
 Handwritten YAML may omit `id`. On its first load, Spaniel generates a UUID and
 writes it into the file. The UI shows a warning badge and browser toast until
 you save or commit that change and click **Acknowledge saved ID**. Spaniel does
 not rewrite files that already contain an ID. File-managed definitions are
-read-only in the UI; edit the YAML and restart Spaniel (or reload alerts from
-Settings) to apply later changes.
+read-only in the UI; edit the YAML to apply changes live without restarting or
+refreshing the browser. Native filesystem watches support Windows, macOS, and
+Linux, including atomic editor saves and directory recreation. Invalid YAML
+keeps the last valid definitions and shows an error toast; fixing the file
+retries automatically.
+
+The browser shows progress and completion toasts and a blue **Updated** badge
+for unread file revisions. API responses and MCP tools expose `updated` too.
+Listing definitions and background evaluation do not clear it. Visiting a
+definition or calling `GET /api/dashboards/{id}`, `GET /api/alerts/{id}`,
+`get_dashboard`, or `get_alert` returns the unread flag and records that exact
+revision as seen. This state is shared across clients and persists through
+restarts; the next file edit marks it unread again. The saved-ID warning above
+has its own acknowledgement and is independent of this badge.
+
+When running Linux containers with Windows host bind mounts, Docker Desktop may
+not forward host writes as inotify events. Run the event-driven Windows relay
+for those deployments (it uses `System.IO.FileSystemWatcher`, with no directory
+polling):
+
+```powershell
+pwsh -File scripts/watch-docker-definitions.ps1 -DashboardsDir C:/project/dashboards -AlertsDir C:/project/alerts -BaseURL http://127.0.0.1:8080
+```
+
+The relay calls `POST /api/dashboards/reload` and `POST /api/alerts/reload`, which
+validate definitions and broadcast the same live progress/results. If configured,
+it reads the bearer token from `SPANIEL_BEARER_TOKEN`. Native installations and
+Linux filesystems inside containers use Spaniel's built-in watches directly.
 
 Settings resolve **highest priority first**:
 
