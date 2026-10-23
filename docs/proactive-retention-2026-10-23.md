@@ -130,3 +130,19 @@ A file-backed refill regression verifies actual oldest eviction in the first
 repeat phase, shared context state, newest-row survival and writable admission.
 The full focused retention suite passed under the race detector after this
 follow-up, including the refill regression and direct three-signal ingestion.
+
+Follow-up deployment: `v0.2.2-327-g0f69e87`, image
+`sha256:fbed5eeeb72762886c42c5b1fdcab1cfcefd0a681f07a9c4498dff5a870dac2a`.
+
+At 22:27:01 UTC the follow-up's rapid-repeat path evicted 266,878 oldest
+telemetry groups and reduced main+WAL from 533,341,064 to 289,681,408 bytes
+(276.26171875 MiB) in one pass, reaching low water. At 22:27:13 UTC the
+after-prune direct probe returned 200 for traces/logs/metrics in
+6313/1467/1100 ms; trace `4deed8ac631d49629325f5eb198fa855` identifies that
+probe. Health afterward reported 180.8 spans/sec, 86.3 logs/sec, 78.5 metric
+points/sec, storage_full=false, zero recorded drops, and 296,012,112 physical
+bytes. This verifies resumed direct delivery and real oldest-first reclamation;
+file replacement still causes timeouts during maintenance, and the probe's
+6.3-second trace acknowledgment illustrates the remaining latency limitation.
+The collector is absent; Spaniel directly owns 4345/4346 and retains its
+four-CPU limit. No trading services or broker settings were changed.
