@@ -41,6 +41,9 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
             : [
                 { label: 'orders', value: 25 },
                 { label: 'payments', value: 75 },
+                ...(kind === 'bar'
+                  ? Array.from({ length: 30 }, (_, i) => ({ label: `category-${i}`, value: i }))
+                  : []),
               ],
         warnings: [],
       }
@@ -62,6 +65,14 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
     if (attempt === 0) await page.reload()
   }
   for (const kind of ['bar', 'pie', 'gauge']) expect(requests).toContain(kind)
+  const bars = page.getByTestId('bar-panel')
+  expect(await bars.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
+  await bars.hover()
+  await page.mouse.wheel(0, 500)
+  await expect.poll(() => bars.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+  await bars.focus()
+  await page.keyboard.press('End')
+  await expect(bars.getByText('category-29', { exact: true })).toBeInViewport()
   await page.setViewportSize({ width: 390, height: 844 })
   for (const kind of ['bar', 'pie', 'gauge']) {
     const panel = page.getByTestId(`${kind}-panel`)
