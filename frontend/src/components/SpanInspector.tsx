@@ -463,7 +463,12 @@ export default function SpanInspector({
 
       <div className="px-4 py-3 border-b border-border bg-muted font-mono text-[10px]">
         <div className="text-muted-foreground mb-1">belongs to trace</div>
-        <div className="break-all">{span.trace_id}</div>
+        <Link
+          className="block break-all text-accent underline decoration-dotted"
+          to={`/traces/${encodeURIComponent(span.trace_id)}`}
+        >
+          {span.trace_id}
+        </Link>
         <Link
           className="text-accent underline decoration-dotted"
           to={`/traces/${span.trace_id}?view=waterfall&span=${span.span_id}`}
