@@ -42,6 +42,27 @@ func walk(value any) {
 			walk(item)
 		}
 	case map[string]any:
+		// Query tools return column names separately from row values. Apply the
+		// same named-field contract there instead of guessing from SQL prefixes.
+		if columns, ok := v["columns"].([]any); ok {
+			if rows, ok := v["rows"].([]any); ok {
+				for _, row := range rows {
+					cells, ok := row.([]any)
+					if !ok {
+						continue
+					}
+					for i, column := range columns {
+						name, ok := column.(string)
+						if !ok || i >= len(cells) {
+							continue
+						}
+						field := map[string]any{name: cells[i]}
+						walk(field)
+						cells[i] = field[name]
+					}
+				}
+			}
+		}
 		for key, item := range v {
 			item = integerValue(item)
 			v[key] = item

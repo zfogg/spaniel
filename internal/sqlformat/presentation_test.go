@@ -59,3 +59,12 @@ func TestPresentationFormatsAllQueryFieldsAndToleratesDrafts(t *testing.T) {
 		t.Fatal("mutated raw input")
 	}
 }
+
+func TestPresentationFormatsNamedQueryResultColumns(t *testing.T) {
+	input := map[string]any{"columns": []string{"db.query.text", "source", "count"}, "rows": [][]any{{"select a,b from t where id=$1", "select is a source name", int64(1789987654321098765)}}}
+	out := Presentation(input).(map[string]any)
+	row := out["rows"].([]any)[0].([]any)
+	if row[0] != "select\n  a,\n  b\nfrom t\nwhere\n  id = $1" || row[1] != "select is a source name" || row[2] != int64(1789987654321098765) {
+		t.Fatalf("unexpected row: %#v", row)
+	}
+}
