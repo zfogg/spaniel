@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -33,7 +34,8 @@ func TestRunSelfMonitoringShutdown(t *testing.T) {
 	port, grpcPort, httpPort := freePort(), freePort(), freePort()
 	path := filepath.Join(t.TempDir(), "self-shutdown.duckdb")
 	cfg := runConfig{
-		Port: port, DBPath: path, NoBrowser: true, BindAddressV4: "127.0.0.1",
+		Viper: viper.New(),
+		Port:  port, DBPath: path, NoBrowser: true, BindAddressV4: "127.0.0.1",
 		OTLPGRPCPort: grpcPort, OTLPHTTPPort: httpPort,
 		SelfTelemetryEndpoint: fmt.Sprintf("127.0.0.1:%d", grpcPort),
 		SelfTelemetryService:  "shutdown-self-test", SelfTelemetryInsecure: true,
