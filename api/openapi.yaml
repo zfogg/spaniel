@@ -7377,6 +7377,10 @@ paths:
                                 auto_prune:
                                     description: Automatically prunes retained telemetry when storage limits are reached.
                                     type: boolean
+                                bearer_token:
+                                    description: Sets the shared bearer token in the config file and process environment. Empty disables authentication. Takes effect after restart.
+                                    type: string
+                                    writeOnly: true
                                 bind_address_v4:
                                     description: Sets the IPv4 address on which Spaniel listens for HTTP traffic.
                                     type: string

@@ -894,6 +894,8 @@ func run(cfg runConfig) error {
 			Sources:     pipeline,
 		})
 	}
+	// Include the effective CLI token in settings persistence as well.
+	cfg.Viper.Set("bearer_token", cfg.BearerToken)
 	settingsSvc := &api.SettingsService{
 		Viper:          cfg.Viper,
 		ConfigPath:     globalConfigPath(),

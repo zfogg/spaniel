@@ -5709,6 +5709,8 @@ export interface operations {
           source_burst?: number
           /** @description Sets the sustained telemetry requests-per-second limit for a source. */
           source_rps?: number
+          /** @description Sets the shared bearer token in the config file and process environment. Empty disables authentication. Takes effect after restart. */
+          bearer_token?: string
         }
       }
     }

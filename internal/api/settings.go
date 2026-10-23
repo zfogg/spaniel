@@ -130,6 +130,7 @@ type SettingsRuntime struct {
 // SettingsUpdate is the writable subset accepted by PUT /api/settings.
 // Pointer fields let clients send partial updates — nil = "leave as-is".
 type SettingsUpdate struct {
+	BearerToken            *string   `json:"bearer_token,omitempty"`
 	Port                   *int      `json:"port,omitempty"`
 	DBPath                 *string   `json:"db_path,omitempty"`
 	AlertsDir              *string   `json:"alerts_dir,omitempty"`
@@ -258,6 +259,9 @@ func (r *Router) buildSettings() SettingsResponse {
 // We're strict about ports (1–65535) and non-negative integers; permissive
 // about everything else (the user's file is their file).
 func validateSettings(u *SettingsUpdate) error {
+	if u.BearerToken != nil && strings.ContainsAny(*u.BearerToken, "\x00\r\n") {
+		return fmt.Errorf("bearer_token cannot contain NUL or line breaks")
+	}
 	for label, p := range map[string]*int{"port": u.Port, "otlp_grpc_port": u.OTLPGRPCPort, "otlp_http_port": u.OTLPHTTPPort} {
 		if p == nil {
 			continue
@@ -411,8 +415,22 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 		s.Viper.Set("alerts.pushover_template", *u.AlertsPushoverTemplate)
 	}
 
+	// Authentication middleware captures the startup token. Persist changes
+	// now; they become active on restart.
+	previousToken := s.Viper.GetString("bearer_token")
+	if u.BearerToken != nil {
+		s.Viper.Set("bearer_token", *u.BearerToken)
+	}
 	if err := s.Save(); err != nil {
+		if u.BearerToken != nil {
+			s.Viper.Set("bearer_token", previousToken)
+		}
 		return err
+	}
+	if u.BearerToken != nil {
+		if err := os.Setenv("SPANIEL_BEARER_TOKEN", *u.BearerToken); err != nil {
+			return fmt.Errorf("update process bearer token environment: %w", err)
+		}
 	}
 	if u.MCPAllowWrites != nil && s.SetMCPAllowWrites != nil {
 		s.SetMCPAllowWrites(*u.MCPAllowWrites)
@@ -430,7 +448,9 @@ func (s *SettingsService) Save() error {
 	}
 	// Fresh viper to avoid merging project-level config into the global file.
 	out := viper.New()
+	out.SetConfigPermissions(0o600)
 	out.SetConfigFile(s.ConfigPath)
+	out.Set("bearer_token", s.Viper.GetString("bearer_token"))
 	for _, k := range []string{"port", "db_path", "alerts_dir", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor", "mcp_enabled", "mcp_allow_writes", "alerts.browser_enabled", "alerts.pushover_enabled", "alerts.browser_template", "alerts.pushover_template"} {
 		out.Set(k, s.Viper.Get(k))
 	}

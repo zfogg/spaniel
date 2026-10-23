@@ -73,7 +73,8 @@ forward_sample: 1.0
 
 # Bearer token: require this secret on all inbound OTLP and API requests.
 # The browser UI is seeded automatically via /api/health?token=<value> on
-# first visit. Set via env var SPANIEL_BEARER_TOKEN to avoid storing in config.
+# first visit. Settings can save this secret to config and the running process
+# environment; authentication changes take effect after restart.
 # bearer_token: ""
 
 # Tail-based sampling: max uninteresting spans/sec accepted (0 = unlimited)

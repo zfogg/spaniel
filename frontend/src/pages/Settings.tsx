@@ -466,8 +466,45 @@ function NetworkSection({
   mutate: (patch: SettingsUpdate) => void
   hidden: boolean
 }) {
+  const [token, setToken] = useState('')
   return (
     <Card id="network" title="Network" sub="OTLP receivers and proxy forwarding" hidden={hidden}>
+      <Row
+        label="Bearer token"
+        hint="Save to config.yaml and SPANIEL_BEARER_TOKEN in this process. Restart Spaniel to apply authentication changes. Leave blank to keep the current token."
+        testid="row-bearer-token"
+      >
+        <span className="font-mono text-xs text-muted-foreground">
+          {s.bearer_token_set ? 'enabled in running server' : 'disabled in running server'}
+        </span>
+        <input
+          type="password"
+          aria-label="New bearer token"
+          autoComplete="new-password"
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
+          className="h-[30px] rounded-md border border-border bg-background px-2 font-mono text-xs"
+        />
+        <button
+          type="button"
+          disabled={!token}
+          onClick={() => {
+            mutate({ bearer_token: token })
+            setToken('')
+          }}
+        >
+          Save token
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            mutate({ bearer_token: '' })
+            setToken('')
+          }}
+        >
+          Disable authentication
+        </button>
+      </Row>
       <Row
         label="OTLP gRPC receiver"
         hint="The :4317 listener that speaks protobuf over gRPC. Set port = 0 to disable."
@@ -1298,8 +1335,11 @@ export default function Settings() {
     async (patch: SettingsUpdate) => {
       if (!data) return
       // Optimistic cache update so toggles & inputs feel snappy.
+      // Keep write-only secrets out of the query cache.
+      const publicPatch = { ...patch }
+      delete publicPatch.bearer_token
       queryClient.setQueryData<SettingsT>(qk.settings(), (prev) =>
-        prev ? { ...prev, ...patch } : prev,
+        prev ? { ...prev, ...publicPatch } : prev,
       )
       setSaving(true)
       setLocalError(null)

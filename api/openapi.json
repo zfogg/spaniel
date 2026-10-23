@@ -10956,6 +10956,11 @@
                   "source_rps": {
                     "type": "integer",
                     "description": "Sets the sustained telemetry requests-per-second limit for a source."
+                  },
+                  "bearer_token": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "description": "Sets the shared bearer token in the config file and process environment. Empty disables authentication. Takes effect after restart."
                   }
                 },
                 "type": "object"

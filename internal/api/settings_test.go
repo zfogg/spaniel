@@ -59,6 +59,45 @@ func newSettingsRouter(t *testing.T) (http.Handler, *SettingsService, *storage.D
 
 // ── GET ──────────────────────────────────────────────────────────────────────
 
+func TestSettingsBearerTokenPersistence(t *testing.T) {
+	t.Setenv("SPANIEL_BEARER_TOKEN", "old-token")
+	router, svc, _ := newSettingsRouter(t)
+	svc.Viper.Set("bearer_token", "old-token")
+	for _, token := range []string{"replacement-secret", ""} {
+		body, _ := json.Marshal(SettingsUpdate{BearerToken: &token})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/api/settings", bytes.NewReader(body)))
+		if w.Code != http.StatusOK {
+			t.Fatalf("save status = %d", w.Code)
+		}
+		if token != "" && bytes.Contains(w.Body.Bytes(), []byte(token)) {
+			t.Fatal("response exposed bearer token")
+		}
+		if os.Getenv("SPANIEL_BEARER_TOKEN") != token {
+			t.Fatal("process environment was not updated")
+		}
+		// Unrelated saves must retain the token too.
+		if err := applySettings(svc, &SettingsUpdate{}); err != nil {
+			t.Fatal(err)
+		}
+		persisted := viper.New()
+		persisted.SetConfigFile(svc.ConfigPath)
+		if err := persisted.ReadInConfig(); err != nil {
+			t.Fatal(err)
+		}
+		if persisted.GetString("bearer_token") != token {
+			t.Fatal("config did not retain bearer token")
+		}
+	}
+}
+
+func TestSettingsBearerTokenRejectsInvalidEnvironmentValue(t *testing.T) {
+	token := "bad\x00token"
+	if err := validateSettings(&SettingsUpdate{BearerToken: &token}); err == nil {
+		t.Fatal("accepted NUL in token")
+	}
+}
+
 func TestGetSettings_HappyPath(t *testing.T) {
 	router, _, _ := newSettingsRouter(t)
 	w := httptest.NewRecorder()
