@@ -25,6 +25,13 @@ async function stubBackend(page: Page, fx: Fixture) {
     (url) => new URL(url.toString()).pathname.startsWith('/api/'),
     (r) => {
       const pathname = new URL(r.request().url()).pathname
+      if (pathname === '/api/settings')
+        return jsonResponse(r, {
+          public_url: '',
+          tls_enabled: false,
+          bearer_token_set: false,
+          runtime: { otlp_http_port: 4318, otlp_grpc_port: 4317 },
+        })
       if (pathname === '/api/stats')
         return jsonResponse(r, {
           span_count: 0,
@@ -86,9 +93,12 @@ test.describe('Traces page', () => {
     await page.goto('/')
 
     await expect(page.getByText('Waiting for traces…')).toBeVisible()
-    await expect(page.getByText(':4318', { exact: true })).toBeVisible()
-    await expect(page.getByText(':4317', { exact: true })).toBeVisible()
-    await expect(page.getByText(/OTEL_EXPORTER_OTLP_ENDPOINT/)).toBeVisible()
+    await expect(page.locator('pre').filter({ hasText: 'http://localhost:4318' })).toContainText(
+      'OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf',
+    )
+    await expect(page.locator('pre').filter({ hasText: 'http://localhost:4317' })).toContainText(
+      'OTEL_EXPORTER_OTLP_PROTOCOL=grpc',
+    )
   })
 
   test('lets the empty state switch between language SDK tabs', async ({ page }) => {
