@@ -30,79 +30,87 @@ export function CategoryPanel({ panel, rows }: DashboardPanelRendererProps) {
   const max = Math.max(0, ...data.map(({ value }) => value / scale))
   const range = max - min || 1
   return (
-    <div className="flex flex-wrap items-center gap-4" data-testid={`${panel.display_type}-panel`}>
-      {pie && (
-        <svg
-          role="img"
-          aria-label={`${panel.title} pie chart`}
-          viewBox="0 0 120 120"
-          className="h-44 w-44 max-w-full shrink-0"
-        >
-          {data.map(({ label, value }, index) => {
-            const fraction = value / scale / total
-            const start = data
-              .slice(0, index)
-              .reduce((sum, row) => sum + row.value / scale / total, 0)
-            return (
-              <circle
-                key={index}
-                cx="60"
-                cy="60"
-                r="25"
-                fill="none"
-                stroke={colors[index % colors.length]}
-                strokeWidth="50"
-                pathLength="1"
-                strokeDasharray={`${fraction} ${1 - fraction}`}
-                strokeDashoffset={-start}
-                transform="rotate(-90 60 60)"
-              >
-                <title>
-                  {label}: {formatValue(value)} {unit} ({formatValue(fraction * 100)}%)
-                </title>
-              </circle>
-            )
-          })}
-        </svg>
-      )}
-      <ul className="min-w-0 basis-32 flex-1 space-y-2" aria-label={`${panel.title} values`}>
-        {data.map(({ label, value }, index) => (
-          <li key={index} className="text-sm">
-            <div className="flex flex-wrap justify-between gap-3">
-              <span className="break-all">{label}</span>
-              <span className="shrink-0 font-mono">
-                {formatValue(value)} {unit}
-                {pie ? ` (${formatValue((value / scale / total) * 100)}%)` : ''}
-              </span>
-            </div>
-            {!pie && (
-              <svg
-                role="img"
-                aria-label={`${label}: ${value} ${unit}`}
-                viewBox="0 0 100 6"
-                preserveAspectRatio="none"
-                className="mt-1 h-3 w-full rounded bg-muted"
-              >
-                <rect
-                  x={((Math.min(0, value / scale) - min) / range) * 100}
-                  y="0"
-                  width={(Math.abs(value / scale) / range) * 100}
-                  height="6"
-                  fill={colors[index % colors.length]}
-                />
-                <line
-                  x1={(-min / range) * 100}
-                  x2={(-min / range) * 100}
-                  y1="0"
-                  y2="6"
-                  stroke="currentColor"
-                  strokeWidth="0.3"
-                />
-              </svg>
-            )}
-          </li>
-        ))}
-      </ul>
+    <div
+      className="max-h-80 overflow-auto"
+      tabIndex={0}
+      role="region"
+      aria-label={`${panel.title} chart`}
+      data-testid={`${panel.display_type}-panel`}
+    >
+      <div className="flex flex-wrap items-center gap-4">
+        {pie && (
+          <svg
+            role="img"
+            aria-label={`${panel.title} pie chart`}
+            viewBox="0 0 120 120"
+            className="h-44 w-44 max-w-full shrink-0"
+          >
+            {data.map(({ label, value }, index) => {
+              const fraction = value / scale / total
+              const start = data
+                .slice(0, index)
+                .reduce((sum, row) => sum + row.value / scale / total, 0)
+              return (
+                <circle
+                  key={index}
+                  cx="60"
+                  cy="60"
+                  r="25"
+                  fill="none"
+                  stroke={colors[index % colors.length]}
+                  strokeWidth="50"
+                  pathLength="1"
+                  strokeDasharray={`${fraction} ${1 - fraction}`}
+                  strokeDashoffset={-start}
+                  transform="rotate(-90 60 60)"
+                >
+                  <title>
+                    {label}: {formatValue(value)} {unit} ({formatValue(fraction * 100)}%)
+                  </title>
+                </circle>
+              )
+            })}
+          </svg>
+        )}
+        <ul className="min-w-0 basis-32 flex-1 space-y-2" aria-label={`${panel.title} values`}>
+          {data.map(({ label, value }, index) => (
+            <li key={index} className="text-sm">
+              <div className="flex flex-wrap justify-between gap-3">
+                <span className="break-all">{label}</span>
+                <span className="shrink-0 font-mono">
+                  {formatValue(value)} {unit}
+                  {pie ? ` (${formatValue((value / scale / total) * 100)}%)` : ''}
+                </span>
+              </div>
+              {!pie && (
+                <svg
+                  role="img"
+                  aria-label={`${label}: ${value} ${unit}`}
+                  viewBox="0 0 100 6"
+                  preserveAspectRatio="none"
+                  className="mt-1 h-3 w-full rounded bg-muted"
+                >
+                  <rect
+                    x={((Math.min(0, value / scale) - min) / range) * 100}
+                    y="0"
+                    width={(Math.abs(value / scale) / range) * 100}
+                    height="6"
+                    fill={colors[index % colors.length]}
+                  />
+                  <line
+                    x1={(-min / range) * 100}
+                    x2={(-min / range) * 100}
+                    y1="0"
+                    y2="6"
+                    stroke="currentColor"
+                    strokeWidth="0.3"
+                  />
+                </svg>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
