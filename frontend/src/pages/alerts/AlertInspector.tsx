@@ -434,12 +434,12 @@ export function Inspector({
       </InspectorSection>
 
       <InspectorSection title="Evaluation health">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs [&>div]:min-w-0 [&_dd]:break-words">
           <Field
             label="Last evaluated"
             value={
               rule.last_evaluated_at ? (
-                <TimestampWithAgo nanoseconds={rule.last_evaluated_at} />
+                <TimestampWithAgo nanoseconds={rule.last_evaluated_at} stacked />
               ) : (
                 'Not yet evaluated'
               )
@@ -449,7 +449,7 @@ export function Inspector({
             label="Last successful"
             value={
               rule.last_success_at ? (
-                <TimestampWithAgo nanoseconds={rule.last_success_at} />
+                <TimestampWithAgo nanoseconds={rule.last_success_at} stacked />
               ) : (
                 'No successful evaluation'
               )
@@ -457,14 +457,16 @@ export function Inspector({
           />
           <Field
             label="Last fired"
-            value={lastFiredAt ? <TimestampWithAgo nanoseconds={lastFiredAt} /> : 'Never fired'}
+            value={
+              lastFiredAt ? <TimestampWithAgo nanoseconds={lastFiredAt} stacked /> : 'Never fired'
+            }
           />
           <Field label="Query duration" value={formatDuration(rule.last_duration_ns)} mono />
           <Field
             label="Next evaluation"
             value={
               rule.next_evaluation_at ? (
-                <TimestampWithAgo nanoseconds={rule.next_evaluation_at} />
+                <TimestampWithAgo nanoseconds={rule.next_evaluation_at} stacked />
               ) : (
                 'Scheduled on start'
               )
