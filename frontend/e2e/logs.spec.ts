@@ -59,6 +59,19 @@ async function stubLogs(page: Page, logs: Log[], services: string[] = []) {
       if (pathname === '/api/forwarders') return jsonResponse(r, [])
       if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
       if (pathname === '/api/services') return jsonResponse(r, services)
+      if (pathname.startsWith('/api/traces/'))
+        return jsonResponse(r, [
+          {
+            span_id: 'span-x',
+            trace_id: pathname.split('/').pop(),
+            name: 'operation',
+            service_name: 'my-service',
+            start_ns: Date.now() * 1_000_000,
+            duration_ns: 1,
+            attributes: '{}',
+            resource: '{}',
+          },
+        ])
       if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
       return r.continue()
     },
@@ -151,7 +164,7 @@ test.describe('LogViewer', () => {
     ])
     await page.goto('/logs')
 
-    await page.getByText('connection refused: dial tcp 127.0.0.1:5432').click()
+    await page.getByText('connection refused: dial tcp 127.0.0.1:5432', { exact: true }).click()
 
     // Inspector landmark + content.
     const inspector = page.getByRole('complementary', { name: 'Log details' })
@@ -232,6 +245,19 @@ test.describe('LogViewer', () => {
         if (pathname === '/api/forwarders') return jsonResponse(r, [])
         if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
         if (pathname === '/api/services') return jsonResponse(r, [])
+        if (pathname.startsWith('/api/traces/'))
+          return jsonResponse(r, [
+            {
+              span_id: 'span-x',
+              trace_id: pathname.split('/').pop(),
+              name: 'operation',
+              service_name: 'my-service',
+              start_ns: Date.now() * 1_000_000,
+              duration_ns: 1,
+              attributes: '{}',
+              resource: '{}',
+            },
+          ])
         if (pathname.startsWith('/api/logs')) return jsonResponse(r, logs)
         return r.continue()
       },
@@ -246,6 +272,7 @@ test.describe('LogViewer', () => {
       type: 'log',
       timestamp_ns: liveLog.timestamp_ns,
       payload: {
+        row: liveLog,
         traceId: liveLog.trace_id,
         spanId: liveLog.span_id,
         severity: liveLog.severity,

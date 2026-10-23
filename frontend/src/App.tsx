@@ -1,3 +1,4 @@
+import { SERVICE_COLORS_EVENT } from '@/lib/service-color'
 import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { useQuery } from '@tanstack/react-query'
@@ -270,6 +271,16 @@ function Chrome() {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 function AppShell() {
+  const [, refreshColors] = useState(0)
+  useEffect(() => {
+    const refresh = () => refreshColors((n) => n + 1)
+    window.addEventListener(SERVICE_COLORS_EVENT, refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener(SERVICE_COLORS_EVENT, refresh)
+      window.removeEventListener('storage', refresh)
+    }
+  }, [])
   useGlobalShortcuts()
   useLiveInvalidation()
   const [paletteOpen, setPaletteOpen] = useState(false)

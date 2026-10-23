@@ -16,16 +16,18 @@ function jsonResponse(
 
 async function stubBackend(page: Page, searchResults: unknown[] = []) {
   await page.routeWebSocket('**/ws', (ws) => ws.close())
-  await page.route('**/api/traces*', (r) => jsonResponse(r, []))
-  await page.route('**/api/services', (r) => jsonResponse(r, []))
-  await page.route('**/api/stats*', (r) =>
+  await page.route(/^https?:\/\/[^/]+\/api\/traces[^/]*$/, (r) => jsonResponse(r, []))
+  await page.route(/^https?:\/\/[^/]+\/api\/services$/, (r) => jsonResponse(r, []))
+  await page.route(/^https?:\/\/[^/]+\/api\/stats[^/]*$/, (r) =>
     jsonResponse(r, { span_count: 0, trace_count: 0, log_count: 0, db_size: 0 }),
   )
-  await page.route('**/api/forwarders', (r) => jsonResponse(r, []))
-  await page.route('**/api/sessions/active', (r) => jsonResponse(r, { id: '', label: '' }))
-  await page.route('**/api/sessions', (r) => jsonResponse(r, []))
-  await page.route('**/api/lint*', (r) => jsonResponse(r, []))
-  await page.route('**/api/search*', (r) =>
+  await page.route(/^https?:\/\/[^/]+\/api\/forwarders$/, (r) => jsonResponse(r, []))
+  await page.route(/^https?:\/\/[^/]+\/api\/sessions\/active$/, (r) =>
+    jsonResponse(r, { id: '', label: '' }),
+  )
+  await page.route(/^https?:\/\/[^/]+\/api\/sessions$/, (r) => jsonResponse(r, []))
+  await page.route(/^https?:\/\/[^/]+\/api\/lint[^/]*$/, (r) => jsonResponse(r, []))
+  await page.route(/^https?:\/\/[^/]+\/api\/search[^/]*$/, (r) =>
     jsonResponse(r, searchResults, { total: searchResults.length, page: 1 }),
   )
 }
@@ -113,6 +115,7 @@ test.describe('Command palette', () => {
   test('opens with Ctrl+K', async ({ page }) => {
     await stubBackend(page)
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
   })
@@ -143,6 +146,7 @@ test.describe('Command palette', () => {
     // through to the input and confirm focus actually landed.
     await stubBackend(page)
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     const input = page.getByPlaceholder('Search traces, spans, sessions, services, lints, logs…')
     await expect(input).toBeFocused()
@@ -153,6 +157,7 @@ test.describe('Command palette', () => {
   test('closes with Escape', async ({ page }) => {
     await stubBackend(page)
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page.keyboard.press('Escape')
@@ -162,6 +167,7 @@ test.describe('Command palette', () => {
   test('closes when clicking the backdrop overlay', async ({ page }) => {
     await stubBackend(page)
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     // Click the overlay element by name — the unstyled cmdk had no overlay
@@ -176,6 +182,7 @@ test.describe('Command palette', () => {
   test('shows keyboard hint footer', async ({ page }) => {
     await stubBackend(page)
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     // The footer renders kbd+label with no whitespace: "↑↓navigate", "↵open", "Escclose".
@@ -193,6 +200,7 @@ test.describe('Command palette', () => {
       traceResult('trace-def', 'POST /api/checkout'),
     ])
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
 
@@ -207,6 +215,7 @@ test.describe('Command palette', () => {
   test('displays log results with a "log" kind badge', async ({ page }) => {
     await stubBackend(page, [logResult('trace-log', 'database connection timed out')])
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page
@@ -223,6 +232,7 @@ test.describe('Command palette', () => {
   test('shows "no results" message when API returns empty', async ({ page }) => {
     await stubBackend(page, [])
     await page.goto('/')
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page
@@ -237,10 +247,11 @@ test.describe('Command palette', () => {
 
   test('clicking a trace result navigates to /traces/:id', async ({ page }) => {
     await stubBackend(page, [traceResult('trace-nav', 'GET /orders')])
-    await page.route('**/api/traces/trace-nav', (r) => jsonResponse(r, []))
-    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/traces\/trace-nav$/, (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/issues[^/]*$/, (r) => jsonResponse(r, []))
     await page.goto('/')
 
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page
@@ -258,6 +269,7 @@ test.describe('Command palette', () => {
     await stubBackend(page, [logResult('trace-log', 'payment failed')])
     await page.goto('/')
 
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page
@@ -273,10 +285,11 @@ test.describe('Command palette', () => {
 
   test('Enter on the selected result navigates', async ({ page }) => {
     await stubBackend(page, [traceResult('trace-enter', 'PUT /resource')])
-    await page.route('**/api/traces/trace-enter', (r) => jsonResponse(r, []))
-    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/traces\/trace-enter$/, (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/issues[^/]*$/, (r) => jsonResponse(r, []))
     await page.goto('/')
 
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page
@@ -295,10 +308,11 @@ test.describe('Command palette', () => {
       traceResult('trace-first', 'GET /first'),
       traceResult('trace-second', 'GET /second'),
     ])
-    await page.route('**/api/traces/trace-second', (r) => jsonResponse(r, []))
-    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/traces\/trace-second$/, (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/issues[^/]*$/, (r) => jsonResponse(r, []))
     await page.goto('/')
 
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page
@@ -315,11 +329,12 @@ test.describe('Command palette', () => {
 
   test('shows recent searches when palette reopens with no query', async ({ page }) => {
     await stubBackend(page, [traceResult('trace-recent', 'GET /recent')])
-    await page.route('**/api/traces/trace-recent', (r) => jsonResponse(r, []))
-    await page.route('**/api/issues*', (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/traces\/trace-recent$/, (r) => jsonResponse(r, []))
+    await page.route(/^https?:\/\/[^/]+\/api\/issues[^/]*$/, (r) => jsonResponse(r, []))
     await page.goto('/')
 
     // Make a search and activate a result to save it to recents.
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     await expectPaletteOpen(page)
     await page
@@ -329,6 +344,7 @@ test.describe('Command palette', () => {
     await page.getByText('GET /recent').click()
 
     // Reopen — should show 'recent' as a saved query in the list.
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible()
     await page.keyboard.press('Control+k')
     // The query "recent" appears as the item text; the label "recent" appears right-aligned.
     // Two occurrences of "recent" expected: the query text and the kind label.

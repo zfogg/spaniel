@@ -39,7 +39,16 @@ async function stubBackend(page: Page, fx: Fixture) {
       if (pathname === '/api/sessions') return jsonResponse(r, [])
       if (pathname === '/api/services') return jsonResponse(r, fx.services ?? [])
       if (pathname.startsWith('/api/lint')) return jsonResponse(r, [])
-      if (pathname.startsWith('/api/traces')) return jsonResponse(r, fx.traces ?? [])
+      if (pathname.startsWith('/api/traces')) {
+        const services = new URL(r.request().url()).searchParams.getAll('services')
+        return jsonResponse(
+          r,
+          (fx.traces ?? []).filter(
+            (row) =>
+              !services.length || services.includes((row as { service_name: string }).service_name),
+          ),
+        )
+      }
       return r.continue()
     },
   )
@@ -109,7 +118,7 @@ test.describe('Traces page', () => {
     await expect(main.getByText('dur', { exact: true })).toBeVisible()
     await expect(main.getByText('spans', { exact: true })).toBeVisible()
     await expect(main.getByText('shape', { exact: true })).toBeVisible()
-    await expect(main.getByText('ago', { exact: true })).toBeVisible()
+    await expect(main.getByText('timestamp', { exact: true })).toBeVisible()
   })
 
   test('renders operation name, duration, and span count', async ({ page }) => {
@@ -209,8 +218,8 @@ test.describe('Traces page', () => {
     await expect(page.getByText('GET /cart')).toBeVisible()
     await expect(page.getByText('pricing.Quote')).toBeVisible()
 
-    // Service filtering is a sidebar list of role=button items, not a select.
-    await page.getByRole('button', { name: 'pricing' }).click()
+    // Service filtering uses sidebar checkboxes.
+    await page.getByRole('checkbox', { name: 'pricing', exact: true }).click()
 
     await expect(page.getByText('pricing.Quote')).toBeVisible()
     await expect(page.getByText('GET /cart')).toHaveCount(0)

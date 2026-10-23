@@ -1,3 +1,5 @@
+import ServiceColorEditor from '@/components/ServiceColorEditor'
+import { customServiceColor } from '@/lib/service-color'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
@@ -25,7 +27,7 @@ const PALETTE = [
 function svcColor(name: string): { fg: string; bg: string } {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0
-  const fg = PALETTE[Math.abs(h) % PALETTE.length]
+  const fg = customServiceColor(name) ?? PALETTE[Math.abs(h) % PALETTE.length]
   return { fg, bg: fg + '28' }
 }
 
@@ -457,9 +459,12 @@ function NodeInspector({ node, onClose }: { node: ServiceMapNode; onClose: () =>
             {(node.top_operations ?? []).map((op) => (
               <li
                 key={op.name}
-                className="flex items-baseline justify-between gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5"
+                className="flex flex-col gap-1 rounded-md border border-border bg-muted/40 px-2.5 py-1.5"
               >
-                <span className="min-w-0 truncate font-mono text-[11px] text-foreground">
+                <span
+                  title={op.name}
+                  className="min-w-0 max-w-full truncate font-mono text-[11px] text-foreground"
+                >
                   {op.name}
                 </span>
                 <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
@@ -616,6 +621,19 @@ export default function ServiceMap() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
+      <details className="shrink-0 border-b border-border px-4 py-2 max-h-64 overflow-auto">
+        <summary className="cursor-pointer text-xs">Service colors</summary>
+        <p className="my-2 text-xs text-muted-foreground">
+          Customize service colors across the app. Saved in this browser.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {Array.from(new Set([...nodes.map((n) => n.id), ...sources.map((s) => s.service)]))
+            .sort()
+            .map((name) => (
+              <ServiceColorEditor key={name} name={name} />
+            ))}
+        </div>
+      </details>
       {/* header */}
       <header className="flex shrink-0 items-center gap-3.5 border-b border-border bg-background px-[18px] py-2.5">
         <div>

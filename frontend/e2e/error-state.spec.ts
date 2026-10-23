@@ -11,7 +11,7 @@ for (const recursive of [true, false]) {
         'Could not find node in column segment tree' +
         '"'.repeat(10000)
       : 'long error line\n'.repeat(10000)
-    await page.route('**/api/**', (route) =>
+    await page.route(/^https?:\/\/[^/]+\/api\/.*$/, (route) =>
       route.fulfill({
         status: route.request().url().includes('/api/traces/abc123') ? 500 : 200,
         contentType: 'application/json',

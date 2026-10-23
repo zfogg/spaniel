@@ -16,6 +16,11 @@ test('dashboard panels query once, pause while hidden, and resume without resett
 }) => {
   await page.clock.install()
   const panels: { variables: Record<string, string> }[] = []
+  // StrictMode cancels its first in-flight read; count completed queries.
+  page.on('requestfinished', (request) => {
+    if (new URL(request.url()).pathname.endsWith('/query-preview'))
+      panels.push(request.postDataJSON())
+  })
   const states: boolean[] = []
   let send: ((event: object) => void) | undefined
   let unusedMetadataReads = 0
@@ -65,7 +70,6 @@ test('dashboard panels query once, pause while hidden, and resume without resett
       unusedMetadataReads++
       data = dashboard
     } else if (path.endsWith('/query-preview')) {
-      panels.push(route.request().postDataJSON())
       data = { columns: ['value'], rows: [{ value: 42 }], truncated: false, query_version: 1 }
     } else if (path === '/api/sessions/active') data = { id: 'session', label: 'Session' }
     else if (path === '/api/stats')
@@ -185,7 +189,8 @@ test('metric refreshes keep the chosen operation and ignore unrelated streams an
     payload: { name: 'unrelated', serviceName: 'other', value: 1, type: 'gauge' },
   })
   await page.clock.runFor(1200)
-  await expect.poll(() => catalogReads).toBeGreaterThan(catalogBefore)
+  // Live catalog rows update the cache without refetching the HTTP catalog.
+  expect(catalogReads).toBe(catalogBefore)
   await page.clock.runFor(100)
   expect(operations).toHaveLength(before)
   await visibility(page, 'hidden')

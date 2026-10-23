@@ -1,3 +1,4 @@
+import { customServiceColor } from './service-color'
 // Spaniel design system — Drift direction (sky · sand · slate)
 //
 // Single source of truth for all design tokens.  CSS vars are the runtime
@@ -174,12 +175,14 @@ export function svcPaletteIndex(svcName: string): number {
 }
 
 export function svcHex(svcName: string): string {
-  return SPAN_PALETTE[svcPaletteIndex(svcName)]
+  return customServiceColor(svcName) ?? SPAN_PALETTE[svcPaletteIndex(svcName)]
 }
 
 // Helper — get service swatch (light or dark). Falls back to hash-based
 // palette slot for unknown services so colors stay stable per name.
 export function svcColor(svcName: string, dark: boolean) {
+  const custom = customServiceColor(svcName)
+  if (custom) return { fg: custom, bg: custom + '28' }
   const map = dark ? DARK.svc : LIGHT.svc
   const hard = (map as Record<string, { fg: string; bg: string }>)[svcName]
   if (hard) return hard

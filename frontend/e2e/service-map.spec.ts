@@ -69,7 +69,7 @@ async function stubServiceMap(page: Page, fx: ServiceMapFixture) {
           session_count: 0,
           oldest_session_at: 0,
         })
-      if (pathname === '/api/forwarders') return jsonResponse(r, [])
+      if (pathname === '/api/forwarders' || pathname === '/api/sources') return jsonResponse(r, [])
       if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
       if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
       if (pathname.startsWith('/api/service-map')) return jsonResponse(r, fx)
@@ -259,7 +259,8 @@ test.describe('ServiceMap page', () => {
             session_count: 0,
             oldest_session_at: 0,
           })
-        if (pathname === '/api/forwarders') return jsonResponse(r, [])
+        if (pathname === '/api/forwarders' || pathname === '/api/sources')
+          return jsonResponse(r, [])
         if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
         if (pathname === '/api/sessions') return jsonResponse(r, DEFAULT_SESSIONS)
         if (pathname.startsWith('/api/service-map')) {
@@ -275,4 +276,47 @@ test.describe('ServiceMap page', () => {
 
     await expect.poll(() => lastUrl).toContain('sessionId=sess-2')
   })
+})
+
+test('custom colors persist, update badges and map, validate input, and reset', async ({
+  page,
+}) => {
+  await stubServiceMap(page, {
+    nodes: [
+      {
+        id: 'api-gateway',
+        span_count: 10,
+        error_count: 0,
+        top_operations: [{ name: 'GET /a/very/long/operation/name', count: 10, p95_ns: 1000000 }],
+      },
+    ],
+    edges: [],
+  })
+  await page.goto('/services')
+  await page.getByText('Service colors', { exact: true }).click()
+  const input = page.getByRole('textbox', { name: 'Color for api-gateway', exact: true })
+  const editor = page.locator('form').filter({ has: input })
+  const nodeDot = page.getByTestId('node-api-gateway').locator('circle')
+  const original = await nodeDot.getAttribute('fill')
+  await input.fill('rgb(12, 34, 56)')
+  await editor.getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(nodeDot).toHaveAttribute('fill', '#0c2238')
+  await expect(page.locator('[data-service-name="api-gateway"] > span').first()).toHaveCSS(
+    'background-color',
+    'rgb(12, 34, 56)',
+  )
+  await page.reload()
+  await expect(nodeDot).toHaveAttribute('fill', '#0c2238')
+  await page.getByText('Service colors', { exact: true }).click()
+  await input.fill('rgb(999, 0, 0)')
+  await expect(editor.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled()
+  await expect(nodeDot).toHaveAttribute('fill', '#0c2238')
+  await page.getByLabel('Pick color for api-gateway', { exact: true }).fill('#ff00cc')
+  await expect(nodeDot).toHaveAttribute('fill', '#ff00cc')
+  await page.getByTestId('node-api-gateway').click()
+  const operation = page.getByTitle('GET /a/very/long/operation/name', { exact: true })
+  await expect(operation).toBeVisible()
+  await expect(operation.locator('..')).toHaveCSS('flex-direction', 'column')
+  await editor.getByRole('button', { name: 'Reset', exact: true }).click()
+  await expect(nodeDot).toHaveAttribute('fill', original!)
 })

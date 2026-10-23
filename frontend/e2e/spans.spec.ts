@@ -37,7 +37,7 @@ function makeSpan(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function stubBackend(page: Page, spans: unknown[] = []) {
+async function stubBackend(page: Page, spans: ReturnType<typeof makeSpan>[] = []) {
   await page.routeWebSocket('**/ws', (ws) => ws.close())
   await page.route(
     (url) => new URL(url.toString()).pathname.startsWith('/api/'),
@@ -54,8 +54,13 @@ async function stubBackend(page: Page, spans: unknown[] = []) {
         })
       if (pathname === '/api/forwarders') return jsonResponse(r, [])
       if (pathname === '/api/sessions/active') return jsonResponse(r, { id: '', label: '' })
-      if (pathname.startsWith('/api/spans'))
-        return jsonResponse(r, spans, { total: spans.length, page: 1 })
+      if (pathname === '/api/services')
+        return jsonResponse(r, [...new Set(spans.map((s) => s.service_name))])
+      if (pathname.startsWith('/api/spans')) {
+        const services = new URL(r.request().url()).searchParams.getAll('services')
+        const rows = spans.filter((s) => !services.length || services.includes(s.service_name))
+        return jsonResponse(r, rows, { total: rows.length, page: 1 })
+      }
       return r.continue()
     },
   )
@@ -136,7 +141,9 @@ test.describe('Spans page', () => {
     await page.getByTestId('spans-search').fill('orders')
     await expect(page.getByText('POST /api/orders')).toBeVisible()
     await expect(page.getByText('GET /api/users')).not.toBeVisible()
-    await expect(page.getByText('1 of 2 spans')).toBeVisible()
+    await expect(
+      page.getByRole('navigation', { name: 'spans pagination' }).getByText('2 of 2 spans'),
+    ).toBeVisible()
   })
 
   test('clear button resets search', async ({ page }) => {
@@ -163,13 +170,13 @@ test.describe('Spans page', () => {
     // click in sidebar (not row button)
     await page
       .getByTestId('spans-sidebar')
-      .getByRole('button', { name: /auth-service/ })
+      .getByRole('checkbox', { name: 'auth-service', exact: true })
       .click()
     await expect(page.getByText('login')).toBeVisible()
     await expect(page.getByText('GET /api/users')).not.toBeVisible()
 
     // filter chip appears
-    await expect(page.getByText('svc: auth-service')).toBeVisible()
+    await expect(page.getByText('services: auth-service')).toBeVisible()
   })
 
   test('kind facet filters visible rows', async ({ page }) => {
@@ -244,7 +251,7 @@ test.describe('Spans page', () => {
 
     await page.getByTestId('span-row-span-1').click()
     await page.getByText('open waterfall').click()
-    await expect(page).toHaveURL('/traces/trace-xyz')
+    await expect(page).toHaveURL('/traces/trace-xyz?view=waterfall&span=span-1')
   })
 
   test('closing inspector with × hides panel', async ({ page }) => {
@@ -255,7 +262,10 @@ test.describe('Spans page', () => {
     await page.getByTestId('span-row-span-1').click()
     await expect(page.getByText('belongs to trace')).toBeVisible()
 
-    await page.getByTestId('span-inspector').locator('button', { hasText: '×' }).click()
+    await page
+      .getByTestId('span-inspector')
+      .getByRole('button', { name: 'Close inspector' })
+      .click()
     await expect(page.getByText('belongs to trace')).not.toBeVisible()
   })
 
@@ -267,9 +277,10 @@ test.describe('Spans page', () => {
 
     const sel = page.getByTestId('spans-sort')
     await expect(sel).toBeVisible()
-    await expect(sel.getByRole('option', { name: 'time ↓' })).toBeAttached()
-    await expect(sel.getByRole('option', { name: 'duration ↓' })).toBeAttached()
-    await expect(sel.getByRole('option', { name: 'name a→z' })).toBeAttached()
+    await sel.click()
+    await expect(page.getByRole('menuitemradio', { name: 'time ↓', exact: true })).toBeVisible()
+    await expect(page.getByRole('menuitemradio', { name: 'duration ↓', exact: true })).toBeVisible()
+    await expect(page.getByRole('menuitemradio', { name: 'name a→z', exact: true })).toBeVisible()
   })
 
   // ── status footer ─────────────────────────────────────────────────────────

@@ -30,35 +30,35 @@ const SOURCES = [
 test.describe('Services page — Sources tab', () => {
   test.beforeEach(async ({ page }) => {
     // Stub the API endpoints needed by the Services page.
-    await page.route('**/api/sources', (route) =>
+    await page.route(/^https?:\/\/[^/]+\/api\/sources$/, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: SOURCES, meta: { total: 3, page: 1 } }),
       }),
     )
-    await page.route('**/api/service-map**', (route) =>
+    await page.route(/^https?:\/\/[^/]+\/api\/service-map.*$/, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: { nodes: [], edges: [] }, meta: { total: 0, page: 1 } }),
       }),
     )
-    await page.route('**/api/sessions**', (route) =>
+    await page.route(/^https?:\/\/[^/]+\/api\/sessions.*$/, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: [], meta: { total: 0, page: 1 } }),
       }),
     )
-    await page.route('**/api/sessions/active**', (route) =>
+    await page.route(/^https?:\/\/[^/]+\/api\/sessions\/active.*$/, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ data: {} }),
       }),
     )
-    await page.route('**/api/stats**', (route) =>
+    await page.route(/^https?:\/\/[^/]+\/api\/stats.*$/, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -102,9 +102,9 @@ test.describe('Services page — Sources tab', () => {
     await expect(rows).toHaveCount(3)
 
     // Service names visible
-    await expect(page.getByText('api-gateway')).toBeVisible()
-    await expect(page.getByText('payment-svc')).toBeVisible()
-    await expect(page.getByText('inventory-svc')).toBeVisible()
+    await expect(rows.getByText('api-gateway')).toBeVisible()
+    await expect(rows.getByText('payment-svc')).toBeVisible()
+    await expect(rows.getByText('inventory-svc')).toBeVisible()
   })
 
   test('rate-limited badge appears only on rate-limited source', async ({ page }) => {
