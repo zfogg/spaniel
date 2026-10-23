@@ -1,0 +1,136 @@
+version: 1
+id: spaniel-self-api
+name: Spaniel API and query performance
+description: Active-session HTTP server spans and storage spans for $service. Route rankings exclude health checks;
+  response-class charts include them. window_minutes is clamped to 1-180.
+magic_variables:
+- name: session_id
+  kind: string
+variables:
+- name: service
+  kind: string
+  source: spans.service_name
+  default_value: spaniel
+- name: window_minutes
+  kind: number
+  source: SELECT 60 AS value
+  default_value: '60'
+panels:
+- title: Busiest HTTP routes (health checks excluded)
+  display_type: bar
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns) SELECT json_extract_string(attributes, '$.http.route') AS label, count(*) AS value FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.http.server.%' AND json_extract_string(attributes, '$.http.route') <> '/api/health' GROUP BY 1 ORDER BY value DESC LIMIT 10
+  settings:
+    unit: requests
+  layout:
+    x: 1
+    y: 1
+    w: 6
+    h: 2
+  position: 0
+- title: Slowest HTTP routes - p95 (ms)
+  display_type: bar
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns) SELECT json_extract_string(attributes, '$.http.route') AS label, quantile_cont(duration_ns / 1000000.0, 0.95) AS value FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.http.server.%' AND json_extract_string(attributes, '$.http.route') <> '/api/health' GROUP BY 1 ORDER BY value DESC LIMIT 10
+  settings:
+    unit: ms
+  layout:
+    x: 7
+    y: 1
+    w: 6
+    h: 2
+  position: 1
+- title: HTTP response classes
+  display_type: pie
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns)
+    SELECT concat(CAST(try_cast(json_extract_string(attributes, '$.http.response.status_code') AS INTEGER) // 100 AS VARCHAR), 'xx') AS label,
+      count(*) AS value FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.http.server.%' GROUP BY 1 ORDER BY label
+  settings:
+    unit: requests
+  layout:
+    x: 1
+    y: 3
+    w: 6
+    h: 2
+  position: 2
+- title: HTTP request volume by response class
+  display_type: time_series
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns)
+    SELECT (start_ns // bucket_ns) * bucket_ns AS timestamp_ns, count(*) AS value,
+      concat(CAST(try_cast(json_extract_string(attributes, '$.http.response.status_code') AS INTEGER) // 100 AS VARCHAR), 'xx') AS group_value
+    FROM spans CROSS JOIN scope WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.http.server.%'
+    GROUP BY 1, 3 ORDER BY 1, 3 LIMIT 128
+  settings: {}
+  layout:
+    x: 7
+    y: 3
+    w: 6
+    h: 2
+  position: 3
+- title: HTTP request latency - p95 (ms, health excluded)
+  display_type: time_series
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns) SELECT (start_ns // bucket_ns) * bucket_ns AS timestamp_ns, quantile_cont(duration_ns / 1000000.0, 0.95) AS value FROM spans CROSS JOIN scope WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.http.server.%' AND json_extract_string(attributes, '$.http.route') <> '/api/health' GROUP BY 1 ORDER BY 1 LIMIT 128
+  settings: {}
+  layout:
+    x: 1
+    y: 5
+    w: 6
+    h: 2
+  position: 4
+- title: Busiest storage operations
+  display_type: bar
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns) SELECT replace(name, 'spaniel.storage.', '') AS label, count(*) AS value FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.storage.%' GROUP BY 1 ORDER BY value DESC LIMIT 10
+  settings:
+    unit: calls
+  layout:
+    x: 7
+    y: 5
+    w: 6
+    h: 2
+  position: 5
+- title: Slowest storage operations - p95 (ms)
+  display_type: bar
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns) SELECT replace(name, 'spaniel.storage.', '') AS label, quantile_cont(duration_ns / 1000000.0, 0.95) AS value FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.storage.%' GROUP BY 1 ORDER BY value DESC LIMIT 10
+  settings:
+    unit: ms
+  layout:
+    x: 1
+    y: 7
+    w: 6
+    h: 2
+  position: 6
+- title: SQL calls and latency (ms)
+  display_type: table
+  query: |
+    -- Span durations are authoritative; histogram metric value may be zero.
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns)
+    SELECT name AS operation, count(*) AS calls,
+      round(avg(duration_ns) / 1000000.0, 3) AS mean_ms,
+      round(quantile_cont(duration_ns, 0.95) / 1000000.0, 3) AS p95_ms,
+      round(max(duration_ns) / 1000000.0, 3) AS max_ms,
+      count(*) FILTER (WHERE status_code = 2) AS errors
+    FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name IN ('db.query', 'db.row', 'db.raw', 'db.exec')
+    GROUP BY name ORDER BY p95_ms DESC
+  settings: {}
+  layout:
+    x: 7
+    y: 7
+    w: 6
+    h: 2
+  position: 7
+- title: Slow Spaniel spans - investigate their traces
+  display_type: span_list
+  query: |
+    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns) SELECT trace_id, span_id, service_name, name, duration_ns, status_code FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name NOT LIKE '%/ws' ORDER BY duration_ns DESC LIMIT 25
+  settings: {}
+  layout:
+    x: 1
+    y: 9
+    w: 12
+    h: 3
+  position: 8
