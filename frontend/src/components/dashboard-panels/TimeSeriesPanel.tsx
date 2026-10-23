@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatValue, numberValue, timeLabel } from './format'
 import type { DashboardPanelRendererProps } from './types'
@@ -35,14 +36,26 @@ export function TimeSeriesPanel({
   } catch {
     /* optional settings */
   }
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(720)
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setContainerWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [rows.length])
   const series = points(rows)
   if (!series.length) return null
-  const width = 720
+  const minWidth = settings.min_width_px ?? 0
+  const width = Math.max(containerWidth, minWidth, 240)
   const height = 210
-  const left = 72
+  const left = 88
   const right = 14
   const top = 18
-  const bottom = 36
+  const bottom = 40
   const min = Math.min(...series.map((point) => point.value))
   const max = Math.max(...series.map((point) => point.value))
   const range = max - min || 1
@@ -62,12 +75,10 @@ export function TimeSeriesPanel({
     series[Math.floor((series.length - 1) / 2)]?.label ?? series[0].label,
     series[series.length - 1].label,
   ]
-  // SVG viewBoxes scale dense series to the available panel width. Only panels
-  // that explicitly ask for a minimum width need a horizontal scroll container.
-  const minWidth = settings.min_width_px ?? 0
+  // Match SVG units to the viewport so axis text keeps its screen font size.
   const scroll = settings.scroll ?? minWidth > 0
   return (
-    <div className="min-w-0">
+    <div ref={containerRef} className="min-w-0">
       <div
         className={scroll ? 'overflow-auto' : ''}
         style={scroll ? { maxHeight: settings.max_height_px ?? 360 } : undefined}

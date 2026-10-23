@@ -128,6 +128,14 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
       kind,
     ).toBe(true)
   }
+  await expect
+    .poll(() =>
+      page.getByRole('heading', { name: 'time_series requests', exact: true }).evaluate((el) => {
+        const text = el.closest('article')!.querySelector('svg text') as SVGTextElement
+        return parseFloat(getComputedStyle(text).fontSize) * text.getScreenCTM()!.a
+      }),
+    )
+    .toBeGreaterThan(15)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/dashboards/charts')
   for (const [kind, label] of [
