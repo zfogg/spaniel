@@ -1,3 +1,4 @@
+import { useAxisGutter } from './axis-gutter'
 import { useEffect, useRef, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatValue, numberValue, timeLabel } from './format'
@@ -60,17 +61,19 @@ export function TimeSeriesPanel({
     return () => observer.disconnect()
   }, [rows.length])
   const series = points(rows)
+  const min = series.length ? Math.min(...series.map((point) => point.value)) : 0
+  const max = series.length ? Math.max(...series.map((point) => point.value)) : 0
+  const range = max - min || 1
+  const yTicks = [max, min + range / 2, min]
+  const { axisRef, gutter } = useAxisGutter(yTicks.map(formatValue), 12)
   if (!series.length) return null
   const minWidth = settings.min_width_px ?? 0
   const width = Math.max(containerWidth, minWidth, 1)
   const height = 210
-  const left = 88
+  const left = gutter
   const right = 14
   const top = 18
   const bottom = 40
-  const min = Math.min(...series.map((point) => point.value))
-  const max = Math.max(...series.map((point) => point.value))
-  const range = max - min || 1
   const maxTime = timeWindow ? now * 1e6 : Math.max(...series.map((point) => point.time))
   const minTime = timeWindow
     ? maxTime - timeWindow * 1e9
@@ -83,7 +86,6 @@ export function TimeSeriesPanel({
     x: left + ((point.time - minTime) / timeRange) * (width - left - right),
     y: height - bottom - ((point.value - min) / range) * (height - top - bottom),
   })
-  const yTicks = [max, min + range / 2, min]
   const xTicks = [minTime, minTime + timeRange / 2, maxTime].map(timeLabel)
 
   // Match SVG units to the viewport so axis text keeps its screen font size.
@@ -142,17 +144,19 @@ export function TimeSeriesPanel({
               </g>
             )
           })}
-          {yTicks.map((value, index) => (
-            <text
-              key={index}
-              x={left - 8}
-              y={top + (index * (height - top - bottom)) / 2 + 3}
-              textAnchor="end"
-              className="fill-muted-foreground font-mono text-xs"
-            >
-              {formatValue(value)}
-            </text>
-          ))}
+          <g ref={axisRef}>
+            {yTicks.map((value, index) => (
+              <text
+                key={index}
+                x={left - 8}
+                y={top + (index * (height - top - bottom)) / 2 + 3}
+                textAnchor="end"
+                className="fill-muted-foreground font-mono text-xs"
+              >
+                {formatValue(value)}
+              </text>
+            ))}
+          </g>
           {xTicks.map((label, index) => (
             <text
               key={`${label}-${index}`}
