@@ -275,6 +275,11 @@ test.describe('Trace detail page', () => {
     await expect(page.getByText('SELECT items', { exact: true })).toBeVisible()
     await expect(page.getByText('SELECT promos', { exact: true })).toBeVisible()
     await expect(page.getByText('render', { exact: true })).toBeVisible()
+
+    const serviceBadges = page.getByTestId('waterfall-span-row').locator('[data-service-name]')
+    await expect(serviceBadges).toHaveCount(5)
+    await expect(serviceBadges.filter({ hasText: 'postgres' })).toHaveCount(2)
+    await expect(serviceBadges.filter({ hasText: 'api' })).toHaveCount(3)
   })
 
   test('renders the timing ruler with zero and total-duration tick labels', async ({ page }) => {

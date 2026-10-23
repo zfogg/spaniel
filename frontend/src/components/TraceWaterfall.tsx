@@ -1,4 +1,5 @@
 import LogLevelBadge from '@/components/LogLevelBadge'
+import ServiceNameBadge from '@/components/ServiceNameBadge'
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle } from 'lucide-react'
@@ -155,6 +156,7 @@ function SpanRow({
 
   return (
     <div
+      data-testid="waterfall-span-row"
       onClick={onSelect}
       onMouseEnter={() => onHover(span.span_id)}
       onMouseLeave={() => onHover(null)}
@@ -174,16 +176,8 @@ function SpanRow({
       >
         {depth > 0 && <span className="w-2 h-px bg-border shrink-0 -ml-[7px]" />}
         {orphan && <AlertTriangle size={10} color="var(--warn)" className="shrink-0" />}
-        <span
-          className="w-[9px] h-[9px] rounded-sm opacity-85 shrink-0"
-          style={{ background: c.fg }}
-        />
-        <span
-          className="font-mono text-[10px] shrink-0 max-w-[175px] overflow-hidden text-ellipsis whitespace-nowrap opacity-75"
-          style={{ color: c.fg }}
-          title={span.service_name}
-        >
-          {span.service_name}
+        <span className="max-w-[175px] min-w-0 shrink-0 overflow-hidden">
+          <ServiceNameBadge name={span.service_name} />
         </span>
         <span className="text-[10px] text-muted-foreground shrink-0 opacity-50">/</span>
         <span
