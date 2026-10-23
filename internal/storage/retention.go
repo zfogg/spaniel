@@ -386,13 +386,16 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64
 	}
 	batch := min(int64(pruneTraceBatch), max(int64(1), (groups+99)/100))
 	if len(sizeFraction) > 0 && sizeFraction[0] < 0 {
-		// Physical recovery copies once per medium batch. Keep small stores
-		// conservative while avoiding hundreds of full-file copies on large ones.
-		batch = min(int64(32768), max(int64(1), groups/10))
+		// A physical rewrite copies every surviving row, not just this prefix.
+		// A fixed 32K limit made large stores repeat that whole-file copy many
+		// times. Scale the coherent oldest prefix to the measured size deficit,
+		// retaining at least half the groups and a bounded transaction size.
+		fraction := min(0.5, max(0.1, -sizeFraction[0]))
+		batch = min(int64(1<<20), max(int64(1), int64(float64(groups)*fraction)))
 	}
 	// Large stores need a physically meaningful oldest prefix. Tiny stores
 	// retain conservative batches and the protection against metadata floors.
-	if len(sizeFraction) > 0 && groups >= 262144 {
+	if len(sizeFraction) > 0 && sizeFraction[0] >= 0 && groups >= 262144 {
 		batch = min(int64(131072), max(batch, min(groups/10, int64(float64(groups)*sizeFraction[0]))))
 	}
 	if err := d.namedGORM("RetentionTraceBatchCreate").Exec(fmt.Sprintf(`

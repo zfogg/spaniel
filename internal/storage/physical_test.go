@@ -44,6 +44,9 @@ func TestPhysicalPruneMeasuresFilesAndRestoresServingHandles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if d.Full() {
+		t.Fatal("successful proactive pruning must not declare storage full")
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -79,6 +82,46 @@ func TestPhysicalPruneMeasuresFilesAndRestoresServingHandles(t *testing.T) {
 	defer reopened.Close()
 	if err = reopened.SQL().QueryRow("SELECT count(*) FROM spans WHERE span_id='after'").Scan(&n); err != nil || n != 1 {
 		t.Fatalf("restart persistence n=%d err=%v", n, err)
+	}
+}
+
+func TestNativePhysicalCopyPreservesViewsAndQualifiedIndexes(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "native.duckdb")
+	d, err := Open(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = d.SQL().Exec(`CREATE TABLE retained (id INTEGER PRIMARY KEY, value VARCHAR DEFAULT 'kept');
+		CREATE INDEX retained_value ON native.main.retained(value);
+		INSERT INTO retained(id) VALUES (7);
+		CREATE VIEW retained_view AS SELECT * FROM retained`); err != nil {
+		t.Fatal(err)
+	}
+	if err = d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	candidate := filepath.Join(t.TempDir(), "native.duckdb")
+	if err = copyPhysicalDatabase(source, candidate); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(filepath.Join(filepath.Dir(candidate), "export")); !os.IsNotExist(err) {
+		t.Fatal("ordinary retention copied through intermediate Parquet")
+	}
+	copy, err := Open(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer copy.Close()
+	var value string
+	if err = copy.SQL().QueryRow("SELECT value FROM retained_view WHERE id=7").Scan(&value); err != nil || value != "kept" {
+		t.Fatalf("view/default lost: %q %v", value, err)
+	}
+	var indexes int
+	if err = copy.SQL().QueryRow("SELECT count(*) FROM duckdb_indexes() WHERE index_name='retained_value'").Scan(&indexes); err != nil || indexes != 1 {
+		t.Fatalf("qualified index lost: count=%d err=%v", indexes, err)
+	}
+	if _, err = copy.SQL().Exec("INSERT INTO retained(id) VALUES (7)"); err == nil {
+		t.Fatal("primary key constraint lost")
 	}
 }
 

@@ -71,7 +71,7 @@ func TestStorageWALCheckpointPreservesModesAndPrioritizesEviction(t *testing.T) 
 		{"unlimited", 0, false, 200, true, false},
 		{"preserve", 100, false, 90, true, false},
 		{"preserve at cap", 100, false, 100, true, true},
-		{"auto below high water", 100, true, 94, true, false},
+		{"auto below high water", 100, true, 79, true, false},
 		{"auto eviction priority", 100, true, 95, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -297,7 +297,7 @@ func TestStorageGuardRecoveryStaysPausedUntilLowWater(t *testing.T) {
 	if store.pruneCalls != 4 || store.full {
 		t.Fatal("low water did not finish recovery")
 	}
-	store.size = 94
+	store.size = 79
 	checkStorageGuard(store, policy)
 	if store.pruneCalls != 4 {
 		t.Fatal("idle storage retriggered below high water")
@@ -332,17 +332,18 @@ func TestStorageWALCannotResumeIncompleteHardCapRecovery(t *testing.T) {
 	}
 }
 
-func TestStorageGuardLiveEvictionPausesThroughPhysicalReclamation(t *testing.T) {
+func TestStorageGuardSuccessfulBelowCapEvictionKeepsIngestionOpen(t *testing.T) {
 	policy := newStorageGuardPolicy(100, true)
 	store := &fakeStorageGuardStore{size: 95, pruneSizes: []int64{96, 90, 70}}
 	checkStorageGuard(store, policy)
-	if !store.full || store.pruneBudget != storageMaintenanceBudget {
-		t.Fatal("logical eviction reopened while allocation still needs compaction")
+	if store.full || store.pruneBudget != storageMaintenanceBudget {
+		t.Fatal("successful below-cap physical phase unnecessarily paused ingestion")
 	}
 	for pass, want := range []int64{90, 70} {
+		policy.nextPruneAfter.Store(0)
 		checkStorageGuard(store, policy)
-		if store.size != want || store.pruneBudget != storageRecoveryBudget || store.full != (want > 70) {
-			t.Fatalf("eviction recovery did not retain budget/admission at pass %d: %+v", pass, store)
+		if store.size != want || store.pruneBudget != storageMaintenanceBudget || store.full {
+			t.Fatalf("successful physical phase acquired emergency admission at pass %d: %+v", pass, store)
 		}
 	}
 }

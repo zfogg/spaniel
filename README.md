@@ -307,7 +307,7 @@ alerts_dir: ~/.spaniel/alerts
 retention_days: 7
 max_sessions: 50
 max_db_size_mb: 500
-auto_prune: true      # physical DB file + WAL: start at 95%, reclaim to 70%; false = preserve data and stop ingest at cap
+auto_prune: true      # physical DB file + WAL: start at 80%, reclaim to 70%; false = preserve data and stop ingest at cap
 no_browser: false
 mcp_enabled: true        # serve the MCP endpoint at /mcp
 mcp_allow_writes: false  # let MCP clients mutate state (sessions, prune)
