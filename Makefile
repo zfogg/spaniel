@@ -25,7 +25,7 @@ BIN := $(BIN_DIR)/spaniel$(EXE)
 ifeq ($(OS),Windows_NT)
 UCRT64_BIN := C:/msys64/ucrt64/bin
 ifeq ($(wildcard $(UCRT64_BIN)/gcc.exe),)
-$(error Spaniel requires MSYS2 UCRT64 GCC for DuckDB on Windows. Install it with: C:/msys64/usr/bin/bash.exe -lc 'pacman -S mingw-w64-ucrt-x86_64-gcc')
+$(error Spaniel requires MSYS2 UCRT64 GCC 15 at C:/msys64 for DuckDB on Windows. See AGENTS.md for the compatible version; GCC 16 is incompatible with the prebuilt archive)
 endif
 export PATH := $(UCRT64_BIN);$(PATH)
 export CC := $(UCRT64_BIN)/gcc.exe

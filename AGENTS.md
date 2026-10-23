@@ -9,6 +9,13 @@ not by invoking `go build` or `go test` directly. The Makefile selects the
 MSYS2 UCRT64 GCC toolchain required by the prebuilt DuckDB library; the Scoop
 MinGW toolchain has an incompatible C++ ABI and fails during linking.
 
+Use MSYS2 UCRT64 GCC 15 (verified with 15.2.0-9). GCC 16 switched to native
+TLS and removed the `__emutls_v._ZSt11__once_call` and
+`__emutls_v._ZSt15__once_callable` symbols required by the prebuilt DuckDB
+archive. Keep `mingw-w64-ucrt-x86_64-gcc` and
+`mingw-w64-ucrt-x86_64-gcc-libs` pinned until that archive is rebuilt or upgraded.
+See [MSYS2's GCC 16 ABI notice](https://www.msys2.org/news/#2026-05-11-native-thread-local-storage-tls-with-gcc-16).
+
 Use `make test` for routine validation after changes. `make test-extensive`
 runs the complete local confidence suite: Go tests with the race detector,
 frontend unit tests, and Playwright E2E tests. Run it before meaningful
