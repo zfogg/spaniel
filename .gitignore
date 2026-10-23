@@ -52,3 +52,6 @@ frontend/.playwright/
 .playwright-mcp/
 
 test-results/
+
+# Local pnpm package store
+.pnpm-store/
