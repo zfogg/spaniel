@@ -100,3 +100,18 @@ groups and reduced physical main+WAL from 373,273,611 to 339,226,624 bytes
 (323.51171875 MiB), below low water. The guard reopened admission. On this
 I/O-bound Pi, physical replacement still causes exporter timeouts during the
 exclusive file swap; this repair does not establish uninterrupted ingestion.
+
+At 22:13 UTC the external collector and its init container were removed.
+Backlog recovery had resumed, but competed with fleet ingestion on an
+I/O-bound Pi; the remaining roughly 3.25 MB of logs and 15.98 MB of traces
+were preserved offline in `stonkpile_stonkpile_otel_queue`, with a separate
+consistent pre-drain copy at
+`/home/alarm/.local/state/spaniel/build-bdcca63/queue-before-offline-drain`.
+No queue volume was deleted. Recovery state/configuration and final collector
+metrics are recorded alongside that copy. This is preserved historical data,
+not an active collector or a dependency of fleet OTLP.
+
+The live guard again restored 328.51171875 MiB at 22:11:30 UTC and
+332.01171875 MiB at 22:13:33 UTC. A direct probe overlapping maintenance at
+22:12:37 UTC timed out for all three signals; earlier successful direct probes
+must not be used to claim uninterrupted telemetry.
