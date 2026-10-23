@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -49,7 +50,9 @@ func newRunStub(t *testing.T) *runStub {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		if r.Method == http.MethodPost {
-			var body struct{ Label string `json:"label"` }
+			var body struct {
+				Label string `json:"label"`
+			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			s.nextID++
 			id := fmt.Sprintf("sess-%04d", s.nextID)
@@ -464,6 +467,7 @@ func TestRun_ShutsDownCleanlyOnSignal(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.duckdb")
 
 	cfg := runConfig{
+		Viper:            viper.New(),
 		Port:             port,
 		DBPath:           dbPath,
 		NoBrowser:        true,
