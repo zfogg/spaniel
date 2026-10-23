@@ -420,6 +420,7 @@ type runConfig struct {
 	Debug                 bool
 	MCPEnabled            bool
 	MCPAllowWrites        bool
+	PublicURL             string
 	AlertsBrowserEnabled  bool
 	AlertsPushoverEnabled bool
 	Viper                 *viper.Viper
@@ -463,6 +464,7 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		SelfMonitor:           v.GetBool("self_monitor"),
 		MCPEnabled:            v.GetBool("mcp_enabled"),
 		MCPAllowWrites:        v.GetBool("mcp_allow_writes"),
+		PublicURL:             v.GetString("public_url"),
 		AlertsBrowserEnabled:  v.GetBool("alerts.browser_enabled"),
 		AlertsPushoverEnabled: v.GetBool("alerts.pushover_enabled"),
 	}
@@ -883,6 +885,7 @@ func run(cfg runConfig) error {
 		mcpHandler = mcp.NewHandler(store, mcp.Options{
 			Version:     version,
 			AllowWrites: cfg.MCPAllowWrites,
+			PublicURL:   cfg.PublicURL,
 			Hub:         hub,
 			Manifests:   manifests,
 			Forwarder:   fwd,

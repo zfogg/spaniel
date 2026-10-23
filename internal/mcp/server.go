@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/zfogg/spaniel/internal/telemetry"
@@ -32,6 +33,8 @@ type Options struct {
 	// Version is the spaniel build version, reported in the MCP handshake and by
 	// get_server_info.
 	Version string
+	// PublicURL overrides the request origin when advertising HTTP links.
+	PublicURL string
 	// AllowWrites gates registration of the mutating tools (create/activate
 	// session, set baseline, prune). When false, those tools are not registered
 	// at all — they do not appear in tools/list and cannot be called.
@@ -75,6 +78,8 @@ type handler struct {
 	tracer trace.Tracer
 }
 
+type requestOriginKey struct{}
+
 // NewHandler builds a reloadable MCP HTTP handler. Mount it at /mcp on the
 // main server.
 func NewHandler(store *storage.DB, opts Options) *Handler {
@@ -88,7 +93,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mu.RLock()
 	current := h.current
 	h.mu.RUnlock()
-	current.ServeHTTP(w, r)
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	ctx := context.WithValue(r.Context(), requestOriginKey{}, scheme+"://"+r.Host)
+	current.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // SetAllowWrites hot-applies MCP write access. Rebuilding is required because
@@ -150,7 +160,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 func (h *handler) registerTools(s *mcpsdk.Server) {
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_server_info",
-		Description: "Get Spaniel server version and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection and see how much data is available.",
+		Description: "Get Spaniel server version, the OpenAPI specification URL, and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection and see how much data is available.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, h.getServerInfo)
 
@@ -198,6 +208,7 @@ type emptyInput struct{}
 // ServerInfo is the output of get_server_info.
 type ServerInfo struct {
 	Version            string `json:"version" jsonschema:"spaniel build version"`
+	OpenAPIURL         string `json:"openapi_url" jsonschema:"absolute URL of the OpenAPI JSON specification"`
 	ActiveSessionID    string `json:"active_session_id" jsonschema:"id of the session new telemetry is written to"`
 	ActiveSessionLabel string `json:"active_session_label" jsonschema:"human-readable label of the active session"`
 	WritesEnabled      bool   `json:"writes_enabled" jsonschema:"whether mutating tools are available (server started with --mcp-allow-writes)"`
@@ -213,8 +224,13 @@ func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	if err != nil {
 		return nil, ServerInfo{}, fmt.Errorf("read stats: %w", err)
 	}
+	publicURL := h.opts.PublicURL
+	if publicURL == "" {
+		publicURL, _ = ctx.Value(requestOriginKey{}).(string)
+	}
 	info := ServerInfo{
 		Version:            h.opts.Version,
+		OpenAPIURL:         strings.TrimRight(publicURL, "/") + "/api/openapi.json",
 		ActiveSessionID:    h.store.ActiveSessionID(),
 		ActiveSessionLabel: h.store.ActiveSessionLabel(),
 		WritesEnabled:      h.opts.AllowWrites,

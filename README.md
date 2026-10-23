@@ -228,6 +228,11 @@ For **Claude Desktop** (or any client without native HTTP MCP support), bridge w
 
 All tools are **read-only** unless you start spaniel with `--mcp-allow-writes`.
 
+`get_server_info` includes an absolute `openapi_url` using the MCP request's
+host and port. Behind a reverse proxy, set `SPANIEL_PUBLIC_URL` to the public
+base URL (for example `https://telemetry.example.com` or
+`https://example.com/spaniel`) to override the advertised URL.
+
 | Tool | What it does |
 |------|--------------|
 | `get_server_info` | version + how much data is stored |

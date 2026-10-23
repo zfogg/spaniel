@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -110,11 +111,23 @@ func TestGetServerInfo(t *testing.T) {
 	if info.Version != "test-1.0" {
 		t.Errorf("version = %q, want test-1.0", info.Version)
 	}
+	openAPIURL, err := url.Parse(info.OpenAPIURL)
+	if err != nil || openAPIURL.Scheme != "http" || openAPIURL.Hostname() != "127.0.0.1" || openAPIURL.Port() == "" || openAPIURL.Path != "/api/openapi.json" {
+		t.Errorf("openapi_url = %q, want absolute URL on the MCP request origin", info.OpenAPIURL)
+	}
 	if info.ActiveSessionLabel != "test-session" {
 		t.Errorf("active session label = %q, want test-session", info.ActiveSessionLabel)
 	}
 	if !info.WritesEnabled {
 		t.Errorf("writes_enabled = false, want true (AllowWrites was set)")
+	}
+}
+
+func TestGetServerInfoPublicURL(t *testing.T) {
+	cs, _ := connect(t, Options{PublicURL: "https://telemetry.example.com/spaniel/"})
+	info := callStructured[ServerInfo](t, cs, "get_server_info", nil)
+	if want := "https://telemetry.example.com/spaniel/api/openapi.json"; info.OpenAPIURL != want {
+		t.Errorf("openapi_url = %q, want %q", info.OpenAPIURL, want)
 	}
 }
 
