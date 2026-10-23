@@ -133,7 +133,7 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, writes *alertW
 	if err := json.Unmarshal([]byte(rule.ConditionJSON), &condition); err != nil {
 		return fmt.Errorf("read alert condition: %w", err)
 	}
-	if (condition.Kind != "threshold" && condition.Kind != "count" && condition.Kind != "no_data" && condition.Kind != "log_match" && condition.Kind != "any_of" && condition.Kind != "all_of") ||
+	if (condition.Kind != "threshold" && condition.Kind != "count" && condition.Kind != "no_data" && condition.Kind != "log_match" && condition.Kind != "any_of" && condition.Kind != "all_of" && condition.Kind != "event") ||
 		((condition.Kind == "threshold" || condition.Kind == "count") && !validAlertOperator(condition.Operator)) ||
 		(condition.Kind == "log_match" && (condition.Pattern == "" || (condition.Operator != "" && !validAlertOperator(condition.Operator)))) {
 		return fmt.Errorf("unsupported alert condition")
@@ -185,6 +185,54 @@ func evaluateAlertRule(parent context.Context, store *storage.DB, writes *alertW
 	targets, err := discoverAlertInstanceTargets(ctx, store, writes, rule, groups, now)
 	if err != nil {
 		return err
+	}
+	if condition.Kind == "event" {
+		known := make(map[string]*storage.AlertInstance, len(rule.Instances))
+		for _, instance := range rule.Instances {
+			known[instance.GroupKey] = instance
+		}
+		seen := make(map[string]bool, len(rows))
+		for _, row := range rows {
+			id, ok := row["event_id"].(string)
+			if !ok || strings.TrimSpace(id) == "" || len(id) > 512 {
+				return fmt.Errorf("event_id must be a nonempty string of at most 512 bytes")
+			}
+			labels := map[string]string{"event_id": id}
+			for _, column := range groups {
+				labels[column] = fmt.Sprint(row[column])
+			}
+			key := StableAlertGroupKey(labels)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			// Persisted instances double as the deduplication ledger. Once an
+			// event has resolved it cannot rearm when old telemetry is replayed.
+			if instance := known[key]; instance != nil {
+				continue
+			}
+			// When converting an acknowledged aggregate rule, a supplied event
+			// timestamp carries that acknowledgement forward only for older data.
+			baseLabels := make(map[string]string, len(groups))
+			for _, column := range groups {
+				baseLabels[column] = fmt.Sprint(row[column])
+			}
+			baseKey := "all"
+			if len(baseLabels) > 0 {
+				baseKey = StableAlertGroupKey(baseLabels)
+			}
+			if legacy := known[baseKey]; legacy != nil && legacy.AcknowledgedAt != nil {
+				if eventTime, ok := alertNumber(row["event_time_ns"]); ok && eventTime > 0 && eventTime <= float64(*legacy.AcknowledgedAt) {
+					encoded, _ := json.Marshal(labels)
+					writes.upsert(&storage.AlertInstance{RuleID: rule.ID, GroupKey: key, LabelsJSON: string(encoded), State: "resolved", AcknowledgedAt: legacy.AcknowledgedAt, AcknowledgementNote: legacy.AcknowledgementNote, ResolvedAt: ptrInt64(now.UnixNano()), LastEvaluatedAt: now.UnixNano()})
+					continue
+				}
+			}
+			if err := advanceAlertInstance(writes, hub, rule, key, labels, 1, true, now); err != nil {
+				return err
+			}
+		}
+		return resolveMissingAlertInstances(writes, hub, rule, seen, now)
 	}
 	if condition.Kind == "no_data" {
 		value := float64(len(rows))
@@ -500,6 +548,19 @@ func validateAlertColumnsForCondition(columns, groups []string, rawCondition str
 	if err := json.Unmarshal([]byte(rawCondition), &condition); err != nil {
 		return fmt.Errorf("read alert condition: %w", err)
 	}
+	if condition.Kind == "event" {
+		required := append(append([]string{}, groups...), "event_id")
+		for _, name := range required {
+			found := false
+			for _, column := range columns {
+				found = found || column == name
+			}
+			if !found {
+				return fmt.Errorf("event alert query must return %s", name)
+			}
+		}
+		return nil
+	}
 	if condition.Kind == "no_data" {
 		if len(groups) > 0 {
 			return fmt.Errorf("no_data alerts cannot group results")
@@ -588,7 +649,7 @@ func advanceAlertInstance(writes *alertWriteBuffer, hub *ws.Hub, rule *storage.A
 			notificationDetail = "silenced"
 		}
 	}
-	if prior == "firing" && current.State == "firing" && rule.RepeatIntervalNs > 0 && alertRepeatDue(hub, rule, current, now) {
+	if prior == "firing" && current.State == "firing" && current.AcknowledgedAt == nil && rule.RepeatIntervalNs > 0 && alertRepeatDue(hub, rule, current, now) {
 		emitAlert(hub, rule, current, "repeat", now, true)
 		notificationKind = "repeat"
 	}
@@ -694,6 +755,9 @@ func notificationDue(last *int64, cooldownNs int64, now time.Time, force bool) b
 }
 
 func alertRepeatDue(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInstance, now time.Time) bool {
+	if instance.AcknowledgedAt != nil {
+		return false
+	}
 	d := currentAlertDelivery()
 	due := func(last *int64) bool { return last == nil || now.UnixNano()-*last >= rule.RepeatIntervalNs }
 	if hub != nil && rule.BrowserEnabled && (d.BrowserEnabled == nil || d.BrowserEnabled()) && due(instance.LastBrowserNotifiedAt) {

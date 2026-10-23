@@ -80,9 +80,19 @@ export function AlertEditor({
           </LabelWithHelp>
           <select
             value={draft.conditionKind}
-            onChange={(event) => set('conditionKind', event.target.value as Draft['conditionKind'])}
+            onChange={(event) => {
+              const kind = event.target.value as Draft['conditionKind']
+              setDraft((current) => ({
+                ...current,
+                conditionKind: kind,
+                ...(kind === 'event'
+                  ? { pendingFor: '', repeatInterval: '', discoveryQuery: '' }
+                  : {}),
+              }))
+            }}
             className="mt-1.5 w-full rounded border border-border bg-background px-3 py-2 text-sm"
           >
+            <option value="event">New events (deduplicated)</option>
             <option value="threshold">Numeric threshold</option>
             <option value="count">Count threshold</option>
             <option value="no_data">No data / absence</option>
@@ -90,6 +100,12 @@ export function AlertEditor({
             <option value="any_of">Composite: any rule firing</option>
             <option value="all_of">Composite: all rules firing</option>
           </select>
+          {draft.conditionKind === 'event' && (
+            <span className="mt-1 block text-xs font-normal text-muted-foreground">
+              Return one nonempty string event_id per event. Each ID fires once per group, including
+              after acknowledgement and restart. Set pending and repeat to zero.
+            </span>
+          )}
           {draft.conditionKind === 'no_data' && (
             <span className="mt-1 block text-xs font-normal text-muted-foreground">
               Fires when the query returns no rows. Grouping and numeric value are not used.

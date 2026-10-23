@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -302,6 +303,13 @@ func TestAlertsAPI_AcknowledgementIsInstanceMetadata(t *testing.T) {
 	got, err := store.GetAlertRule(id)
 	if err != nil {
 		t.Fatalf("get alert: %v", err)
+	}
+	attention := do(t, handler, http.MethodGet, "/api/alerts?state=attention", nil)
+	if attention.Code != http.StatusOK {
+		t.Fatal(attention.Body.String())
+	}
+	if bytes.Contains(attention.Body.Bytes(), []byte(`"id":"`+id+`"`)) {
+		t.Fatal("acknowledged rule remained in Needs attention")
 	}
 	if len(got.Instances) != 1 || got.Instances[0].State != "firing" || got.Instances[0].AcknowledgedAt == nil {
 		t.Fatalf("acknowledgement must not alter lifecycle state: %#v", got.Instances)

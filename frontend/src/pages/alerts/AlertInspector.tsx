@@ -309,7 +309,9 @@ export function Inspector({
             value={condition.kind ?? 'threshold'}
             mono
           />
-          {condition.kind === 'log_match' ? (
+          {condition.kind === 'event' ? (
+            <Field label="Identity" value="Each event_id fires once per group" />
+          ) : condition.kind === 'log_match' ? (
             <Field label="Message contains" value={condition.pattern ?? '—'} mono />
           ) : condition.kind === 'any_of' || condition.kind === 'all_of' ? (
             <Field label="Source rule IDs" value={condition.rule_ids?.join(', ') ?? '—'} mono />

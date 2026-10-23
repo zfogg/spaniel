@@ -262,7 +262,7 @@ export function Alerts() {
           </div>
           {tab === 'board' && state !== 'notifications' && (
             <div className="mb-3 flex gap-1">
-              {['attention', 'all', 'firing', 'pending', 'resolved'].map((x) => (
+              {['attention', 'all', 'firing', 'pending', 'acknowledged', 'resolved'].map((x) => (
                 <button
                   key={x}
                   onClick={() => {

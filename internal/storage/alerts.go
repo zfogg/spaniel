@@ -424,3 +424,25 @@ func (d *DB) IsAlertSilenced(ruleID, groupKey string, now int64) (bool, error) {
 	n, err := d.query.AlertSilence.Where(d.query.AlertSilence.RuleID.Eq(ruleID), d.query.AlertSilence.GroupKey.In("", groupKey), d.query.AlertSilence.StartsAt.Lte(now), d.query.AlertSilence.EndsAt.Gt(now)).Count()
 	return n > 0, err
 }
+
+// Acknowledgement changes attention, never whether the underlying condition holds.
+func AlertInstanceDisplayState(instance *AlertInstance) string {
+	if instance.AcknowledgedAt != nil && (instance.State == "firing" || instance.State == "pending") {
+		return "acknowledged"
+	}
+	return instance.State
+}
+
+func AlertRuleDisplayState(rule *AlertRule) string {
+	for _, state := range []string{"error", "firing", "pending", "acknowledged"} {
+		for _, instance := range rule.Instances {
+			if AlertInstanceDisplayState(instance) == state {
+				return state
+			}
+		}
+	}
+	if rule.LastError != "" {
+		return "error"
+	}
+	return "resolved"
+}

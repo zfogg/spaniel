@@ -2,14 +2,21 @@ import { type AlertRule } from '@/lib/api'
 export const ruleListTone: Record<string, { line: string; ink: string }> = {
   firing: { line: 'var(--danger)', ink: 'var(--danger-ink)' },
   pending: { line: 'var(--warn)', ink: 'var(--warn-ink)' },
+  acknowledged: { line: 'var(--muted-foreground)', ink: 'var(--muted-foreground)' },
   resolved: { line: 'var(--ok)', ink: 'var(--ok-ink)' },
 }
 
-export const ruleState = (rule: AlertRule) =>
-  rule.instances?.find((instance) => instance.state === 'firing')?.state ??
-  rule.instances?.find((instance) => instance.state === 'pending')?.state ??
-  rule.instances?.[0]?.state ??
-  'resolved'
+export const ruleState = (rule: AlertRule) => {
+  const states = (rule.instances ?? []).map((instance) =>
+    instance.acknowledged_at && ['firing', 'pending'].includes(instance.state)
+      ? 'acknowledged'
+      : instance.state,
+  )
+  return (
+    ['error', 'firing', 'pending', 'acknowledged'].find((state) => states.includes(state)) ??
+    (rule.last_error ? 'error' : 'resolved')
+  )
+}
 
 export const parseJSON = <T>(value: string, fallback: T): T => {
   try {
@@ -39,7 +46,7 @@ export async function showNativeBrowserNotification(title: string, body?: string
 export type Draft = {
   name: string
   query: string
-  conditionKind: 'threshold' | 'count' | 'no_data' | 'log_match' | 'any_of' | 'all_of'
+  conditionKind: 'threshold' | 'count' | 'no_data' | 'log_match' | 'any_of' | 'all_of' | 'event'
   operator: string
   threshold: string
   pattern: string
@@ -95,7 +102,7 @@ export const durationNS = (value: string, field: string) => {
 
 export const draftFor = (rule: AlertRule): Draft => {
   const condition = parseJSON<{
-    kind?: 'threshold' | 'count' | 'no_data' | 'log_match' | 'any_of' | 'all_of'
+    kind?: 'threshold' | 'count' | 'no_data' | 'log_match' | 'any_of' | 'all_of' | 'event'
     operator?: string
     value?: number
     pattern?: string
@@ -170,7 +177,7 @@ export const draftPayload = (draft: Draft) => {
   if (!draft.name.trim()) throw new Error('Rule name is required.')
   if (!draft.query.trim()) throw new Error('SQL query is required.')
   const threshold = Number(draft.threshold)
-  if (draft.conditionKind !== 'no_data' && !Number.isFinite(threshold))
+  if (!['no_data', 'event'].includes(draft.conditionKind) && !Number.isFinite(threshold))
     throw new Error('Threshold must be a number.')
   if (draft.conditionKind === 'log_match' && !draft.pattern.trim())
     throw new Error('Log pattern is required.')
@@ -183,19 +190,18 @@ export const draftPayload = (draft: Draft) => {
   return {
     name: draft.name.trim(),
     query_sql: draft.query,
-    condition:
-      draft.conditionKind === 'no_data'
-        ? { kind: 'no_data' }
-        : draft.conditionKind === 'log_match'
-          ? {
-              kind: 'log_match',
-              pattern: draft.pattern.trim(),
-              operator: draft.operator,
-              value: threshold,
-            }
-          : draft.conditionKind === 'any_of' || draft.conditionKind === 'all_of'
-            ? { kind: draft.conditionKind, rule_ids: sourceRuleIDs }
-            : { kind: draft.conditionKind, operator: draft.operator, value: threshold },
+    condition: ['no_data', 'event'].includes(draft.conditionKind)
+      ? { kind: draft.conditionKind }
+      : draft.conditionKind === 'log_match'
+        ? {
+            kind: 'log_match',
+            pattern: draft.pattern.trim(),
+            operator: draft.operator,
+            value: threshold,
+          }
+        : draft.conditionKind === 'any_of' || draft.conditionKind === 'all_of'
+          ? { kind: draft.conditionKind, rule_ids: sourceRuleIDs }
+          : { kind: draft.conditionKind, operator: draft.operator, value: threshold },
     group_by: draft.groupBy
       .split(',')
       .map((value) => value.trim())

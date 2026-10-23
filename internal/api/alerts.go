@@ -94,11 +94,14 @@ func alertModel(in alertInput) (*storage.AlertRule, error) {
 	var condition alertCondition
 	conditionJSON, _ := json.Marshal(in.Condition)
 	if err := json.Unmarshal(conditionJSON, &condition); err != nil ||
-		((condition.Kind != "threshold" && condition.Kind != "count" && condition.Kind != "no_data" && condition.Kind != "log_match" && condition.Kind != "any_of" && condition.Kind != "all_of") ||
+		((condition.Kind != "threshold" && condition.Kind != "count" && condition.Kind != "no_data" && condition.Kind != "log_match" && condition.Kind != "any_of" && condition.Kind != "all_of" && condition.Kind != "event") ||
 			((condition.Kind == "threshold" || condition.Kind == "count") && !validAlertOperator(condition.Operator)) ||
 			(condition.Kind == "log_match" && strings.TrimSpace(condition.Pattern) == "") ||
 			((condition.Kind == "any_of" || condition.Kind == "all_of") && len(condition.RuleIDs) == 0)) {
-		return nil, &dslError{"alert condition must be threshold, count, no_data, log_match, any_of, or all_of"}
+		return nil, &dslError{"alert condition must be threshold, count, no_data, log_match, any_of, all_of, or event"}
+	}
+	if condition.Kind == "event" && (in.PendingForNs != 0 || in.RepeatIntervalNs != 0 || in.InstanceDiscovery != nil || condition.Operator != "" || condition.Pattern != "" || len(condition.RuleIDs) != 0 || condition.Value != 0) {
+		return nil, &dslError{"event alerts use event_id rows and cannot have pending, repeats, discovery, or threshold conditions"}
 	}
 	condition.Pattern = strings.TrimSpace(condition.Pattern)
 	groups := make([]string, 0, len(in.GroupBy))
@@ -170,20 +173,7 @@ type alertListResponse struct {
 }
 
 func alertListState(rule *storage.AlertRule) string {
-	for _, instance := range rule.Instances {
-		if instance.State == "firing" {
-			return "firing"
-		}
-	}
-	for _, instance := range rule.Instances {
-		if instance.State == "pending" {
-			return "pending"
-		}
-	}
-	if len(rule.Instances) > 0 {
-		return rule.Instances[0].State
-	}
-	return "resolved"
+	return storage.AlertRuleDisplayState(rule)
 }
 
 func alertListRank(state string) int {
@@ -232,7 +222,7 @@ func (r *Router) listAlerts(w http.ResponseWriter, q *http.Request) {
 		ruleState := alertListState(rule)
 		summary.RuleCounts[ruleState]++
 		for _, instance := range rule.Instances {
-			summary.InstanceCounts[instance.State]++
+			summary.InstanceCounts[storage.AlertInstanceDisplayState(instance)]++
 		}
 		matchesState := state == "" || state == "all" ||
 			(state == "attention" && (ruleState == "firing" || ruleState == "pending")) ||

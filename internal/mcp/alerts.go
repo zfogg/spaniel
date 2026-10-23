@@ -41,7 +41,7 @@ func (h *handler) registerAlertTools(s *mcpsdk.Server) {
 }
 
 type ListAlertsInput struct {
-	State    string `json:"state,omitempty" jsonschema:"all, attention, firing, pending, error, or resolved"`
+	State    string `json:"state,omitempty" jsonschema:"all, attention, firing, pending, acknowledged, error, or resolved"`
 	Severity string `json:"severity,omitempty" jsonschema:"info, warning, or critical"`
 	Enabled  *bool  `json:"enabled,omitempty"`
 	Search   string `json:"search,omitempty"`
@@ -64,23 +64,7 @@ type ListAlertsOutput struct {
 }
 
 func alertState(rule *model.AlertRule) string {
-	for _, instance := range rule.Instances {
-		if instance.State == "firing" {
-			return "firing"
-		}
-	}
-	for _, instance := range rule.Instances {
-		if instance.State == "pending" {
-			return "pending"
-		}
-	}
-	if rule.LastError != "" {
-		return "error"
-	}
-	if len(rule.Instances) > 0 && rule.Instances[0].State != "" {
-		return rule.Instances[0].State
-	}
-	return "resolved"
+	return storage.AlertRuleDisplayState(rule)
 }
 
 func alertRank(state string) int {
@@ -107,7 +91,7 @@ func (h *handler) listAlerts(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 		state := alertState(rule)
 		out.RuleCounts[state]++
 		for _, instance := range rule.Instances {
-			out.InstanceCounts[instance.State]++
+			out.InstanceCounts[storage.AlertInstanceDisplayState(instance)]++
 		}
 		matchesState := in.State == "" || in.State == "all" || state == in.State || in.State == "attention" && (state == "firing" || state == "pending")
 		if !matchesState || in.Severity != "" && rule.Severity != in.Severity || in.Enabled != nil && rule.Enabled != *in.Enabled {

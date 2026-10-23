@@ -1,4 +1,5 @@
 export const tone: Record<string, string> = {
+  acknowledged: 'bg-muted text-muted-foreground',
   firing: 'bg-danger-bg text-danger-ink',
   pending: 'bg-warn-bg text-warn-ink',
   resolved: 'bg-ok-bg text-ok-ink',

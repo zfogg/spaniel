@@ -76,11 +76,23 @@ func Parse(data []byte) (Definition, error) {
 		kind = "threshold"
 	}
 	switch kind {
-	case "threshold", "count", "no_data", "log_match", "any_of", "all_of":
+	case "threshold", "count", "no_data", "log_match", "any_of", "all_of", "event":
 	default:
-		return d, fmt.Errorf("condition.kind must be threshold, count, no_data, log_match, any_of, or all_of")
+		return d, fmt.Errorf("condition.kind must be threshold, count, no_data, log_match, any_of, all_of, or event")
 	}
-	if kind == "log_match" {
+	if kind == "event" {
+		if d.Condition.Operator != "" || d.Condition.Threshold != nil || d.Condition.Value != nil || d.Condition.Pattern != "" || len(d.Condition.RuleIDs) != 0 || d.InstanceDiscovery != nil {
+			return d, fmt.Errorf("event alerts can contain only condition.kind and group_by")
+		}
+		pending, err := parseDuration(d.PendingFor)
+		if err != nil || pending != 0 {
+			return d, fmt.Errorf("event alerts cannot have pending_for")
+		}
+		repeat, err := parseDuration(d.RepeatInterval)
+		if err != nil || repeat != 0 {
+			return d, fmt.Errorf("event alerts cannot repeat")
+		}
+	} else if kind == "log_match" {
 		if strings.TrimSpace(d.Condition.Pattern) == "" {
 			return d, fmt.Errorf("log_match condition.pattern is required")
 		}
@@ -106,7 +118,7 @@ func Parse(data []byte) (Definition, error) {
 		if d.Condition.Threshold != nil || d.Condition.Value != nil || d.Condition.Operator != "" || d.Condition.Pattern != "" {
 			return d, fmt.Errorf("%s condition can contain only rule_ids", kind)
 		}
-	} else if kind != "no_data" {
+	} else if kind != "no_data" && kind != "event" {
 		switch d.Condition.Operator {
 		case ">", ">=", "<", "<=", "=", "!=":
 		default:
@@ -185,7 +197,7 @@ func (d Definition) Alert(id string) (*model.AlertRule, error) {
 		}
 	} else if kind == "any_of" || kind == "all_of" {
 		conditionMap["rule_ids"] = d.Condition.RuleIDs
-	} else if kind != "no_data" {
+	} else if kind != "no_data" && kind != "event" {
 		threshold := d.Condition.Threshold
 		if threshold == nil {
 			threshold = d.Condition.Value
@@ -226,8 +238,8 @@ func Marshal(r *model.AlertRule) ([]byte, error) {
 	if err := json.Unmarshal([]byte(r.ConditionJSON), &raw); err != nil {
 		return nil, err
 	}
-	if raw.Kind == "no_data" {
-		c = Condition{Kind: "no_data"}
+	if raw.Kind == "no_data" || raw.Kind == "event" {
+		c = Condition{Kind: raw.Kind}
 	} else if raw.Kind == "log_match" {
 		c = Condition{Kind: "log_match", Pattern: raw.Pattern}
 		if raw.Operator != "" {

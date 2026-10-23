@@ -92,3 +92,22 @@ severity: warning
 		t.Fatalf("omitted collections must be usable JSON, got group_by=%s annotations=%s", rule.GroupByJSON, rule.AnnotationsJSON)
 	}
 }
+
+func TestEventRoundTrip(t *testing.T) {
+	d, err := Parse([]byte("version: 1\nname: Events\nquery: SELECT 'a' AS event_id\ncondition:\n  kind: event\npending_for: 0s\ncooldown: 0s\nrepeat_interval: 0s\nseverity: warning\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := d.Alert("events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := Parse(b)
+	if err != nil || parsed.Condition.Kind != "event" {
+		t.Fatalf("round trip: %s %v", b, err)
+	}
+}
