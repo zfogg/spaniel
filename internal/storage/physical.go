@@ -83,7 +83,8 @@ func recoverPhysicalSwap(path string) error {
 }
 
 func syncFile(path string) error {
-	f, err := os.Open(path)
+	// Windows FlushFileBuffers requires a handle opened with write access.
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
 		return err
 	}
