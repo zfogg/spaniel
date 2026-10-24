@@ -1,3 +1,4 @@
+import { useRefreshInterval } from '@/lib/display-preferences'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -330,7 +331,7 @@ function RouteInspect({ svc, route }: { svc: string; route: CoverageRoute }) {
         .list({ service: svc, name: operationName, limit: 7, sort: 'time' })
         .then((response) => response.data),
     enabled: !dark && Boolean(operationName),
-    refetchInterval: 5_000,
+    refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   })
   return (
@@ -654,7 +655,7 @@ export default function Coverage() {
     queryFn: () => api.coverage.get(sessionID).then((r) => r.data),
     // Coverage changes as this instance observes requests; keep the active
     // page current without polling while it is in the background.
-    refetchInterval: 5_000,
+    refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   })
 
@@ -665,7 +666,7 @@ export default function Coverage() {
   const { data: specs = [], refetch: refetchSpecs } = useQuery({
     queryKey: ['coverage-specs'],
     queryFn: () => api.coverage.specs().then((r) => r.data),
-    refetchInterval: 15_000,
+    refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   })
 
