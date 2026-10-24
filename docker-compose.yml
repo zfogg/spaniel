@@ -10,7 +10,7 @@ services:
       - "4318:4318"   # OTLP HTTP
     volumes:
       - spaniel-data:/data
-      - ./deploy/spaniel/dashboards:/etc/spaniel/dashboards:ro
+      - ./deploy/spaniel/dashboards:/etc/spaniel/dashboards
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
       interval: 30s
