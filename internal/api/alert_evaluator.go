@@ -700,6 +700,11 @@ func alertEvent(rule *storage.AlertRule, instance *storage.AlertInstance, transi
 // incident has a visible conclusion.
 func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInstance, transition string, now time.Time, force bool) {
 	d := currentAlertDelivery()
+	cooldown := int64(0)
+	if p := notifications.Load(); p != nil && p.cooldown > cooldown {
+		cooldown = p.cooldown
+	}
+	quiet := notificationQuiet(now)
 	record := func(kind, detail string) {
 		if d.RecordEvent != nil {
 			d.RecordEvent(&storage.AlertEvent{RuleID: rule.ID, GroupKey: instance.GroupKey, Kind: kind, State: instance.State, Value: instance.Value, Detail: detail})
@@ -719,7 +724,7 @@ func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInst
 	event := alertEvent(rule, instance, transition, now)
 	payload, _ := event.Payload.(map[string]any)
 	n := now.UnixNano()
-	browserDue := rule.BrowserEnabled && (d.BrowserEnabled == nil || d.BrowserEnabled()) && hub != nil && notificationDue(instance.LastBrowserNotifiedAt, rule.CooldownNs, now, force)
+	browserDue := !quiet && rule.BrowserEnabled && (d.BrowserEnabled == nil || d.BrowserEnabled()) && hub != nil && notificationDue(instance.LastBrowserNotifiedAt, rule.CooldownNs, now, force) && notificationDue(instance.LastBrowserNotifiedAt, cooldown, now, false)
 	if browserDue {
 		telemetry.Catalog().RecordAlertNotification(context.Background(), transition, "attempted")
 		record("notification_browser_attempted", fmt.Sprint(payload["body"]))
@@ -730,7 +735,7 @@ func emitAlert(hub *ws.Hub, rule *storage.AlertRule, instance *storage.AlertInst
 		record("notification_browser", fmt.Sprint(payload["body"]))
 		inbox(rule.Severity, rule.Name, fmt.Sprint(payload["body"]), "alert:"+rule.ID+":"+instance.GroupKey+":"+transition)
 	}
-	pushoverDue := rule.PushoverEnabled && d.PushoverEnabled != nil && d.PushoverEnabled() && d.PushoverUserKey != "" && d.PushoverAPIToken != "" && notificationDue(instance.LastPushoverNotifiedAt, rule.CooldownNs, now, force)
+	pushoverDue := !quiet && rule.PushoverEnabled && d.PushoverEnabled != nil && d.PushoverEnabled() && d.PushoverUserKey != "" && d.PushoverAPIToken != "" && notificationDue(instance.LastPushoverNotifiedAt, rule.CooldownNs, now, force) && notificationDue(instance.LastPushoverNotifiedAt, cooldown, now, false)
 	if !pushoverDue {
 		record("notification_pushover_suppressed", "disabled or not configured")
 	} else {

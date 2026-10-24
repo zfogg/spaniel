@@ -19,9 +19,9 @@ type sourceBucket struct {
 
 // sourceEntry holds the token bucket and rolling window for one source.
 type sourceEntry struct {
-	mu      sync.Mutex
-	tokens  float64
-	lastAt  time.Time
+	mu     sync.Mutex
+	tokens float64
+	lastAt time.Time
 
 	// ring of sourceWindowSec buckets indexed by unix second % window
 	ring    [sourceWindowSec]sourceBucket
@@ -142,12 +142,13 @@ func (sl *SourceLimiter) Allow(service string, isError bool, bytes int64) bool {
 		}
 		sl.sources[service] = e
 	}
+	rps, burst := sl.RPS, sl.Burst
 	sl.mu.Unlock()
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	accepted := sl.RPS == 0 || e.allow(sl.RPS, sl.Burst)
+	accepted := rps == 0 || e.allow(rps, burst)
 	e.record(accepted, !accepted, isError, bytes)
 	return accepted
 }
@@ -175,3 +176,21 @@ func (sl *SourceLimiter) Snapshot() []storage.SourceStats {
 	return out
 }
 
+func (sl *SourceLimiter) Configure(rps float64, burst int) {
+	if burst <= 0 && rps > 0 {
+		burst = max(1, int(rps*5))
+	}
+	sl.mu.Lock()
+	defer sl.mu.Unlock()
+	if sl.RPS == rps && sl.Burst == burst {
+		return
+	}
+	sl.RPS = rps
+	sl.Burst = burst
+	for _, e := range sl.sources {
+		e.mu.Lock()
+		e.tokens = float64(burst)
+		e.lastAt = time.Now()
+		e.mu.Unlock()
+	}
+}

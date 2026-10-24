@@ -226,3 +226,18 @@ test-alerts:
 	./$(BIN_DIR)/alerts.test$(EXE) -test.run 'Test.*Alert|TestEvent' -test.timeout=5m
 	go test -c -o $(BIN_DIR)/alerts-mcp.test$(EXE) ./internal/mcp
 	./$(BIN_DIR)/alerts-mcp.test$(EXE) -test.run 'Test.*Alert' -test.timeout=2m
+
+# Focused settings-policy regressions. Stable test paths keep Windows firewall
+# behavior consistent with the routine suite. Set SETTINGS_TEST_FLAGS=-race.
+.PHONY: test-settings
+SETTINGS_TEST_FLAGS ?=
+test-settings:
+	@set -e; \
+	  mkdir -p $(BIN_DIR); \
+	  for package in ./internal/api ./internal/ingestion ./internal/receiver ./internal/storage ./internal/forwarder ./cmd/spaniel; do \
+	    package_dir=$$(go list -f '{{.Dir}}' "$$package"); \
+	    test_name=$$(basename "$$package"); \
+	    test_binary="$(CURDIR)/$(BIN_DIR)/settings-$$test_name.test$(EXE)"; \
+	    go test $(SETTINGS_TEST_FLAGS) -c -o "$$test_binary" "$$package"; \
+	    ( cd "$$package_dir" && "$$test_binary" -test.run 'TestExtendedSettings|TestQuietHours|TestPolicyFilters|TestSignalRetention|TestForwardingSecurity|TestSettingsPublicURL|TestSourceLimiter|TestPublicURLFlag' -test.count=1 -test.timeout=5m -test.v ); \
+	  done

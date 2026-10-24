@@ -3,6 +3,7 @@ package ingestion
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	json "github.com/goccy/go-json"
@@ -22,12 +23,15 @@ import (
 )
 
 type Pipeline struct {
-	batches *ingestBatcher
-	store   *storage.DB
-	hub     *ws.Hub
-	tp      *throughputCounter
-	sampler *Sampler
-	limiter *SourceLimiter
+	policy   atomic.Pointer[ingestPolicy]
+	filtered atomic.Int64
+	rejected atomic.Int64
+	batches  *ingestBatcher
+	store    *storage.DB
+	hub      *ws.Hub
+	tp       *throughputCounter
+	sampler  *Sampler
+	limiter  *SourceLimiter
 
 	debounce     map[string]*time.Timer
 	debounceMu   sync.Mutex
