@@ -268,6 +268,9 @@ func (h *handler) getMetrics(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 // ---- get_metric_series ----
 
 type GetMetricSeriesInput struct {
+	Attributes         map[string]string `json:"attributes,omitempty" jsonschema:"exact top-level attribute key/value filters; AND; scalar values compared as text; applied before pagination"`
+	ResourceAttributes map[string]string `json:"resource_attributes,omitempty" jsonschema:"exact resource attribute key/value filters; AND; trace filters match any one span in the trace"`
+
 	Name           string `json:"name" jsonschema:"metric name (from get_metrics)"`
 	Service        string `json:"service,omitempty" jsonschema:"narrow to one service"`
 	SessionID      string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
@@ -301,15 +304,21 @@ func (h *handler) getMetricSeries(ctx context.Context, _ *mcpsdk.CallToolRequest
 	if limit <= 0 {
 		limit = 500
 	}
+	if limit > 5000 {
+		limit = 5000
+	}
 	sessionID := h.resolveSession(in.SessionID)
 
 	points, err := h.store.WithContext(ctx).GetMetricSeries(storage.MetricSeriesFilter{
-		Name:      in.Name,
-		Service:   in.Service,
-		SessionID: sessionID,
-		FromNs:    in.FromNs,
-		ToNs:      in.ToNs,
-		Limit:     limit,
+		AttributeKey: in.AttributeKey, AttributeValue: in.AttributeValue,
+		Attributes:         in.Attributes,
+		ResourceAttributes: in.ResourceAttributes,
+		Name:               in.Name,
+		Service:            in.Service,
+		SessionID:          sessionID,
+		FromNs:             in.FromNs,
+		ToNs:               in.ToNs,
+		Limit:              limit,
 	})
 	if err != nil {
 		return nil, GetMetricSeriesOutput{}, fmt.Errorf("get metric series: %w", err)
@@ -318,9 +327,6 @@ func (h *handler) getMetricSeries(ctx context.Context, _ *mcpsdk.CallToolRequest
 	out := GetMetricSeriesOutput{SessionID: sessionID, Name: in.Name, Points: []MetricPointOut{}}
 	for _, p := range points {
 		attrs := parseAttrs(p.Attributes)
-		if in.AttributeKey != "" && (attrs[in.AttributeKey] == "" || in.AttributeValue != "" && attrs[in.AttributeKey] != in.AttributeValue) {
-			continue
-		}
 		out.Points = append(out.Points, MetricPointOut{
 			TimestampNs: p.TimestampNs,
 			Value:       p.Value,

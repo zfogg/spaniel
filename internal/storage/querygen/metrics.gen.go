@@ -296,8 +296,116 @@ type IMetricDo interface {
 	UnderlyingDB() *gorm.DB
 	schema.Tabler
 
+	ListAttributeFiltered(sessionID string, service string, name string, fromNs int64, toNs int64, attributeFilters string, resourceFilters string, attributeKey string, attributeValue string, limit int) (result []model.Metric, err error)
 	ListCatalog(sessionID string) (result []model.MetricCatalogEntry, err error)
 	GetStreamMetadata(name string, service string, sessionID string) (result []model.Metric, err error)
+}
+
+// SELECT
+//
+//	*
+//
+// FROM metrics
+// WHERE
+//
+//	(
+//	  @sessionID = ''
+//	  OR session_id = @sessionID
+//	)
+//	AND (
+//	  @service = ''
+//	  OR service_name = @service
+//	)
+//	AND (
+//	  @name = ''
+//	  OR name = @name
+//	)
+//	AND (
+//	  @fromNs = 0
+//	  OR timestamp_ns >= @fromNs
+//	)
+//	AND (
+//	  @toNs = 0
+//	  OR timestamp_ns <= @toNs
+//	)
+//	AND NOT EXISTS (
+//	  SELECT
+//	    1
+//	  FROM UNNEST(json_keys(@attributeFilters)) f(key)
+//	  WHERE
+//	    json_extract_string(
+//	      metrics.attributes,
+//	      '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+//	    ) IS DISTINCT
+//	  FROM json_extract_string(
+//	    @attributeFilters,
+//	    '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+//	  )
+//	)
+//	AND NOT EXISTS (
+//	  SELECT
+//	    1
+//	  FROM UNNEST(json_keys(@resourceFilters)) f(key)
+//	  WHERE
+//	    json_extract_string(
+//	      metrics.resource,
+//	      '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+//	    ) IS DISTINCT
+//	  FROM json_extract_string(
+//	    @resourceFilters,
+//	    '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+//	  )
+//	)
+//	AND (
+//	  @attributeKey = ''
+//	  OR (
+//	    list_contains(json_keys(metrics.attributes), @attributeKey)
+//	    AND (
+//	      @attributeValue = ''
+//	      OR json_extract_string(
+//	        metrics.attributes,
+//	        '/' || replace(replace(@attributeKey, '~', '~0'), '/', '~1')
+//	      ) = @attributeValue
+//	    )
+//	  )
+//	)
+//
+// ORDER BY
+//
+//	timestamp_ns DESC
+//
+// LIMIT @limit
+func (m metricDo) ListAttributeFiltered(sessionID string, service string, name string, fromNs int64, toNs int64, attributeFilters string, resourceFilters string, attributeKey string, attributeValue string, limit int) (result []model.Metric, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	params = append(params, service)
+	params = append(params, service)
+	params = append(params, name)
+	params = append(params, name)
+	params = append(params, fromNs)
+	params = append(params, fromNs)
+	params = append(params, toNs)
+	params = append(params, toNs)
+	params = append(params, attributeFilters)
+	params = append(params, attributeFilters)
+	params = append(params, resourceFilters)
+	params = append(params, resourceFilters)
+	params = append(params, attributeKey)
+	params = append(params, attributeKey)
+	params = append(params, attributeValue)
+	params = append(params, attributeKey)
+	params = append(params, attributeValue)
+	params = append(params, limit)
+	generateSQL.WriteString("SELECT * FROM metrics WHERE ( ? = '' OR session_id = ? ) AND ( ? = '' OR service_name = ? ) AND ( ? = '' OR name = ? ) AND ( ? = 0 OR timestamp_ns >= ? ) AND ( ? = 0 OR timestamp_ns <= ? ) AND NOT EXISTS ( SELECT 1 FROM UNNEST(json_keys(?)) f(key) WHERE json_extract_string( metrics.attributes, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) IS DISTINCT FROM json_extract_string( ?, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) ) AND NOT EXISTS ( SELECT 1 FROM UNNEST(json_keys(?)) f(key) WHERE json_extract_string( metrics.resource, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) IS DISTINCT FROM json_extract_string( ?, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) ) AND ( ? = '' OR ( list_contains(json_keys(metrics.attributes), ?) AND ( ? = '' OR json_extract_string( metrics.attributes, '/' || replace(replace(?, '~', '~0'), '/', '~1') ) = ? ) ) ) ORDER BY timestamp_ns DESC LIMIT ? ")
+
+	var executeSQL *gorm.DB
+	executeSQL = m.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
 }
 
 // ListCatalog

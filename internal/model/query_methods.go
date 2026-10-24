@@ -207,6 +207,119 @@ type SpanOverlayMethods interface {
 }
 
 type SpanListMethods interface {
+	// WITH tagged_spans AS (
+	//   SELECT
+	//     s.trace_id,
+	//     s.span_id,
+	//     s.parent_span_id,
+	//     s.service_name,
+	//     s.name,
+	//     s.kind,
+	//     s.start_ns,
+	//     s.end_ns,
+	//     s.duration_ns,
+	//     s.status_code,
+	//     s.status_message,
+	//     s.attributes,
+	//     s.resource,
+	//     s.session_id,
+	//     s.session_label,
+	//     s.received_at,
+	//     CASE
+	//       WHEN ni.trace_id IS NOT NULL THEN 'n+1'
+	//       WHEN s.status_code = 2 THEN 'error'
+	//       WHEN s.duration_ns > 250000000 THEN 'slow'
+	//       WHEN lw.span_id IS NOT NULL THEN 'lint'
+	//       ELSE ''
+	//     END AS tag
+	//   FROM @@table s
+	//   LEFT JOIN (
+	//     SELECT DISTINCT
+	//       trace_id
+	//     FROM trace_issues
+	//     WHERE
+	//       kind = 'n_plus_one'
+	//   ) ni
+	//     ON s.trace_id = ni.trace_id
+	//   LEFT JOIN (
+	//     SELECT DISTINCT
+	//       span_id
+	//     FROM lint_warnings
+	//   ) lw
+	//     ON s.span_id = lw.span_id
+	//   WHERE
+	//     (
+	//       @sessionID = ''
+	//       OR s.session_id = @sessionID
+	//     ) {{if len(services) > 0}}
+	//     AND s.service_name IN @services {{end}}
+	//     AND (
+	//       @service = ''
+	//       OR s.service_name = @service
+	//     )
+	//     AND (
+	//       @name = ''
+	//       OR s.name = @name
+	//     )
+	//     AND (
+	//       @hasKind = FALSE
+	//       OR s.kind = @kind
+	//     )
+	//     AND (
+	//       @hasStatus = FALSE
+	//       OR s.status_code = @statusCode
+	//     )
+	//     AND (
+	//       @fromNs = 0
+	//       OR s.start_ns >= @fromNs
+	//     )
+	//     AND (
+	//       @toNs = 0
+	//       OR s.start_ns <= @toNs
+	//     )
+	//     AND (
+	//       @minDurationNs = 0
+	//       OR s.duration_ns >= @minDurationNs
+	//     ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.attributes,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @attributeFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
+	//     )
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.resource,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @resourceFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
+	//     ) {{end}}
+	// )
+	// SELECT
+	//   COUNT(*) AS count
+	// FROM tagged_spans
+	// WHERE
+	//   (
+	//     @tag = ''
+	//     OR tag = @tag
+	//   )
+	CountTagged(sessionID, service, name string, hasKind bool, kind int, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, tag string, services []string, attributeFilters, resourceFilters string) ([]CountValue, error)
+
 	// ListCoverageOperations
 	//
 	// WITH operations AS (
@@ -360,7 +473,35 @@ type SpanListMethods interface {
 	//     AND (
 	//       @minDurationNs = 0
 	//       OR s.duration_ns >= @minDurationNs
+	//     ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.attributes,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @attributeFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
 	//     )
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.resource,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @resourceFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
+	//     ) {{end}}
 	// ),
 	// page_spans AS (
 	//   SELECT
@@ -413,7 +554,7 @@ type SpanListMethods interface {
 	//   CASE
 	//     WHEN @sort NOT IN ('name', 'dur') THEN start_ns
 	//   END DESC
-	ListTagged(sessionID, service, name string, hasKind bool, kind int, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, tag, sort string, limit, offset int, services []string) ([]SpanRow, error)
+	ListTagged(sessionID, service, name string, hasKind bool, kind int, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, tag, sort string, limit, offset int, services []string, attributeFilters, resourceFilters string) ([]SpanRow, error)
 
 	// ListGroups
 	//
@@ -514,7 +655,43 @@ type SpanListMethods interface {
 	//             OR session_id = @sessionID
 	//           )
 	//       )
-	//     )
+	//     ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//     AND EXISTS (
+	//       SELECT
+	//         1
+	//       FROM spans matched
+	//       WHERE
+	//         matched.trace_id = spans.trace_id
+	//         AND matched.session_id = spans.session_id
+	//         AND NOT EXISTS (
+	//           SELECT
+	//             1
+	//           FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//           WHERE
+	//             json_extract_string(
+	//               matched.attributes,
+	//               '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//             ) IS DISTINCT
+	//           FROM json_extract_string(
+	//             @attributeFilters,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           )
+	//         )
+	//         AND NOT EXISTS (
+	//           SELECT
+	//             1
+	//           FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//           WHERE
+	//             json_extract_string(
+	//               matched.resource,
+	//               '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//             ) IS DISTINCT
+	//           FROM json_extract_string(
+	//             @resourceFilters,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           )
+	//         )
+	//     ) {{end}}
 	//   ORDER BY
 	//     start_ns DESC
 	//   LIMIT @limit
@@ -564,7 +741,7 @@ type SpanListMethods interface {
 	//   AND rs.session_id = sc.session_id
 	// ORDER BY
 	//   rs.start_ns DESC
-	ListTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, limit, offset int, services []string) ([]TraceListRow, error)
+	ListTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, limit, offset int, services []string, attributeFilters, resourceFilters string) ([]TraceListRow, error)
 
 	// CountGroups
 	//
@@ -639,8 +816,44 @@ type SpanListMethods interface {
 	//           OR session_id = @sessionID
 	//         )
 	//     )
-	//   )
-	CountTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, services []string) ([]CountValue, error)
+	//   ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//   AND EXISTS (
+	//     SELECT
+	//       1
+	//     FROM spans matched
+	//     WHERE
+	//       matched.trace_id = spans.trace_id
+	//       AND matched.session_id = spans.session_id
+	//       AND NOT EXISTS (
+	//         SELECT
+	//           1
+	//         FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//         WHERE
+	//           json_extract_string(
+	//             matched.attributes,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           ) IS DISTINCT
+	//         FROM json_extract_string(
+	//           @attributeFilters,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         )
+	//       )
+	//       AND NOT EXISTS (
+	//         SELECT
+	//           1
+	//         FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//         WHERE
+	//           json_extract_string(
+	//             matched.resource,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           ) IS DISTINCT
+	//         FROM json_extract_string(
+	//           @resourceFilters,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         )
+	//       )
+	//   ) {{end}}
+	CountTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, services []string, attributeFilters, resourceFilters string) ([]CountValue, error)
 
 	// ListSourceStats
 	//
@@ -811,6 +1024,117 @@ type SessionMethods interface {
 }
 
 type LogSearchMethods interface {
+	// SELECT
+	//   timestamp_ns,
+	//   trace_id,
+	//   span_id,
+	//   severity,
+	//   body,
+	//   attributes::VARCHAR AS attributes,
+	//   service_name,
+	//   session_id,
+	//   received_at
+	// FROM logs
+	// WHERE
+	//   {{if len(services) > 0}} service_name IN @services
+	//   AND {{end}} (@sessionID = '' OR session_id = @sessionID)
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @traceID = ''
+	//     OR trace_id = @traceID
+	//   )
+	//   AND (
+	//     @spanID = ''
+	//     OR span_id = @spanID
+	//   )
+	//   AND (
+	//     @minSeverity = 0
+	//     OR severity >= @minSeverity
+	//   )
+	//   AND (
+	//     @maxSeverity = 0
+	//     OR severity <= @maxSeverity
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR timestamp_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR timestamp_ns <= @toNs
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         logs.attributes,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @attributeFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	// ORDER BY
+	//   timestamp_ns DESC
+	// LIMIT @limit
+	// OFFSET @offset
+	ListAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters string, limit, offset int) ([]Log, error)
+	// SELECT
+	//   COUNT(*) AS count
+	// FROM logs
+	// WHERE
+	//   {{if len(services) > 0}} service_name IN @services
+	//   AND {{end}} (@sessionID = '' OR session_id = @sessionID)
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @traceID = ''
+	//     OR trace_id = @traceID
+	//   )
+	//   AND (
+	//     @spanID = ''
+	//     OR span_id = @spanID
+	//   )
+	//   AND (
+	//     @minSeverity = 0
+	//     OR severity >= @minSeverity
+	//   )
+	//   AND (
+	//     @maxSeverity = 0
+	//     OR severity <= @maxSeverity
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR timestamp_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR timestamp_ns <= @toNs
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         logs.attributes,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @attributeFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	CountAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters string) ([]CountValue, error)
+
 	// SearchByBody
 	//
 	// SELECT
@@ -834,6 +1158,76 @@ type LogSearchMethods interface {
 }
 
 type MetricMethods interface {
+	// SELECT
+	//   *
+	// FROM metrics
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @name = ''
+	//     OR name = @name
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR timestamp_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR timestamp_ns <= @toNs
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         metrics.attributes,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @attributeFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         metrics.resource,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @resourceFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	//   AND (
+	//     @attributeKey = ''
+	//     OR (
+	//       list_contains(json_keys(metrics.attributes), @attributeKey)
+	//       AND (
+	//         @attributeValue = ''
+	//         OR json_extract_string(
+	//           metrics.attributes,
+	//           '/' || replace(replace(@attributeKey, '~', '~0'), '/', '~1')
+	//         ) = @attributeValue
+	//       )
+	//     )
+	//   )
+	// ORDER BY
+	//   timestamp_ns DESC
+	// LIMIT @limit
+	ListAttributeFiltered(sessionID, service, name string, fromNs, toNs int64, attributeFilters, resourceFilters, attributeKey, attributeValue string, limit int) ([]Metric, error)
+
 	// ListCatalog
 	//
 	// SELECT

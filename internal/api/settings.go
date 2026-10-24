@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -221,7 +222,7 @@ func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
 	}
 	r.settings.mu.Lock()
 	defer r.settings.mu.Unlock()
-	resp := r.buildSettings()
+	resp := r.buildSettings(req.Context())
 	respond(w, resp, 1, 1)
 }
 
@@ -258,7 +259,7 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 	}
 	r.settings.mu.Lock()
 	defer r.settings.mu.Unlock()
-	respond(w, r.buildSettings(), 1, 1)
+	respond(w, r.buildSettings(req.Context()), 1, 1)
 }
 
 // dropAllData wipes the database (DELETE /api/settings/data). Distinct from
@@ -273,7 +274,7 @@ func (r *Router) dropAllData(w http.ResponseWriter, req *http.Request) {
 
 // buildSettings snapshots the current viper + runtime state into the
 // response struct. Pure read-side — no I/O beyond os.Getpid / time.Since.
-func (r *Router) buildSettings() SettingsResponse {
+func (r *Router) buildSettings(ctx context.Context) SettingsResponse {
 	s := r.settings
 	v := s.Viper
 	delivery := currentAlertDelivery()
@@ -348,7 +349,7 @@ func (r *Router) buildSettings() SettingsResponse {
 		resp.IngestionStatus = map[string]int64{}
 	}
 	// DB size lives on the storage layer.
-	stats, _ := r.store.GetStats("")
+	stats, _ := r.store.WithContext(ctx).GetStats("")
 	if stats != nil {
 		resp.Runtime.DBSizeBytes = stats.DBSize
 	}

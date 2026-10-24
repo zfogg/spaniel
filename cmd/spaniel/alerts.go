@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -10,17 +11,28 @@ import (
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/alertconfig"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
+	"go.opentelemetry.io/otel/codes"
 	"gopkg.in/yaml.v3"
 )
 
 // loadAlertDefinitions loads YAML definitions into the alert store at startup
 // and when Settings requests a reload.
-func loadAlertDefinitions(store *storage.DB, dir string) error {
+func loadAlertDefinitions(store *storage.DB, dir string) (retErr error) {
 	definitionReloadMu.Lock()
 	defer definitionReloadMu.Unlock()
 	if dir == "" {
 		return nil
 	}
+	ctx, span := telemetry.Tracer("definitions").Start(context.Background(), "definitions.load_alerts")
+	defer func() {
+		if retErr != nil {
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, "load definitions")
+		}
+		span.End()
+	}()
+	store = store.WithContext(ctx)
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		err = nil // A removed directory is an empty declarative configuration.

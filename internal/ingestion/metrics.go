@@ -68,6 +68,8 @@ func metricDataPointCount(m pmetric.Metric) int {
 }
 
 func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resource, scopeName, scopeVersion, scopeSchemaURL, scopeAttributes, sessionID string, catalogOnly bool) error {
+	// Keep both the ingest parent and the self-telemetry suppression marker.
+	storeDB := p.store.WithContext(ctx)
 	base := func(metricType string, attrs pcommon.Map, start, timestamp pcommon.Timestamp, flags pmetric.DataPointFlags, exemplars pmetric.ExemplarSlice) *storage.Metric {
 		attrsJSON, seriesAttrs, limitedAttrs := metricAttributes(attrs)
 		stream := sessionID + "\x00" + svc + "\x00" + m.Name()
@@ -91,12 +93,12 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 			// This is intentionally outside the hot point table: it is a small,
 			// durable catalog of identities that were allowed to become series.
 			// Raw point attributes remain in metrics regardless of this decision.
-			inserted, err := p.store.RecordMetricSeries(row.SessionID, row.ServiceName, row.Name, row.SeriesAttributes, row.TimestampNs)
+			inserted, err := storeDB.RecordMetricSeries(row.SessionID, row.ServiceName, row.Name, row.SeriesAttributes, row.TimestampNs)
 			if err != nil {
 				return err
 			}
 			if inserted {
-				if count, err := p.store.ActiveMetricSeries(); err == nil {
+				if count, err := storeDB.ActiveMetricSeries(); err == nil {
 					telemetry.Catalog().SetActiveSeries(count)
 				}
 			}

@@ -86,7 +86,7 @@ func callStructured[T any](t *testing.T, cs *mcpsdk.ClientSession, name string, 
 		t.Fatalf("call %s: %v", name, err)
 	}
 	if res.IsError {
-		t.Fatalf("%s returned tool error: %+v", name, res.Content)
+		t.Fatalf("%s returned tool error: %+v", name, res.Content[0])
 	}
 	if res.StructuredContent != nil {
 		t.Fatalf("%s unexpectedly duplicated its result as JSON structuredContent", name)

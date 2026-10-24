@@ -27,6 +27,7 @@ export default defineConfig({
     proxy: {
       '/api': apiTarget,
       '/mcp': apiTarget,
+      '/v1/traces': apiTarget,
       '/ws': {
         target: apiTarget.replace(/^http/, 'ws'),
         ws: true,

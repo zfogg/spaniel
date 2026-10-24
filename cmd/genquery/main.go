@@ -28,6 +28,7 @@ func main() {
 	g.ApplyInterface(func(model.SpanLinkMethods) {}, model.SpanLink{})
 	g.ApplyInterface(func(model.SpanSearchMethods) {}, model.Span{})
 	g.ApplyInterface(func(model.SpanOverlayMethods) {}, model.Span{})
+	g.ApplyInterface(func(model.AgentQueries) {}, model.Span{})
 	g.ApplyInterface(func(model.SpanListMethods) {}, model.Span{})
 	g.ApplyInterface(func(model.SessionSearchMethods) {}, model.Session{})
 	g.ApplyInterface(func(model.SessionMethods) {}, model.Session{})

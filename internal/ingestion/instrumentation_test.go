@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -107,4 +109,98 @@ func names(sr *tracetest.SpanRecorder) []string {
 		out = append(out, s.Name())
 	}
 	return out
+}
+
+func TestMetricCatalogPreservesIngestContext(t *testing.T) {
+	for _, self := range []bool{false, true} {
+		name := "external"
+		if self {
+			name = "self"
+		}
+		t.Run(name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			previous := otel.GetTracerProvider()
+			otel.SetTracerProvider(provider)
+			t.Cleanup(func() { otel.SetTracerProvider(previous); _ = provider.Shutdown(context.Background()) })
+			db := openTestDB(t)
+			sess, err := db.CreateSession("metrics", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db.SetActiveSession(sess.ID, sess.Label)
+			pipeline := NewPipeline(db, ws.NewHub())
+			pipeline.SetSelfService("spaniel")
+			service := "test-app"
+			if self {
+				service = "spaniel"
+			}
+			md := makeMetrics(service, func(rm pmetric.ResourceMetrics) {
+				metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+				metric.SetName("regression.counter")
+				dp := metric.SetEmptyGauge().DataPoints().AppendEmpty()
+				dp.SetDoubleValue(1)
+				dp.SetTimestamp(pcommon.Timestamp(1))
+			})
+			ctx, request := otel.Tracer("test").Start(context.Background(), "metrics request")
+			before := len(recorder.Ended())
+			if err := pipeline.IngestMetrics(ctx, md); err != nil {
+				t.Fatal(err)
+			}
+			request.End()
+			found := map[string]bool{}
+			for _, span := range recorder.Ended()[before:] {
+				if self && span.Name() != "metrics request" {
+					t.Fatalf("self ingest emitted %s", span.Name())
+				}
+				if strings.HasPrefix(span.Name(), "spaniel.storage.") {
+					if span.SpanContext().TraceID() != request.SpanContext().TraceID() || !span.Parent().IsValid() {
+						t.Fatalf("orphan catalog query: %s", span.Name())
+					}
+					found[span.Name()] = true
+				}
+			}
+			if !self && (!found["spaniel.storage.RecordMetricSeries"] || !found["spaniel.storage.ActiveMetricSeries"]) {
+				t.Fatalf("missing catalog spans: %v", found)
+			}
+			rows, err := db.ListMetricCatalog(sess.ID)
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("metrics not stored: %v %v", rows, err)
+			}
+			if err := pipeline.Close(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestSplitServicesRemainQuiet(t *testing.T) {
+	for _, service := range []string{"spaniel-api", "spaniel-mcp", "spaniel-web"} {
+		t.Run(service, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			previous := otel.GetTracerProvider()
+			otel.SetTracerProvider(provider)
+			t.Cleanup(func() { otel.SetTracerProvider(previous); _ = provider.Shutdown(context.Background()) })
+			db := openTestDB(t)
+			session, err := db.CreateSession("split", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db.SetActiveSession(session.ID, session.Label)
+			pipeline := NewPipeline(db, ws.NewHub())
+			pipeline.SetSelfService("spaniel")
+			td := makeTraces(service, func(ss ptrace.ScopeSpans) { putSpan(ss, "a", "1", "", "request", ptrace.SpanKindServer, nil) })
+			before := len(recorder.Ended())
+			if err := pipeline.IngestTraces(context.Background(), td); err != nil {
+				t.Fatal(err)
+			}
+			if len(recorder.Ended()) != before {
+				t.Fatalf("recursive spans for %s: %v", service, names(recorder))
+			}
+			if err := pipeline.Close(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }

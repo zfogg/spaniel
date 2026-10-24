@@ -12,9 +12,11 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel/codes"
@@ -168,6 +170,7 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	h.registerDiagnosticTools(s)
 	h.registerLogTools(s)
 	h.registerTopologyTools(s)
+	h.registerAgentTools(s)
 	h.registerSessionTools(s)
 	h.registerSQLTool(s)
 	h.registerDashboardTools(s)
@@ -187,17 +190,45 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 // naming tool calls after the invoked tool.
 func (h *handler) telemetryMiddleware(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
 	return func(ctx context.Context, method string, req mcpsdk.Request) (mcpsdk.Result, error) {
+		ctx = telemetry.WithMCPService(ctx)
+		started := time.Now()
 		name := "mcp." + method
-		if p, ok := req.GetParams().(*mcpsdk.CallToolParamsRaw); ok && p != nil {
-			name = "mcp.tool/" + p.Name
+		tool := ""
+		switch p := req.GetParams().(type) {
+		case *mcpsdk.CallToolParamsRaw:
+			if p != nil {
+				tool = p.Name
+			}
+		case *mcpsdk.CallToolParams:
+			if p != nil {
+				tool = p.Name
+			}
 		}
-		ctx, span := h.tracer.Start(ctx, name)
+		if tool != "" {
+			if _, known := registeredToolNames.Load(tool); !known {
+				tool = "unknown"
+			}
+			name = "mcp.tool/" + tool
+		}
+		ctx, span := h.tracer.Start(ctx, name, trace.WithAttributes(attribute.String("rpc.system", "mcp"), attribute.String("rpc.method", method)))
+		if tool != "" {
+			span.SetAttributes(attribute.String("gen_ai.tool.name", tool))
+		}
 		defer span.End()
 		res, err := next(ctx, method, req)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+		outcome := "ok"
+		toolError := false
+		if result, ok := res.(*mcpsdk.CallToolResult); ok && result != nil {
+			toolError = result.IsError
 		}
+		if err != nil || toolError {
+			outcome = "error"
+			span.SetStatus(codes.Error, "MCP request failed")
+			span.SetAttributes(attribute.String("error.type", "mcp_error"))
+		}
+		span.SetAttributes(attribute.Bool("mcp.is_error", outcome == "error"))
+		telemetry.Catalog().RecordMCP(ctx, method, tool, outcome, float64(time.Since(started).Microseconds())/1000)
+
 		return res, err
 	}
 }

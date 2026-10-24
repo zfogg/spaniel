@@ -83,7 +83,7 @@ func (p *Pipeline) isSelfTraces(traces ptrace.Traces) bool {
 	}
 	for i := 0; i < rss.Len(); i++ {
 		v, ok := rss.At(i).Resource().Attributes().Get("service.name")
-		if !ok || v.Str() != p.selfService {
+		if !ok || (v.Str() != p.selfService && !telemetry.IsOwnService(v.Str())) {
 			return false
 		}
 	}
@@ -100,7 +100,7 @@ func (p *Pipeline) isSelfLogs(logs plog.Logs) bool {
 	}
 	for i := 0; i < rls.Len(); i++ {
 		v, ok := rls.At(i).Resource().Attributes().Get("service.name")
-		if !ok || v.Str() != p.selfService {
+		if !ok || (v.Str() != p.selfService && !telemetry.IsOwnService(v.Str())) {
 			return false
 		}
 	}
@@ -117,7 +117,7 @@ func (p *Pipeline) isSelfMetrics(md pmetric.Metrics) bool {
 	}
 	for i := 0; i < rms.Len(); i++ {
 		v, ok := rms.At(i).Resource().Attributes().Get("service.name")
-		if !ok || v.Str() != p.selfService {
+		if !ok || (v.Str() != p.selfService && !telemetry.IsOwnService(v.Str())) {
 			return false
 		}
 	}

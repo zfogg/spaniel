@@ -211,6 +211,31 @@ test-query-name-race:
 
 # Exercise the real Streamable HTTP boundary with the reference MCP Inspector
 # CLI. Inspector requires Node.js 22.19.0 or newer; npx caches the pinned package.
+.PHONY: test-mcp
+.PHONY: test-trace-context
+test-trace-context:
+	@set -e; mkdir -p $(BIN_DIR); \
+	  for package in ingestion live api; do \
+	    go test -race -c -o "$(BIN_DIR)/$$package-context.test$(EXE)" "./internal/$$package"; \
+	    "./$(BIN_DIR)/$$package-context.test$(EXE)" -test.run 'TestMetricCatalogPreservesIngestContext|TestPublisher|TestSettingsStorageSharesRequestTrace' -test.timeout=2m; \
+	  done
+
+.PHONY: test-telemetry-services
+test-telemetry-services:
+	@set -e; mkdir -p $(BIN_DIR); \
+	  for package in telemetry ingestion; do \
+	    go test -race -c -o "$(BIN_DIR)/$$package-services.test$(EXE)" "./internal/$$package"; \
+	    "./$(BIN_DIR)/$$package-services.test$(EXE)" -test.run 'TestService|TestMCPMetrics|TestSplitServices|TestSetup|TestMetricCatalog' -test.timeout=2m; \
+	  done
+
+MCP_TEST_ARGS ?=
+test-mcp:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/mcp.test$(EXE) ./internal/mcp
+	./$(BIN_DIR)/mcp.test$(EXE) -test.timeout=5m $(MCP_TEST_ARGS)
+	go test -c -o $(BIN_DIR)/telemetry.test$(EXE) ./internal/telemetry
+	./$(BIN_DIR)/telemetry.test$(EXE) -test.timeout=2m
+
 test-mcp-e2e:
 	mkdir -p $(BIN_DIR)
 	go test -c -o $(BIN_DIR)/mcp-inspector.test$(EXE) ./internal/mcp

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	toongo "github.com/toon-format/toon-go"
@@ -12,11 +13,14 @@ import (
 	"github.com/zfogg/spaniel/internal/sqlformat"
 )
 
+var registeredToolNames sync.Map
+
 // addTOONTool keeps MCP's JSON Schema input contract while returning the
 // semantic result exactly once as TOON text. The SDK's typed AddTool helper
 // normally duplicates every output as JSON structuredContent and JSON text;
 // using any as the wire output suppresses that duplicate representation.
 func addTOONTool[In, Out any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler mcpsdk.ToolHandlerFor[In, Out]) {
+	registeredToolNames.Store(tool.Name, struct{}{})
 	mcpsdk.AddTool[In, any](s, tool, func(ctx context.Context, req *mcpsdk.CallToolRequest, in In) (*mcpsdk.CallToolResult, any, error) {
 		result, out, err := handler(ctx, req, in)
 		if err != nil {
@@ -39,6 +43,7 @@ func addTOONTool[In, Out any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler mcpsd
 // exports. It still uses the SDK's typed JSON Schema input inference without
 // adding JSON structuredContent to the response.
 func addTextTool[In any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler func(context.Context, *mcpsdk.CallToolRequest, In) (string, error)) {
+	registeredToolNames.Store(tool.Name, struct{}{})
 	mcpsdk.AddTool[In, any](s, tool, func(ctx context.Context, req *mcpsdk.CallToolRequest, in In) (*mcpsdk.CallToolResult, any, error) {
 		text, err := handler(ctx, req, in)
 		if err != nil {
