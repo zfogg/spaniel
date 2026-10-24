@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/zfogg/gotel"
-	"github.com/zfogg/gotel/otelhost"
+	"github.com/zfogg/gotel/go"
+	"github.com/zfogg/gotel/go/otelhost"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/exemplar"

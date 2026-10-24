@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/gotel/go/sqltrace"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel/trace"
 )

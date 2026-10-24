@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/gotel/go/sqltrace"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 )
 

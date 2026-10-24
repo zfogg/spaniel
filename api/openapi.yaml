@@ -8175,6 +8175,7 @@ paths:
                                         - duckdb
                                         - postgresql
                                         - mysql
+                                        - clickhouse
                                         - sqlite
                                         - generic
                                     type: string

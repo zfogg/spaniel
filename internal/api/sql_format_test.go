@@ -16,6 +16,7 @@ func TestFormatSQLAPI(t *testing.T) {
 		{`{"sql":"-- keep\nselect a,b from spans where id=$id; -- trailing  "}`, 200},
 		{`{"sql":"select ?1,:name from t","dialect":"sqlite"}`, 200},
 		{`{"sql":"select id from t where id=?","dialect":"mysql"}`, 200},
+		{`{"sql":"SELECT id,name FROM builds FINAL PREWHERE id={id:UInt64}","dialect":"clickhouse"}`, 200},
 		{`{"sql":"select 'unfinished"}`, 400},
 		{`{"sql":"select 1","dialect":"typo"}`, 400},
 	} {

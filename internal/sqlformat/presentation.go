@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/gotel/go/sqltrace"
 )
 
 func Format(query string) string { return sqltrace.FormatSQLOrOriginal(sqltrace.DialectDuckDB, query) }
@@ -18,7 +18,7 @@ func TelemetryQuery(attributes map[string]any, query string) string {
 		if system, ok := attributes[key].(string); ok {
 			dialect := sqltrace.Dialect(system)
 			switch dialect {
-			case sqltrace.DialectPostgreSQL, sqltrace.DialectDuckDB, sqltrace.DialectSQLite, sqltrace.DialectMySQL:
+			case sqltrace.DialectPostgreSQL, sqltrace.DialectDuckDB, sqltrace.DialectSQLite, sqltrace.DialectMySQL, sqltrace.DialectClickHouse:
 				return sqltrace.FormatSQLOrOriginal(dialect, query)
 			}
 		}

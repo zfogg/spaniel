@@ -105,3 +105,12 @@ func TestPresentationPreservesSearchTextAndArbitraryResultCells(t *testing.T) {
 		t.Fatalf("non-SQL data changed: %s", after)
 	}
 }
+
+func TestPresentationFormatsClickHouseTelemetry(t *testing.T) {
+	const query = "SELECT $1tag$keep  words$1tag$,id FROM builds FINAL PREWHERE id={id:UInt64} // keep SELECT\nSETTINGS max_threads=8"
+	input := map[string]any{"attributes": map[string]any{"db.system.name": "clickhouse", "db.query.text": query}}
+	out := Presentation(input).(map[string]any)["attributes"].(map[string]any)["db.query.text"].(string)
+	if !strings.Contains(out, "SELECT\n") || !strings.Contains(out, "$1tag$keep  words$1tag$") || !strings.Contains(out, "{id:UInt64}") || !strings.Contains(out, "// keep SELECT\n") {
+		t.Fatalf("ClickHouse SQL was not preserved and formatted: %q", out)
+	}
+}

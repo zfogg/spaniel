@@ -12574,6 +12574,7 @@
                       "duckdb",
                       "postgresql",
                       "mysql",
+                      "clickhouse",
                       "sqlite",
                       "generic"
                     ],

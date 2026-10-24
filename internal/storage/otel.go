@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/zfogg/gotel/dbmetrics"
-	"github.com/zfogg/gotel/gormtrace"
-	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/gotel/go/dbmetrics"
+	"github.com/zfogg/gotel/go/gormtrace"
+	"github.com/zfogg/gotel/go/sqltrace"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"

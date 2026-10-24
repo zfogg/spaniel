@@ -504,6 +504,7 @@ func (e ListServicesParamsSignal) Valid() bool {
 
 // Defines values for FormatSQLJSONBodyDialect.
 const (
+	Clickhouse FormatSQLJSONBodyDialect = "clickhouse"
 	Duckdb     FormatSQLJSONBodyDialect = "duckdb"
 	Generic    FormatSQLJSONBodyDialect = "generic"
 	Mysql      FormatSQLJSONBodyDialect = "mysql"
@@ -514,6 +515,8 @@ const (
 // Valid indicates whether the value is a known member of the FormatSQLJSONBodyDialect enum.
 func (e FormatSQLJSONBodyDialect) Valid() bool {
 	switch e {
+	case Clickhouse:
+		return true
 	case Duckdb:
 		return true
 	case Generic:
@@ -14220,19 +14223,19 @@ var swaggerSpec = []string{
 	"80rDZlClKTF9x64Wn5Pxdn9W8lUpVHMF0oO1JavgxNNOqwbnn9R/NhNbNDSqxAclMSA0JzuSV7gw3MzI",
 	"J05gB7FYQD2Je5oL6ithBLf3WCnxnEbgNJJEGYKNk/7H4tzlGo0Z2f6k31/89fXBNz4eXeUEK7aweLrI",
 	"q+wyXy6ShfhYqLW9fP3y+XtE8kS7SP7p3c9v7Anmv//y8t1L5DD1j79zfy2GsNMN45d3qEd09R3qB2rB",
-	"aw5qJsliuzf/i48FkbBIFrrgI8kC5R7s5D8pd7DXQNdys3j65PG3//ndf3wfSrzkk4H6MEwFbY53+1sv",
-	"s6/WRNigxZ/cY3Tx19fWe1Npu9hqxirWBpUFzmDDihx4iNH5W/d3itTuqf9UB3+nzRb+ncb38AYWTwvz",
-	"G8H3hryoBSzPZy5ExvV2nf+I83eGUDokabrTgC/wnlXmeKb+h2vIKmlqX/5grAt8p6uhbFXn2im5uzOt",
-	"jPt/fe2TtTYTDQly3WA2LN5S3i/9u92CrVs3wDpSpW0idOER7acl4EutCnRf9JL+hBp9gURAxsj4wAoi",
-	"WYoYtyjaC9xB6tJNfuSAL1V0yel41GhrtlYpNVk2ea22mNCWP0LjifCrLrmldl775BuLellydu0+0A1q",
-	"KjY/OLtqVfJSZHuFC2+Mu0DUDpwfHM7q9SMf0Ubx1xa3GjKJWzXxfoqHk7VInrTZ9p6awmd75hcuae0Z",
-	"JqZbN25vwmhbK4TEshJppvfjqIbMIYauuaSxX842yQNtkrWEiVomjJg6/6T/HzFLvrelhCfbJXMiLIrn",
-	"5nDqWyYTm61MJy5zd6fqhlVFYPayJ/RNmHbG99KG+RXdZtyh60WJ6RGq5M/mzYMVYEf4k7nI+aREiTM/",
-	"mZMjfhXJEQ+nD0IztiV0/Ugh5/Ap8ZVt+lq3nKlllr73V/qeur7saA05YutT9Gez7xH/RROxXOOg9lin",
-	"mjeYkONzfWyyvXa/1oMk+k4nQQVbJ+7knOh7CUJ3ICRZa2CprCn6iG+Rz04waHFopYEsyAqyfWZT2zUJ",
-	"s7sd1lldA9YA49SVYYn1LDOdLgwXRO7NTCXZwiMBnIDodmu+DfVahxT4Pv8JKjGFQph+d5gTbRz1Oqw/",
-	"C/WpQ3IQrwoQSb0ZIkEm5ZHpVJACaNbqU38W6s8lBUhcVsIE6RL7+i+DmLZTI8y2ILGiGb/vtsHw84fP",
-	"/28A",
+	"aw5qJsliuzf/ZwXJLjes0jQuPhZEqj909UeSBWo/2JV8Ur5hr4Gu5Wbx9Mnjb//zu//4PpSFyacJ9WGY",
+	"JNrs7/ZXYGaTrb2wwZE/ucfo4q+vrSunUn2xVZNV4A0qC5zBhhU58BDX8/fx7xSprVT/qQ7+Tpv9/DuN",
+	"b+gNzJ8W5jeC7w0ZUwtYngNdiKbr7Tr/EefvDNV06NN0pwFf4D2rzFlN/Q/XkFXSFML8wZga+E6XRtmq",
+	"zrWHcndnWun3//rap3FtMxqS6rrBbGW8pfBf+he9BVu3roN12ErbXuhiJdpPS8CXWi/ovuhlAAo1+gJZ",
+	"gYzF8YFVR7IUMW5etLe5g9Slm/zIAV+qUJPTca/Rpm2tX2qybJJcbTGhLeeExi3hV11/S+28dtA35vWy",
+	"5OzafaAb1FRsfnB21Srrpcj2ChfeGHeBqB04Pzic1etHPqKN4q+tdDVkH7c64/0UDydrnjxpG+49tYvP",
+	"xs0vXN/as1JMN3Xc3p7RNl0IiWUl0kzvx1GtmkMMXXNJY8ycDZQHGihrCRM1Uxgxdf5J/z9io3xv6wpP",
+	"NlLmRFgUz83h1DdTJjZ1mc5i5i5S1XWrCsfspVLo2zPtjO+lQfMrutq4Qz+MEtMjlMyfbZ0HK8CO8Cdz",
+	"kfNJWRNnfjJnSvwqMiUeTh+EZmxL6PqRQs7hU+Ir2/S1bjlTyyx976/0PXV92dEacsTWp+jPZt8jzowm",
+	"fLnGQe2+TjVvMPHH5/rYZHvtfq0HSfSdToIKtk7cyTnR9xKE7kBIstbAUilU9BHfIp+dYNDi0MoJWZAV",
+	"ZPvM5rlrsmd3O6xTvAasAcbDK8MS61lmOncYLojcm5lKsoVHAjgB0e3WfBvqtY4v8AMAElRiCoUw/e4w",
+	"J9o46nVYfxbqU8fnIF4VIJJ6M0SCTP4j06kgBdCs1af+LNSfyxCQuBSFCdL19vVfBjFtp0aYbUFiRTN+",
+	"322D4ecPn//fAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

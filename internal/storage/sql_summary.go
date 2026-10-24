@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 
-	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/gotel/go/sqltrace"
 )
 
 var storageNamer = sqltrace.MustNamer("spaniel.storage")

@@ -6545,7 +6545,7 @@ export interface operations {
            * @default duckdb
            * @enum {string}
            */
-          dialect?: 'duckdb' | 'postgresql' | 'mysql' | 'sqlite' | 'generic'
+          dialect?: 'duckdb' | 'postgresql' | 'mysql' | 'clickhouse' | 'sqlite' | 'generic'
         }
       }
     }

@@ -4,12 +4,12 @@ import (
 	"context"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/gotel/go/sqltrace"
 )
 
 type FormatSQLInput struct {
 	SQL     string           `json:"sql" jsonschema:"SQL text to format without executing it"`
-	Dialect sqltrace.Dialect `json:"dialect,omitempty" jsonschema:"duckdb (default), postgresql, mysql, sqlite, or generic"`
+	Dialect sqltrace.Dialect `json:"dialect,omitempty" jsonschema:"duckdb (default), postgresql, mysql, sqlite, clickhouse, or generic"`
 }
 type FormatSQLOutput struct {
 	SQL string `json:"sql"`
