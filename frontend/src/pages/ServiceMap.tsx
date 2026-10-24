@@ -1,3 +1,4 @@
+import { useRefreshInterval } from '@/lib/display-preferences'
 import ServiceColorEditor from '@/components/ServiceColorEditor'
 import { customServiceColor } from '@/lib/service-color'
 import { useState } from 'react'
@@ -584,7 +585,7 @@ export default function ServiceMap() {
   const { data: sources = [] } = useQuery({
     queryKey: qk.sources(),
     queryFn: () => api.sources.list().then((r) => r.data ?? []),
-    refetchInterval: 2000,
+    refetchInterval: useRefreshInterval(),
   })
 
   const nodes = data?.nodes ?? []

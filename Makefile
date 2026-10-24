@@ -239,5 +239,5 @@ test-settings:
 	    test_name=$$(basename "$$package"); \
 	    test_binary="$(CURDIR)/$(BIN_DIR)/settings-$$test_name.test$(EXE)"; \
 	    go test $(SETTINGS_TEST_FLAGS) -c -o "$$test_binary" "$$package"; \
-	    ( cd "$$package_dir" && "$$test_binary" -test.run 'TestExtendedSettings|TestQuietHours|TestPolicyFilters|TestSignalRetention|TestForwardingSecurity|TestSettingsPublicURL|TestSourceLimiter|TestPublicURLFlag' -test.count=1 -test.timeout=5m -test.v ); \
+	    ( cd "$$package_dir" && "$$test_binary" -test.run 'TestSettingsConcurrent|TestExtendedSettings|TestQuietHours|TestPolicyFilters|TestSignalRetention|TestForwardingSecurity|TestSettingsPublicURL|TestSourceLimiter|TestPublicURLFlag' -test.count=1 -test.timeout=5m -test.v ); \
 	  done

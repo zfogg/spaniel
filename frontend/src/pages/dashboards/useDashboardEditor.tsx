@@ -1,3 +1,4 @@
+import { useRefreshInterval } from '@/lib/display-preferences'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -101,7 +102,7 @@ export function useDashboardEditor() {
     queryKey: qk.activeSession(),
     queryFn: () => api.sessions.getActive().then((response) => response.data),
     enabled: !!active,
-    refetchInterval: 5000,
+    refetchInterval: useRefreshInterval(),
     staleTime: 5000,
   })
   const catalog = useQuery({

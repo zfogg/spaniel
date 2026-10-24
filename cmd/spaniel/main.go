@@ -902,6 +902,8 @@ func run(cfg runConfig) error {
 	}
 	// Include the effective CLI token in settings persistence as well.
 	cfg.Viper.Set("bearer_token", cfg.BearerToken)
+	cfg.Viper.Set("source_rps", cfg.SourceRPS)
+	cfg.Viper.Set("source_burst", cfg.SourceBurst)
 	extended, err := newExtendedRuntime(cfg.Viper, pipeline, fwd, store)
 	if err != nil {
 		return err

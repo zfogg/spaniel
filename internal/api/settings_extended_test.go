@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/viper"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -56,4 +57,27 @@ func TestQuietHoursOvernightTimezone(t *testing.T) {
 			t.Fatal("incorrect quiet policy")
 		}
 	}
+}
+
+func TestSettingsConcurrentSnapshotsAndSaves(t *testing.T) {
+	router, _, _ := newSettingsRouter(t)
+	var workers sync.WaitGroup
+	for worker := 0; worker < 4; worker++ {
+		workers.Add(1)
+		go func(write bool) {
+			defer workers.Done()
+			for i := 0; i < 10; i++ {
+				w := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+				if write {
+					req = httptest.NewRequest(http.MethodPut, "/api/settings", bytes.NewBufferString(`{"refresh_interval_seconds":10}`))
+				}
+				router.ServeHTTP(w, req)
+				if w.Code != 200 {
+					t.Errorf("concurrent settings status %d", w.Code)
+				}
+			}
+		}(worker%2 == 0)
+	}
+	workers.Wait()
 }

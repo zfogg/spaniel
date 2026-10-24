@@ -20,6 +20,7 @@ import (
 // already on the Router (storage, hub, etc.). main.go builds one of these
 // after viper has been bootstrapped and hands it to Router.SetSettingsService.
 type SettingsService struct {
+	mu             sync.Mutex // serialize config snapshots, mutations, and atomic file saves
 	Viper          *viper.Viper
 	ConfigPath     string // path to the file Save() will write
 	Version        string
@@ -218,6 +219,8 @@ func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 404, "settings service not configured")
 		return
 	}
+	r.settings.mu.Lock()
+	defer r.settings.mu.Unlock()
 	resp := r.buildSettings()
 	respond(w, resp, 1, 1)
 }
@@ -240,7 +243,10 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 400, err.Error())
 		return
 	}
-	if err := applySettings(r.settings, &body); err != nil {
+	r.settings.mu.Lock()
+	applyErr := applySettings(r.settings, &body)
+	r.settings.mu.Unlock()
+	if err := applyErr; err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
@@ -250,6 +256,8 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
+	r.settings.mu.Lock()
+	defer r.settings.mu.Unlock()
 	respond(w, r.buildSettings(), 1, 1)
 }
 
@@ -660,6 +668,8 @@ func (s *SettingsService) Save() error {
 // SaveActiveSession records the session that should be resumed when startup
 // session advancement is disabled.
 func (s *SettingsService) SaveActiveSession(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Viper.Set("active_session_id", id)
 	return s.Save()
 }
