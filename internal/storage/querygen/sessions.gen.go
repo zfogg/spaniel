@@ -191,7 +191,28 @@ type ISessionDo interface {
 
 // SearchByLabel
 //
-// SELECT 'session' AS kind, ” AS trace_id, ” AS span_id, label AS title, CASE WHEN is_baseline THEN 'baseline' ELSE 'session' END AS subtitle, id AS session_id FROM @@table WHERE label ILIKE @pattern ORDER BY created_at DESC LIMIT @limit
+// SELECT
+//
+//	'session' AS kind,
+//	'' AS trace_id,
+//	'' AS span_id,
+//	label AS title,
+//	CASE
+//	  WHEN is_baseline THEN 'baseline'
+//	  ELSE 'session'
+//	END AS subtitle,
+//	id AS session_id
+//
+// FROM @@table
+// WHERE
+//
+//	label ILIKE @pattern
+//
+// ORDER BY
+//
+//	created_at DESC
+//
+// LIMIT @limit
 func (s sessionDo) SearchByLabel(pattern string, limit int) (result []model.SearchResult, err error) {
 	var params []interface{}
 
@@ -209,7 +230,24 @@ func (s sessionDo) SearchByLabel(pattern string, limit int) (result []model.Sear
 
 // GetByID
 //
-// SELECT id, label, created_at, is_baseline, is_imported, span_count, services::VARCHAR AS services, COALESCE(note, ”) AS note, COALESCE(last_activity_ns, 0) AS last_activity_ns FROM @@table WHERE id = @id LIMIT 1
+// SELECT
+//
+//	id,
+//	label,
+//	created_at,
+//	is_baseline,
+//	is_imported,
+//	span_count,
+//	services::VARCHAR AS services,
+//	COALESCE(note, '') AS note,
+//	COALESCE(last_activity_ns, 0) AS last_activity_ns
+//
+// FROM @@table
+// WHERE
+//
+//	id = @id
+//
+// LIMIT 1
 func (s sessionDo) GetByID(id string) (result []model.Session, err error) {
 	var params []interface{}
 
@@ -226,10 +264,124 @@ func (s sessionDo) GetByID(id string) (result []model.Session, err error) {
 
 // ListWithStats
 //
-// WITH telemetry_payload AS (SELECT session_id, SUM(bytes) AS size_bytes FROM (SELECT id AS session_id, LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, ”)) + 200 AS bytes FROM sessions UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes FROM spans UNION ALL SELECT session_id, LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100 FROM logs UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160 FROM metrics UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(name) + 80 FROM span_events UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120 FROM span_links UNION ALL SELECT session_id, LENGTH(fingerprint) + LENGTH(kind) + 150 FROM trace_issues UNION ALL SELECT session_id, LENGTH(message) + LENGTH(rule_id) + 100 FROM lint_warnings UNION ALL SELECT session_id, LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100 FROM metric_series_catalog) telemetry_rows GROUP BY session_id), n1 AS (SELECT session_id, COUNT(*) AS n1_count FROM trace_issues WHERE kind = 'n_plus_one' GROUP BY session_id) SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, COUNT(sp.span_id) AS span_count, s.services::VARCHAR AS services, COALESCE(s.note, ”) AS note, COALESCE(s.last_activity_ns, 0) AS last_activity_ns, COUNT(DISTINCT sp.trace_id) AS trace_count, CAST(COALESCE(QUANTILE_CONT(sp.duration_ns, 0.95), 0) AS BIGINT) AS p95_ns, COALESCE(tp.size_bytes, 0) AS size_bytes, COALESCE(n1.n1_count, 0) AS n1_count, COUNT(*) FILTER (WHERE sp.status_code = 2) AS error_count FROM @@table s LEFT JOIN spans sp ON sp.session_id = s.id LEFT JOIN telemetry_payload tp ON tp.session_id = s.id LEFT JOIN n1 ON n1.session_id = s.id GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.services, s.note, s.last_activity_ns, tp.size_bytes, n1.n1_count ORDER BY s.created_at DESC
+// WITH telemetry_payload AS (
+//
+//	SELECT
+//	  session_id,
+//	  SUM(bytes) AS size_bytes
+//	FROM (
+//	  SELECT
+//	    id AS session_id,
+//	    LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, '')) + 200 AS bytes
+//	  FROM sessions
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes
+//	  FROM spans
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100
+//	  FROM logs
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160
+//	  FROM metrics
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(attributes::VARCHAR) + LENGTH(name) + 80
+//	  FROM span_events
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120
+//	  FROM span_links
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(fingerprint) + LENGTH(kind) + 150
+//	  FROM trace_issues
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(message) + LENGTH(rule_id) + 100
+//	  FROM lint_warnings
+//	  UNION ALL
+//	  SELECT
+//	    session_id,
+//	    LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100
+//	  FROM metric_series_catalog
+//	) telemetry_rows
+//	GROUP BY
+//	  session_id
+//
+// ),
+// n1 AS (
+//
+//	SELECT
+//	  session_id,
+//	  COUNT(*) AS n1_count
+//	FROM trace_issues
+//	WHERE
+//	  kind = 'n_plus_one'
+//	GROUP BY
+//	  session_id
+//
+// )
+// SELECT
+//
+//	s.id,
+//	s.label,
+//	s.created_at,
+//	s.is_baseline,
+//	s.is_imported,
+//	COUNT(sp.span_id) AS span_count,
+//	s.services::VARCHAR AS services,
+//	COALESCE(s.note, '') AS note,
+//	COALESCE(s.last_activity_ns, 0) AS last_activity_ns,
+//	COUNT(DISTINCT sp.trace_id) AS trace_count,
+//	CAST(
+//	  COALESCE(QUANTILE_CONT(sp.duration_ns, 0.95), 0) AS BIGINT
+//	) AS p95_ns,
+//	COALESCE(tp.size_bytes, 0) AS size_bytes,
+//	COALESCE(n1.n1_count, 0) AS n1_count,
+//	COUNT(*) FILTER (WHERE sp.status_code = 2) AS error_count
+//
+// FROM @@table s
+// LEFT JOIN spans sp
+//
+//	ON sp.session_id = s.id
+//
+// LEFT JOIN telemetry_payload tp
+//
+//	ON tp.session_id = s.id
+//
+// LEFT JOIN n1
+//
+//	ON n1.session_id = s.id
+//
+// GROUP BY
+//
+//	s.id,
+//	s.label,
+//	s.created_at,
+//	s.is_baseline,
+//	s.is_imported,
+//	s.services,
+//	s.note,
+//	s.last_activity_ns,
+//	tp.size_bytes,
+//	n1.n1_count
+//
+// ORDER BY
+//
+//	s.created_at DESC
 func (s sessionDo) ListWithStats() (result []model.SessionSummary, err error) {
 	var generateSQL strings.Builder
-	generateSQL.WriteString("WITH telemetry_payload AS (SELECT session_id, SUM(bytes) AS size_bytes FROM (SELECT id AS session_id, LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, '')) + 200 AS bytes FROM sessions UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes FROM spans UNION ALL SELECT session_id, LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100 FROM logs UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160 FROM metrics UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(name) + 80 FROM span_events UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120 FROM span_links UNION ALL SELECT session_id, LENGTH(fingerprint) + LENGTH(kind) + 150 FROM trace_issues UNION ALL SELECT session_id, LENGTH(message) + LENGTH(rule_id) + 100 FROM lint_warnings UNION ALL SELECT session_id, LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100 FROM metric_series_catalog) telemetry_rows GROUP BY session_id), n1 AS (SELECT session_id, COUNT(*) AS n1_count FROM trace_issues WHERE kind = 'n_plus_one' GROUP BY session_id) SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, COUNT(sp.span_id) AS span_count, s.services::VARCHAR AS services, COALESCE(s.note, '') AS note, COALESCE(s.last_activity_ns, 0) AS last_activity_ns, COUNT(DISTINCT sp.trace_id) AS trace_count, CAST(COALESCE(QUANTILE_CONT(sp.duration_ns, 0.95), 0) AS BIGINT) AS p95_ns, COALESCE(tp.size_bytes, 0) AS size_bytes, COALESCE(n1.n1_count, 0) AS n1_count, COUNT(*) FILTER (WHERE sp.status_code = 2) AS error_count FROM sessions s LEFT JOIN spans sp ON sp.session_id = s.id LEFT JOIN telemetry_payload tp ON tp.session_id = s.id LEFT JOIN n1 ON n1.session_id = s.id GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.services, s.note, s.last_activity_ns, tp.size_bytes, n1.n1_count ORDER BY s.created_at DESC ")
+	generateSQL.WriteString("WITH telemetry_payload AS ( SELECT session_id, SUM(bytes) AS size_bytes FROM ( SELECT id AS session_id, LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, '')) + 200 AS bytes FROM sessions UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes FROM spans UNION ALL SELECT session_id, LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100 FROM logs UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160 FROM metrics UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(name) + 80 FROM span_events UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120 FROM span_links UNION ALL SELECT session_id, LENGTH(fingerprint) + LENGTH(kind) + 150 FROM trace_issues UNION ALL SELECT session_id, LENGTH(message) + LENGTH(rule_id) + 100 FROM lint_warnings UNION ALL SELECT session_id, LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100 FROM metric_series_catalog ) telemetry_rows GROUP BY session_id ), n1 AS ( SELECT session_id, COUNT(*) AS n1_count FROM trace_issues WHERE kind = 'n_plus_one' GROUP BY session_id ) SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, COUNT(sp.span_id) AS span_count, s.services::VARCHAR AS services, COALESCE(s.note, '') AS note, COALESCE(s.last_activity_ns, 0) AS last_activity_ns, COUNT(DISTINCT sp.trace_id) AS trace_count, CAST( COALESCE(QUANTILE_CONT(sp.duration_ns, 0.95), 0) AS BIGINT ) AS p95_ns, COALESCE(tp.size_bytes, 0) AS size_bytes, COALESCE(n1.n1_count, 0) AS n1_count, COUNT(*) FILTER (WHERE sp.status_code = 2) AS error_count FROM sessions s LEFT JOIN spans sp ON sp.session_id = s.id LEFT JOIN telemetry_payload tp ON tp.session_id = s.id LEFT JOIN n1 ON n1.session_id = s.id GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.services, s.note, s.last_activity_ns, tp.size_bytes, n1.n1_count ORDER BY s.created_at DESC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String()).Find(&result) // ignore_security_alert

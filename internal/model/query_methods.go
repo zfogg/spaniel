@@ -7,7 +7,12 @@ import "gorm.io/gen"
 type MetaWriteMethods interface {
 	// UpsertValue
 	//
-	// INSERT INTO @@table (meta_key, meta_value) VALUES (@key, @value) ON CONFLICT (meta_key) DO UPDATE SET meta_value = excluded.meta_value
+	// INSERT INTO @@table (meta_key, meta_value)
+	// VALUES
+	//   (@key, @value)
+	// ON CONFLICT (meta_key) DO UPDATE
+	// SET
+	//   meta_value = excluded.meta_value
 	UpsertValue(key, value string) error
 }
 
@@ -18,24 +23,65 @@ type MetaWriteMethods interface {
 type SpanEventMethods interface {
 	// ListBySpan
 	//
-	// SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes FROM @@table WHERE span_id = @spanID ORDER BY time_ns ASC
+	// SELECT
+	//   span_id,
+	//   trace_id,
+	//   session_id,
+	//   time_ns,
+	//   name,
+	//   attributes::VARCHAR AS attributes
+	// FROM @@table
+	// WHERE
+	//   span_id = @spanID
+	// ORDER BY
+	//   time_ns ASC
 	ListBySpan(spanID string) ([]gen.T, error)
 }
 
 type SpanLinkMethods interface {
 	// ListBySpan
 	//
-	// SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM @@table WHERE span_id = @spanID
+	// SELECT
+	//   span_id,
+	//   trace_id,
+	//   session_id,
+	//   linked_trace_id,
+	//   linked_span_id,
+	//   trace_state,
+	//   attributes::VARCHAR AS attributes
+	// FROM @@table
+	// WHERE
+	//   span_id = @spanID
 	ListBySpan(spanID string) ([]gen.T, error)
 
 	// ListIncomingByTrace
 	//
-	// SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM @@table WHERE linked_trace_id = @traceID
+	// SELECT
+	//   span_id,
+	//   trace_id,
+	//   session_id,
+	//   linked_trace_id,
+	//   linked_span_id,
+	//   trace_state,
+	//   attributes::VARCHAR AS attributes
+	// FROM @@table
+	// WHERE
+	//   linked_trace_id = @traceID
 	ListIncomingByTrace(traceID string) ([]gen.T, error)
 
 	// ListByTrace
 	//
-	// SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM @@table WHERE trace_id = @traceID
+	// SELECT
+	//   span_id,
+	//   trace_id,
+	//   session_id,
+	//   linked_trace_id,
+	//   linked_span_id,
+	//   trace_state,
+	//   attributes::VARCHAR AS attributes
+	// FROM @@table
+	// WHERE
+	//   trace_id = @traceID
 	ListByTrace(traceID string) ([]gen.T, error)
 }
 
@@ -45,172 +91,1575 @@ type SpanLinkMethods interface {
 type SpanSearchMethods interface {
 	// SearchTraces
 	//
-	// SELECT 'trace' AS kind, trace_id, '' AS span_id, MIN(name) AS title, MIN(service_name) AS subtitle, MIN(session_id) AS session_id FROM spans WHERE (@sessionID = '' OR session_id = @sessionID) AND (name ILIKE @pattern OR service_name ILIKE @pattern OR trace_id ILIKE @tracePrefix OR attributes::VARCHAR ILIKE @pattern) GROUP BY trace_id ORDER BY MAX(start_ns) DESC LIMIT @limit
+	// SELECT
+	//   'trace' AS kind,
+	//   trace_id,
+	//   '' AS span_id,
+	//   MIN(name) AS title,
+	//   MIN(service_name) AS subtitle,
+	//   MIN(session_id) AS session_id
+	// FROM spans
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND (
+	//     name ILIKE @pattern
+	//     OR service_name ILIKE @pattern
+	//     OR trace_id ILIKE @tracePrefix
+	//     OR attributes::VARCHAR ILIKE @pattern
+	//   )
+	// GROUP BY
+	//   trace_id
+	// ORDER BY
+	//   MAX(start_ns) DESC
+	// LIMIT @limit
 	SearchTraces(sessionID, pattern, tracePrefix string, limit int) ([]SearchResult, error)
 
 	// SearchChildSpans
 	//
-	// SELECT 'span' AS kind, trace_id, span_id, name AS title, service_name AS subtitle, session_id FROM spans WHERE (@sessionID = '' OR session_id = @sessionID) AND parent_span_id IS NOT NULL AND parent_span_id != '' AND (name ILIKE @pattern OR attributes::VARCHAR ILIKE @pattern) ORDER BY start_ns DESC LIMIT @limit
+	// SELECT
+	//   'span' AS kind,
+	//   trace_id,
+	//   span_id,
+	//   name AS title,
+	//   service_name AS subtitle,
+	//   session_id
+	// FROM spans
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND parent_span_id IS NOT NULL
+	//   AND parent_span_id != ''
+	//   AND (
+	//     name ILIKE @pattern
+	//     OR attributes::VARCHAR ILIKE @pattern
+	//   )
+	// ORDER BY
+	//   start_ns DESC
+	// LIMIT @limit
 	SearchChildSpans(sessionID, pattern string, limit int) ([]SearchResult, error)
 
 	// SearchServices
 	//
-	// SELECT 'service' AS kind, '' AS trace_id, '' AS span_id, service_name AS title, CONCAT(CAST(COUNT(*) AS VARCHAR), ' spans') AS subtitle, COALESCE(MIN(session_id), '') AS session_id FROM spans WHERE service_name ILIKE @pattern AND (@sessionID = '' OR session_id = @sessionID) GROUP BY service_name ORDER BY COUNT(*) DESC LIMIT @limit
+	// SELECT
+	//   'service' AS kind,
+	//   '' AS trace_id,
+	//   '' AS span_id,
+	//   service_name AS title,
+	//   CONCAT(CAST(COUNT(*) AS VARCHAR), ' spans') AS subtitle,
+	//   COALESCE(MIN(session_id), '') AS session_id
+	// FROM spans
+	// WHERE
+	//   service_name ILIKE @pattern
+	//   AND (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	// GROUP BY
+	//   service_name
+	// ORDER BY
+	//   COUNT(*) DESC
+	// LIMIT @limit
 	SearchServices(sessionID, pattern string, limit int) ([]SearchResult, error)
 }
 
 type SpanOverlayMethods interface {
 	// ListTraceOverlays
 	//
-	// SELECT trace_id, name AS op, service_name AS service, status_code, start_ns, end_ns, duration_ns FROM @@table WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (@service = '' OR service_name = @service) AND (@sessionID = '' OR session_id = @sessionID) AND (@fromNs = 0 OR start_ns >= @fromNs) AND (@toNs = 0 OR start_ns <= @toNs) ORDER BY start_ns ASC LIMIT @limit
+	// SELECT
+	//   trace_id,
+	//   name AS op,
+	//   service_name AS service,
+	//   status_code,
+	//   start_ns,
+	//   end_ns,
+	//   duration_ns
+	// FROM @@table
+	// WHERE
+	//   (
+	//     parent_span_id = ''
+	//     OR parent_span_id IS NULL
+	//   )
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR start_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR start_ns <= @toNs
+	//   )
+	// ORDER BY
+	//   start_ns ASC
+	// LIMIT @limit
 	ListTraceOverlays(service, sessionID string, fromNs, toNs int64, limit int) ([]TraceOverlay, error)
 }
 
 type SpanListMethods interface {
+	// WITH tagged_spans AS (
+	//   SELECT
+	//     s.trace_id,
+	//     s.span_id,
+	//     s.parent_span_id,
+	//     s.service_name,
+	//     s.name,
+	//     s.kind,
+	//     s.start_ns,
+	//     s.end_ns,
+	//     s.duration_ns,
+	//     s.status_code,
+	//     s.status_message,
+	//     s.attributes,
+	//     s.resource,
+	//     s.session_id,
+	//     s.session_label,
+	//     s.received_at,
+	//     CASE
+	//       WHEN ni.trace_id IS NOT NULL THEN 'n+1'
+	//       WHEN s.status_code = 2 THEN 'error'
+	//       WHEN s.duration_ns > 250000000 THEN 'slow'
+	//       WHEN lw.span_id IS NOT NULL THEN 'lint'
+	//       ELSE ''
+	//     END AS tag
+	//   FROM @@table s
+	//   LEFT JOIN (
+	//     SELECT DISTINCT
+	//       trace_id
+	//     FROM trace_issues
+	//     WHERE
+	//       kind = 'n_plus_one'
+	//   ) ni
+	//     ON s.trace_id = ni.trace_id
+	//   LEFT JOIN (
+	//     SELECT DISTINCT
+	//       span_id
+	//     FROM lint_warnings
+	//   ) lw
+	//     ON s.span_id = lw.span_id
+	//   WHERE
+	//     (
+	//       @sessionID = ''
+	//       OR s.session_id = @sessionID
+	//     ) {{if len(services) > 0}}
+	//     AND s.service_name IN @services {{end}}
+	//     AND (
+	//       @service = ''
+	//       OR s.service_name = @service
+	//     )
+	//     AND (
+	//       @name = ''
+	//       OR s.name = @name
+	//     )
+	//     AND (
+	//       @hasKind = FALSE
+	//       OR s.kind = @kind
+	//     )
+	//     AND (
+	//       @hasStatus = FALSE
+	//       OR s.status_code = @statusCode
+	//     )
+	//     AND (
+	//       @fromNs = 0
+	//       OR s.start_ns >= @fromNs
+	//     )
+	//     AND (
+	//       @toNs = 0
+	//       OR s.start_ns <= @toNs
+	//     )
+	//     AND (
+	//       @minDurationNs = 0
+	//       OR s.duration_ns >= @minDurationNs
+	//     ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.attributes,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @attributeFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
+	//     )
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.resource,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @resourceFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
+	//     ) {{end}}
+	// )
+	// SELECT
+	//   COUNT(*) AS count
+	// FROM tagged_spans
+	// WHERE
+	//   (
+	//     @tag = ''
+	//     OR tag = @tag
+	//   )
+	CountTagged(sessionID, service, name string, hasKind bool, kind int, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, tag string, services []string, attributeFilters, resourceFilters string) ([]CountValue, error)
+
 	// ListCoverageOperations
 	//
-	// WITH operations AS (SELECT service_name, CASE WHEN json_extract_string(attributes, '$."http.route"') != '' THEN COALESCE(NULLIF(json_extract_string(attributes, '$."http.request.method"'), ''), NULLIF(json_extract_string(attributes, '$."http.method"'), ''), 'GET') WHEN json_extract_string(attributes, '$."rpc.method"') != '' THEN 'RPC' WHEN kind = 2 AND name != '' THEN '' END AS method, CASE WHEN json_extract_string(attributes, '$."http.route"') != '' THEN json_extract_string(attributes, '$."http.route"') WHEN json_extract_string(attributes, '$."rpc.method"') != '' THEN CASE WHEN json_extract_string(attributes, '$."rpc.service"') != '' THEN json_extract_string(attributes, '$."rpc.service"') || '.' || json_extract_string(attributes, '$."rpc.method"') ELSE json_extract_string(attributes, '$."rpc.method"') END WHEN kind = 2 AND name != '' THEN name END AS path, duration_ns, start_ns FROM @@table WHERE session_id = @sessionID) SELECT service_name, method, path, COUNT(*) AS hits, CAST(quantile_disc(duration_ns, 0.95) AS BIGINT) AS p95_ns, MAX(start_ns) AS last_seen_ns FROM operations WHERE path IS NOT NULL AND path != '' GROUP BY service_name, method, path
+	// WITH operations AS (
+	//   SELECT
+	//     service_name,
+	//     CASE
+	//       WHEN json_extract_string(attributes, '$."http.route"') != ''
+	//       THEN COALESCE(
+	//       NULLIF(json_extract_string(attributes, '$."http.request.method"'), ''),
+	//       NULLIF(json_extract_string(attributes, '$."http.method"'), ''),
+	//       'GET'
+	//     )
+	//       WHEN json_extract_string(attributes, '$."rpc.method"') != ''
+	//       THEN 'RPC'
+	//       WHEN kind = 2
+	//         AND name != ''
+	//       THEN ''
+	//     END AS method,
+	//     CASE
+	//       WHEN json_extract_string(attributes, '$."http.route"') != ''
+	//       THEN json_extract_string(attributes, '$."http.route"')
+	//       WHEN json_extract_string(attributes, '$."rpc.method"') != ''
+	//       THEN
+	//         CASE
+	//           WHEN json_extract_string(attributes, '$."rpc.service"') != ''
+	//           THEN json_extract_string(attributes, '$."rpc.service"') || '.' || json_extract_string(attributes, '$."rpc.method"')
+	//           ELSE json_extract_string(attributes, '$."rpc.method"')
+	//         END
+	//       WHEN kind = 2
+	//         AND name != ''
+	//       THEN name
+	//     END AS path,
+	//     duration_ns,
+	//     start_ns
+	//   FROM @@table
+	//   WHERE
+	//     session_id = @sessionID
+	// )
+	// SELECT
+	//   service_name,
+	//   method,
+	//   path,
+	//   COUNT(*) AS hits,
+	//   CAST(quantile_disc(duration_ns, 0.95) AS BIGINT) AS p95_ns,
+	//   MAX(start_ns) AS last_seen_ns
+	// FROM operations
+	// WHERE
+	//   path IS NOT NULL
+	//   AND path != ''
+	// GROUP BY
+	//   service_name,
+	//   method,
+	//   path
 	ListCoverageOperations(sessionID string) ([]CoverageOperation, error)
 
 	// GetCoverageQuality
 	//
-	// SELECT COUNT(*) FILTER (WHERE kind = 2 AND COALESCE(json_extract_string(attributes, '$."http.route"'), '') = '') AS missing_route_spans, COUNT(*) FILTER (WHERE json_extract_string(attributes, '$."http.route"') IN ('/', '/api/')) AS generic_route_spans, COUNT(*) FILTER (WHERE regexp_matches(COALESCE(json_extract_string(attributes, '$."http.route"'), ''), '/[0-9]+($|/)') OR regexp_matches(COALESCE(json_extract_string(attributes, '$."http.route"'), ''), '[0-9a-f]{8}-[0-9a-f-]{27,}')) AS dynamic_route_spans FROM @@table WHERE session_id = @sessionID
+	// SELECT
+	//   COUNT(*) FILTER (
+	//     WHERE kind = 2 AND COALESCE(json_extract_string(attributes, '$."http.route"'), '') = ''
+	//   ) AS missing_route_spans,
+	//   COUNT(*) FILTER (
+	//     WHERE json_extract_string(attributes, '$."http.route"') IN ('/', '/api/')
+	//   ) AS generic_route_spans,
+	//   COUNT(*) FILTER (
+	//     WHERE regexp_matches(
+	//       COALESCE(json_extract_string(attributes, '$."http.route"'), ''),
+	//       '/[0-9]+($|/)'
+	//     ) OR regexp_matches(
+	//       COALESCE(json_extract_string(attributes, '$."http.route"'), ''),
+	//       '[0-9a-f]{8}-[0-9a-f-]{27,}'
+	//     )
+	//   ) AS dynamic_route_spans
+	// FROM @@table
+	// WHERE
+	//   session_id = @sessionID
 	GetCoverageQuality(sessionID string) ([]CoverageQuality, error)
 
 	// ListTagged
 	//
-	// WITH tagged_spans AS (SELECT s.trace_id, s.span_id, s.parent_span_id, s.service_name, s.name, s.kind, s.start_ns, s.end_ns, s.duration_ns, s.status_code, s.status_message, s.attributes, s.resource, s.session_id, s.session_label, s.received_at, CASE WHEN ni.trace_id IS NOT NULL THEN 'n+1' WHEN s.status_code = 2 THEN 'error' WHEN s.duration_ns > 250000000 THEN 'slow' WHEN lw.span_id IS NOT NULL THEN 'lint' ELSE '' END AS tag FROM @@table s LEFT JOIN (SELECT DISTINCT trace_id FROM trace_issues WHERE kind = 'n_plus_one') ni ON s.trace_id = ni.trace_id LEFT JOIN (SELECT DISTINCT span_id FROM lint_warnings) lw ON s.span_id = lw.span_id WHERE (@sessionID = '' OR s.session_id = @sessionID) {{if len(services) > 0}} AND s.service_name IN @services {{end}} AND (@service = '' OR s.service_name = @service) AND (@name = '' OR s.name = @name) AND (@hasKind = FALSE OR s.kind = @kind) AND (@hasStatus = FALSE OR s.status_code = @statusCode) AND (@fromNs = 0 OR s.start_ns >= @fromNs) AND (@toNs = 0 OR s.start_ns <= @toNs) AND (@minDurationNs = 0 OR s.duration_ns >= @minDurationNs)), page_spans AS (SELECT * FROM tagged_spans WHERE (@tag = '' OR tag = @tag) ORDER BY CASE WHEN @sort = 'name' THEN name END ASC, CASE WHEN @sort = 'dur' THEN duration_ns END DESC, CASE WHEN @sort NOT IN ('name', 'dur') THEN start_ns END DESC LIMIT @limit OFFSET @offset) SELECT trace_id, span_id, parent_span_id, service_name, name, kind, start_ns, end_ns, duration_ns, status_code, status_message, attributes::VARCHAR AS attributes, resource::VARCHAR AS resource, session_id, session_label, received_at, tag FROM page_spans ORDER BY CASE WHEN @sort = 'name' THEN name END ASC, CASE WHEN @sort = 'dur' THEN duration_ns END DESC, CASE WHEN @sort NOT IN ('name', 'dur') THEN start_ns END DESC
-	ListTagged(sessionID, service, name string, hasKind bool, kind int, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, tag, sort string, limit, offset int, services []string) ([]SpanRow, error)
+	// WITH tagged_spans AS (
+	//   SELECT
+	//     s.trace_id,
+	//     s.span_id,
+	//     s.parent_span_id,
+	//     s.service_name,
+	//     s.name,
+	//     s.kind,
+	//     s.start_ns,
+	//     s.end_ns,
+	//     s.duration_ns,
+	//     s.status_code,
+	//     s.status_message,
+	//     s.attributes,
+	//     s.resource,
+	//     s.session_id,
+	//     s.session_label,
+	//     s.received_at,
+	//     CASE
+	//       WHEN ni.trace_id IS NOT NULL THEN 'n+1'
+	//       WHEN s.status_code = 2 THEN 'error'
+	//       WHEN s.duration_ns > 250000000 THEN 'slow'
+	//       WHEN lw.span_id IS NOT NULL THEN 'lint'
+	//       ELSE ''
+	//     END AS tag
+	//   FROM @@table s
+	//   LEFT JOIN (
+	//     SELECT DISTINCT
+	//       trace_id
+	//     FROM trace_issues
+	//     WHERE
+	//       kind = 'n_plus_one'
+	//   ) ni
+	//     ON s.trace_id = ni.trace_id
+	//   LEFT JOIN (
+	//     SELECT DISTINCT
+	//       span_id
+	//     FROM lint_warnings
+	//   ) lw
+	//     ON s.span_id = lw.span_id
+	//   WHERE
+	//     (
+	//       @sessionID = ''
+	//       OR s.session_id = @sessionID
+	//     ) {{if len(services) > 0}}
+	//     AND s.service_name IN @services {{end}}
+	//     AND (
+	//       @service = ''
+	//       OR s.service_name = @service
+	//     )
+	//     AND (
+	//       @name = ''
+	//       OR s.name = @name
+	//     )
+	//     AND (
+	//       @hasKind = FALSE
+	//       OR s.kind = @kind
+	//     )
+	//     AND (
+	//       @hasStatus = FALSE
+	//       OR s.status_code = @statusCode
+	//     )
+	//     AND (
+	//       @fromNs = 0
+	//       OR s.start_ns >= @fromNs
+	//     )
+	//     AND (
+	//       @toNs = 0
+	//       OR s.start_ns <= @toNs
+	//     )
+	//     AND (
+	//       @minDurationNs = 0
+	//       OR s.duration_ns >= @minDurationNs
+	//     ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.attributes,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @attributeFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
+	//     )
+	//     AND NOT EXISTS (
+	//       SELECT
+	//         1
+	//       FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//       WHERE
+	//         json_extract_string(
+	//           s.resource,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         ) IS DISTINCT
+	//       FROM json_extract_string(
+	//         @resourceFilters,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       )
+	//     ) {{end}}
+	// ),
+	// page_spans AS (
+	//   SELECT
+	//     *
+	//   FROM tagged_spans
+	//   WHERE
+	//     (
+	//       @tag = ''
+	//       OR tag = @tag
+	//     )
+	//   ORDER BY
+	//     CASE
+	//       WHEN @sort = 'name' THEN name
+	//     END ASC,
+	//     CASE
+	//       WHEN @sort = 'dur' THEN duration_ns
+	//     END DESC,
+	//     CASE
+	//       WHEN @sort NOT IN ('name', 'dur') THEN start_ns
+	//     END DESC
+	//   LIMIT @limit
+	//   OFFSET @offset
+	// )
+	// SELECT
+	//   trace_id,
+	//   span_id,
+	//   parent_span_id,
+	//   service_name,
+	//   name,
+	//   kind,
+	//   start_ns,
+	//   end_ns,
+	//   duration_ns,
+	//   status_code,
+	//   status_message,
+	//   attributes::VARCHAR AS attributes,
+	//   resource::VARCHAR AS resource,
+	//   session_id,
+	//   session_label,
+	//   received_at,
+	//   tag
+	// FROM page_spans
+	// ORDER BY
+	//   CASE
+	//     WHEN @sort = 'name' THEN name
+	//   END ASC,
+	//   CASE
+	//     WHEN @sort = 'dur' THEN duration_ns
+	//   END DESC,
+	//   CASE
+	//     WHEN @sort NOT IN ('name', 'dur') THEN start_ns
+	//   END DESC
+	ListTagged(sessionID, service, name string, hasKind bool, kind int, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, tag, sort string, limit, offset int, services []string, attributeFilters, resourceFilters string) ([]SpanRow, error)
 
 	// ListGroups
 	//
-	// SELECT service_name, name, kind, COUNT(*) AS count, MAX(start_ns) AS latest_start_ns, SUM(CASE WHEN status_code = 2 THEN 1 ELSE 0 END) AS error_count, CAST(quantile_cont(duration_ns, 0.5) AS BIGINT) AS p50_duration_ns, CAST(quantile_cont(duration_ns, 0.95) AS BIGINT) AS p95_duration_ns, MAX(duration_ns) AS max_duration_ns, COUNT(DISTINCT attributes) AS attribute_variants FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} GROUP BY service_name, name, kind ORDER BY latest_start_ns DESC, service_name, name LIMIT @limit OFFSET @offset
+	// SELECT
+	//   service_name,
+	//   name,
+	//   kind,
+	//   COUNT(*) AS count,
+	//   MAX(start_ns) AS latest_start_ns,
+	//   SUM(
+	//     CASE
+	//       WHEN status_code = 2 THEN 1
+	//       ELSE 0
+	//     END
+	//   ) AS error_count,
+	//   CAST(quantile_cont(duration_ns, 0.5) AS BIGINT) AS p50_duration_ns,
+	//   CAST(quantile_cont(duration_ns, 0.95) AS BIGINT) AS p95_duration_ns,
+	//   MAX(duration_ns) AS max_duration_ns,
+	//   COUNT(DISTINCT attributes) AS attribute_variants
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   ) {{if len(services) > 0}}
+	//   AND service_name IN @services {{end}}
+	// GROUP BY
+	//   service_name,
+	//   name,
+	//   kind
+	// ORDER BY
+	//   latest_start_ns DESC,
+	//   service_name,
+	//   name
+	// LIMIT @limit
+	// OFFSET @offset
 	ListGroups(sessionID string, limit, offset int, services []string) ([]SpanGroup, error)
 
 	// ListTraces
 	//
-	// WITH root_spans AS (SELECT trace_id, service_name, name, attributes::VARCHAR AS attributes, status_code, start_ns, end_ns, duration_ns, session_id, session_label FROM @@table WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (@sessionID = '' OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = '' OR service_name = @service) AND (@operation = '' OR name ILIKE @operation) AND (@hasStatus = FALSE OR status_code = @statusCode) AND (@fromNs = 0 OR start_ns >= @fromNs) AND (@toNs = 0 OR start_ns <= @toNs) AND (@minDurationNs = 0 OR duration_ns >= @minDurationNs) AND (@issueKind = '' OR trace_id IN (SELECT trace_id FROM trace_issues WHERE kind = @issueKind AND (@sessionID = '' OR session_id = @sessionID))) ORDER BY start_ns DESC LIMIT @limit OFFSET @offset) SELECT rs.*, COALESCE(ti.has_n1, FALSE) AS has_n1, COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw, COALESCE(sc.span_count, 1) AS span_count, COALESCE(sc.service_count, 1) AS service_count FROM root_spans rs LEFT JOIN (SELECT trace_id, BOOL_OR(kind = 'n_plus_one') AS has_n1, string_agg(DISTINCT kind, ',') AS issue_kinds_raw FROM trace_issues WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id) ti ON rs.trace_id = ti.trace_id LEFT JOIN (SELECT trace_id, session_id, COUNT(*) AS span_count, COUNT(DISTINCT service_name) AS service_count FROM spans WHERE trace_id IN (SELECT trace_id FROM root_spans) GROUP BY trace_id, session_id) sc ON rs.trace_id = sc.trace_id AND rs.session_id = sc.session_id ORDER BY rs.start_ns DESC
-	ListTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, limit, offset int, services []string) ([]TraceListRow, error)
+	// WITH root_spans AS (
+	//   SELECT
+	//     trace_id,
+	//     service_name,
+	//     name,
+	//     attributes::VARCHAR AS attributes,
+	//     status_code,
+	//     start_ns,
+	//     end_ns,
+	//     duration_ns,
+	//     session_id,
+	//     session_label
+	//   FROM @@table
+	//   WHERE
+	//     (
+	//       parent_span_id = ''
+	//       OR parent_span_id IS NULL
+	//     )
+	//     AND (
+	//       @sessionID = ''
+	//       OR session_id = @sessionID
+	//     ) {{if len(services) > 0}}
+	//     AND service_name IN @services {{end}}
+	//     AND (
+	//       @service = ''
+	//       OR service_name = @service
+	//     )
+	//     AND (
+	//       @operation = ''
+	//       OR name ILIKE @operation
+	//     )
+	//     AND (
+	//       @hasStatus = FALSE
+	//       OR status_code = @statusCode
+	//     )
+	//     AND (
+	//       @fromNs = 0
+	//       OR start_ns >= @fromNs
+	//     )
+	//     AND (
+	//       @toNs = 0
+	//       OR start_ns <= @toNs
+	//     )
+	//     AND (
+	//       @minDurationNs = 0
+	//       OR duration_ns >= @minDurationNs
+	//     )
+	//     AND (
+	//       @issueKind = ''
+	//       OR trace_id IN (
+	//         SELECT
+	//           trace_id
+	//         FROM trace_issues
+	//         WHERE
+	//           kind = @issueKind
+	//           AND (
+	//             @sessionID = ''
+	//             OR session_id = @sessionID
+	//           )
+	//       )
+	//     ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//     AND EXISTS (
+	//       SELECT
+	//         1
+	//       FROM spans matched
+	//       WHERE
+	//         matched.trace_id = spans.trace_id
+	//         AND matched.session_id = spans.session_id
+	//         AND NOT EXISTS (
+	//           SELECT
+	//             1
+	//           FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//           WHERE
+	//             json_extract_string(
+	//               matched.attributes,
+	//               '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//             ) IS DISTINCT
+	//           FROM json_extract_string(
+	//             @attributeFilters,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           )
+	//         )
+	//         AND NOT EXISTS (
+	//           SELECT
+	//             1
+	//           FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//           WHERE
+	//             json_extract_string(
+	//               matched.resource,
+	//               '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//             ) IS DISTINCT
+	//           FROM json_extract_string(
+	//             @resourceFilters,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           )
+	//         )
+	//     ) {{end}}
+	//   ORDER BY
+	//     start_ns DESC
+	//   LIMIT @limit
+	//   OFFSET @offset
+	// )
+	// SELECT
+	//   rs.*,
+	//   COALESCE(ti.has_n1, FALSE) AS has_n1,
+	//   COALESCE(ti.issue_kinds_raw, '') AS issue_kinds_raw,
+	//   COALESCE(sc.span_count, 1) AS span_count,
+	//   COALESCE(sc.service_count, 1) AS service_count
+	// FROM root_spans rs
+	// LEFT JOIN (
+	//   SELECT
+	//     trace_id,
+	//     BOOL_OR(kind = 'n_plus_one') AS has_n1,
+	//     string_agg(DISTINCT kind, ',') AS issue_kinds_raw
+	//   FROM trace_issues
+	//   WHERE
+	//     trace_id IN (
+	//       SELECT
+	//         trace_id
+	//       FROM root_spans
+	//     )
+	//   GROUP BY
+	//     trace_id
+	// ) ti
+	//   ON rs.trace_id = ti.trace_id
+	// LEFT JOIN (
+	//   SELECT
+	//     trace_id,
+	//     session_id,
+	//     COUNT(*) AS span_count,
+	//     COUNT(DISTINCT service_name) AS service_count
+	//   FROM spans
+	//   WHERE
+	//     trace_id IN (
+	//       SELECT
+	//         trace_id
+	//       FROM root_spans
+	//     )
+	//   GROUP BY
+	//     trace_id,
+	//     session_id
+	// ) sc
+	//   ON rs.trace_id = sc.trace_id
+	//   AND rs.session_id = sc.session_id
+	// ORDER BY
+	//   rs.start_ns DESC
+	ListTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, limit, offset int, services []string, attributeFilters, resourceFilters string) ([]TraceListRow, error)
 
 	// CountGroups
 	//
-	// SELECT COUNT(*) AS count FROM (SELECT 1 FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} GROUP BY service_name, name, kind) groups
+	// SELECT
+	//   COUNT(*) AS count
+	// FROM (
+	//   SELECT
+	//     1
+	//   FROM @@table
+	//   WHERE
+	//     (
+	//       @sessionID = ''
+	//       OR session_id = @sessionID
+	//     ) {{if len(services) > 0}}
+	//     AND service_name IN @services {{end}}
+	//   GROUP BY
+	//     service_name,
+	//     name,
+	//     kind
+	// ) groups
 	CountGroups(sessionID string, services []string) ([]CountValue, error)
 
 	// CountTraces
 	//
-	// SELECT COUNT(*) AS count FROM @@table WHERE (parent_span_id = '' OR parent_span_id IS NULL) AND (@sessionID = '' OR session_id = @sessionID) {{if len(services) > 0}} AND service_name IN @services {{end}} AND (@service = '' OR service_name = @service) AND (@operation = '' OR name ILIKE @operation) AND (@hasStatus = FALSE OR status_code = @statusCode) AND (@fromNs = 0 OR start_ns >= @fromNs) AND (@toNs = 0 OR start_ns <= @toNs) AND (@minDurationNs = 0 OR duration_ns >= @minDurationNs) AND (@issueKind = '' OR trace_id IN (SELECT trace_id FROM trace_issues WHERE kind = @issueKind AND (@sessionID = '' OR session_id = @sessionID)))
-	CountTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, services []string) ([]CountValue, error)
+	// SELECT
+	//   COUNT(*) AS count
+	// FROM @@table
+	// WHERE
+	//   (
+	//     parent_span_id = ''
+	//     OR parent_span_id IS NULL
+	//   )
+	//   AND (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   ) {{if len(services) > 0}}
+	//   AND service_name IN @services {{end}}
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @operation = ''
+	//     OR name ILIKE @operation
+	//   )
+	//   AND (
+	//     @hasStatus = FALSE
+	//     OR status_code = @statusCode
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR start_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR start_ns <= @toNs
+	//   )
+	//   AND (
+	//     @minDurationNs = 0
+	//     OR duration_ns >= @minDurationNs
+	//   )
+	//   AND (
+	//     @issueKind = ''
+	//     OR trace_id IN (
+	//       SELECT
+	//         trace_id
+	//       FROM trace_issues
+	//       WHERE
+	//         kind = @issueKind
+	//         AND (
+	//           @sessionID = ''
+	//           OR session_id = @sessionID
+	//         )
+	//     )
+	//   ) {{if attributeFilters != "{}" || resourceFilters != "{}"}}
+	//   AND EXISTS (
+	//     SELECT
+	//       1
+	//     FROM spans matched
+	//     WHERE
+	//       matched.trace_id = spans.trace_id
+	//       AND matched.session_id = spans.session_id
+	//       AND NOT EXISTS (
+	//         SELECT
+	//           1
+	//         FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//         WHERE
+	//           json_extract_string(
+	//             matched.attributes,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           ) IS DISTINCT
+	//         FROM json_extract_string(
+	//           @attributeFilters,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         )
+	//       )
+	//       AND NOT EXISTS (
+	//         SELECT
+	//           1
+	//         FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//         WHERE
+	//           json_extract_string(
+	//             matched.resource,
+	//             '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//           ) IS DISTINCT
+	//         FROM json_extract_string(
+	//           @resourceFilters,
+	//           '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//         )
+	//       )
+	//   ) {{end}}
+	CountTraces(sessionID, service, operation string, hasStatus bool, statusCode int, fromNs, toNs, minDurationNs int64, issueKind string, services []string, attributeFilters, resourceFilters string) ([]CountValue, error)
 
 	// ListSourceStats
 	//
-	// SELECT service_name, COUNT(*) AS span_count, COUNT(*) FILTER (WHERE status_code = 2) AS error_count, SUM(LENGTH(attributes) + LENGTH(resource)) AS bytes_total, MIN(received_at) AS first_seen, MAX(received_at) AS last_seen FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) GROUP BY service_name ORDER BY span_count DESC
+	// SELECT
+	//   service_name,
+	//   COUNT(*) AS span_count,
+	//   COUNT(*) FILTER (WHERE status_code = 2) AS error_count,
+	//   SUM(LENGTH(attributes) + LENGTH(resource)) AS bytes_total,
+	//   MIN(received_at) AS first_seen,
+	//   MAX(received_at) AS last_seen
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	// GROUP BY
+	//   service_name
+	// ORDER BY
+	//   span_count DESC
 	ListSourceStats(sessionID string) ([]SourceStatsRow, error)
 }
 
 type SessionSearchMethods interface {
 	// SearchByLabel
 	//
-	// SELECT 'session' AS kind, '' AS trace_id, '' AS span_id, label AS title, CASE WHEN is_baseline THEN 'baseline' ELSE 'session' END AS subtitle, id AS session_id FROM @@table WHERE label ILIKE @pattern ORDER BY created_at DESC LIMIT @limit
+	// SELECT
+	//   'session' AS kind,
+	//   '' AS trace_id,
+	//   '' AS span_id,
+	//   label AS title,
+	//   CASE
+	//     WHEN is_baseline THEN 'baseline'
+	//     ELSE 'session'
+	//   END AS subtitle,
+	//   id AS session_id
+	// FROM @@table
+	// WHERE
+	//   label ILIKE @pattern
+	// ORDER BY
+	//   created_at DESC
+	// LIMIT @limit
 	SearchByLabel(pattern string, limit int) ([]SearchResult, error)
 }
 
 type SessionMethods interface {
 	// GetByID
 	//
-	// SELECT id, label, created_at, is_baseline, is_imported, span_count, services::VARCHAR AS services, COALESCE(note, '') AS note, COALESCE(last_activity_ns, 0) AS last_activity_ns FROM @@table WHERE id = @id LIMIT 1
+	// SELECT
+	//   id,
+	//   label,
+	//   created_at,
+	//   is_baseline,
+	//   is_imported,
+	//   span_count,
+	//   services::VARCHAR AS services,
+	//   COALESCE(note, '') AS note,
+	//   COALESCE(last_activity_ns, 0) AS last_activity_ns
+	// FROM @@table
+	// WHERE
+	//   id = @id
+	// LIMIT 1
 	GetByID(id string) ([]gen.T, error)
 
 	// ListWithStats
 	//
-	// WITH telemetry_payload AS (SELECT session_id, SUM(bytes) AS size_bytes FROM (SELECT id AS session_id, LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, '')) + 200 AS bytes FROM sessions UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes FROM spans UNION ALL SELECT session_id, LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100 FROM logs UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160 FROM metrics UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(name) + 80 FROM span_events UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120 FROM span_links UNION ALL SELECT session_id, LENGTH(fingerprint) + LENGTH(kind) + 150 FROM trace_issues UNION ALL SELECT session_id, LENGTH(message) + LENGTH(rule_id) + 100 FROM lint_warnings UNION ALL SELECT session_id, LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100 FROM metric_series_catalog) telemetry_rows GROUP BY session_id), n1 AS (SELECT session_id, COUNT(*) AS n1_count FROM trace_issues WHERE kind = 'n_plus_one' GROUP BY session_id) SELECT s.id, s.label, s.created_at, s.is_baseline, s.is_imported, COUNT(sp.span_id) AS span_count, s.services::VARCHAR AS services, COALESCE(s.note, '') AS note, COALESCE(s.last_activity_ns, 0) AS last_activity_ns, COUNT(DISTINCT sp.trace_id) AS trace_count, CAST(COALESCE(QUANTILE_CONT(sp.duration_ns, 0.95), 0) AS BIGINT) AS p95_ns, COALESCE(tp.size_bytes, 0) AS size_bytes, COALESCE(n1.n1_count, 0) AS n1_count, COUNT(*) FILTER (WHERE sp.status_code = 2) AS error_count FROM @@table s LEFT JOIN spans sp ON sp.session_id = s.id LEFT JOIN telemetry_payload tp ON tp.session_id = s.id LEFT JOIN n1 ON n1.session_id = s.id GROUP BY s.id, s.label, s.created_at, s.is_baseline, s.is_imported, s.services, s.note, s.last_activity_ns, tp.size_bytes, n1.n1_count ORDER BY s.created_at DESC
+	// WITH telemetry_payload AS (
+	//   SELECT
+	//     session_id,
+	//     SUM(bytes) AS size_bytes
+	//   FROM (
+	//     SELECT
+	//       id AS session_id,
+	//       LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, '')) + 200 AS bytes
+	//     FROM sessions
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes
+	//     FROM spans
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100
+	//     FROM logs
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160
+	//     FROM metrics
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(name) + 80
+	//     FROM span_events
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120
+	//     FROM span_links
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(fingerprint) + LENGTH(kind) + 150
+	//     FROM trace_issues
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(message) + LENGTH(rule_id) + 100
+	//     FROM lint_warnings
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100
+	//     FROM metric_series_catalog
+	//   ) telemetry_rows
+	//   GROUP BY
+	//     session_id
+	// ),
+	// n1 AS (
+	//   SELECT
+	//     session_id,
+	//     COUNT(*) AS n1_count
+	//   FROM trace_issues
+	//   WHERE
+	//     kind = 'n_plus_one'
+	//   GROUP BY
+	//     session_id
+	// )
+	// SELECT
+	//   s.id,
+	//   s.label,
+	//   s.created_at,
+	//   s.is_baseline,
+	//   s.is_imported,
+	//   COUNT(sp.span_id) AS span_count,
+	//   s.services::VARCHAR AS services,
+	//   COALESCE(s.note, '') AS note,
+	//   COALESCE(s.last_activity_ns, 0) AS last_activity_ns,
+	//   COUNT(DISTINCT sp.trace_id) AS trace_count,
+	//   CAST(
+	//     COALESCE(QUANTILE_CONT(sp.duration_ns, 0.95), 0) AS BIGINT
+	//   ) AS p95_ns,
+	//   COALESCE(tp.size_bytes, 0) AS size_bytes,
+	//   COALESCE(n1.n1_count, 0) AS n1_count,
+	//   COUNT(*) FILTER (WHERE sp.status_code = 2) AS error_count
+	// FROM @@table s
+	// LEFT JOIN spans sp
+	//   ON sp.session_id = s.id
+	// LEFT JOIN telemetry_payload tp
+	//   ON tp.session_id = s.id
+	// LEFT JOIN n1
+	//   ON n1.session_id = s.id
+	// GROUP BY
+	//   s.id,
+	//   s.label,
+	//   s.created_at,
+	//   s.is_baseline,
+	//   s.is_imported,
+	//   s.services,
+	//   s.note,
+	//   s.last_activity_ns,
+	//   tp.size_bytes,
+	//   n1.n1_count
+	// ORDER BY
+	//   s.created_at DESC
 	ListWithStats() ([]SessionSummary, error)
 }
 
 type LogSearchMethods interface {
+	// SELECT
+	//   timestamp_ns,
+	//   trace_id,
+	//   span_id,
+	//   severity,
+	//   body,
+	//   attributes::VARCHAR AS attributes,
+	//   service_name,
+	//   session_id,
+	//   received_at
+	// FROM logs
+	// WHERE
+	//   {{if len(services) > 0}} service_name IN @services
+	//   AND {{end}} (@sessionID = '' OR session_id = @sessionID)
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @traceID = ''
+	//     OR trace_id = @traceID
+	//   )
+	//   AND (
+	//     @spanID = ''
+	//     OR span_id = @spanID
+	//   )
+	//   AND (
+	//     @minSeverity = 0
+	//     OR severity >= @minSeverity
+	//   )
+	//   AND (
+	//     @maxSeverity = 0
+	//     OR severity <= @maxSeverity
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR timestamp_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR timestamp_ns <= @toNs
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         logs.attributes,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @attributeFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	// ORDER BY
+	//   timestamp_ns DESC
+	// LIMIT @limit
+	// OFFSET @offset
+	ListAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters string, limit, offset int) ([]Log, error)
+	// SELECT
+	//   COUNT(*) AS count
+	// FROM logs
+	// WHERE
+	//   {{if len(services) > 0}} service_name IN @services
+	//   AND {{end}} (@sessionID = '' OR session_id = @sessionID)
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @traceID = ''
+	//     OR trace_id = @traceID
+	//   )
+	//   AND (
+	//     @spanID = ''
+	//     OR span_id = @spanID
+	//   )
+	//   AND (
+	//     @minSeverity = 0
+	//     OR severity >= @minSeverity
+	//   )
+	//   AND (
+	//     @maxSeverity = 0
+	//     OR severity <= @maxSeverity
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR timestamp_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR timestamp_ns <= @toNs
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         logs.attributes,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @attributeFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	CountAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters string) ([]CountValue, error)
+
 	// SearchByBody
 	//
-	// SELECT 'log' AS kind, trace_id, span_id, LEFT(body, 120) AS title, service_name AS subtitle, session_id FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) AND body ILIKE @pattern ORDER BY timestamp_ns DESC LIMIT @limit
+	// SELECT
+	//   'log' AS kind,
+	//   trace_id,
+	//   span_id,
+	//   LEFT(body, 120) AS title,
+	//   service_name AS subtitle,
+	//   session_id
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND body ILIKE @pattern
+	// ORDER BY
+	//   timestamp_ns DESC
+	// LIMIT @limit
 	SearchByBody(sessionID, pattern string, limit int) ([]SearchResult, error)
 }
 
 type MetricMethods interface {
+	// SELECT
+	//   *
+	// FROM metrics
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @name = ''
+	//     OR name = @name
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR timestamp_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR timestamp_ns <= @toNs
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@attributeFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         metrics.attributes,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @attributeFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	//   AND NOT EXISTS (
+	//     SELECT
+	//       1
+	//     FROM UNNEST(json_keys(@resourceFilters)) f(key)
+	//     WHERE
+	//       json_extract_string(
+	//         metrics.resource,
+	//         '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//       ) IS DISTINCT
+	//     FROM json_extract_string(
+	//       @resourceFilters,
+	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
+	//     )
+	//   )
+	//   AND (
+	//     @attributeKey = ''
+	//     OR (
+	//       list_contains(json_keys(metrics.attributes), @attributeKey)
+	//       AND (
+	//         @attributeValue = ''
+	//         OR json_extract_string(
+	//           metrics.attributes,
+	//           '/' || replace(replace(@attributeKey, '~', '~0'), '/', '~1')
+	//         ) = @attributeValue
+	//       )
+	//     )
+	//   )
+	// ORDER BY
+	//   timestamp_ns DESC
+	// LIMIT @limit
+	ListAttributeFiltered(sessionID, service, name string, fromNs, toNs int64, attributeFilters, resourceFilters, attributeKey, attributeValue string, limit int) ([]Metric, error)
+
 	// ListCatalog
 	//
-	// SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count, MAX(timestamp_ns) AS last_timestamp_ns FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) GROUP BY name, service_name, type, unit, description ORDER BY last_timestamp_ns DESC, MAX(rowid) DESC
+	// SELECT
+	//   name,
+	//   service_name,
+	//   type,
+	//   unit,
+	//   description,
+	//   any_value(aggregation_temporality) AS aggregation_temporality,
+	//   any_value(is_monotonic) AS is_monotonic,
+	//   COUNT(*) AS sample_count,
+	//   MAX(timestamp_ns) AS last_timestamp_ns
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	// GROUP BY
+	//   name,
+	//   service_name,
+	//   type,
+	//   unit,
+	//   description
+	// ORDER BY
+	//   last_timestamp_ns DESC,
+	//   MAX(rowid) DESC
 	ListCatalog(sessionID string) ([]MetricCatalogEntry, error)
 
 	// GetStreamMetadata
 	//
-	// SELECT name, description, unit, type, aggregation_temporality, is_monotonic, service_name FROM @@table WHERE (@name = '' OR name = @name) AND (@service = '' OR service_name = @service) AND (@sessionID = '' OR session_id = @sessionID) ORDER BY timestamp_ns DESC LIMIT 1
+	// SELECT
+	//   name,
+	//   description,
+	//   unit,
+	//   type,
+	//   aggregation_temporality,
+	//   is_monotonic,
+	//   service_name
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @name = ''
+	//     OR name = @name
+	//   )
+	//   AND (
+	//     @service = ''
+	//     OR service_name = @service
+	//   )
+	//   AND (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	// ORDER BY
+	//   timestamp_ns DESC
+	// LIMIT 1
 	GetStreamMetadata(name, service, sessionID string) ([]Metric, error)
 }
 
 type SpanMetricMethods interface {
 	// ServiceP95
 	//
-	// SELECT CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns FROM @@table WHERE service_name = @serviceName
+	// SELECT
+	//   CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns
+	// FROM @@table
+	// WHERE
+	//   service_name = @serviceName
 	ServiceP95(serviceName string) ([]P95Value, error)
 }
 
 type SpanServiceMapMethods interface {
 	// ListServiceMapNodes
 	//
-	// SELECT service_name AS id, COUNT(*) AS span_count, COUNT(*) FILTER (WHERE status_code = 2) AS error_count, CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) AND (@fromNs = 0 OR start_ns >= @fromNs) AND (@toNs = 0 OR start_ns <= @toNs) GROUP BY service_name ORDER BY service_name
+	// SELECT
+	//   service_name AS id,
+	//   COUNT(*) AS span_count,
+	//   COUNT(*) FILTER (WHERE status_code = 2) AS error_count,
+	//   CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR start_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR start_ns <= @toNs
+	//   )
+	// GROUP BY
+	//   service_name
+	// ORDER BY
+	//   service_name
 	ListServiceMapNodes(sessionID string, fromNs, toNs int64) ([]ServiceMapNode, error)
 
 	// ListServiceMapEdges
 	//
-	// SELECT p.service_name AS "from", c.service_name AS "to", COUNT(*) AS call_count, CAST(AVG(c.duration_ns) AS BIGINT) AS avg_duration_ns, COUNT(*) FILTER (WHERE c.status_code = 2) AS error_count FROM @@table c INNER JOIN spans p ON c.parent_span_id = p.span_id WHERE c.service_name != p.service_name AND (@sessionID = '' OR c.session_id = @sessionID) AND (@fromNs = 0 OR c.start_ns >= @fromNs) AND (@toNs = 0 OR c.start_ns <= @toNs) GROUP BY p.service_name, c.service_name
+	// SELECT
+	//   p.service_name AS "from",
+	//   c.service_name AS "to",
+	//   COUNT(*) AS call_count,
+	//   CAST(AVG(c.duration_ns) AS BIGINT) AS avg_duration_ns,
+	//   COUNT(*) FILTER (WHERE c.status_code = 2) AS error_count
+	// FROM @@table c
+	// INNER JOIN spans p
+	//   ON c.parent_span_id = p.span_id
+	// WHERE
+	//   c.service_name != p.service_name
+	//   AND (
+	//     @sessionID = ''
+	//     OR c.session_id = @sessionID
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR c.start_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR c.start_ns <= @toNs
+	//   )
+	// GROUP BY
+	//   p.service_name,
+	//   c.service_name
 	ListServiceMapEdges(sessionID string, fromNs, toNs int64) ([]ServiceMapEdge, error)
 
 	// ListTopOperations
 	//
-	// SELECT name, COUNT(*) AS count, CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns FROM @@table WHERE service_name = @service AND (@sessionID = '' OR session_id = @sessionID) AND (@fromNs = 0 OR start_ns >= @fromNs) AND (@toNs = 0 OR start_ns <= @toNs) GROUP BY name ORDER BY count DESC LIMIT @limit
+	// SELECT
+	//   name,
+	//   COUNT(*) AS count,
+	//   CAST(COALESCE(QUANTILE_CONT(duration_ns, 0.95), 0) AS BIGINT) AS p95_ns
+	// FROM @@table
+	// WHERE
+	//   service_name = @service
+	//   AND (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	//   AND (
+	//     @fromNs = 0
+	//     OR start_ns >= @fromNs
+	//   )
+	//   AND (
+	//     @toNs = 0
+	//     OR start_ns <= @toNs
+	//   )
+	// GROUP BY
+	//   name
+	// ORDER BY
+	//   count DESC
+	// LIMIT @limit
 	ListTopOperations(service, sessionID string, fromNs, toNs int64, limit int) ([]ServiceMapOpStat, error)
 }
 
 type SpanStorageMethods interface {
 	// GetStats
 	//
-	// SELECT COUNT(*) AS span_count, COUNT(*) FILTER (WHERE parent_span_id = '' OR parent_span_id IS NULL) AS trace_count, (SELECT COUNT(*) FROM logs WHERE (@sessionID = '' OR session_id = @sessionID)) AS log_count, (SELECT COUNT(*) FROM sessions) AS session_count, COALESCE((SELECT MIN(created_at) FROM sessions), 0) AS oldest_session_at FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID)
+	// SELECT
+	//   COUNT(*) AS span_count,
+	//   COUNT(*) FILTER (WHERE parent_span_id = '' OR parent_span_id IS NULL) AS trace_count,
+	//   (
+	//     SELECT
+	//       COUNT(*)
+	//     FROM logs
+	//     WHERE
+	//       (
+	//         @sessionID = ''
+	//         OR session_id = @sessionID
+	//       )
+	//   ) AS log_count,
+	//   (
+	//     SELECT
+	//       COUNT(*)
+	//     FROM sessions
+	//   ) AS session_count,
+	//   COALESCE(
+	//     (
+	//       SELECT
+	//         MIN(created_at)
+	//       FROM sessions
+	//     ),
+	//     0
+	//   ) AS oldest_session_at
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
 	GetStats(sessionID string) ([]StatsRow, error)
 
 	// StorageTableSizes
 	//
-	// SELECT 'spans' AS name, COUNT(*) AS row_count, CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300), 0) AS BIGINT) AS payload_bytes FROM @@table UNION ALL SELECT 'logs', COUNT(*), CAST(COALESCE(SUM(LENGTH(body) + LENGTH(attributes::VARCHAR) + 100), 0) AS BIGINT) FROM logs UNION ALL SELECT 'metrics', COUNT(*), CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT) FROM metrics UNION ALL SELECT 'span_events', COUNT(*), CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT) FROM span_events UNION ALL SELECT 'span_links', COUNT(*), CAST(COALESCE(SUM(LENGTH(attributes::VARCHAR) + 120), 0) AS BIGINT) FROM span_links UNION ALL SELECT 'sessions', COUNT(*), CAST(COUNT(*) * 200 AS BIGINT) FROM sessions UNION ALL SELECT 'trace_issues', COUNT(*), CAST(COALESCE(SUM(LENGTH(fingerprint) + 150), 0) AS BIGINT) FROM trace_issues UNION ALL SELECT 'lint_warnings', COUNT(*), CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT) FROM lint_warnings
+	// SELECT
+	//   'spans' AS name,
+	//   COUNT(*) AS row_count,
+	//   CAST(
+	//     COALESCE(
+	//       SUM(
+	//         LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300
+	//       ),
+	//       0
+	//     ) AS BIGINT
+	//   ) AS payload_bytes
+	// FROM @@table
+	// UNION ALL
+	// SELECT
+	//   'logs',
+	//   COUNT(*),
+	//   CAST(
+	//     COALESCE(
+	//       SUM(LENGTH(body) + LENGTH(attributes::VARCHAR) + 100),
+	//       0
+	//     ) AS BIGINT
+	//   )
+	// FROM logs
+	// UNION ALL
+	// SELECT
+	//   'metrics',
+	//   COUNT(*),
+	//   CAST(
+	//     COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT
+	//   )
+	// FROM metrics
+	// UNION ALL
+	// SELECT
+	//   'span_events',
+	//   COUNT(*),
+	//   CAST(
+	//     COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT
+	//   )
+	// FROM span_events
+	// UNION ALL
+	// SELECT
+	//   'span_links',
+	//   COUNT(*),
+	//   CAST(
+	//     COALESCE(SUM(LENGTH(attributes::VARCHAR) + 120), 0) AS BIGINT
+	//   )
+	// FROM span_links
+	// UNION ALL
+	// SELECT
+	//   'sessions',
+	//   COUNT(*),
+	//   CAST(COUNT(*) * 200 AS BIGINT)
+	// FROM sessions
+	// UNION ALL
+	// SELECT
+	//   'trace_issues',
+	//   COUNT(*),
+	//   CAST(COALESCE(SUM(LENGTH(fingerprint) + 150), 0) AS BIGINT)
+	// FROM trace_issues
+	// UNION ALL
+	// SELECT
+	//   'lint_warnings',
+	//   COUNT(*),
+	//   CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT)
+	// FROM lint_warnings
 	StorageTableSizes() ([]TableSizeRow, error)
 
 	// TopSessionSizes
 	//
-	// WITH telemetry_payload AS (SELECT session_id, SUM(bytes) AS approx_bytes FROM (SELECT id AS session_id, LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, '')) + 200 AS bytes FROM sessions UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes FROM spans UNION ALL SELECT session_id, LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100 FROM logs UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160 FROM metrics UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(name) + 80 FROM span_events UNION ALL SELECT session_id, LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120 FROM span_links UNION ALL SELECT session_id, LENGTH(fingerprint) + LENGTH(kind) + 150 FROM trace_issues UNION ALL SELECT session_id, LENGTH(message) + LENGTH(rule_id) + 100 FROM lint_warnings UNION ALL SELECT session_id, LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100 FROM metric_series_catalog) telemetry_rows GROUP BY session_id) SELECT tp.session_id AS id, COALESCE(se.label, '') AS label, COUNT(sp.span_id) AS span_count, tp.approx_bytes FROM telemetry_payload tp LEFT JOIN sessions se ON se.id = tp.session_id LEFT JOIN spans sp ON sp.session_id = tp.session_id GROUP BY tp.session_id, se.label, tp.approx_bytes ORDER BY tp.approx_bytes DESC LIMIT 10
+	// WITH telemetry_payload AS (
+	//   SELECT
+	//     session_id,
+	//     SUM(bytes) AS approx_bytes
+	//   FROM (
+	//     SELECT
+	//       id AS session_id,
+	//       LENGTH(label) + LENGTH(services::VARCHAR) + LENGTH(COALESCE(note, '')) + 200 AS bytes
+	//     FROM sessions
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 AS bytes
+	//     FROM spans
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(body) + LENGTH(attributes::VARCHAR) + LENGTH(service_name) + 100
+	//     FROM logs
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(series_attributes) + LENGTH(scope_attributes) + LENGTH(exemplars) + LENGTH(name) + LENGTH(description) + LENGTH(unit) + LENGTH(service_name) + 160
+	//     FROM metrics
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(name) + 80
+	//     FROM span_events
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(attributes::VARCHAR) + LENGTH(linked_trace_id) + LENGTH(linked_span_id) + LENGTH(trace_state) + 120
+	//     FROM span_links
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(fingerprint) + LENGTH(kind) + 150
+	//     FROM trace_issues
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(message) + LENGTH(rule_id) + 100
+	//     FROM lint_warnings
+	//     UNION ALL
+	//     SELECT
+	//       session_id,
+	//       LENGTH(service_name) + LENGTH(name) + LENGTH(series_key) + LENGTH(series_attributes) + 100
+	//     FROM metric_series_catalog
+	//   ) telemetry_rows
+	//   GROUP BY
+	//     session_id
+	// )
+	// SELECT
+	//   tp.session_id AS id,
+	//   COALESCE(se.label, '') AS label,
+	//   COUNT(sp.span_id) AS span_count,
+	//   tp.approx_bytes
+	// FROM telemetry_payload tp
+	// LEFT JOIN sessions se
+	//   ON se.id = tp.session_id
+	// LEFT JOIN spans sp
+	//   ON sp.session_id = tp.session_id
+	// GROUP BY
+	//   tp.session_id,
+	//   se.label,
+	//   tp.approx_bytes
+	// ORDER BY
+	//   tp.approx_bytes DESC
+	// LIMIT 10
 	TopSessionSizes() ([]SessionSize, error)
 }
 
 type MetaDiagnosticMethods interface {
 	// DatabaseSize
 	//
-	// SELECT block_size, used_blocks FROM pragma_database_size() LIMIT 1
+	// SELECT
+	//   block_size,
+	//   used_blocks
+	// FROM pragma_database_size()
+	// LIMIT 1
 	DatabaseSize() ([]DatabaseSize, error)
 }
 
 type TraceIssueSearchMethods interface {
 	// SearchNPlusOne
 	//
-	// SELECT ti.trace_id, COALESCE(s.name, '(trace)') AS title, ti.count, ti.session_id FROM @@table ti LEFT JOIN spans s ON s.span_id = ti.example_span_id WHERE ti.kind = 'n_plus_one' AND (@sessionID = '' OR ti.session_id = @sessionID) ORDER BY ti.wasted_ns DESC LIMIT @limit
+	// SELECT
+	//   ti.trace_id,
+	//   COALESCE(s.name, '(trace)') AS title,
+	//   ti.count,
+	//   ti.session_id
+	// FROM @@table ti
+	// LEFT JOIN spans s
+	//   ON s.span_id = ti.example_span_id
+	// WHERE
+	//   ti.kind = 'n_plus_one'
+	//   AND (
+	//     @sessionID = ''
+	//     OR ti.session_id = @sessionID
+	//   )
+	// ORDER BY
+	//   ti.wasted_ns DESC
+	// LIMIT @limit
 	SearchNPlusOne(sessionID string, limit int) ([]NPlusOneSearchResult, error)
 }
 
 type LintWarningSearchMethods interface {
 	// SearchByRule
 	//
-	// SELECT lw.trace_id, COALESCE(MIN(s.name), '(trace)') AS title, MIN(lw.rule_id) AS rule_id, MIN(lw.session_id) AS session_id FROM @@table lw LEFT JOIN spans s ON s.span_id = lw.span_id WHERE lw.rule_id ILIKE @pattern AND (@sessionID = '' OR lw.session_id = @sessionID) AND lw.trace_id != '' GROUP BY lw.trace_id LIMIT @limit
+	// SELECT
+	//   lw.trace_id,
+	//   COALESCE(MIN(s.name), '(trace)') AS title,
+	//   MIN(lw.rule_id) AS rule_id,
+	//   MIN(lw.session_id) AS session_id
+	// FROM @@table lw
+	// LEFT JOIN spans s
+	//   ON s.span_id = lw.span_id
+	// WHERE
+	//   lw.rule_id ILIKE @pattern
+	//   AND (
+	//     @sessionID = ''
+	//     OR lw.session_id = @sessionID
+	//   )
+	//   AND lw.trace_id != ''
+	// GROUP BY
+	//   lw.trace_id
+	// LIMIT @limit
 	SearchByRule(sessionID, pattern string, limit int) ([]LintSearchResult, error)
 }
 
 type LintWarningMethods interface {
 	// ListWithTraceIssues
 	//
-	// SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at FROM @@table WHERE (@sessionID = '' OR session_id = @sessionID) UNION ALL SELECT example_span_id AS span_id, trace_id, session_id, kind AS rule_id, CASE kind WHEN 'n_plus_one' THEN 'N+1 query: ' || CAST(count AS VARCHAR) || ' repeated executions wasting ' || CAST(ROUND(wasted_ns / 1e6, 1) AS VARCHAR) || 'ms — ' || fingerprint ELSE kind || ': ' || CAST(count AS VARCHAR) || ' occurrences — ' || fingerprint END AS message, 'warning' AS severity, created_at FROM trace_issues WHERE (@sessionID = '' OR session_id = @sessionID) ORDER BY created_at DESC
+	// SELECT
+	//   span_id,
+	//   trace_id,
+	//   session_id,
+	//   rule_id,
+	//   message,
+	//   severity,
+	//   created_at
+	// FROM @@table
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	// UNION ALL
+	// SELECT
+	//   example_span_id AS span_id,
+	//   trace_id,
+	//   session_id,
+	//   kind AS rule_id,
+	//   CASE kind
+	//     WHEN 'n_plus_one' THEN 'N+1 query: ' || CAST(count AS VARCHAR) || ' repeated executions wasting ' || CAST(ROUND(wasted_ns / 1e6, 1) AS VARCHAR) || 'ms — ' || fingerprint
+	//     ELSE kind || ': ' || CAST(count AS VARCHAR) || ' occurrences — ' || fingerprint
+	//   END AS message,
+	//   'warning' AS severity,
+	//   created_at
+	// FROM trace_issues
+	// WHERE
+	//   (
+	//     @sessionID = ''
+	//     OR session_id = @sessionID
+	//   )
+	// ORDER BY
+	//   created_at DESC
 	ListWithTraceIssues(sessionID string) ([]gen.T, error)
 }

@@ -8,9 +8,12 @@ import (
 	"github.com/zfogg/gotel/go"
 	"github.com/zfogg/gotel/go/otelhost"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/exemplar"
 	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -44,17 +47,35 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 	if cfg.Endpoint == "" {
 		return func(context.Context) error { return nil }, nil
 	}
-	if cfg.ServiceName == "" {
-		cfg.ServiceName = "spaniel"
+	if cfg.ServiceName == "" || cfg.ServiceName == "spaniel" {
+		cfg.ServiceName = APIService
 	}
 	bodySizeBounds := []float64{0, 16, 32, 64, 128, 256, 512, 1 << 10, 2 << 10, 4 << 10, 8 << 10, 16 << 10, 32 << 10, 64 << 10, 128 << 10, 256 << 10, 512 << 10, 1 << 20, 2 << 20, 4 << 20}
 	attrs := []attribute.KeyValue{}
 	if cfg.DBPath != "" {
 		attrs = append(attrs, attribute.String("db.namespace", cfg.DBPath))
 	}
+	traceOpts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.Endpoint), otlptracegrpc.WithHeaders(map[string]string{SelfTelemetryHeader: selfTelemetryValue})}
+	metricOpts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint), otlpmetricgrpc.WithHeaders(map[string]string{SelfTelemetryHeader: selfTelemetryValue})}
+	if cfg.Insecure {
+		traceOpts = append(traceOpts, otlptracegrpc.WithInsecure())
+		metricOpts = append(metricOpts, otlpmetricgrpc.WithInsecure())
+	}
+	traceExporter, err := otlptracegrpc.New(ctx, traceOpts...)
+	if err != nil {
+		return nil, err
+	}
+	metricExporter, err := otlpmetricgrpc.New(ctx, metricOpts...)
+	if err != nil {
+		_ = traceExporter.Shutdown(ctx)
+		return nil, err
+	}
 	runtime, err := otelhost.Start(ctx, otelhost.Config{
 		ServiceName: cfg.ServiceName, ServiceVersion: cfg.Version,
-		Endpoint: cfg.Endpoint, Protocol: otelhost.ProtocolGRPC, Insecure: cfg.Insecure,
+		TraceExporter: serviceSpanExporter{traceExporter},
+		TraceOptions:  []sdktrace.TracerProviderOption{sdktrace.WithSpanProcessor(serviceOwnerProcessor{})},
+		MetricReader:  sdkmetric.NewPeriodicReader(serviceMetricExporter{metricExporter}, sdkmetric.WithInterval(10*time.Second)),
+		Endpoint:      cfg.Endpoint, Protocol: otelhost.ProtocolGRPC, Insecure: cfg.Insecure,
 		Headers:    map[string]string{SelfTelemetryHeader: selfTelemetryValue},
 		Attributes: attrs, MetricInterval: 10 * time.Second,
 		ResourceOptions: []resource.Option{resource.WithFromEnv()},
@@ -67,6 +88,8 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 		RuntimeMetrics: true,
 	})
 	if err != nil {
+		_ = traceExporter.Shutdown(ctx)
+		_ = metricExporter.Shutdown(ctx)
 		return nil, err
 	}
 	InitMetrics()

@@ -50,6 +50,9 @@ func (h *handler) resolveSession(sessionID string) string {
 // ---- list_traces ----
 
 type ListTracesInput struct {
+	Attributes         map[string]string `json:"attributes,omitempty" jsonschema:"exact top-level attribute key/value filters; AND; scalar values compared as text; applied before pagination"`
+	ResourceAttributes map[string]string `json:"resource_attributes,omitempty" jsonschema:"exact resource attribute key/value filters; AND; trace filters match any one span in the trace"`
+
 	SessionID     string    `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
 	Service       string    `json:"service,omitempty" jsonschema:"filter to traces whose root span has this service.name"`
 	Operation     string    `json:"operation,omitempty" jsonschema:"case-insensitive substring of the root operation name"`
@@ -103,10 +106,12 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 	}
 
 	rows, err := h.store.WithContext(ctx).ListTraces(storage.TraceFilter{
-		SessionID:  sessionID,
-		Service:    in.Service,
-		Operation:  in.Operation,
-		StatusCode: status, HasStatus: hasStatus, FromNs: fromNs, ToNs: toNs,
+		Attributes:         in.Attributes,
+		ResourceAttributes: in.ResourceAttributes,
+		SessionID:          sessionID,
+		Service:            in.Service,
+		Operation:          in.Operation,
+		StatusCode:         status, HasStatus: hasStatus, FromNs: fromNs, ToNs: toNs,
 		MinDurationNs: int64(in.MinDurationMs * 1_000_000), IssueKind: in.IssueKind,
 		Limit: limit,
 		Page:  in.Page,
@@ -380,6 +385,9 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 // ---- list_slow_spans ----
 
 type ListSlowSpansInput struct {
+	Attributes         map[string]string `json:"attributes,omitempty" jsonschema:"exact top-level attribute key/value filters; AND; scalar values compared as text; applied before pagination"`
+	ResourceAttributes map[string]string `json:"resource_attributes,omitempty" jsonschema:"exact resource attribute key/value filters; AND; trace filters match any one span in the trace"`
+
 	SessionID     string    `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
 	Service       string    `json:"service,omitempty" jsonschema:"only spans from this service.name"`
 	Operation     string    `json:"operation,omitempty" jsonschema:"only spans with this exact operation name"`
@@ -435,18 +443,20 @@ func (h *handler) listSlowSpans(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	}
 
 	rows, err := h.store.WithContext(ctx).ListSpans(storage.SpanFilter{
-		SessionID:     sessionID,
-		Service:       in.Service,
-		Name:          in.Operation,
-		HasStatus:     hasStatus,
-		StatusCode:    statusCode,
-		Tag:           in.Tag,
-		FromNs:        fromNs,
-		ToNs:          toNs,
-		MinDurationNs: int64(in.MinDurationMs * 1_000_000),
-		Sort:          "dur",
-		Limit:         limit,
-		Page:          in.Page,
+		Attributes:         in.Attributes,
+		ResourceAttributes: in.ResourceAttributes,
+		SessionID:          sessionID,
+		Service:            in.Service,
+		Name:               in.Operation,
+		HasStatus:          hasStatus,
+		StatusCode:         statusCode,
+		Tag:                in.Tag,
+		FromNs:             fromNs,
+		ToNs:               toNs,
+		MinDurationNs:      int64(in.MinDurationMs * 1_000_000),
+		Sort:               "dur",
+		Limit:              limit,
+		Page:               in.Page,
 	})
 	if err != nil {
 		return nil, ListSlowSpansOutput{}, fmt.Errorf("list spans: %w", err)

@@ -29,6 +29,9 @@ export default defineConfig({
     ? undefined
     : {
         command: 'pnpm dev --host 127.0.0.1',
+        // Mocked API tests must not export synthetic single-span traces into
+        // a developer's collector. Live collector tests use its built assets.
+        env: { VITE_SPANIEL_TELEMETRY: 'false' },
         url: 'http://localhost:5173',
         reuseExistingServer: !process.env.CI,
         timeout: 60_000,

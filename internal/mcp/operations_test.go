@@ -19,7 +19,7 @@ func callText(t *testing.T, cs *mcpsdk.ClientSession, name string, args map[stri
 		t.Fatalf("call %s: %v", name, err)
 	}
 	if result.IsError {
-		t.Fatalf("%s returned tool error: %+v", name, result.Content)
+		t.Fatalf("%s returned tool error: %+v", name, result.Content[0])
 	}
 	if result.StructuredContent != nil || len(result.Content) != 1 {
 		t.Fatalf("%s returned duplicated or unexpected content: %#v", name, result)

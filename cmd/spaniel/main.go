@@ -46,6 +46,7 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // version is overridden at release-build time via -ldflags "-X main.version=...".
@@ -706,7 +707,12 @@ func run(cfg runConfig) error {
 		defer t.Stop()
 		for range t.C {
 			dc := pipeline.DropCounters()
-			_ = store.SaveDropCounters(dc.DroppedSpansTotal(), dc.DroppedLogsTotal(), dc.DroppedMetricPointsTotal())
+			ctx, span := telemetry.Tracer("maintenance").Start(context.Background(), "maintenance.persist_drop_counters")
+			if err := store.WithContext(ctx).SaveDropCounters(dc.DroppedSpansTotal(), dc.DroppedLogsTotal(), dc.DroppedMetricPointsTotal()); err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "persist drop counters")
+			}
+			span.End()
 		}
 	}()
 
@@ -997,6 +1003,14 @@ func run(cfg runConfig) error {
 
 	mainMux := http.NewServeMux()
 	mainMux.Handle("/api/", apiRouter)
+	mainMux.HandleFunc("POST /v1/traces", func(w http.ResponseWriter, r *http.Request) {
+		if !cfg.Viper.GetBool("self_monitor") {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		r.Header.Set(telemetry.SelfTelemetryHeader, "true")
+		httpRcv.HandleTraces(w, r)
+	})
 	mainMux.Handle("/ws", apiRouter)
 	if mcpHandler != nil {
 		mainMux.Handle("/mcp", mcpHandler)

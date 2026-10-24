@@ -89,12 +89,15 @@ func (d *DB) GetMetricStreamMetadata(f MetricSeriesFilter) (*Metric, error) {
 
 // MetricSeriesFilter scopes a series query.
 type MetricSeriesFilter struct {
-	Name      string
-	Service   string
-	SessionID string
-	FromNs    int64 // inclusive; 0 = no lower bound
-	ToNs      int64 // inclusive; 0 = no upper bound
-	Limit     int   // most recent points; 0 = all
+	AttributeKey, AttributeValue string
+	Attributes                   map[string]string
+	ResourceAttributes           map[string]string
+	Name                         string
+	Service                      string
+	SessionID                    string
+	FromNs                       int64 // inclusive; 0 = no lower bound
+	ToNs                         int64 // inclusive; 0 = no upper bound
+	Limit                        int   // most recent points; 0 = all
 }
 
 // GetMetricSeries returns every data point matching the filter, ordered by
@@ -113,6 +116,18 @@ func (d *DB) GetMetricChartSeries(f MetricSeriesFilter) ([]*Metric, error) {
 }
 
 func (d *DB) metricSeries(f MetricSeriesFilter, chart bool) ([]*Metric, error) {
+	if len(f.Attributes) > 0 || len(f.ResourceAttributes) > 0 || f.AttributeKey != "" {
+		limit := f.Limit
+		if limit <= 0 {
+			limit = 2147483647
+		}
+		rows, err := d.query.Metric.ListAttributeFiltered(f.SessionID, f.Service, f.Name, f.FromNs, f.ToNs, encodeAttributeFilters(f.Attributes), encodeAttributeFilters(f.ResourceAttributes), f.AttributeKey, f.AttributeValue, limit)
+		out := make([]*Metric, len(rows))
+		for i := range rows {
+			out[len(rows)-1-i] = &rows[i]
+		}
+		return out, err
+	}
 	q := d.query.Metric.Where()
 	if chart {
 		q = q.Omit(d.query.Metric.Resource, d.query.Metric.Attributes)

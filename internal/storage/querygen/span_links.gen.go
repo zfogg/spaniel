@@ -183,7 +183,20 @@ type ISpanLinkDo interface {
 
 // ListBySpan
 //
-// SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM @@table WHERE span_id = @spanID
+// SELECT
+//
+//	span_id,
+//	trace_id,
+//	session_id,
+//	linked_trace_id,
+//	linked_span_id,
+//	trace_state,
+//	attributes::VARCHAR AS attributes
+//
+// FROM @@table
+// WHERE
+//
+//	span_id = @spanID
 func (s spanLinkDo) ListBySpan(spanID string) (result []model.SpanLink, err error) {
 	var params []interface{}
 
@@ -200,7 +213,20 @@ func (s spanLinkDo) ListBySpan(spanID string) (result []model.SpanLink, err erro
 
 // ListIncomingByTrace
 //
-// SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM @@table WHERE linked_trace_id = @traceID
+// SELECT
+//
+//	span_id,
+//	trace_id,
+//	session_id,
+//	linked_trace_id,
+//	linked_span_id,
+//	trace_state,
+//	attributes::VARCHAR AS attributes
+//
+// FROM @@table
+// WHERE
+//
+//	linked_trace_id = @traceID
 func (s spanLinkDo) ListIncomingByTrace(traceID string) (result []model.SpanLink, err error) {
 	var params []interface{}
 
@@ -217,7 +243,20 @@ func (s spanLinkDo) ListIncomingByTrace(traceID string) (result []model.SpanLink
 
 // ListByTrace
 //
-// SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM @@table WHERE trace_id = @traceID
+// SELECT
+//
+//	span_id,
+//	trace_id,
+//	session_id,
+//	linked_trace_id,
+//	linked_span_id,
+//	trace_state,
+//	attributes::VARCHAR AS attributes
+//
+// FROM @@table
+// WHERE
+//
+//	trace_id = @traceID
 func (s spanLinkDo) ListByTrace(traceID string) (result []model.SpanLink, err error) {
 	var params []interface{}
 

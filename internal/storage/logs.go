@@ -12,6 +12,7 @@ func (d *DB) InsertLog(l *Log) error {
 }
 
 type LogFilter struct {
+	Attributes  map[string]string
 	Services    []string
 	SessionID   string
 	Service     string
@@ -33,6 +34,14 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 		f.Page = 1
 	}
 	offset := (f.Page - 1) * f.Limit
+	if len(f.Attributes) > 0 {
+		rows, err := d.query.Log.ListAttributeFiltered(f.SessionID, f.Service, f.TraceID, f.SpanID, f.MinSeverity, f.MaxSeverity, f.FromNs, f.ToNs, f.Services, encodeAttributeFilters(f.Attributes), f.Limit, offset)
+		out := make([]*Log, len(rows))
+		for i := range rows {
+			out[i] = &rows[i]
+		}
+		return out, err
+	}
 
 	q := d.query.Log.Where()
 	if f.SessionID != "" {
@@ -66,6 +75,16 @@ func (d *DB) ListLogs(f LogFilter) ([]*Log, error) {
 }
 
 func (d *DB) CountLogs(f LogFilter) (int, error) {
+	if len(f.Attributes) > 0 {
+		rows, err := d.query.Log.CountAttributeFiltered(f.SessionID, f.Service, f.TraceID, f.SpanID, f.MinSeverity, f.MaxSeverity, f.FromNs, f.ToNs, f.Services, encodeAttributeFilters(f.Attributes))
+		if err != nil {
+			return 0, err
+		}
+		if len(rows) == 0 {
+			return 0, nil
+		}
+		return int(rows[0].Count), nil
+	}
 	q := d.query.Log.Where()
 	if f.SessionID != "" {
 		q = q.Where(d.query.Log.SessionID.Eq(f.SessionID))

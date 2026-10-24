@@ -226,6 +226,44 @@ For **Claude Desktop** (or any client without native HTTP MCP support), bridge w
 
 ### Tools
 
+Agent investigations can start with `get_service_summary(service)` for span
+latency/errors, logs and metrics freshness, top operations/findings, dependencies,
+and session-wide route coverage. Latency percentiles and error rate describe
+service spans, not request throughput. Operation, finding, and route lists are bounded.
+
+Use `list_attribute_keys` and `list_attribute_values` to discover observed keys
+and values by session, service, signal (`spans`, `logs`, `metrics`), scope
+(`attributes`, `resource`), and time window. Values include JSON types and
+occurrence counts; pages return `has_more`. Logs currently store attributes only.
+
+Pass `attributes` and `resource_attributes` maps to `list_traces`,
+`list_slow_spans`, or `get_metric_series`; `query_logs` accepts `attributes`.
+Filters use exact top-level keys (dots are literal), AND all pairs, compare scalar
+values as text, and run before pagination. Empty strings differ from missing keys.
+Trace filters match all pairs on any one span in the trace; service, status,
+operation, and time filters still select its root span.
+
+For example, discover `service.version` with scope `resource`, then call
+`list_traces` with `resource_attributes: {"service.version": "abc123"}`.
+New time-window inputs use decimal nanosecond strings to preserve precision.
+
+MCP self-telemetry includes `spaniel.mcp.tool/<name>` spans with method/tool attributes,
+error status for protocol and tool failures, and `spaniel.mcp.requests` /
+`spaniel.mcp.duration` metrics labeled by method, registered tool name, and result.
+Enable self-monitoring to store these. Tool arguments and response bodies are
+not added to telemetry.
+
+Self-monitoring uses three services: `spaniel-web` for browser API requests,
+`spaniel-api` for the HTTP API and background jobs, and `spaniel-mcp` for MCP
+requests, their storage queries, and MCP metrics. Browser client spans propagate
+W3C `traceparent` to the API, so a request appears as one trace beginning in
+`spaniel-web` and continuing in `spaniel-api`. Browser exports use the UI origin's
+standard `/v1/traces` endpoint, including through the Vite proxy; disabling
+self-monitoring stops storage of browser exports. All three service identities
+are recognized as self-telemetry to prevent recursive ingestion instrumentation.
+The legacy default self-telemetry name `spaniel` maps to `spaniel-api`.
+
+
 All tools are **read-only** unless you start spaniel with `--mcp-allow-writes`.
 
 `get_server_info` includes an absolute `openapi_url` using the MCP request's

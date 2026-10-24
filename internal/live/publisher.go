@@ -3,11 +3,14 @@
 package live
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
+	"go.opentelemetry.io/otel/codes"
 )
 
 const coalesceDelay = 100 * time.Millisecond
@@ -58,7 +61,14 @@ func (p *Publisher) publish() {
 		return
 	}
 	sessionID := p.store.ActiveSessionID()
-	stats, err := p.store.GetStats(sessionID)
+	ctx, span := telemetry.Tracer("live").Start(context.Background(), "live.publish")
+	defer span.End()
+	store := p.store.WithContext(ctx)
+	stats, err := store.GetStats(sessionID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "read live stats")
+	}
 	if err == nil {
 		if p.tp != nil {
 			stats.Throughput = p.tp.Throughput()
@@ -69,7 +79,11 @@ func (p *Publisher) publish() {
 			stats.DroppedMetricPoints = p.dc.DroppedMetricPointsTotal()
 			stats.LastDropAt = p.dc.LastDropAt()
 		}
-		sources, sourceErr := p.store.GetSourceStats(sessionID)
+		sources, sourceErr := store.GetSourceStats(sessionID)
+		if sourceErr != nil {
+			span.RecordError(sourceErr)
+			span.SetStatus(codes.Error, "read live sources")
+		}
 		if sourceErr == nil {
 			if sources == nil {
 				sources = []storage.SourceStats{}

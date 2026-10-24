@@ -7,6 +7,11 @@ import { MotionConfig } from 'motion/react'
 import { queryClient } from './lib/query'
 import './index.css'
 import App from './App'
+import { startBrowserTelemetry } from './lib/browser-telemetry'
+
+const stopTelemetry =
+  import.meta.env.VITE_SPANIEL_TELEMETRY === 'false' ? undefined : startBrowserTelemetry()
+if (import.meta.hot && stopTelemetry) import.meta.hot.dispose(stopTelemetry)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

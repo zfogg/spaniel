@@ -114,21 +114,23 @@ func (d *DB) GetSpan(spanID string) (*Span, error) {
 }
 
 type SpanFilter struct {
-	Services      []string
-	SessionID     string
-	Sort          string // "time" | "dur" | "name"
-	Limit         int
-	Page          int
-	Service       string
-	Name          string
-	Kind          int
-	HasKind       bool
-	StatusCode    int
-	HasStatus     bool
-	FromNs        int64
-	ToNs          int64
-	MinDurationNs int64
-	Tag           string
+	Attributes         map[string]string
+	ResourceAttributes map[string]string
+	Services           []string
+	SessionID          string
+	Sort               string // "time" | "dur" | "name"
+	Limit              int
+	Page               int
+	Service            string
+	Name               string
+	Kind               int
+	HasKind            bool
+	StatusCode         int
+	HasStatus          bool
+	FromNs             int64
+	ToNs               int64
+	MinDurationNs      int64
+	Tag                string
 }
 
 type SpanRow = model.SpanRow
@@ -143,7 +145,7 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 	if f.Page < 1 {
 		f.Page = 1
 	}
-	rows, err := d.query.Span.ListTagged(f.SessionID, f.Service, f.Name, f.HasKind, f.Kind, f.HasStatus, f.StatusCode, f.FromNs, f.ToNs, f.MinDurationNs, f.Tag, f.Sort, f.Limit, (f.Page-1)*f.Limit, f.Services)
+	rows, err := d.query.Span.ListTagged(f.SessionID, f.Service, f.Name, f.HasKind, f.Kind, f.HasStatus, f.StatusCode, f.FromNs, f.ToNs, f.MinDurationNs, f.Tag, f.Sort, f.Limit, (f.Page-1)*f.Limit, f.Services, encodeAttributeFilters(f.Attributes), encodeAttributeFilters(f.ResourceAttributes))
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +160,17 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 // pagination. Keeping this separate from ListSpans makes the API metadata
 // truthful without making callers load every row.
 func (d *DB) CountSpans(f SpanFilter) (int, error) {
+	if len(f.Attributes) > 0 || len(f.ResourceAttributes) > 0 {
+		rows, err := d.query.Span.CountTagged(f.SessionID, f.Service, f.Name, f.HasKind, f.Kind, f.HasStatus, f.StatusCode, f.FromNs, f.ToNs, f.MinDurationNs, f.Tag, f.Services, encodeAttributeFilters(f.Attributes), encodeAttributeFilters(f.ResourceAttributes))
+		if err != nil {
+			return 0, err
+		}
+		if len(rows) == 0 {
+			return 0, nil
+		}
+		return int(rows[0].Count), nil
+	}
+
 	q := d.query.Span.Where()
 	if f.SessionID != "" {
 		q = q.Where(d.query.Span.SessionID.Eq(f.SessionID))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -10,18 +11,30 @@ import (
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/dashboardconfig"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/telemetry"
+	"github.com/zfogg/spaniel/internal/yamlquery"
+	"go.opentelemetry.io/otel/codes"
 	"gopkg.in/yaml.v3"
 )
 
 // loadDashboardDefinitions reconciles the dashboard directory as declarative
 // state. ID-less files receive a UUID in place so the same object is recreated
 // on a fresh machine, updated after edits, and removed when its file is removed.
-func loadDashboardDefinitions(store *storage.DB, dir string) error {
+func loadDashboardDefinitions(store *storage.DB, dir string) (retErr error) {
 	definitionReloadMu.Lock()
 	defer definitionReloadMu.Unlock()
 	if dir == "" {
 		return nil
 	}
+	ctx, span := telemetry.Tracer("definitions").Start(context.Background(), "definitions.load_dashboards")
+	defer func() {
+		if retErr != nil {
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, "load definitions")
+		}
+		span.End()
+	}()
+	store = store.WithContext(ctx)
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		err = nil // A removed directory is an empty declarative configuration.
@@ -61,6 +74,18 @@ func loadDashboardDefinitions(store *storage.DB, dir string) error {
 			if err != nil {
 				return fmt.Errorf("add id to dashboard %s: %w", path, err)
 			}
+		}
+		formatted, queryModified, err := yamlquery.Format(data)
+		if err != nil {
+			return fmt.Errorf("format queries in %s: %w", path, err)
+		}
+		if queryModified {
+			data = formatted
+			definition, err = dashboardconfig.Parse(data)
+			if err != nil {
+				return fmt.Errorf("formatted YAML %s: %w", path, err)
+			}
+			modified = true
 		}
 		if previous, ok := seen[definition.ID]; ok {
 			return fmt.Errorf("dashboard files %s and %s declare duplicate id %q", previous, path, definition.ID)

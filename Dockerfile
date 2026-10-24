@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ── Stage 1: build the React frontend ────────────────────────────────────────
-FROM node:20-alpine AS frontend
+FROM node:22-alpine AS frontend
 WORKDIR /app/frontend
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml ./

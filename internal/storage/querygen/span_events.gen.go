@@ -177,7 +177,23 @@ type ISpanEventDo interface {
 
 // ListBySpan
 //
-// SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes FROM @@table WHERE span_id = @spanID ORDER BY time_ns ASC
+// SELECT
+//
+//	span_id,
+//	trace_id,
+//	session_id,
+//	time_ns,
+//	name,
+//	attributes::VARCHAR AS attributes
+//
+// FROM @@table
+// WHERE
+//
+//	span_id = @spanID
+//
+// ORDER BY
+//
+//	time_ns ASC
 func (s spanEventDo) ListBySpan(spanID string) (result []model.SpanEvent, err error) {
 	var params []interface{}
 

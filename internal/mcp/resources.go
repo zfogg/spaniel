@@ -123,7 +123,7 @@ Spaniel stores local OpenTelemetry data in DuckDB and exposes it through these t
 1. list_traces (or search) to find a trace of interest.
 2. get_trace to see the full waterfall plus its issues, correlated logs, and lint.
 3. get_span for full attributes/events on a specific span.
-4. list_issues / list_slow_spans to find what to fix.
+4. get_service_summary / list_lint_warnings / list_slow_spans to find what to fix.
 5. After a code change, diff_sessions(baseline, compare) to confirm it helped.
 
 Dashboard and alert definitions can be inspected, validated, previewed, and
@@ -136,6 +136,12 @@ Tool results are TOON text except the two YAML exports. Dynamic resources use
 spaniel://dashboards/{dashboard_id}, spaniel://alerts/{alert_id},
 spaniel://spans/{span_id}, spaniel://traces/{trace_id}, and scoped log/metric
 templates so a client can attach a specific live object as model context.
+
+## Agent summaries and attribute filters
+- get_service_summary gives one service's span counts/latency/errors, top operations/findings, dependencies, and signal freshness. Coverage is explicitly session-wide.
+- list_attribute_keys / list_attribute_values discover keys and values by session, service, time, signal, and scope. Logs store only attributes. Pages return has_more.
+- attributes and resource_attributes maps filter list_traces, list_slow_spans, and get_metric_series before limits. query_logs supports attributes only. All pairs match on the same record; trace filters may match any one span. Root filters retain their existing meaning.
+- Top-level keys are literal (including dots); scalar values compare as text. Empty strings differ from missing keys. Discovery values include JSON types and counts.
 
 ## Escape hatch
 query_sql runs read-only SQL directly against the tables above — use it for

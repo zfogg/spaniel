@@ -29,6 +29,8 @@ func (h *handler) registerLogTools(s *mcpsdk.Server) {
 // ---- query_logs ----
 
 type QueryLogsInput struct {
+	Attributes map[string]string `json:"attributes,omitempty" jsonschema:"exact top-level attribute key/value filters; AND; scalar values compared as text; applied before pagination"`
+
 	SessionID   string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
 	TraceID     string `json:"trace_id,omitempty" jsonschema:"only logs correlated with this trace"`
 	SpanID      string `json:"span_id,omitempty" jsonschema:"only logs correlated with this span"`
@@ -69,6 +71,7 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 	maxSev := severityNum(in.MaxSeverity)
 
 	logs, err := h.store.WithContext(ctx).ListLogs(storage.LogFilter{
+		Attributes:  in.Attributes,
 		SessionID:   sessionID,
 		Service:     in.Service,
 		TraceID:     in.TraceID,

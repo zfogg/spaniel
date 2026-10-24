@@ -182,7 +182,32 @@ type ILintWarningDo interface {
 
 // SearchByRule
 //
-// SELECT lw.trace_id, COALESCE(MIN(s.name), '(trace)') AS title, MIN(lw.rule_id) AS rule_id, MIN(lw.session_id) AS session_id FROM @@table lw LEFT JOIN spans s ON s.span_id = lw.span_id WHERE lw.rule_id ILIKE @pattern AND (@sessionID = ” OR lw.session_id = @sessionID) AND lw.trace_id != ” GROUP BY lw.trace_id LIMIT @limit
+// SELECT
+//
+//	lw.trace_id,
+//	COALESCE(MIN(s.name), '(trace)') AS title,
+//	MIN(lw.rule_id) AS rule_id,
+//	MIN(lw.session_id) AS session_id
+//
+// FROM @@table lw
+// LEFT JOIN spans s
+//
+//	ON s.span_id = lw.span_id
+//
+// WHERE
+//
+//	lw.rule_id ILIKE @pattern
+//	AND (
+//	  @sessionID = ''
+//	  OR lw.session_id = @sessionID
+//	)
+//	AND lw.trace_id != ''
+//
+// GROUP BY
+//
+//	lw.trace_id
+//
+// LIMIT @limit
 func (l lintWarningDo) SearchByRule(sessionID string, pattern string, limit int) (result []model.LintSearchResult, err error) {
 	var params []interface{}
 
@@ -191,7 +216,7 @@ func (l lintWarningDo) SearchByRule(sessionID string, pattern string, limit int)
 	params = append(params, sessionID)
 	params = append(params, sessionID)
 	params = append(params, limit)
-	generateSQL.WriteString("SELECT lw.trace_id, COALESCE(MIN(s.name), '(trace)') AS title, MIN(lw.rule_id) AS rule_id, MIN(lw.session_id) AS session_id FROM lint_warnings lw LEFT JOIN spans s ON s.span_id = lw.span_id WHERE lw.rule_id ILIKE ? AND (? = '' OR lw.session_id = ?) AND lw.trace_id != '' GROUP BY lw.trace_id LIMIT ? ")
+	generateSQL.WriteString("SELECT lw.trace_id, COALESCE(MIN(s.name), '(trace)') AS title, MIN(lw.rule_id) AS rule_id, MIN(lw.session_id) AS session_id FROM lint_warnings lw LEFT JOIN spans s ON s.span_id = lw.span_id WHERE lw.rule_id ILIKE ? AND ( ? = '' OR lw.session_id = ? ) AND lw.trace_id != '' GROUP BY lw.trace_id LIMIT ? ")
 
 	var executeSQL *gorm.DB
 	executeSQL = l.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -202,7 +227,49 @@ func (l lintWarningDo) SearchByRule(sessionID string, pattern string, limit int)
 
 // ListWithTraceIssues
 //
-// SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) UNION ALL SELECT example_span_id AS span_id, trace_id, session_id, kind AS rule_id, CASE kind WHEN 'n_plus_one' THEN 'N+1 query: ' || CAST(count AS VARCHAR) || ' repeated executions wasting ' || CAST(ROUND(wasted_ns / 1e6, 1) AS VARCHAR) || 'ms — ' || fingerprint ELSE kind || ': ' || CAST(count AS VARCHAR) || ' occurrences — ' || fingerprint END AS message, 'warning' AS severity, created_at FROM trace_issues WHERE (@sessionID = ” OR session_id = @sessionID) ORDER BY created_at DESC
+// SELECT
+//
+//	span_id,
+//	trace_id,
+//	session_id,
+//	rule_id,
+//	message,
+//	severity,
+//	created_at
+//
+// FROM @@table
+// WHERE
+//
+//	(
+//	  @sessionID = ''
+//	  OR session_id = @sessionID
+//	)
+//
+// UNION ALL
+// SELECT
+//
+//	example_span_id AS span_id,
+//	trace_id,
+//	session_id,
+//	kind AS rule_id,
+//	CASE kind
+//	  WHEN 'n_plus_one' THEN 'N+1 query: ' || CAST(count AS VARCHAR) || ' repeated executions wasting ' || CAST(ROUND(wasted_ns / 1e6, 1) AS VARCHAR) || 'ms — ' || fingerprint
+//	  ELSE kind || ': ' || CAST(count AS VARCHAR) || ' occurrences — ' || fingerprint
+//	END AS message,
+//	'warning' AS severity,
+//	created_at
+//
+// FROM trace_issues
+// WHERE
+//
+//	(
+//	  @sessionID = ''
+//	  OR session_id = @sessionID
+//	)
+//
+// ORDER BY
+//
+//	created_at DESC
 func (l lintWarningDo) ListWithTraceIssues(sessionID string) (result []model.LintWarning, err error) {
 	var params []interface{}
 
@@ -211,7 +278,7 @@ func (l lintWarningDo) ListWithTraceIssues(sessionID string) (result []model.Lin
 	params = append(params, sessionID)
 	params = append(params, sessionID)
 	params = append(params, sessionID)
-	generateSQL.WriteString("SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at FROM lint_warnings WHERE (? = '' OR session_id = ?) UNION ALL SELECT example_span_id AS span_id, trace_id, session_id, kind AS rule_id, CASE kind WHEN 'n_plus_one' THEN 'N+1 query: ' || CAST(count AS VARCHAR) || ' repeated executions wasting ' || CAST(ROUND(wasted_ns / 1e6, 1) AS VARCHAR) || 'ms — ' || fingerprint ELSE kind || ': ' || CAST(count AS VARCHAR) || ' occurrences — ' || fingerprint END AS message, 'warning' AS severity, created_at FROM trace_issues WHERE (? = '' OR session_id = ?) ORDER BY created_at DESC ")
+	generateSQL.WriteString("SELECT span_id, trace_id, session_id, rule_id, message, severity, created_at FROM lint_warnings WHERE ( ? = '' OR session_id = ? ) UNION ALL SELECT example_span_id AS span_id, trace_id, session_id, kind AS rule_id, CASE kind WHEN 'n_plus_one' THEN 'N+1 query: ' || CAST(count AS VARCHAR) || ' repeated executions wasting ' || CAST(ROUND(wasted_ns / 1e6, 1) AS VARCHAR) || 'ms — ' || fingerprint ELSE kind || ': ' || CAST(count AS VARCHAR) || ' occurrences — ' || fingerprint END AS message, 'warning' AS severity, created_at FROM trace_issues WHERE ( ? = '' OR session_id = ? ) ORDER BY created_at DESC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = l.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

@@ -13,16 +13,34 @@ variables:
   default_value: spaniel
 - name: window_minutes
   kind: number
-  source: SELECT 60 AS value
+  source: |
+    SELECT
+      60 AS value
   default_value: '60'
 panels:
 - title: Database budget used (%)
   display_type: gauge
   query: |
     -- NULL means no finite database budget has been configured.
-    WITH latest AS (SELECT name, attributes, arg_max(value, timestamp_ns) AS value FROM metrics WHERE service_name = $service AND session_id = $session_id AND name IN ('spaniel.storage.db_size.current', 'spaniel.storage.db_size.limit') GROUP BY name, attributes)
-    SELECT 100.0 * max(value) FILTER (WHERE name = 'spaniel.storage.db_size.current')
-      / nullif(max(value) FILTER (WHERE name = 'spaniel.storage.db_size.limit'), 0) AS value
+    WITH latest AS (
+      SELECT
+        name,
+        attributes,
+        arg_max(value, timestamp_ns) AS value
+      FROM metrics
+      WHERE
+        service_name = $service
+        AND session_id = $session_id
+        AND name IN ('spaniel.storage.db_size.current', 'spaniel.storage.db_size.limit')
+      GROUP BY
+        name,
+        attributes
+    )
+    SELECT
+      100.0 * max(value) FILTER (WHERE name = 'spaniel.storage.db_size.current') / nullif(
+        max(value) FILTER (WHERE name = 'spaniel.storage.db_size.limit'),
+        0
+      ) AS value
     FROM latest
   settings:
     min: 0
@@ -38,9 +56,33 @@ panels:
   display_type: gauge
   query: |
     -- One Spaniel server span per request; includes health checks.
-    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns)
-    SELECT 100.0 * count(*) FILTER (WHERE try_cast(json_extract_string(attributes, '$.http.response.status_code') AS INTEGER) >= 500)
-      / nullif(count(*), 0) AS value FROM spans WHERE service_name = $service AND session_id = $session_id AND start_ns >= (SELECT since_ns FROM scope) AND name LIKE 'spaniel.http.server.%'
+    WITH scope AS (
+      SELECT
+        CAST(
+          epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT
+        ) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns,
+        (
+          (
+            greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23
+          ) // 24
+        ) * 60000000000 AS bucket_ns
+    )
+    SELECT
+      100.0 * count(*) FILTER (
+        WHERE try_cast(
+          json_extract_string(attributes, '$.http.response.status_code') AS INTEGER
+        ) >= 500
+      ) / nullif(count(*), 0) AS value
+    FROM spans
+    WHERE
+      service_name = $service
+      AND session_id = $session_id
+      AND start_ns >= (
+        SELECT
+          since_ns
+        FROM scope
+      )
+      AND name LIKE 'spaniel.http.server.%'
   settings:
     min: 0
     max: 100
@@ -54,7 +96,19 @@ panels:
 - title: Self-telemetry age (seconds)
   display_type: single_value
   query: |
-    SELECT greatest(0, (CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - max(timestamp_ns)) / 1000000000.0) AS value FROM metrics WHERE service_name = $service AND session_id = $session_id
+    SELECT
+      greatest(
+        0,
+        (
+          CAST(
+            epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT
+          ) - max(timestamp_ns)
+        ) / 1000000000.0
+      ) AS value
+    FROM metrics
+    WHERE
+      service_name = $service
+      AND session_id = $session_id
   settings: {}
   layout:
     x: 9
@@ -65,7 +119,23 @@ panels:
 - title: Process uptime (hours)
   display_type: single_value
   query: |
-    WITH latest AS (SELECT name, attributes, arg_max(value, timestamp_ns) AS value FROM metrics WHERE service_name = $service AND session_id = $session_id AND name IN ('spaniel.server.uptime') GROUP BY name, attributes) SELECT value / 3600.0 AS value FROM latest
+    WITH latest AS (
+      SELECT
+        name,
+        attributes,
+        arg_max(value, timestamp_ns) AS value
+      FROM metrics
+      WHERE
+        service_name = $service
+        AND session_id = $session_id
+        AND name IN ('spaniel.server.uptime')
+      GROUP BY
+        name,
+        attributes
+    )
+    SELECT
+      value / 3600.0 AS value
+    FROM latest
   settings: {}
   layout:
     x: 1
@@ -76,7 +146,23 @@ panels:
 - title: Live goroutines
   display_type: single_value
   query: |
-    WITH latest AS (SELECT name, attributes, arg_max(value, timestamp_ns) AS value FROM metrics WHERE service_name = $service AND session_id = $session_id AND name IN ('go.goroutine.count') GROUP BY name, attributes) SELECT value FROM latest
+    WITH latest AS (
+      SELECT
+        name,
+        attributes,
+        arg_max(value, timestamp_ns) AS value
+      FROM metrics
+      WHERE
+        service_name = $service
+        AND session_id = $session_id
+        AND name IN ('go.goroutine.count')
+      GROUP BY
+        name,
+        attributes
+    )
+    SELECT
+      value
+    FROM latest
   settings: {}
   layout:
     x: 5
@@ -87,7 +173,23 @@ panels:
 - title: GC heap target (MiB)
   display_type: single_value
   query: |
-    WITH latest AS (SELECT name, attributes, arg_max(value, timestamp_ns) AS value FROM metrics WHERE service_name = $service AND session_id = $session_id AND name IN ('go.memory.gc.goal') GROUP BY name, attributes) SELECT value / 1048576.0 AS value FROM latest
+    WITH latest AS (
+      SELECT
+        name,
+        attributes,
+        arg_max(value, timestamp_ns) AS value
+      FROM metrics
+      WHERE
+        service_name = $service
+        AND session_id = $session_id
+        AND name IN ('go.memory.gc.goal')
+      GROUP BY
+        name,
+        attributes
+    )
+    SELECT
+      value / 1048576.0 AS value
+    FROM latest
   settings: {}
   layout:
     x: 9
@@ -98,14 +200,38 @@ panels:
 - title: Database size and budget (MiB)
   display_type: time_series
   query: |
-    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns)
-    SELECT (timestamp_ns // bucket_ns) * bucket_ns AS timestamp_ns,
+    WITH scope AS (
+      SELECT
+        CAST(
+          epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT
+        ) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns,
+        (
+          (
+            greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23
+          ) // 24
+        ) * 60000000000 AS bucket_ns
+    )
+    SELECT
+      (timestamp_ns // bucket_ns) * bucket_ns AS timestamp_ns,
       arg_max(value, timestamp_ns) / 1048576.0 AS value,
-      CASE name WHEN 'spaniel.storage.db_size.current' THEN 'Used' ELSE 'Budget' END AS group_value
-    FROM metrics CROSS JOIN scope
-    WHERE service_name = $service AND session_id = $session_id AND name IN ('spaniel.storage.db_size.current', 'spaniel.storage.db_size.limit')
+      CASE name
+        WHEN 'spaniel.storage.db_size.current' THEN 'Used'
+        ELSE 'Budget'
+      END AS group_value
+    FROM metrics
+    CROSS JOIN scope
+    WHERE
+      service_name = $service
+      AND session_id = $session_id
+      AND name IN ('spaniel.storage.db_size.current', 'spaniel.storage.db_size.limit')
       AND timestamp_ns >= since_ns
-    GROUP BY 1, 3 ORDER BY 1, 3 LIMIT 128
+    GROUP BY
+      1,
+      3
+    ORDER BY
+      1,
+      3
+    LIMIT 128
   settings: {}
   layout:
     x: 1
@@ -117,9 +243,31 @@ panels:
   display_type: pie
   query: |
     -- Non-monotonic runtime memory samples; never use cumulative go.memory.allocated here.
-    WITH latest AS (SELECT name, attributes, arg_max(value, timestamp_ns) AS value FROM metrics WHERE service_name = $service AND session_id = $session_id AND name IN ('go.memory.used') GROUP BY name, attributes)
-    SELECT coalesce(json_extract_string(attributes, '$.go.memory.type'), 'unspecified') AS label,
-      sum(value) / 1048576.0 AS value FROM latest GROUP BY 1 ORDER BY value DESC
+    WITH latest AS (
+      SELECT
+        name,
+        attributes,
+        arg_max(value, timestamp_ns) AS value
+      FROM metrics
+      WHERE
+        service_name = $service
+        AND session_id = $session_id
+        AND name IN ('go.memory.used')
+      GROUP BY
+        name,
+        attributes
+    )
+    SELECT
+      coalesce(
+        json_extract_string(attributes, '$.go.memory.type'),
+        'unspecified'
+      ) AS label,
+      sum(value) / 1048576.0 AS value
+    FROM latest
+    GROUP BY
+      1
+    ORDER BY
+      value DESC
   settings:
     unit: MiB
   layout:
@@ -131,11 +279,32 @@ panels:
 - title: Goroutines over time
   display_type: time_series
   query: |
-    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns)
-    SELECT (timestamp_ns // bucket_ns) * bucket_ns AS timestamp_ns,
-      arg_max(value, timestamp_ns) AS value FROM metrics CROSS JOIN scope
-    WHERE service_name = $service AND session_id = $session_id AND name = 'go.goroutine.count' AND timestamp_ns >= since_ns
-    GROUP BY 1 ORDER BY 1 LIMIT 128
+    WITH scope AS (
+      SELECT
+        CAST(
+          epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT
+        ) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns,
+        (
+          (
+            greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23
+          ) // 24
+        ) * 60000000000 AS bucket_ns
+    )
+    SELECT
+      (timestamp_ns // bucket_ns) * bucket_ns AS timestamp_ns,
+      arg_max(value, timestamp_ns) AS value
+    FROM metrics
+    CROSS JOIN scope
+    WHERE
+      service_name = $service
+      AND session_id = $session_id
+      AND name = 'go.goroutine.count'
+      AND timestamp_ns >= since_ns
+    GROUP BY
+      1
+    ORDER BY
+      1
+    LIMIT 128
   settings: {}
   layout:
     x: 1
@@ -146,12 +315,38 @@ panels:
 - title: Reported Go memory over time (MiB)
   display_type: time_series
   query: |
-    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns)
-    SELECT (timestamp_ns // bucket_ns) * bucket_ns AS timestamp_ns,
+    WITH scope AS (
+      SELECT
+        CAST(
+          epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT
+        ) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns,
+        (
+          (
+            greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23
+          ) // 24
+        ) * 60000000000 AS bucket_ns
+    )
+    SELECT
+      (timestamp_ns // bucket_ns) * bucket_ns AS timestamp_ns,
       arg_max(value, timestamp_ns) / 1048576.0 AS value,
-      coalesce(json_extract_string(attributes, '$.go.memory.type'), 'unspecified') AS group_value
-    FROM metrics CROSS JOIN scope WHERE service_name = $service AND session_id = $session_id AND name = 'go.memory.used' AND timestamp_ns >= since_ns
-    GROUP BY 1, 3 ORDER BY 1, 3 LIMIT 128
+      coalesce(
+        json_extract_string(attributes, '$.go.memory.type'),
+        'unspecified'
+      ) AS group_value
+    FROM metrics
+    CROSS JOIN scope
+    WHERE
+      service_name = $service
+      AND session_id = $session_id
+      AND name = 'go.memory.used'
+      AND timestamp_ns >= since_ns
+    GROUP BY
+      1,
+      3
+    ORDER BY
+      1,
+      3
+    LIMIT 128
   settings: {}
   layout:
     x: 7
@@ -162,7 +357,37 @@ panels:
 - title: Recent Spaniel warnings and errors
   display_type: log_list
   query: |
-    WITH scope AS (SELECT CAST(epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns, ((greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23) // 24) * 60000000000 AS bucket_ns) SELECT timestamp_ns, severity, body, service_name, trace_id, span_id FROM logs WHERE service_name = $service AND session_id = $session_id AND timestamp_ns >= (SELECT since_ns FROM scope) AND severity >= 13 ORDER BY timestamp_ns DESC LIMIT 50
+    WITH scope AS (
+      SELECT
+        CAST(
+          epoch(CAST(current_timestamp AS TIMESTAMP)) * 1000000000 AS BIGINT
+        ) - greatest(1, least(CAST($window_minutes AS BIGINT), 180)) * 60000000000 AS since_ns,
+        (
+          (
+            greatest(1, least(CAST($window_minutes AS BIGINT), 180)) + 23
+          ) // 24
+        ) * 60000000000 AS bucket_ns
+    )
+    SELECT
+      timestamp_ns,
+      severity,
+      body,
+      service_name,
+      trace_id,
+      span_id
+    FROM logs
+    WHERE
+      service_name = $service
+      AND session_id = $session_id
+      AND timestamp_ns >= (
+        SELECT
+          since_ns
+        FROM scope
+      )
+      AND severity >= 13
+    ORDER BY
+      timestamp_ns DESC
+    LIMIT 50
   settings: {}
   layout:
     x: 1

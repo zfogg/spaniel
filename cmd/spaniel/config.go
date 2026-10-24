@@ -206,7 +206,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("source_rps", 0)
 	v.SetDefault("source_burst", 0)
 	v.SetDefault("self_telemetry_endpoint", "")
-	v.SetDefault("self_telemetry_service", "spaniel")
+	v.SetDefault("self_telemetry_service", "spaniel-api")
 	v.SetDefault("self_telemetry_insecure", true)
 	v.SetDefault("self_monitor", false)
 	v.SetDefault("mcp_enabled", true)
