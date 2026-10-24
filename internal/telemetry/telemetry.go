@@ -71,6 +71,7 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 		return nil, err
 	}
 	runtime, err := otelhost.Start(ctx, otelhost.Config{
+		ApplicationName: "spaniel", DisableSpanNamePrefix: true,
 		ServiceName: cfg.ServiceName, ServiceVersion: cfg.Version,
 		TraceExporter: serviceSpanExporter{traceExporter},
 		TraceOptions:  []sdktrace.TracerProviderOption{sdktrace.WithSpanProcessor(serviceOwnerProcessor{})},
