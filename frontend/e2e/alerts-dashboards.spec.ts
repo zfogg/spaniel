@@ -105,8 +105,11 @@ test('dashboard and alert SQL editors format only on request and retain comments
     }
     const label = kind === 'dashboard' ? 'DuckDB SQL' : 'Alert SQL query'
     const editor = page.getByLabel(label, { exact: true }).locator('.cm-content')
+    await expect(editor).toContainText('SELECT')
     const before = calls
-    await editor.fill(raw)
+    await editor.click()
+    await editor.press('ControlOrMeta+A')
+    await page.keyboard.insertText(raw)
     await expect
       .poll(async () => (await editor.locator('.cm-line').allTextContents()).join('\n'))
       .toBe(raw)
