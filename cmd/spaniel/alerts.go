@@ -12,6 +12,7 @@ import (
 	"github.com/zfogg/spaniel/internal/alertconfig"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
+	"github.com/zfogg/spaniel/internal/yamlquery"
 	"go.opentelemetry.io/otel/codes"
 	"gopkg.in/yaml.v3"
 )
@@ -72,6 +73,18 @@ func loadAlertDefinitions(store *storage.DB, dir string) (retErr error) {
 			if err != nil {
 				return fmt.Errorf("add id to alert %s: %w", path, err)
 			}
+		}
+		formatted, queryModified, err := yamlquery.Format(data)
+		if err != nil {
+			return fmt.Errorf("format queries in %s: %w", path, err)
+		}
+		if queryModified {
+			data = formatted
+			definition, err = alertconfig.Parse(data)
+			if err != nil {
+				return fmt.Errorf("formatted YAML %s: %w", path, err)
+			}
+			modified = true
 		}
 		if previous, ok := seen[definition.ID]; ok {
 			return fmt.Errorf("alert files %s and %s declare duplicate id %q", previous, path, definition.ID)

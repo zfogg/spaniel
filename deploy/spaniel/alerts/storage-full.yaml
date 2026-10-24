@@ -1,7 +1,13 @@
 version: 1
 name: Spaniel storage full
 query: |
-  SELECT arg_max(value, timestamp_ns) AS value FROM metrics WHERE service_name = 'spaniel' AND name = 'spaniel.storage.full' AND timestamp_ns > epoch_ns(current_timestamp) - 300000000000
+  SELECT
+    arg_max(value, timestamp_ns) AS value
+  FROM metrics
+  WHERE
+    service_name = 'spaniel'
+    AND name = 'spaniel.storage.full'
+    AND timestamp_ns > epoch_ns(current_timestamp) - 300000000000
 condition:
   kind: threshold
   operator: ">"
