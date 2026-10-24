@@ -90,11 +90,17 @@ test('dashboard and alert SQL editors format only on request and retain comments
 }) => {
   const raw = '-- keep\nselect id,name from spans where trace_id=$trace_id; -- trailing'
   const formatted =
-    '-- keep\nselect\n  id,\n  name\nfrom spans\nwhere trace_id=$trace_id; -- trailing'
+    '-- keep\nselect\n  id,\n  name\nfrom spans\nwhere\n  trace_id = $trace_id; -- trailing'
   let calls = 0
   await page.route('**/api/sql/format', async (route) => {
     const body = route.request().postDataJSON()
-    if (body.sql === raw) calls++
+    if (body.sql === raw) {
+      calls++
+      if (process.env.SPANIEL_E2E_LIVE_SQL === '1') {
+        await route.continue()
+        return
+      }
+    }
     await route.fulfill({ json: { data: { sql: body.sql === raw ? formatted : body.sql } } })
   })
   for (const kind of ['dashboard', 'alert']) {
