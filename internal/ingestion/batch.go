@@ -27,8 +27,9 @@ const (
 )
 
 var (
-	ErrIngestBusy   = errors.New("ingestion queue capacity exceeded; retry export")
-	ErrIngestClosed = errors.New("ingestion is shutting down; retry export")
+	ErrIngestTooLarge = errors.New("export exceeds configured ingestion request limit")
+	ErrIngestBusy     = errors.New("ingestion queue capacity exceeded; retry export")
+	ErrIngestClosed   = errors.New("ingestion is shutting down; retry export")
 )
 
 type batchWork struct {
@@ -45,20 +46,21 @@ type batchWork struct {
 // The worker is lazy and exits when idle, so embedders need not maintain an
 // idle goroutine. All ownership transitions, including cancellation, use mu.
 type ingestBatcher struct {
-	mu              sync.Mutex
-	pending         []*batchWork
-	requests, bytes int
-	running, closed bool
-	wake            chan struct{}
-	idle            chan struct{}
-	window          time.Duration
-	flush           func(context.Context, bool) error
-	failureVersion  func() uint64
-	notify          func()
+	limitRequests, limitBytes int
+	mu                        sync.Mutex
+	pending                   []*batchWork
+	requests, bytes           int
+	running, closed           bool
+	wake                      chan struct{}
+	idle                      chan struct{}
+	window                    time.Duration
+	flush                     func(context.Context, bool) error
+	failureVersion            func() uint64
+	notify                    func()
 }
 
 func newIngestBatcher(flush func(context.Context, bool) error, notify func()) *ingestBatcher {
-	return &ingestBatcher{wake: make(chan struct{}, 1), window: batchWindow, flush: flush, notify: notify}
+	return &ingestBatcher{wake: make(chan struct{}, 1), window: batchWindow, limitRequests: queueRequests, limitBytes: queueBytes, flush: flush, notify: notify}
 }
 
 func (b *ingestBatcher) signal() {
@@ -77,14 +79,14 @@ func (b *ingestBatcher) enqueue(ctx context.Context, rows, size int, run func(co
 	if b.closed {
 		return nil, ErrIngestClosed
 	}
-	if b.requests >= queueRequests || size > queueBytes-b.bytes {
+	if b.requests >= b.limitRequests || size > b.limitBytes-b.bytes {
 		return nil, ErrIngestBusy
 	}
 	w := &batchWork{ctx: ctx, run: run, rows: rows, bytes: size, queued: time.Now(), done: make(chan struct{})}
 	b.pending = append(b.pending, w)
 	b.requests++
 	b.bytes += size
-	telemetry.Catalog().SetIngestBatchQueue(b.requests, queueRequests, b.bytes)
+	telemetry.Catalog().SetIngestBatchQueue(b.requests, b.limitRequests, b.bytes)
 	if !b.running {
 		b.running = true
 		b.idle = make(chan struct{})
@@ -98,7 +100,7 @@ func (b *ingestBatcher) release(w *batchWork) {
 	w.finished = true
 	b.requests--
 	b.bytes -= w.bytes
-	telemetry.Catalog().SetIngestBatchQueue(b.requests, queueRequests, b.bytes)
+	telemetry.Catalog().SetIngestBatchQueue(b.requests, b.limitRequests, b.bytes)
 	w.run = nil
 	close(w.done)
 }
@@ -150,7 +152,7 @@ func (b *ingestBatcher) loop() {
 			}
 		}
 		remaining := time.Until(b.pending[0].queued.Add(b.window))
-		ready := b.closed || remaining <= 0 || rows >= batchRows || size >= batchBytes || n < len(b.pending) || b.requests >= queueRequests
+		ready := b.closed || remaining <= 0 || rows >= batchRows || size >= batchBytes || n < len(b.pending) || b.requests >= b.limitRequests
 		if !ready {
 			b.mu.Unlock()
 			timer := time.NewTimer(remaining)
@@ -285,9 +287,14 @@ func (p *Pipeline) submit(ctx context.Context, signal string, rows, size int, ru
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if size > p.MaxRequestBytes() {
+		p.rejected.Add(1)
+		return ErrIngestTooLarge
+	}
 	ctx = context.WithValue(ctx, sessionContextKey{}, ingestSession{p.store.ActiveSessionID(), p.store.ActiveSessionLabel()})
 	w, err := p.batches.enqueue(ctx, rows, size, run)
 	if err != nil {
+		p.rejected.Add(1)
 		telemetry.Catalog().RecordIngestRejected(ctx, signal, "batch_admission")
 		return err
 	}
@@ -295,12 +302,15 @@ func (p *Pipeline) submit(ctx context.Context, signal string, rows, size int, ru
 }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, td ptrace.Traces) error {
+	p.filterTraces(td)
 	return p.submit(ctx, "traces", td.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(td), func(ctx context.Context) error { return p.ingestTraces(ctx, td) })
 }
 func (p *Pipeline) IngestLogs(ctx context.Context, ld plog.Logs) error {
+	p.filterLogs(ld)
 	return p.submit(ctx, "logs", ld.LogRecordCount(), (&plog.ProtoMarshaler{}).LogsSize(ld), func(ctx context.Context) error { return p.ingestLogs(ctx, ld) })
 }
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
+	p.filterMetrics(md)
 	return p.submit(ctx, "metrics", md.DataPointCount(), (&pmetric.ProtoMarshaler{}).MetricsSize(md), func(ctx context.Context) error { return p.ingestMetrics(ctx, md) })
 }
 

@@ -29,6 +29,9 @@ import (
 // ingestGRPCError maps an ingest failure to a gRPC status: a full database is
 // retryable (RESOURCE_EXHAUSTED); everything else passes through (Unknown).
 func ingestGRPCError(err error) error {
+	if errors.Is(err, ingestion.ErrIngestTooLarge) {
+		return status.Error(codes.ResourceExhausted, "export exceeds configured request size")
+	}
 	if errors.Is(err, ingestion.ErrIngestBusy) {
 		retry, detailErr := status.New(codes.ResourceExhausted, err.Error()).WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(time.Second)})
 		if detailErr != nil {

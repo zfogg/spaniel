@@ -64,3 +64,24 @@ it('does not advertise an endpoint for a disabled receiver', () => {
   )
   expect(screen.getByText(/OTEL_EXPORTER_OTLP_HEADERS/)).toBeTruthy()
 })
+
+it('uses independent advertised URLs instead of internal ports', () => {
+  render(
+    <OTLPEndpoints
+      settings={
+        {
+          public_url: 'https://ui.example.com',
+          otlp_http_url: 'https://http.example.com/otlp',
+          otlp_grpc_url: 'https://grpc.example.com:443',
+          runtime: { otlp_http_port: 4318, otlp_grpc_port: 4317 },
+        } as Settings
+      }
+    />,
+  )
+  expect(screen.getByText(/OTEL_EXPORTER_OTLP_PROTOCOL=http\/protobuf/).textContent).toContain(
+    'https://http.example.com/otlp',
+  )
+  expect(screen.getByText(/OTEL_EXPORTER_OTLP_PROTOCOL=grpc/).textContent).toContain(
+    'https://grpc.example.com:443',
+  )
+})

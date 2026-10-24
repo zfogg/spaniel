@@ -2327,12 +2327,45 @@ components:
                     type: string
                 db_path:
                     type: string
+                default_time_range:
+                    type: string
                 forward:
                     items:
                         type: string
                     type: array
+                forward_bearer_token_set:
+                    type: boolean
                 forward_sample:
                     type: number
+                forward_tls_ca_set:
+                    type: boolean
+                forward_tls_cert_set:
+                    type: boolean
+                forward_tls_key_set:
+                    type: boolean
+                ingestion_excluded_routes:
+                    items:
+                        type: string
+                    type: array
+                ingestion_excluded_services:
+                    items:
+                        type: string
+                    type: array
+                ingestion_max_request_mb:
+                    type: integer
+                ingestion_queue_mb:
+                    type: integer
+                ingestion_queue_requests:
+                    type: integer
+                ingestion_status:
+                    additionalProperties:
+                        format: int64
+                        type: integer
+                    type: object
+                logs_retention_days:
+                    type: integer
+                logs_retention_enabled:
+                    type: boolean
                 max_db_size_mb:
                     type: number
                 max_sessions:
@@ -2341,16 +2374,36 @@ components:
                     type: boolean
                 mcp_enabled:
                     type: boolean
+                metrics_retention_days:
+                    type: integer
+                metrics_retention_enabled:
+                    type: boolean
                 no_browser:
                     type: boolean
+                notification_cooldown_seconds:
+                    type: integer
+                notification_quiet_enabled:
+                    type: boolean
+                notification_quiet_end:
+                    type: string
+                notification_quiet_start:
+                    type: string
+                notification_timezone:
+                    type: string
                 otlp_grpc_port:
                     type: number
+                otlp_grpc_url:
+                    type: string
                 otlp_http_port:
                     type: number
+                otlp_http_url:
+                    type: string
                 port:
                     type: number
                 public_url:
                     type: string
+                refresh_interval_seconds:
+                    type: integer
                 retention_days:
                     type: number
                 runtime:
@@ -2389,6 +2442,10 @@ components:
                 source_rps:
                     type: number
                 tls_enabled:
+                    type: boolean
+                traces_retention_days:
+                    type: integer
+                traces_retention_enabled:
                     type: boolean
             required:
                 - port
@@ -2450,12 +2507,45 @@ components:
                     type: string
                 db_path:
                     type: string
+                default_time_range:
+                    type: string
                 forward:
                     items:
                         type: string
                     type: array
+                forward_bearer_token_set:
+                    type: boolean
                 forward_sample:
                     type: number
+                forward_tls_ca_set:
+                    type: boolean
+                forward_tls_cert_set:
+                    type: boolean
+                forward_tls_key_set:
+                    type: boolean
+                ingestion_excluded_routes:
+                    items:
+                        type: string
+                    type: array
+                ingestion_excluded_services:
+                    items:
+                        type: string
+                    type: array
+                ingestion_max_request_mb:
+                    type: integer
+                ingestion_queue_mb:
+                    type: integer
+                ingestion_queue_requests:
+                    type: integer
+                ingestion_status:
+                    additionalProperties:
+                        format: int64
+                        type: integer
+                    type: object
+                logs_retention_days:
+                    type: integer
+                logs_retention_enabled:
+                    type: boolean
                 max_db_size_mb:
                     type: number
                 max_sessions:
@@ -2464,16 +2554,36 @@ components:
                     type: boolean
                 mcp_enabled:
                     type: boolean
+                metrics_retention_days:
+                    type: integer
+                metrics_retention_enabled:
+                    type: boolean
                 no_browser:
                     type: boolean
+                notification_cooldown_seconds:
+                    type: integer
+                notification_quiet_enabled:
+                    type: boolean
+                notification_quiet_end:
+                    type: string
+                notification_quiet_start:
+                    type: string
+                notification_timezone:
+                    type: string
                 otlp_grpc_port:
                     type: number
+                otlp_grpc_url:
+                    type: string
                 otlp_http_port:
                     type: number
+                otlp_http_url:
+                    type: string
                 port:
                     type: number
                 public_url:
                     type: string
+                refresh_interval_seconds:
+                    type: integer
                 retention_days:
                     type: number
                 runtime:
@@ -2512,6 +2622,10 @@ components:
                 source_rps:
                     type: number
                 tls_enabled:
+                    type: boolean
+                traces_retention_days:
+                    type: integer
+                traces_retention_enabled:
                     type: boolean
             required:
                 - port
@@ -7449,14 +7563,46 @@ paths:
                                 db_path:
                                     description: Sets the path of Spaniel’s DuckDB telemetry database.
                                     type: string
+                                default_time_range:
+                                    type: string
                                 forward:
                                     description: Lists upstream OTLP destinations to receive forwarded telemetry.
                                     items:
                                         type: string
                                     type: array
+                                forward_bearer_token:
+                                    type: string
+                                    writeOnly: true
                                 forward_sample:
                                     description: Sets the sampling interval used when forwarding telemetry.
                                     type: integer
+                                forward_tls_ca:
+                                    type: string
+                                    writeOnly: true
+                                forward_tls_cert:
+                                    type: string
+                                    writeOnly: true
+                                forward_tls_key:
+                                    type: string
+                                    writeOnly: true
+                                ingestion_excluded_routes:
+                                    items:
+                                        type: string
+                                    type: array
+                                ingestion_excluded_services:
+                                    items:
+                                        type: string
+                                    type: array
+                                ingestion_max_request_mb:
+                                    type: integer
+                                ingestion_queue_mb:
+                                    type: integer
+                                ingestion_queue_requests:
+                                    type: integer
+                                logs_retention_days:
+                                    type: integer
+                                logs_retention_enabled:
+                                    type: boolean
                                 max_db_size_mb:
                                     description: Caps the telemetry database size in megabytes.
                                     type: integer
@@ -7466,21 +7612,41 @@ paths:
                                 mcp_allow_writes:
                                     description: Allows MCP clients to use mutating tools and hot-reloads the MCP server.
                                     type: boolean
+                                metrics_retention_days:
+                                    type: integer
+                                metrics_retention_enabled:
+                                    type: boolean
                                 no_browser:
                                     description: Prevents Spaniel from opening the browser automatically on startup.
                                     type: boolean
+                                notification_cooldown_seconds:
+                                    type: integer
+                                notification_quiet_enabled:
+                                    type: boolean
+                                notification_quiet_end:
+                                    type: string
+                                notification_quiet_start:
+                                    type: string
+                                notification_timezone:
+                                    type: string
                                 otlp_grpc_port:
                                     description: Sets the port accepting OTLP over gRPC.
                                     type: integer
+                                otlp_grpc_url:
+                                    type: string
                                 otlp_http_port:
                                     description: Sets the port accepting OTLP over HTTP.
                                     type: integer
+                                otlp_http_url:
+                                    type: string
                                 port:
                                     description: Sets the port serving the Spaniel web app and HTTP API.
                                     type: integer
                                 public_url:
                                     description: Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart.
                                     type: string
+                                refresh_interval_seconds:
+                                    type: integer
                                 retention_days:
                                     description: Sets how long telemetry is retained before age-based pruning.
                                     type: integer
@@ -7493,6 +7659,10 @@ paths:
                                 source_rps:
                                     description: Sets the sustained telemetry requests-per-second limit for a source.
                                     type: integer
+                                traces_retention_days:
+                                    type: integer
+                                traces_retention_enabled:
+                                    type: boolean
                             type: object
                 required: false
             responses:

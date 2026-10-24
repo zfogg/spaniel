@@ -2175,6 +2175,33 @@ export interface components {
       source_rps: number
       tls_enabled: boolean
       public_url: string
+      otlp_http_url?: string
+      otlp_grpc_url?: string
+      default_time_range?: string
+      refresh_interval_seconds?: number
+      ingestion_excluded_services?: string[]
+      ingestion_excluded_routes?: string[]
+      ingestion_max_request_mb?: number
+      ingestion_queue_requests?: number
+      ingestion_queue_mb?: number
+      traces_retention_enabled?: boolean
+      traces_retention_days?: number
+      logs_retention_enabled?: boolean
+      logs_retention_days?: number
+      metrics_retention_enabled?: boolean
+      metrics_retention_days?: number
+      notification_quiet_enabled?: boolean
+      notification_quiet_start?: string
+      notification_quiet_end?: string
+      notification_timezone?: string
+      notification_cooldown_seconds?: number
+      forward_bearer_token_set?: boolean
+      forward_tls_ca_set?: boolean
+      forward_tls_cert_set?: boolean
+      forward_tls_key_set?: boolean
+      ingestion_status?: {
+        [key: string]: number
+      }
     }
     SettingsResponse: {
       advance_session_on_start: boolean
@@ -2216,6 +2243,33 @@ export interface components {
       source_rps: number
       tls_enabled: boolean
       public_url: string
+      otlp_http_url?: string
+      otlp_grpc_url?: string
+      default_time_range?: string
+      refresh_interval_seconds?: number
+      ingestion_excluded_services?: string[]
+      ingestion_excluded_routes?: string[]
+      ingestion_max_request_mb?: number
+      ingestion_queue_requests?: number
+      ingestion_queue_mb?: number
+      traces_retention_enabled?: boolean
+      traces_retention_days?: number
+      logs_retention_enabled?: boolean
+      logs_retention_days?: number
+      metrics_retention_enabled?: boolean
+      metrics_retention_days?: number
+      notification_quiet_enabled?: boolean
+      notification_quiet_start?: string
+      notification_quiet_end?: string
+      notification_timezone?: string
+      notification_cooldown_seconds?: number
+      forward_bearer_token_set?: boolean
+      forward_tls_ca_set?: boolean
+      forward_tls_cert_set?: boolean
+      forward_tls_key_set?: boolean
+      ingestion_status?: {
+        [key: string]: number
+      }
     }
     SettingsRuntime: {
       channel: string
@@ -5833,6 +5887,30 @@ export interface operations {
           bearer_token?: string
           /** @description Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart. */
           public_url?: string
+          otlp_http_url?: string
+          otlp_grpc_url?: string
+          default_time_range?: string
+          refresh_interval_seconds?: number
+          ingestion_excluded_services?: string[]
+          ingestion_excluded_routes?: string[]
+          ingestion_max_request_mb?: number
+          ingestion_queue_requests?: number
+          ingestion_queue_mb?: number
+          traces_retention_enabled?: boolean
+          traces_retention_days?: number
+          logs_retention_enabled?: boolean
+          logs_retention_days?: number
+          metrics_retention_enabled?: boolean
+          metrics_retention_days?: number
+          notification_quiet_enabled?: boolean
+          notification_quiet_start?: string
+          notification_quiet_end?: string
+          notification_timezone?: string
+          notification_cooldown_seconds?: number
+          forward_bearer_token?: string
+          forward_tls_ca?: string
+          forward_tls_cert?: string
+          forward_tls_key?: string
         }
       }
     }

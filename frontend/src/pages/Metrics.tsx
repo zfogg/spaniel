@@ -1,3 +1,4 @@
+import { useDefaultTimeRange } from '@/lib/display-preferences'
 import MetricServiceBadges from '@/components/MetricServiceBadges'
 import { metricServiceNames } from '@/lib/metric-service-names'
 import { serviceSwatch } from '@/lib/service-color'
@@ -490,7 +491,7 @@ export default function Metrics() {
   const [services, setServices] = useServiceSelection()
   const sessionId = searchParams.get('session') ?? undefined
   const [typeSel, setTypeSel] = useState<string | null>(null)
-  const [range, setRange] = useState<TimeRange>('1h')
+  const [range, setRange] = useDefaultTimeRange<TimeRange>()
   const [operation, setOperation] = useState('raw')
   const [dimensionFilters, setDimensionFilters] = useState<Record<string, string>>({})
 

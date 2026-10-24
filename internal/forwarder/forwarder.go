@@ -55,6 +55,7 @@ type Status struct {
 
 // Forwarder fans out OTLP payloads to one or more upstream HTTP endpoints.
 type Forwarder struct {
+	security  atomic.Pointer[securityConfig]
 	upstreams []*upstream
 	client    *http.Client
 	sample    float64
@@ -88,13 +89,15 @@ func New(urls []string, sample float64) *Forwarder {
 	for i, u := range urls {
 		ups[i] = &upstream{url: u}
 	}
-	return &Forwarder{
+	f := &Forwarder{
 		upstreams: ups,
 		client:    &http.Client{Timeout: 5 * time.Second, Transport: otelhttp.NewTransport(nil, otelhttp.WithSpanNameFormatter(telemetry.HTTP.ClientSpanName))},
 		sample:    sample,
 		rand:      rand.Float64,
 		done:      make(chan struct{}),
 	}
+	f.secureClient()
+	return f
 }
 
 // NewWithSpool returns a Forwarder backed by a per-upstream disk spool.
@@ -135,6 +138,7 @@ func NewWithSpool(urls []string, sample float64, sc SpoolConfig) *Forwarder {
 		rand:      rand.Float64,
 		done:      make(chan struct{}),
 	}
+	f.secureClient()
 	for _, up := range ups {
 		if up.sp != nil {
 			up := up // capture
@@ -226,7 +230,7 @@ func (f *Forwarder) send(up *upstream, path, contentType string, body []byte) {
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= 300 {
 		result = "dropped"
 		msg := fmt.Sprintf("upstream returned %d", resp.StatusCode)
 		up.errors.Add(1)
@@ -251,7 +255,7 @@ func (f *Forwarder) sendRecord(up *upstream, rec *spoolRecord) error {
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= 300 {
 		return fmt.Errorf("upstream returned %d", resp.StatusCode)
 	}
 	return nil
@@ -353,4 +357,10 @@ func clampSample(sample float64) float64 {
 func urlHash(url string) string {
 	h := sha256.Sum256([]byte(url))
 	return fmt.Sprintf("%x", h[:8])
+}
+
+func (f *Forwarder) secureClient() {
+	f.client.Transport = secureTransport{f, f.client.Transport}
+	// Never forward authentication to redirects, including another host.
+	f.client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 }

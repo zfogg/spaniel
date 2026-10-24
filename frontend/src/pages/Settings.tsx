@@ -1,5 +1,6 @@
 import { Toggle } from '@/components/ui/toggle'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AdvancedSettings } from '@/components/AdvancedSettings'
 import { OTLPEndpoints } from '@/components/OTLPEndpoints'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FormProvider, useForm, useFormContext, useFormState } from 'react-hook-form'
@@ -442,7 +443,6 @@ function NetworkSection({
   mutate: (patch: SettingsUpdate) => void
   hidden: boolean
 }) {
-  const [token, setToken] = useState('')
   return (
     <Card id="network" title="Network" sub="OTLP receivers and proxy forwarding" hidden={hidden}>
       <Row
@@ -461,42 +461,6 @@ function NetworkSection({
         hint="Choose either protocol for your exporter. These use the current hostname and live receiver ports."
       >
         <OTLPEndpoints settings={s} />
-      </Row>
-      <Row
-        label="Bearer token"
-        hint="Save to config.yaml and SPANIEL_BEARER_TOKEN in this process. Restart Spaniel to apply authentication changes. Leave blank to keep the current token."
-        testid="row-bearer-token"
-      >
-        <span className="font-mono text-xs text-muted-foreground">
-          {s.bearer_token_set ? 'enabled in running server' : 'disabled in running server'}
-        </span>
-        <input
-          type="password"
-          aria-label="New bearer token"
-          autoComplete="new-password"
-          value={token}
-          onChange={(event) => setToken(event.target.value)}
-          className="h-[30px] rounded-md border border-border bg-background px-2 font-mono text-xs"
-        />
-        <button
-          type="button"
-          disabled={!token}
-          onClick={() => {
-            mutate({ bearer_token: token })
-            setToken('')
-          }}
-        >
-          Save token
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            mutate({ bearer_token: '' })
-            setToken('')
-          }}
-        >
-          Disable authentication
-        </button>
       </Row>
       <Row
         label="OTLP gRPC receiver"
@@ -816,43 +780,6 @@ function StorageSection({
             : 'disabled · resume active session'}
         </Pill>
         <FieldError name="advance_session_on_start" />
-      </Row>
-      <Row
-        label="Per-source rate limit"
-        hint="Max spans/sec accepted per service.name. Excess spans are dropped and counted in the Sources panel. 0 = unlimited."
-        testid="row-source-rps"
-      >
-        <NumberBox
-          value={s.source_rps}
-          onChange={(v) => mutate({ source_rps: v })}
-          min={0}
-          max={1000000}
-          step={0.1}
-          ariaLabel="source rps"
-          w={120}
-        />
-        <span className="font-mono text-[11px] text-muted-foreground">
-          spans / s&nbsp;&nbsp;(0 = unlimited)
-        </span>
-        <FieldError name="source_rps" />
-      </Row>
-      <Row
-        label="Per-source burst"
-        hint="Token bucket capacity per service. Allows short spikes above the rate limit. 0 = rate limit × 5."
-        testid="row-source-burst"
-      >
-        <NumberBox
-          value={s.source_burst}
-          onChange={(v) => mutate({ source_burst: v })}
-          min={0}
-          max={1000000}
-          ariaLabel="source burst"
-          w={120}
-        />
-        <span className="font-mono text-[11px] text-muted-foreground">
-          spans&nbsp;&nbsp;(0 = rps × 5)
-        </span>
-        <FieldError name="source_burst" />
       </Row>
       <Row
         label="Storage usage"
@@ -1358,7 +1285,70 @@ function AboutSection({ s, hidden }: { s: SettingsT; hidden: boolean }) {
 
 // ── page ─────────────────────────────────────────────────────────────────────
 
-type Section = 'general' | 'network' | 'storage' | 'about'
+function SecuritySection({
+  s,
+  mutate,
+  hidden,
+}: {
+  s: SettingsT
+  mutate: (patch: SettingsUpdate) => void
+  hidden: boolean
+}) {
+  const [token, setToken] = useState('')
+  return (
+    <>
+      <Card id="security" title="Security" sub="Inbound authentication" hidden={hidden}>
+        {' '}
+        <Row
+          label="Bearer token"
+          hint="Save to config.yaml and SPANIEL_BEARER_TOKEN in this process. Restart Spaniel to apply authentication changes. Leave blank to keep the current token."
+          testid="row-bearer-token"
+        >
+          <span className="font-mono text-xs text-muted-foreground">
+            {s.bearer_token_set ? 'enabled in running server' : 'disabled in running server'}
+          </span>
+          <input
+            type="password"
+            aria-label="New bearer token"
+            autoComplete="new-password"
+            value={token}
+            onChange={(event) => setToken(event.target.value)}
+            className="h-[30px] rounded-md border border-border bg-background px-2 font-mono text-xs"
+          />
+          <button
+            type="button"
+            disabled={!token}
+            onClick={() => {
+              mutate({ bearer_token: token })
+              setToken('')
+            }}
+          >
+            Save token
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              mutate({ bearer_token: '' })
+              setToken('')
+            }}
+          >
+            Disable authentication
+          </button>
+        </Row>
+      </Card>
+      <AdvancedSettings s={s} mutate={mutate} tab="security" hidden={hidden} />
+    </>
+  )
+}
+
+type Section =
+  | 'general'
+  | 'network'
+  | 'ingestion'
+  | 'security'
+  | 'notifications'
+  | 'storage'
+  | 'about'
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -1401,6 +1391,10 @@ export default function Settings() {
       // Keep write-only secrets out of the query cache.
       const publicPatch = { ...patch }
       delete publicPatch.bearer_token
+      delete publicPatch.forward_bearer_token
+      delete publicPatch.forward_tls_ca
+      delete publicPatch.forward_tls_cert
+      delete publicPatch.forward_tls_key
       queryClient.setQueryData<SettingsT>(qk.settings(), (prev) =>
         prev ? { ...prev, ...publicPatch } : prev,
       )
@@ -1469,6 +1463,9 @@ export default function Settings() {
     () => [
       { id: 'general' as const, label: 'General' },
       { id: 'network' as const, label: 'Network' },
+      { id: 'ingestion' as const, label: 'Ingestion' },
+      { id: 'security' as const, label: 'Security' },
+      { id: 'notifications' as const, label: 'Notifications' },
       { id: 'storage' as const, label: 'Storage' },
       { id: 'about' as const, label: 'About' },
     ],
@@ -1568,6 +1565,21 @@ export default function Settings() {
             {!error && !saving && savedAt && <span className="text-[#3e6a3e]">✓ saved</span>}
           </div>
 
+          <AdvancedSettings s={data} mutate={mutate} tab="general" hidden={section !== 'general'} />
+          <AdvancedSettings s={data} mutate={mutate} tab="network" hidden={section !== 'network'} />
+          <AdvancedSettings
+            s={data}
+            mutate={mutate}
+            tab="ingestion"
+            hidden={section !== 'ingestion'}
+          />
+          <SecuritySection s={data} mutate={mutate} hidden={section !== 'security'} />
+          <AdvancedSettings
+            s={data}
+            mutate={mutate}
+            tab="notifications"
+            hidden={section !== 'notifications'}
+          />
           <GeneralSection s={data} mutate={mutate} hidden={section !== 'general'} />
           <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />
           <StorageSection

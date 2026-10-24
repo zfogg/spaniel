@@ -21,6 +21,44 @@ port: 8080
 # OTLP uses its own receiver ports and TLS setting. Env: SPANIEL_PUBLIC_URL.
 public_url: ""
 
+# Optional advertised exporter URLs (external ports/proxies). Blank derives
+# the hostname from public_url and uses the live receiver ports.
+otlp_http_url: ""
+otlp_grpc_url: ""
+
+# Default log/metric time range and periodic refresh. 0 pauses polling;
+# WebSocket updates continue. Available ranges: 15m, 1h, 24h, all.
+default_time_range: 1h
+refresh_interval_seconds: 5
+
+# Exact-match exclusions, applied to new telemetry before persistence/forwarding.
+ingestion_excluded_services: []
+ingestion_excluded_routes: [] # span http.route only
+ingestion_max_request_mb: 64
+ingestion_queue_requests: 256
+ingestion_queue_mb: 64
+
+# Per-signal expiry preserves baselines. Session retention and disk caps still apply.
+traces_retention_enabled: false
+traces_retention_days: 7
+logs_retention_enabled: false
+logs_retention_days: 7
+metrics_retention_enabled: false
+metrics_retention_days: 7
+
+# Outbound HTTP forwarding credentials and TLS PEM are write-only in Settings.
+# forward_bearer_token: ""
+# forward_tls_ca: ""
+# forward_tls_cert: ""
+# forward_tls_key: ""
+
+# Global notification policy; quiet hours use an IANA timezone and can cross midnight.
+notification_quiet_enabled: false
+notification_quiet_start: "22:00"
+notification_quiet_end: "08:00"
+notification_timezone: UTC
+notification_cooldown_seconds: 0
+
 # Path to the DuckDB database file
 db_path: ~/.spaniel/spaniel.duckdb
 
@@ -119,6 +157,27 @@ func globalConfigPath() string {
 // Priority (high → low): CLI flags > project .spaniel.yaml > global config > defaults.
 func initViper(v *viper.Viper) {
 	// Defaults
+	v.SetDefault("otlp_http_url", "")
+	v.SetDefault("otlp_grpc_url", "")
+	v.SetDefault("default_time_range", "1h")
+	v.SetDefault("refresh_interval_seconds", 5)
+	v.SetDefault("ingestion_excluded_services", []string{})
+	v.SetDefault("ingestion_excluded_routes", []string{})
+	v.SetDefault("ingestion_max_request_mb", 64)
+	v.SetDefault("ingestion_queue_requests", 256)
+	v.SetDefault("ingestion_queue_mb", 64)
+	v.SetDefault("traces_retention_enabled", false)
+	v.SetDefault("traces_retention_days", 7)
+	v.SetDefault("logs_retention_enabled", false)
+	v.SetDefault("logs_retention_days", 7)
+	v.SetDefault("metrics_retention_enabled", false)
+	v.SetDefault("metrics_retention_days", 7)
+	v.SetDefault("notification_quiet_enabled", false)
+	v.SetDefault("notification_quiet_start", "22:00")
+	v.SetDefault("notification_quiet_end", "08:00")
+	v.SetDefault("notification_timezone", "UTC")
+	v.SetDefault("notification_cooldown_seconds", 0)
+
 	v.SetDefault("port", 8080)
 	v.SetDefault("public_url", "")
 	v.SetDefault("db_path", defaultDBPath())

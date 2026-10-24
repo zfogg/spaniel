@@ -115,7 +115,20 @@ async function stubSettings(page: Page, initial: Settings): Promise<SettingsHarn
             body: JSON.stringify({ error: `port must be 1–65535, got ${body.port}` }),
           })
         }
-        state = { ...state, ...body, runtime: state.runtime }
+        const publicBody = { ...body }
+        for (const key of [
+          'bearer_token',
+          'forward_bearer_token',
+          'forward_tls_ca',
+          'forward_tls_cert',
+          'forward_tls_key',
+        ]) {
+          if (key in publicBody) {
+            publicBody[`${key}_set`] = Boolean(publicBody[key])
+            delete publicBody[key]
+          }
+        }
+        state = { ...state, ...publicBody, runtime: state.runtime }
         return jsonResponse(r, state)
       }
       return jsonResponse(r, state)
@@ -481,4 +494,154 @@ test.describe('Self-monitoring definitions', () => {
       expect(installs.length).toBe(accept ? 2 : 0)
     })
   }
+})
+
+test.describe('Advanced Settings tabs', () => {
+  async function setup(page: Page) {
+    await stubChrome(page)
+    const h = await stubSettings(
+      page,
+      makeSettings({
+        ingestion_status: {
+          queued_requests: 2,
+          queued_bytes: 1024,
+          rejected_requests: 3,
+          filtered_records: 7,
+        },
+      }),
+    )
+    await page.goto('/settings')
+    return h
+  }
+  async function edit(page: Page, label: string, value: string) {
+    const field = page.getByLabel(label, { exact: true })
+    await field.fill(value)
+    await field.press('Tab')
+    await expect(page.getByTestId('save-state')).toContainText('saved')
+  }
+  test('advertised endpoint overrides persist and render both protocols', async ({ page }) => {
+    const h = await setup(page)
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await edit(page, 'Advertised OTLP HTTP URL', 'https://ingest.example.com:443')
+    await expect.poll(() => h.current().otlp_http_url).toBe('https://ingest.example.com:443')
+    await expect(
+      page.getByText(/OTEL_EXPORTER_OTLP_ENDPOINT=https:\/\/ingest.example.com:443/),
+    ).toBeVisible()
+    await edit(page, 'Advertised OTLP gRPC URL', 'https://grpc.example.com:443')
+    await page.reload()
+    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await expect(page.getByLabel('Advertised OTLP gRPC URL')).toHaveValue(
+      'https://grpc.example.com:443',
+    )
+  })
+  test('display defaults save time range and allow paused polling', async ({ page }) => {
+    const h = await setup(page)
+    await page.getByLabel('Default time range', { exact: true }).selectOption('24h')
+    await expect.poll(() => h.current().default_time_range).toBe('24h')
+    await edit(page, 'Refresh interval (seconds)', '0')
+    await expect.poll(() => h.current().refresh_interval_seconds).toBe(0)
+  })
+  test('ingestion filters, all signal toggles, limits and status', async ({ page }) => {
+    const h = await setup(page)
+    await page.getByRole('button', { name: 'Ingestion', exact: true }).click()
+    await edit(page, 'Per-source span rate (per second)', '100')
+    await edit(page, 'Per-source span burst', '500')
+    await expect.poll(() => h.current().source_rps).toBe(100)
+    await edit(page, 'Excluded services', 'noise, debug')
+    await expect.poll(() => h.current().ingestion_excluded_services).toEqual(['noise', 'debug'])
+    await edit(page, 'Excluded routes', '/health, /ready')
+    await expect.poll(() => h.current().ingestion_excluded_routes).toEqual(['/health', '/ready'])
+    for (const signal of ['traces', 'logs', 'metrics']) {
+      await page.getByLabel(`${signal} retention enabled`, { exact: true }).check()
+      await edit(page, `${signal} retention (days)`, '14')
+    }
+    for (const [label, key, value] of [
+      ['Maximum request size (MB)', 'ingestion_max_request_mb', 32],
+      ['Maximum queued requests', 'ingestion_queue_requests', 100],
+      ['Maximum queue size (MB)', 'ingestion_queue_mb', 128],
+    ] as const) {
+      await edit(page, label, String(value))
+      await expect.poll(() => (h.current() as unknown as Record<string, unknown>)[key]).toBe(value)
+    }
+    await expect(page.getByLabel('Ingestion status')).toContainText('rejected requests')
+    await expect(page.getByLabel('Ingestion status')).toContainText('filtered records')
+    await page.screenshot({ path: 'test-results/settings-ingestion.png', fullPage: true })
+    await page.reload()
+    await page.getByRole('button', { name: 'Ingestion', exact: true }).click()
+    for (const signal of ['traces', 'logs', 'metrics']) {
+      await expect(page.getByLabel(`${signal} retention enabled`, { exact: true })).toBeChecked()
+      await expect(page.getByLabel(`${signal} retention (days)`, { exact: true })).toHaveValue('14')
+    }
+  })
+  test('security submits write-only secrets and can clear them', async ({ page }) => {
+    const h = await setup(page)
+    await page.getByRole('button', { name: 'Security', exact: true }).click()
+    await page.getByLabel('forward_bearer_token', { exact: true }).fill('browser-test-secret')
+    await page.getByRole('button', { name: 'Save forwarding secrets', exact: true }).click()
+    await expect.poll(() => h.lastPut()).toEqual({ forward_bearer_token: 'browser-test-secret' })
+    await expect(page.getByLabel('forward_bearer_token', { exact: true })).toHaveValue('')
+    await page.reload()
+    await page.getByRole('button', { name: 'Security', exact: true }).click()
+    await expect(page.getByLabel('forward_bearer_token', { exact: true })).toHaveValue('')
+    await expect(page.getByText('browser-test-secret')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Clear forwarding token', exact: true }).click()
+    await expect.poll(() => h.lastPut()).toEqual({ forward_bearer_token: '' })
+    await page.getByRole('button', { name: 'Clear forwarding TLS', exact: true }).click()
+    await expect
+      .poll(() => h.lastPut())
+      .toEqual({ forward_tls_ca: '', forward_tls_cert: '', forward_tls_key: '' })
+  })
+  test('notifications configure browser alerts, quiet hours and cooldown', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['notifications'])
+    await page.addInitScript(() => {
+      class TestNotification {
+        static permission = 'default'
+        static async requestPermission() {
+          this.permission = 'granted'
+          return 'granted' as NotificationPermission
+        }
+      }
+      Object.defineProperty(window, 'Notification', { value: TestNotification, configurable: true })
+    })
+    const h = await setup(page)
+    await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+    await page.getByLabel('Browser notifications for alerts', { exact: true }).check()
+    await page.getByRole('button', { name: 'Allow browser notifications', exact: true }).click()
+    await expect(page.getByText(/Browser permission: granted/)).toBeVisible()
+    await page.getByLabel('Enable quiet hours', { exact: true }).check()
+    await edit(page, 'Quiet hours start', '23:00')
+    await edit(page, 'Quiet hours end', '07:00')
+    await edit(page, 'Notification timezone', 'America/New_York')
+    await edit(page, 'Minimum notification cooldown (seconds)', '120')
+    await expect.poll(() => h.current().notification_cooldown_seconds).toBe(120)
+    await expect.poll(() => h.current().notification_timezone).toBe('America/New_York')
+    await page.reload()
+    await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+    await expect(page.getByLabel('Enable quiet hours', { exact: true })).toBeChecked()
+  })
+})
+
+test('notification denial is visible and does not prompt repeatedly', async ({ page }) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'Notification', {
+      value: class {
+        static permission = 'denied'
+        static async requestPermission() {
+          throw new Error('must not prompt')
+        }
+      },
+      configurable: true,
+    }),
+  )
+  await stubChrome(page)
+  await stubSettings(page, makeSettings())
+  await page.goto('/settings')
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Allow browser notifications', exact: true }),
+  ).toBeDisabled()
+  await expect(page.getByText(/Browser permission: denied/)).toBeVisible()
 })

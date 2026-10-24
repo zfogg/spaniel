@@ -22,6 +22,11 @@ import (
 // writeIngestError maps an ingest failure to an OTLP/HTTP status: a full
 // database is retryable (503), everything else is a 500.
 func writeIngestError(w http.ResponseWriter, err error) {
+	if errors.Is(err, ingestion.ErrIngestTooLarge) {
+		http.Error(w, "export exceeds configured request size", http.StatusRequestEntityTooLarge)
+		return
+	}
+
 	if storage.IsStorageFull(err) || errors.Is(err, ingestion.ErrIngestBusy) || errors.Is(err, ingestion.ErrIngestClosed) {
 		w.Header().Set("Retry-After", "1")
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -40,8 +45,12 @@ const maxOTLPBodyBytes = 64 << 20
 // wire payload and the decompressed payload. OTLP/HTTP exporters may use gzip;
 // bounding both sides prevents a large request or compression bomb from
 // exhausting process memory.
-func readBody(w http.ResponseWriter, r *http.Request) (body []byte, ok bool) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxOTLPBodyBytes)
+func readBody(w http.ResponseWriter, r *http.Request, limits ...int) (body []byte, ok bool) {
+	limit := int64(maxOTLPBodyBytes)
+	if len(limits) > 0 {
+		limit = int64(limits[0])
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	reader := io.Reader(r.Body)
 	encoding := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Encoding")))
 	switch encoding {
@@ -58,17 +67,17 @@ func readBody(w http.ResponseWriter, r *http.Request) (body []byte, ok bool) {
 		http.Error(w, "unsupported content encoding", http.StatusUnsupportedMediaType)
 		return nil, false
 	}
-	body, err := io.ReadAll(io.LimitReader(reader, maxOTLPBodyBytes+1))
+	body, err := io.ReadAll(io.LimitReader(reader, limit+1))
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			http.Error(w, "request body exceeds 64 MB limit", http.StatusRequestEntityTooLarge)
+			http.Error(w, "request body exceeds configured size limit", http.StatusRequestEntityTooLarge)
 		} else {
 			http.Error(w, "read body", http.StatusBadRequest)
 		}
 		return nil, false
 	}
-	if len(body) > maxOTLPBodyBytes {
-		http.Error(w, "request body exceeds 64 MB limit", http.StatusRequestEntityTooLarge)
+	if int64(len(body)) > limit {
+		http.Error(w, "request body exceeds configured size limit", http.StatusRequestEntityTooLarge)
 		return nil, false
 	}
 	return body, true
@@ -92,8 +101,9 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		telemetry.Catalog().RecordReceive(r.Context(), "traces", result, payloadBytes, float64(time.Since(started).Microseconds())/1000)
 	}()
-	body, ok := readBody(w, r)
+	body, ok := readBody(w, r, h.pipeline.MaxRequestBytes())
 	if !ok {
+		h.pipeline.RecordRejectedRequest()
 		telemetry.Catalog().RecordIngestRejected(r.Context(), "traces", "body_read")
 		logOTLPHTTPFailure(r, "traces", "request body rejected", nil)
 		return
@@ -121,6 +131,11 @@ func (h *HTTPReceiver) HandleTraces(w http.ResponseWriter, r *http.Request) {
 	}
 	logOTLPHTTPIngest(r, "traces", req.Traces().SpanCount())
 	if h.forwarder != nil {
+		if isJSON(r.Header.Get("Content-Type")) {
+			body, _ = req.MarshalJSON()
+		} else {
+			body, _ = req.MarshalProto()
+		}
 		h.forwarder.Forward("/v1/traces", r.Header.Get("Content-Type"), body)
 	}
 	writeOTLPResponse(w, ptraceotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
@@ -132,8 +147,9 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		telemetry.Catalog().RecordReceive(r.Context(), "logs", result, payloadBytes, float64(time.Since(started).Microseconds())/1000)
 	}()
-	body, ok := readBody(w, r)
+	body, ok := readBody(w, r, h.pipeline.MaxRequestBytes())
 	if !ok {
+		h.pipeline.RecordRejectedRequest()
 		telemetry.Catalog().RecordIngestRejected(r.Context(), "logs", "body_read")
 		logOTLPHTTPFailure(r, "logs", "request body rejected", nil)
 		return
@@ -161,6 +177,11 @@ func (h *HTTPReceiver) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	logOTLPHTTPIngest(r, "logs", req.Logs().LogRecordCount())
 	if h.forwarder != nil {
+		if isJSON(r.Header.Get("Content-Type")) {
+			body, _ = req.MarshalJSON()
+		} else {
+			body, _ = req.MarshalProto()
+		}
 		h.forwarder.Forward("/v1/logs", r.Header.Get("Content-Type"), body)
 	}
 	writeOTLPResponse(w, plogotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))
@@ -172,8 +193,9 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		telemetry.Catalog().RecordReceive(r.Context(), "metrics", result, payloadBytes, float64(time.Since(started).Microseconds())/1000)
 	}()
-	body, ok := readBody(w, r)
+	body, ok := readBody(w, r, h.pipeline.MaxRequestBytes())
 	if !ok {
+		h.pipeline.RecordRejectedRequest()
 		telemetry.Catalog().RecordIngestRejected(r.Context(), "metrics", "body_read")
 		logOTLPHTTPFailure(r, "metrics", "request body rejected", nil)
 		return
@@ -201,6 +223,11 @@ func (h *HTTPReceiver) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	logOTLPHTTPIngest(r, "metrics", req.Metrics().DataPointCount())
 	if h.forwarder != nil {
+		if isJSON(r.Header.Get("Content-Type")) {
+			body, _ = req.MarshalJSON()
+		} else {
+			body, _ = req.MarshalProto()
+		}
 		h.forwarder.Forward("/v1/metrics", r.Header.Get("Content-Type"), body)
 	}
 	writeOTLPResponse(w, pmetricotlp.NewExportResponse(), isJSON(r.Header.Get("Content-Type")))

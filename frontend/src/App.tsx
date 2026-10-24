@@ -1,3 +1,4 @@
+import { usePeriodicRefresh } from './lib/display-preferences'
 import { SERVICE_COLORS_EVENT } from '@/lib/service-color'
 import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom'
 import { useTheme } from 'next-themes'
@@ -283,6 +284,7 @@ function AppShell() {
   }, [])
   useGlobalShortcuts()
   useLiveInvalidation()
+  usePeriodicRefresh()
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   // Seed the auth cookie when the user first visits with ?token=<value>.

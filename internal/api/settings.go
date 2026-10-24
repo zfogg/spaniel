@@ -58,6 +58,9 @@ type SettingsService struct {
 	// nil = settings are persisted but take effect on the next restart.
 	SetMCPAllowWrites func(bool)
 
+	ApplyExtended   func() error
+	IngestionStatus func() map[string]int64
+
 	ReloadDashboards func() error
 
 	// ReloadAlerts revalidates and reconciles configured alert YAML files.
@@ -87,34 +90,59 @@ type UpdateCheckResult struct {
 // SettingsResponse is the JSON shape returned by GET /api/settings.
 // Persistable fields live at the top level; read-only info is under Runtime.
 type SettingsResponse struct {
-	PublicURL                string   `json:"public_url"`
-	Port                     int      `json:"port"`
-	DBPath                   string   `json:"db_path"`
-	AlertsDir                string   `json:"alerts_dir"`
-	RetentionDays            int      `json:"retention_days"`
-	MaxSessions              int      `json:"max_sessions"`
-	MaxDBSizeMB              int      `json:"max_db_size_mb"`
-	AutoPrune                bool     `json:"auto_prune"`
-	AdvanceSessionOnStart    bool     `json:"advance_session_on_start"`
-	OTLPGRPCPort             int      `json:"otlp_grpc_port"`
-	OTLPHTTPPort             int      `json:"otlp_http_port"`
-	NoBrowser                bool     `json:"no_browser"`
-	Forward                  []string `json:"forward"`
-	BindAddressV4            string   `json:"bind_address_v4"`
-	BindAddressV6            string   `json:"bind_address_v6"`
-	ForwardSample            float64  `json:"forward_sample"`
-	SourceRPS                float64  `json:"source_rps"`
-	SourceBurst              int      `json:"source_burst"`
-	TLSEnabled               bool     `json:"tls_enabled"`
-	BearerTokenSet           bool     `json:"bearer_token_set"`
-	SelfMonitor              bool     `json:"self_monitor"`
-	MCPEnabled               bool     `json:"mcp_enabled"`
-	MCPAllowWrites           bool     `json:"mcp_allow_writes"`
-	AlertsBrowserEnabled     bool     `json:"alerts_browser_enabled"`
-	AlertsPushoverEnabled    bool     `json:"alerts_pushover_enabled"`
-	AlertsPushoverConfigured bool     `json:"alerts_pushover_configured"`
-	AlertsBrowserTemplate    string   `json:"alerts_browser_template"`
-	AlertsPushoverTemplate   string   `json:"alerts_pushover_template"`
+	IngestionStatus             map[string]int64 `json:"ingestion_status"`
+	ForwardTlsKeySet            bool             `json:"forward_tls_key_set"`
+	ForwardTlsCertSet           bool             `json:"forward_tls_cert_set"`
+	ForwardTlsCaSet             bool             `json:"forward_tls_ca_set"`
+	ForwardBearerTokenSet       bool             `json:"forward_bearer_token_set"`
+	NotificationCooldownSeconds int              `json:"notification_cooldown_seconds"`
+	NotificationTimezone        string           `json:"notification_timezone"`
+	NotificationQuietEnd        string           `json:"notification_quiet_end"`
+	NotificationQuietStart      string           `json:"notification_quiet_start"`
+	NotificationQuietEnabled    bool             `json:"notification_quiet_enabled"`
+	MetricsRetentionDays        int              `json:"metrics_retention_days"`
+	MetricsRetentionEnabled     bool             `json:"metrics_retention_enabled"`
+	LogsRetentionDays           int              `json:"logs_retention_days"`
+	LogsRetentionEnabled        bool             `json:"logs_retention_enabled"`
+	TracesRetentionDays         int              `json:"traces_retention_days"`
+	TracesRetentionEnabled      bool             `json:"traces_retention_enabled"`
+	IngestionQueueMb            int              `json:"ingestion_queue_mb"`
+	IngestionQueueRequests      int              `json:"ingestion_queue_requests"`
+	IngestionMaxRequestMb       int              `json:"ingestion_max_request_mb"`
+	IngestionExcludedRoutes     []string         `json:"ingestion_excluded_routes"`
+	IngestionExcludedServices   []string         `json:"ingestion_excluded_services"`
+	RefreshIntervalSeconds      int              `json:"refresh_interval_seconds"`
+	DefaultTimeRange            string           `json:"default_time_range"`
+	OtlpGrpcUrl                 string           `json:"otlp_grpc_url"`
+	OtlpHttpUrl                 string           `json:"otlp_http_url"`
+	PublicURL                   string           `json:"public_url"`
+	Port                        int              `json:"port"`
+	DBPath                      string           `json:"db_path"`
+	AlertsDir                   string           `json:"alerts_dir"`
+	RetentionDays               int              `json:"retention_days"`
+	MaxSessions                 int              `json:"max_sessions"`
+	MaxDBSizeMB                 int              `json:"max_db_size_mb"`
+	AutoPrune                   bool             `json:"auto_prune"`
+	AdvanceSessionOnStart       bool             `json:"advance_session_on_start"`
+	OTLPGRPCPort                int              `json:"otlp_grpc_port"`
+	OTLPHTTPPort                int              `json:"otlp_http_port"`
+	NoBrowser                   bool             `json:"no_browser"`
+	Forward                     []string         `json:"forward"`
+	BindAddressV4               string           `json:"bind_address_v4"`
+	BindAddressV6               string           `json:"bind_address_v6"`
+	ForwardSample               float64          `json:"forward_sample"`
+	SourceRPS                   float64          `json:"source_rps"`
+	SourceBurst                 int              `json:"source_burst"`
+	TLSEnabled                  bool             `json:"tls_enabled"`
+	BearerTokenSet              bool             `json:"bearer_token_set"`
+	SelfMonitor                 bool             `json:"self_monitor"`
+	MCPEnabled                  bool             `json:"mcp_enabled"`
+	MCPAllowWrites              bool             `json:"mcp_allow_writes"`
+	AlertsBrowserEnabled        bool             `json:"alerts_browser_enabled"`
+	AlertsPushoverEnabled       bool             `json:"alerts_pushover_enabled"`
+	AlertsPushoverConfigured    bool             `json:"alerts_pushover_configured"`
+	AlertsBrowserTemplate       string           `json:"alerts_browser_template"`
+	AlertsPushoverTemplate      string           `json:"alerts_pushover_template"`
 
 	Runtime SettingsRuntime `json:"runtime"`
 }
@@ -134,31 +162,55 @@ type SettingsRuntime struct {
 // SettingsUpdate is the writable subset accepted by PUT /api/settings.
 // Pointer fields let clients send partial updates — nil = "leave as-is".
 type SettingsUpdate struct {
-	PublicURL              *string   `json:"public_url,omitempty"`
-	BearerToken            *string   `json:"bearer_token,omitempty"`
-	Port                   *int      `json:"port,omitempty"`
-	DBPath                 *string   `json:"db_path,omitempty"`
-	AlertsDir              *string   `json:"alerts_dir,omitempty"`
-	RetentionDays          *int      `json:"retention_days,omitempty"`
-	MaxSessions            *int      `json:"max_sessions,omitempty"`
-	MaxDBSizeMB            *int      `json:"max_db_size_mb,omitempty"`
-	AutoPrune              *bool     `json:"auto_prune,omitempty"`
-	AdvanceSessionOnStart  *bool     `json:"advance_session_on_start,omitempty"`
-	OTLPGRPCPort           *int      `json:"otlp_grpc_port,omitempty"`
-	OTLPHTTPPort           *int      `json:"otlp_http_port,omitempty"`
-	NoBrowser              *bool     `json:"no_browser,omitempty"`
-	Forward                *[]string `json:"forward,omitempty"`
-	BindAddressV4          *string   `json:"bind_address_v4,omitempty"`
-	BindAddressV6          *string   `json:"bind_address_v6,omitempty"`
-	ForwardSample          *float64  `json:"forward_sample,omitempty"`
-	SourceRPS              *float64  `json:"source_rps,omitempty"`
-	SourceBurst            *int      `json:"source_burst,omitempty"`
-	SelfMonitor            *bool     `json:"self_monitor,omitempty"`
-	MCPAllowWrites         *bool     `json:"mcp_allow_writes,omitempty"`
-	AlertsBrowserEnabled   *bool     `json:"alerts_browser_enabled,omitempty"`
-	AlertsPushoverEnabled  *bool     `json:"alerts_pushover_enabled,omitempty"`
-	AlertsBrowserTemplate  *string   `json:"alerts_browser_template,omitempty"`
-	AlertsPushoverTemplate *string   `json:"alerts_pushover_template,omitempty"`
+	ForwardTlsKey               *string   `json:"forward_tls_key,omitempty"`
+	ForwardTlsCert              *string   `json:"forward_tls_cert,omitempty"`
+	ForwardTlsCa                *string   `json:"forward_tls_ca,omitempty"`
+	ForwardBearerToken          *string   `json:"forward_bearer_token,omitempty"`
+	NotificationCooldownSeconds *int      `json:"notification_cooldown_seconds,omitempty"`
+	NotificationTimezone        *string   `json:"notification_timezone,omitempty"`
+	NotificationQuietEnd        *string   `json:"notification_quiet_end,omitempty"`
+	NotificationQuietStart      *string   `json:"notification_quiet_start,omitempty"`
+	NotificationQuietEnabled    *bool     `json:"notification_quiet_enabled,omitempty"`
+	MetricsRetentionDays        *int      `json:"metrics_retention_days,omitempty"`
+	MetricsRetentionEnabled     *bool     `json:"metrics_retention_enabled,omitempty"`
+	LogsRetentionDays           *int      `json:"logs_retention_days,omitempty"`
+	LogsRetentionEnabled        *bool     `json:"logs_retention_enabled,omitempty"`
+	TracesRetentionDays         *int      `json:"traces_retention_days,omitempty"`
+	TracesRetentionEnabled      *bool     `json:"traces_retention_enabled,omitempty"`
+	IngestionQueueMb            *int      `json:"ingestion_queue_mb,omitempty"`
+	IngestionQueueRequests      *int      `json:"ingestion_queue_requests,omitempty"`
+	IngestionMaxRequestMb       *int      `json:"ingestion_max_request_mb,omitempty"`
+	IngestionExcludedRoutes     *[]string `json:"ingestion_excluded_routes,omitempty"`
+	IngestionExcludedServices   *[]string `json:"ingestion_excluded_services,omitempty"`
+	RefreshIntervalSeconds      *int      `json:"refresh_interval_seconds,omitempty"`
+	DefaultTimeRange            *string   `json:"default_time_range,omitempty"`
+	OtlpGrpcUrl                 *string   `json:"otlp_grpc_url,omitempty"`
+	OtlpHttpUrl                 *string   `json:"otlp_http_url,omitempty"`
+	PublicURL                   *string   `json:"public_url,omitempty"`
+	BearerToken                 *string   `json:"bearer_token,omitempty"`
+	Port                        *int      `json:"port,omitempty"`
+	DBPath                      *string   `json:"db_path,omitempty"`
+	AlertsDir                   *string   `json:"alerts_dir,omitempty"`
+	RetentionDays               *int      `json:"retention_days,omitempty"`
+	MaxSessions                 *int      `json:"max_sessions,omitempty"`
+	MaxDBSizeMB                 *int      `json:"max_db_size_mb,omitempty"`
+	AutoPrune                   *bool     `json:"auto_prune,omitempty"`
+	AdvanceSessionOnStart       *bool     `json:"advance_session_on_start,omitempty"`
+	OTLPGRPCPort                *int      `json:"otlp_grpc_port,omitempty"`
+	OTLPHTTPPort                *int      `json:"otlp_http_port,omitempty"`
+	NoBrowser                   *bool     `json:"no_browser,omitempty"`
+	Forward                     *[]string `json:"forward,omitempty"`
+	BindAddressV4               *string   `json:"bind_address_v4,omitempty"`
+	BindAddressV6               *string   `json:"bind_address_v6,omitempty"`
+	ForwardSample               *float64  `json:"forward_sample,omitempty"`
+	SourceRPS                   *float64  `json:"source_rps,omitempty"`
+	SourceBurst                 *int      `json:"source_burst,omitempty"`
+	SelfMonitor                 *bool     `json:"self_monitor,omitempty"`
+	MCPAllowWrites              *bool     `json:"mcp_allow_writes,omitempty"`
+	AlertsBrowserEnabled        *bool     `json:"alerts_browser_enabled,omitempty"`
+	AlertsPushoverEnabled       *bool     `json:"alerts_pushover_enabled,omitempty"`
+	AlertsBrowserTemplate       *string   `json:"alerts_browser_template,omitempty"`
+	AlertsPushoverTemplate      *string   `json:"alerts_pushover_template,omitempty"`
 }
 
 func (r *Router) getSettings(w http.ResponseWriter, req *http.Request) {
@@ -178,6 +230,10 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 	var body SettingsUpdate
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		respondErr(w, req, 400, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := validateExtended(&body); err != nil {
+		respondErr(w, req, 400, err.Error())
 		return
 	}
 	if err := validateSettings(&body); err != nil {
@@ -215,6 +271,31 @@ func (r *Router) buildSettings() SettingsResponse {
 	delivery := currentAlertDelivery()
 
 	resp := SettingsResponse{
+		OtlpHttpUrl:                 v.GetString("otlp_http_url"),
+		OtlpGrpcUrl:                 v.GetString("otlp_grpc_url"),
+		DefaultTimeRange:            v.GetString("default_time_range"),
+		RefreshIntervalSeconds:      v.GetInt("refresh_interval_seconds"),
+		IngestionExcludedServices:   v.GetStringSlice("ingestion_excluded_services"),
+		IngestionExcludedRoutes:     v.GetStringSlice("ingestion_excluded_routes"),
+		IngestionMaxRequestMb:       v.GetInt("ingestion_max_request_mb"),
+		IngestionQueueRequests:      v.GetInt("ingestion_queue_requests"),
+		IngestionQueueMb:            v.GetInt("ingestion_queue_mb"),
+		TracesRetentionEnabled:      v.GetBool("traces_retention_enabled"),
+		TracesRetentionDays:         v.GetInt("traces_retention_days"),
+		LogsRetentionEnabled:        v.GetBool("logs_retention_enabled"),
+		LogsRetentionDays:           v.GetInt("logs_retention_days"),
+		MetricsRetentionEnabled:     v.GetBool("metrics_retention_enabled"),
+		MetricsRetentionDays:        v.GetInt("metrics_retention_days"),
+		NotificationQuietEnabled:    v.GetBool("notification_quiet_enabled"),
+		NotificationQuietStart:      v.GetString("notification_quiet_start"),
+		NotificationQuietEnd:        v.GetString("notification_quiet_end"),
+		NotificationTimezone:        v.GetString("notification_timezone"),
+		NotificationCooldownSeconds: v.GetInt("notification_cooldown_seconds"),
+		ForwardBearerTokenSet:       v.GetString("forward_bearer_token") != "",
+		ForwardTlsCaSet:             v.GetString("forward_tls_ca") != "",
+		ForwardTlsCertSet:           v.GetString("forward_tls_cert") != "",
+		ForwardTlsKeySet:            v.GetString("forward_tls_key") != "",
+
 		PublicURL:                v.GetString("public_url"),
 		Port:                     v.GetInt("port"),
 		DBPath:                   v.GetString("db_path"),
@@ -252,6 +333,11 @@ func (r *Router) buildSettings() SettingsResponse {
 			OTLPGRPCPort: livePort(s.LiveGRPCPort, s.OTLPGRPCPort),
 			OTLPHTTPPort: livePort(s.LiveHTTPPort, s.OTLPHTTPPort),
 		},
+	}
+	if s.IngestionStatus != nil {
+		resp.IngestionStatus = s.IngestionStatus()
+	} else {
+		resp.IngestionStatus = map[string]int64{}
 	}
 	// DB size lives on the storage layer.
 	stats, _ := r.store.GetStats("")
@@ -338,6 +424,79 @@ func validateSettings(u *SettingsUpdate) error {
 // fresh viper instance so we don't accidentally bake any project-level
 // .spaniel.yaml merges into the global file.
 func applySettings(s *SettingsService, u *SettingsUpdate) error {
+	if u.OtlpHttpUrl != nil {
+		s.Viper.Set("otlp_http_url", *u.OtlpHttpUrl)
+	}
+	if u.OtlpGrpcUrl != nil {
+		s.Viper.Set("otlp_grpc_url", *u.OtlpGrpcUrl)
+	}
+	if u.DefaultTimeRange != nil {
+		s.Viper.Set("default_time_range", *u.DefaultTimeRange)
+	}
+	if u.RefreshIntervalSeconds != nil {
+		s.Viper.Set("refresh_interval_seconds", *u.RefreshIntervalSeconds)
+	}
+	if u.IngestionExcludedServices != nil {
+		s.Viper.Set("ingestion_excluded_services", *u.IngestionExcludedServices)
+	}
+	if u.IngestionExcludedRoutes != nil {
+		s.Viper.Set("ingestion_excluded_routes", *u.IngestionExcludedRoutes)
+	}
+	if u.IngestionMaxRequestMb != nil {
+		s.Viper.Set("ingestion_max_request_mb", *u.IngestionMaxRequestMb)
+	}
+	if u.IngestionQueueRequests != nil {
+		s.Viper.Set("ingestion_queue_requests", *u.IngestionQueueRequests)
+	}
+	if u.IngestionQueueMb != nil {
+		s.Viper.Set("ingestion_queue_mb", *u.IngestionQueueMb)
+	}
+	if u.TracesRetentionEnabled != nil {
+		s.Viper.Set("traces_retention_enabled", *u.TracesRetentionEnabled)
+	}
+	if u.TracesRetentionDays != nil {
+		s.Viper.Set("traces_retention_days", *u.TracesRetentionDays)
+	}
+	if u.LogsRetentionEnabled != nil {
+		s.Viper.Set("logs_retention_enabled", *u.LogsRetentionEnabled)
+	}
+	if u.LogsRetentionDays != nil {
+		s.Viper.Set("logs_retention_days", *u.LogsRetentionDays)
+	}
+	if u.MetricsRetentionEnabled != nil {
+		s.Viper.Set("metrics_retention_enabled", *u.MetricsRetentionEnabled)
+	}
+	if u.MetricsRetentionDays != nil {
+		s.Viper.Set("metrics_retention_days", *u.MetricsRetentionDays)
+	}
+	if u.NotificationQuietEnabled != nil {
+		s.Viper.Set("notification_quiet_enabled", *u.NotificationQuietEnabled)
+	}
+	if u.NotificationQuietStart != nil {
+		s.Viper.Set("notification_quiet_start", *u.NotificationQuietStart)
+	}
+	if u.NotificationQuietEnd != nil {
+		s.Viper.Set("notification_quiet_end", *u.NotificationQuietEnd)
+	}
+	if u.NotificationTimezone != nil {
+		s.Viper.Set("notification_timezone", *u.NotificationTimezone)
+	}
+	if u.NotificationCooldownSeconds != nil {
+		s.Viper.Set("notification_cooldown_seconds", *u.NotificationCooldownSeconds)
+	}
+	if u.ForwardBearerToken != nil {
+		s.Viper.Set("forward_bearer_token", *u.ForwardBearerToken)
+	}
+	if u.ForwardTlsCa != nil {
+		s.Viper.Set("forward_tls_ca", *u.ForwardTlsCa)
+	}
+	if u.ForwardTlsCert != nil {
+		s.Viper.Set("forward_tls_cert", *u.ForwardTlsCert)
+	}
+	if u.ForwardTlsKey != nil {
+		s.Viper.Set("forward_tls_key", *u.ForwardTlsKey)
+	}
+
 	if u.PublicURL != nil {
 		s.Viper.Set("public_url", *u.PublicURL)
 	}
@@ -447,6 +606,11 @@ func applySettings(s *SettingsService, u *SettingsUpdate) error {
 			return fmt.Errorf("update process bearer token environment: %w", err)
 		}
 	}
+	if s.ApplyExtended != nil {
+		if err := s.ApplyExtended(); err != nil {
+			return err
+		}
+	}
 	if u.MCPAllowWrites != nil && s.SetMCPAllowWrites != nil {
 		s.SetMCPAllowWrites(*u.MCPAllowWrites)
 	}
@@ -465,6 +629,9 @@ func (s *SettingsService) Save() error {
 	out := viper.New()
 	out.SetConfigPermissions(0o600)
 	out.SetConfigFile(s.ConfigPath)
+	for _, key := range ExtendedKeys {
+		out.Set(key, s.Viper.Get(key))
+	}
 	out.Set("public_url", s.Viper.GetString("public_url"))
 	out.Set("bearer_token", s.Viper.GetString("bearer_token"))
 	for _, k := range []string{"port", "db_path", "alerts_dir", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor", "mcp_enabled", "mcp_allow_writes", "alerts.browser_enabled", "alerts.pushover_enabled", "alerts.browser_template", "alerts.pushover_template"} {

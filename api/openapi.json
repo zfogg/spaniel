@@ -3336,6 +3336,91 @@
           },
           "public_url": {
             "type": "string"
+          },
+          "otlp_http_url": {
+            "type": "string"
+          },
+          "otlp_grpc_url": {
+            "type": "string"
+          },
+          "default_time_range": {
+            "type": "string"
+          },
+          "refresh_interval_seconds": {
+            "type": "integer"
+          },
+          "ingestion_excluded_services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ingestion_excluded_routes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ingestion_max_request_mb": {
+            "type": "integer"
+          },
+          "ingestion_queue_requests": {
+            "type": "integer"
+          },
+          "ingestion_queue_mb": {
+            "type": "integer"
+          },
+          "traces_retention_enabled": {
+            "type": "boolean"
+          },
+          "traces_retention_days": {
+            "type": "integer"
+          },
+          "logs_retention_enabled": {
+            "type": "boolean"
+          },
+          "logs_retention_days": {
+            "type": "integer"
+          },
+          "metrics_retention_enabled": {
+            "type": "boolean"
+          },
+          "metrics_retention_days": {
+            "type": "integer"
+          },
+          "notification_quiet_enabled": {
+            "type": "boolean"
+          },
+          "notification_quiet_start": {
+            "type": "string"
+          },
+          "notification_quiet_end": {
+            "type": "string"
+          },
+          "notification_timezone": {
+            "type": "string"
+          },
+          "notification_cooldown_seconds": {
+            "type": "integer"
+          },
+          "forward_bearer_token_set": {
+            "type": "boolean"
+          },
+          "forward_tls_ca_set": {
+            "type": "boolean"
+          },
+          "forward_tls_cert_set": {
+            "type": "boolean"
+          },
+          "forward_tls_key_set": {
+            "type": "boolean"
+          },
+          "ingestion_status": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
           }
         },
         "required": [
@@ -3502,6 +3587,91 @@
           },
           "public_url": {
             "type": "string"
+          },
+          "otlp_http_url": {
+            "type": "string"
+          },
+          "otlp_grpc_url": {
+            "type": "string"
+          },
+          "default_time_range": {
+            "type": "string"
+          },
+          "refresh_interval_seconds": {
+            "type": "integer"
+          },
+          "ingestion_excluded_services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ingestion_excluded_routes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ingestion_max_request_mb": {
+            "type": "integer"
+          },
+          "ingestion_queue_requests": {
+            "type": "integer"
+          },
+          "ingestion_queue_mb": {
+            "type": "integer"
+          },
+          "traces_retention_enabled": {
+            "type": "boolean"
+          },
+          "traces_retention_days": {
+            "type": "integer"
+          },
+          "logs_retention_enabled": {
+            "type": "boolean"
+          },
+          "logs_retention_days": {
+            "type": "integer"
+          },
+          "metrics_retention_enabled": {
+            "type": "boolean"
+          },
+          "metrics_retention_days": {
+            "type": "integer"
+          },
+          "notification_quiet_enabled": {
+            "type": "boolean"
+          },
+          "notification_quiet_start": {
+            "type": "string"
+          },
+          "notification_quiet_end": {
+            "type": "string"
+          },
+          "notification_timezone": {
+            "type": "string"
+          },
+          "notification_cooldown_seconds": {
+            "type": "integer"
+          },
+          "forward_bearer_token_set": {
+            "type": "boolean"
+          },
+          "forward_tls_ca_set": {
+            "type": "boolean"
+          },
+          "forward_tls_cert_set": {
+            "type": "boolean"
+          },
+          "forward_tls_key_set": {
+            "type": "boolean"
+          },
+          "ingestion_status": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
           }
         },
         "required": [
@@ -11056,6 +11226,88 @@
                   "public_url": {
                     "type": "string",
                     "description": "Public UI URL. Its hostname is advertised for OTLP; empty uses the browser hostname. MCP links use it after restart."
+                  },
+                  "otlp_http_url": {
+                    "type": "string"
+                  },
+                  "otlp_grpc_url": {
+                    "type": "string"
+                  },
+                  "default_time_range": {
+                    "type": "string"
+                  },
+                  "refresh_interval_seconds": {
+                    "type": "integer"
+                  },
+                  "ingestion_excluded_services": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "ingestion_excluded_routes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "ingestion_max_request_mb": {
+                    "type": "integer"
+                  },
+                  "ingestion_queue_requests": {
+                    "type": "integer"
+                  },
+                  "ingestion_queue_mb": {
+                    "type": "integer"
+                  },
+                  "traces_retention_enabled": {
+                    "type": "boolean"
+                  },
+                  "traces_retention_days": {
+                    "type": "integer"
+                  },
+                  "logs_retention_enabled": {
+                    "type": "boolean"
+                  },
+                  "logs_retention_days": {
+                    "type": "integer"
+                  },
+                  "metrics_retention_enabled": {
+                    "type": "boolean"
+                  },
+                  "metrics_retention_days": {
+                    "type": "integer"
+                  },
+                  "notification_quiet_enabled": {
+                    "type": "boolean"
+                  },
+                  "notification_quiet_start": {
+                    "type": "string"
+                  },
+                  "notification_quiet_end": {
+                    "type": "string"
+                  },
+                  "notification_timezone": {
+                    "type": "string"
+                  },
+                  "notification_cooldown_seconds": {
+                    "type": "integer"
+                  },
+                  "forward_bearer_token": {
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "forward_tls_ca": {
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "forward_tls_cert": {
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "forward_tls_key": {
+                    "type": "string",
+                    "writeOnly": true
                   }
                 },
                 "type": "object"

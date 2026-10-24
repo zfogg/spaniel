@@ -747,6 +747,11 @@ func run(cfg runConfig) error {
 
 	// Build gRPC server options (TLS and/or bearer auth).
 	var grpcOpts []grpc.ServerOption
+	maxRequest := cfg.Viper.GetInt("ingestion_max_request_mb")
+	if maxRequest <= 0 {
+		maxRequest = 64
+	}
+	grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(maxRequest<<20))
 	if tlsCfg != nil {
 		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
 	}
@@ -897,17 +902,24 @@ func run(cfg runConfig) error {
 	}
 	// Include the effective CLI token in settings persistence as well.
 	cfg.Viper.Set("bearer_token", cfg.BearerToken)
+	extended, err := newExtendedRuntime(cfg.Viper, pipeline, fwd, store)
+	if err != nil {
+		return err
+	}
+	defer extended.Close()
 	settingsSvc := &api.SettingsService{
-		Viper:          cfg.Viper,
-		ConfigPath:     globalConfigPath(),
-		Version:        version,
-		StartedAt:      time.Now(),
-		OTLPGRPCPort:   cfg.OTLPGRPCPort,
-		OTLPHTTPPort:   cfg.OTLPHTTPPort,
-		TLSEnabled:     tlsCfg != nil,
-		BearerTokenSet: cfg.BearerToken != "",
-		MCPEnabled:     cfg.MCPEnabled,
-		MCPAllowWrites: cfg.MCPAllowWrites,
+		ApplyExtended:   func() error { return extended.apply(cfg.Viper, pipeline, fwd) },
+		IngestionStatus: pipeline.IngestionStatus,
+		Viper:           cfg.Viper,
+		ConfigPath:      globalConfigPath(),
+		Version:         version,
+		StartedAt:       time.Now(),
+		OTLPGRPCPort:    cfg.OTLPGRPCPort,
+		OTLPHTTPPort:    cfg.OTLPHTTPPort,
+		TLSEnabled:      tlsCfg != nil,
+		BearerTokenSet:  cfg.BearerToken != "",
+		MCPEnabled:      cfg.MCPEnabled,
+		MCPAllowWrites:  cfg.MCPAllowWrites,
 		LiveGRPCPort: func() int {
 			grpcLS.mu.Lock()
 			defer grpcLS.mu.Unlock()
