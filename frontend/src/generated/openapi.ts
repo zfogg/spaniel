@@ -1298,6 +1298,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/sql/format': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Format SQL layout without executing it; preserve comments and bind placeholders */
+    post: operations['formatSQL']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -6505,6 +6522,48 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+    }
+  }
+  formatSQL: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "sql": "SELECT id,name FROM spans WHERE trace_id=$trace_id",
+         *       "dialect": "duckdb"
+         *     }
+         */
+        'application/json': {
+          sql: string
+          /**
+           * @default duckdb
+           * @enum {string}
+           */
+          dialect?: 'duckdb' | 'postgresql' | 'mysql' | 'sqlite' | 'generic'
+        }
+      }
+    }
+    responses: {
+      /** @description Formatted SQL */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: {
+              sql: string
+            }
+          }
+        }
+      }
+      400: components['responses']['BadRequest']
     }
   }
 }

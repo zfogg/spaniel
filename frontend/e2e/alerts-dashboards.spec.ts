@@ -21,6 +21,7 @@ test.beforeEach(async ({ page }) => {
     else if (path === '/api/alerts/test-alert') data = rule
     else if (path === '/api/dashboards') data = [dashboard]
     else if (path === '/api/dashboards/test-dashboard') data = dashboard
+    else if (path === '/api/sql/format') data = { sql: route.request().postDataJSON().sql }
     else if (path.endsWith('/config')) {
       await route.fulfill({
         contentType: 'text/yaml',
@@ -82,4 +83,47 @@ test('dashboard gallery, editor and creation routes retain their distinct behavi
   await expect(page.getByRole('heading', { name: 'Choose a starting point' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Delete dashboard' })).toHaveCount(0)
   expect(errors).toEqual([])
+})
+
+test('dashboard and alert SQL editors format only on request and retain comments and parameters', async ({
+  page,
+}) => {
+  const raw = '-- keep\nselect id,name from spans where trace_id=$trace_id; -- trailing'
+  const formatted =
+    '-- keep\nselect\n  id,\n  name\nfrom spans\nwhere\n  trace_id = $trace_id; -- trailing'
+  let calls = 0
+  await page.route('**/api/sql/format', async (route) => {
+    const body = route.request().postDataJSON()
+    if (body.sql === raw) {
+      calls++
+      if (process.env.SPANIEL_E2E_LIVE_SQL === '1') {
+        await route.continue()
+        return
+      }
+    }
+    await route.fulfill({ json: { data: { sql: body.sql === raw ? formatted : body.sql } } })
+  })
+  for (const kind of ['dashboard', 'alert']) {
+    if (kind === 'dashboard') await page.goto('/dashboards/test-dashboard')
+    else {
+      await page.goto('/alerts')
+      await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    }
+    const label = kind === 'dashboard' ? 'DuckDB SQL' : 'Alert SQL query'
+    const editor = page.getByLabel(label, { exact: true }).locator('.cm-content')
+    await expect(editor).toContainText('SELECT')
+    const before = calls
+    await editor.click()
+    await editor.press('ControlOrMeta+A')
+    await page.keyboard.insertText(raw)
+    await expect
+      .poll(async () => (await editor.locator('.cm-line').allTextContents()).join('\n'))
+      .toBe(raw)
+    expect(calls).toBe(before)
+    await page.getByRole('button', { name: 'Format SQL', exact: true }).first().click()
+    await expect
+      .poll(async () => (await editor.locator('.cm-line').allTextContents()).join('\n'))
+      .toBe(formatted)
+    expect(calls).toBe(before + 1)
+  }
 })

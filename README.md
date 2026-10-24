@@ -249,6 +249,7 @@ MCP links pick up changes after restart.
 | `get_service_map` / `list_services` / `get_stats` | dependency graph; services; counts |
 | `get_metrics` / `get_metric_series` | metric catalog and time series |
 | `list_sessions` / `diff_sessions` | sessions; before/after comparison |
+| `format_sql` | format SQL without executing it; preserves comments, literals, and bind placeholders |
 | `query_sql` | **read-only** raw SQL over the DuckDB tables (validated before execution; external access disabled) |
 | `list_dashboards` / `get_dashboard` / `run_dashboard_panel` / `validate_dashboard` | inspect, execute, and validate dashboard definitions |
 | `export_dashboard_yaml` / `import_dashboard_yaml` / `apply_dashboard` / `delete_dashboard` | portable dashboard YAML and structured dashboard lifecycle; imports with an ID update that dashboard, while imports without an ID create a copy |
@@ -529,6 +530,7 @@ Issues and PRs welcome.
 
 MIT © [Zachary Fogg](https://github.com/zfogg)
 
+SQL shown in dashboards, alerts, telemetry query attributes, API responses, MCP results, and exported YAML uses the shared gotel C formatter. Dashboard and alert SQL editors offer a **Format SQL** button; typing never triggers formatting. The generated HTTP client exposes `POST /api/sql/format` with `sql` and optional `dialect` (DuckDB by default). Formatting changes whitespace only and leaves stored and executed SQL unchanged. Malformed or unsupported display input remains visible as originally supplied.
 ### Settings policies
 
 `/settings` groups controls into General, Network, Ingestion, Security,

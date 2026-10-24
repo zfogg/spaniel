@@ -9,6 +9,7 @@ import (
 	toongo "github.com/toon-format/toon-go"
 
 	"github.com/zfogg/spaniel/internal/errtext"
+	"github.com/zfogg/spaniel/internal/sqlformat"
 )
 
 // addTOONTool keeps MCP's JSON Schema input contract while returning the
@@ -21,7 +22,7 @@ func addTOONTool[In, Out any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler mcpsd
 		if err != nil {
 			return result, nil, errors.New(errtext.Message(err.Error()))
 		}
-		data, err := toongo.Marshal(out)
+		data, err := toongo.Marshal(sqlformat.Presentation(out))
 		if err != nil {
 			return nil, nil, fmt.Errorf("encode TOON result: %w", err)
 		}

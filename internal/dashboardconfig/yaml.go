@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/zfogg/spaniel/internal/model"
+	"github.com/zfogg/spaniel/internal/sqlformat"
 	"gopkg.in/yaml.v3"
 )
 
@@ -260,6 +261,10 @@ func Marshal(d *model.Dashboard) ([]byte, error) {
 	definition, err := FromDashboard(d)
 	if err != nil {
 		return nil, err
+	}
+	for i := range definition.Panels {
+		definition.Panels[i].Query = sqlformat.Format(definition.Panels[i].Query)
+		definition.Panels[i].Settings = sqlformat.Presentation(definition.Panels[i].Settings)
 	}
 	return yaml.Marshal(definition)
 }

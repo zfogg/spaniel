@@ -333,6 +333,8 @@ func (r *Router) InstallSelfMonitorDashboards(w http.ResponseWriter, req *http.R
 	r.installSelfMonitorDashboards(w, req)
 }
 
+func (r *Router) FormatSQL(w http.ResponseWriter, req *http.Request) { r.formatSQL(w, req) }
+
 func (r *Router) ReplaceCoverageSpec(w http.ResponseWriter, req *http.Request, id string) {
 	r.replaceCoverageSpec(w, req)
 }

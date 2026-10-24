@@ -44,9 +44,9 @@ func TestGetTraceExport_ReturnsOTLPJSON(t *testing.T) {
 	svcBRes := `{"service.name":"svc-b"}`
 
 	// 2 spans in svc-a, 1 span in svc-b → 2 resourceSpans blocks
-	insertSpanForExport(t, store, "sess", traceID, "1122334455667788", "0000000000000000", "svc-a", svcARes, "root",   0, 1_000, "{}")
-	insertSpanForExport(t, store, "sess", traceID, "aabbccddeeff0011", "1122334455667788", "svc-a", svcARes, "child",  0, 500,   "{}")
-	insertSpanForExport(t, store, "sess", traceID, "99887766554433aa", "1122334455667788", "svc-b", svcBRes, "remote", 0, 300,   `{"db.statement":"SELECT 1"}`)
+	insertSpanForExport(t, store, "sess", traceID, "1122334455667788", "0000000000000000", "svc-a", svcARes, "root", 0, 1_000, "{}")
+	insertSpanForExport(t, store, "sess", traceID, "aabbccddeeff0011", "1122334455667788", "svc-a", svcARes, "child", 0, 500, "{}")
+	insertSpanForExport(t, store, "sess", traceID, "99887766554433aa", "1122334455667788", "svc-b", svcBRes, "remote", 0, 300, `{"db.statement":"SELECT 1"}`)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/traces/"+traceID+"/export", nil)
 	w := httptest.NewRecorder()
@@ -87,6 +87,21 @@ func TestGetTraceExport_ReturnsOTLPJSON(t *testing.T) {
 	if total != 3 {
 		t.Errorf("expected 3 total spans, got %d", total)
 	}
+	for i := range td.ResourceSpans().Len() {
+		ss := td.ResourceSpans().At(i).ScopeSpans()
+		for j := range ss.Len() {
+			spans := ss.At(j).Spans()
+			for k := range spans.Len() {
+				span := spans.At(k)
+				if span.Name() == "remote" {
+					query, ok := span.Attributes().Get("db.statement")
+					if !ok || query.Str() != "SELECT\n  1" {
+						t.Fatalf("exported query was not formatted: %v", query)
+					}
+				}
+			}
+		}
+	}
 }
 
 func TestGetTraceExport_NotFound(t *testing.T) {
@@ -110,7 +125,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	now := time.Now().UnixNano()
 
 	insertSpanForExport(t, store, "sess", traceID, "aaaa111122223333", "0000000000000000", "webapp", res, "GET /api", now, now+2_000_000, attrs)
-	insertSpanForExport(t, store, "sess", traceID, "bbbb444455556666", "aaaa111122223333", "webapp", res, "db.query",  now+100_000, now+800_000, `{"db.system":"postgres"}`)
+	insertSpanForExport(t, store, "sess", traceID, "bbbb444455556666", "aaaa111122223333", "webapp", res, "db.query", now+100_000, now+800_000, `{"db.system":"postgres"}`)
 
 	// Export.
 	req := httptest.NewRequest(http.MethodGet, "/api/traces/"+traceID+"/export", nil)
@@ -148,10 +163,13 @@ func TestExportImportRoundTrip(t *testing.T) {
 	}
 
 	// Compare name and duration for each reimported span.
-	type summary struct{ name string; dur int64 }
+	type summary struct {
+		name string
+		dur  int64
+	}
 	original := map[string]summary{
-		"aaaa111122223333": {name: "GET /api",  dur: now + 2_000_000 - now},
-		"bbbb444455556666": {name: "db.query",  dur: now + 800_000 - (now + 100_000)},
+		"aaaa111122223333": {name: "GET /api", dur: now + 2_000_000 - now},
+		"bbbb444455556666": {name: "db.query", dur: now + 800_000 - (now + 100_000)},
 	}
 	for _, s := range reimported {
 		want, ok := original[s.SpanID]

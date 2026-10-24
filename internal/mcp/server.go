@@ -171,6 +171,7 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	h.registerSessionTools(s)
 	h.registerSQLTool(s)
 	h.registerDashboardTools(s)
+	addTOONTool(s, &mcpsdk.Tool{Name: "format_sql", Description: "Format SQL layout without executing it. Preserves comments, literals, and bind placeholders.", Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true}}, h.formatSQL)
 	h.registerAlertTools(s)
 	h.registerCoverageTools(s)
 	h.registerNotificationTools(s)

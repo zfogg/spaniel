@@ -5,6 +5,8 @@ import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags, highlightTree, tagHighlighter } from '@lezer/highlight'
 import { useMemo, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
+import { FormatSQLButton } from '../FormatSQLButton'
+import { useFormattedSQL } from '@/lib/sql-format'
 
 // CodeMirror's Lezer parser is incremental and error-tolerant: an unfinished
 // CTE, string, or parenthesis produces an error node while retaining every
@@ -62,20 +64,23 @@ type SqlEditorProps = {
 
 export function SqlEditor({ value, onChange, label = 'DuckDB SQL' }: SqlEditorProps) {
   return (
-    <CodeMirror
-      aria-label={label}
-      value={value}
-      onChange={onChange}
-      extensions={sqlExtensions}
-      basicSetup={{
-        lineNumbers: true,
-        foldGutter: false,
-        highlightActiveLineGutter: true,
-        bracketMatching: true,
-        autocompletion: true,
-      }}
-      className="overflow-hidden rounded border border-input bg-background text-xs"
-    />
+    <div>
+      <FormatSQLButton value={value} onChange={onChange} />
+      <CodeMirror
+        aria-label={label}
+        value={value}
+        onChange={onChange}
+        extensions={sqlExtensions}
+        basicSetup={{
+          lineNumbers: true,
+          foldGutter: false,
+          highlightActiveLineGutter: true,
+          bracketMatching: true,
+          autocompletion: true,
+        }}
+        className="overflow-hidden rounded border border-input bg-background text-xs"
+      />
+    </div>
   )
 }
 
@@ -199,9 +204,10 @@ export function JsonCode({ value }: { value: string }) {
 }
 
 export function SqlCode({ value }: { value: string }) {
+  const formatted = useFormattedSQL(value)
   return (
     <StaticCode
-      value={value}
+      value={formatted}
       language={staticSQL}
       highlighter={staticHighlight}
       label="SQL query"

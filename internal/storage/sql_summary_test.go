@@ -110,7 +110,7 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 		if attrs["db.query.summary"] != "SELECT …" {
 			t.Errorf("summary = %q", attrs["db.query.summary"])
 		}
-		if attrs["db.query.text"] != "SELECT ? AS value" {
+		if attrs["db.query.text"] != "SELECT\n  ? AS value" {
 			t.Errorf("query text = %q", attrs["db.query.text"])
 		}
 		return

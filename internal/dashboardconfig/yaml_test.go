@@ -74,6 +74,14 @@ func TestDeployCorrelationYAMLRoundTripPreservesAnnotationSettingsAndLayout(t *t
 		t.Fatal(err)
 	}
 	panel := restored.Panels[0]
+	var settings map[string]any
+	if err := json.Unmarshal([]byte(panel.SettingsJSON), &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings["annotation_query"] != "SELECT\n  1 AS timestamp_ns,\n  'v1' AS version" ||
+		!strings.Contains(dashboard.Panels[0].SettingsJSON, "SELECT 1 AS timestamp_ns, 'v1' AS version") {
+		t.Fatalf("annotation export formatting or source preservation failed: %s", panel.SettingsJSON)
+	}
 	var layout map[string]int
 	if err := json.Unmarshal([]byte(panel.LayoutJSON), &layout); err != nil {
 		t.Fatal(err)

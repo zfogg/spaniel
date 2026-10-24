@@ -8158,6 +8158,66 @@ paths:
             summary: get Span
             tags:
                 - Traces
+    /api/sql/format:
+        post:
+            operationId: formatSQL
+            requestBody:
+                content:
+                    application/json:
+                        example:
+                            dialect: duckdb
+                            sql: SELECT id,name FROM spans WHERE trace_id=$trace_id
+                        schema:
+                            properties:
+                                dialect:
+                                    default: duckdb
+                                    enum:
+                                        - duckdb
+                                        - postgresql
+                                        - mysql
+                                        - sqlite
+                                        - generic
+                                    type: string
+                                sql:
+                                    maxLength: 1.048576e+06
+                                    type: string
+                            required:
+                                - sql
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                formatted:
+                                    summary: Formatted SQL retaining a named bind placeholder
+                                    value:
+                                        data:
+                                            sql: |-
+                                                SELECT
+                                                  id,
+                                                  name
+                                                FROM spans
+                                                WHERE trace_id=$trace_id
+                            schema:
+                                properties:
+                                    data:
+                                        properties:
+                                            sql:
+                                                type: string
+                                        required:
+                                            - sql
+                                        type: object
+                                required:
+                                    - data
+                                type: object
+                    description: Formatted SQL
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+            summary: Format SQL layout without executing it; preserve comments and bind placeholders
+            tags:
+                - SQL
     /api/stats:
         get:
             operationId: getStats
