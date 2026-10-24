@@ -264,6 +264,7 @@ func Marshal(d *model.Dashboard) ([]byte, error) {
 	}
 	for i := range definition.Panels {
 		definition.Panels[i].Query = sqlformat.Format(definition.Panels[i].Query)
+		definition.Panels[i].Settings = sqlformat.Presentation(definition.Panels[i].Settings)
 	}
 	return yaml.Marshal(definition)
 }
