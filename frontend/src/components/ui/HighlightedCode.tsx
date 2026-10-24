@@ -6,7 +6,7 @@ import { tags, highlightTree, tagHighlighter } from '@lezer/highlight'
 import { useMemo, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
 import { FormatSQLButton } from '../FormatSQLButton'
-import { useFormattedSQL } from '@/lib/sql-format'
+import { useFormattedSQL, type SQLDialect } from '@/lib/sql-format'
 
 // CodeMirror's Lezer parser is incremental and error-tolerant: an unfinished
 // CTE, string, or parenthesis produces an error node while retaining every
@@ -203,8 +203,8 @@ export function JsonCode({ value }: { value: string }) {
   )
 }
 
-export function SqlCode({ value }: { value: string }) {
-  const formatted = useFormattedSQL(value, 'duckdb')
+export function SqlCode({ value, dialect = 'duckdb' }: { value: string; dialect?: SQLDialect }) {
+  const formatted = useFormattedSQL(value, dialect)
   return (
     <StaticCode
       value={formatted}

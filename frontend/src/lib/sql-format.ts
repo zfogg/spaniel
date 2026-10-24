@@ -1,7 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
 
-type SQLDialect = NonNullable<Parameters<typeof api.sql.format>[0]['dialect']>
+export type SQLDialect = NonNullable<Parameters<typeof api.sql.format>[0]['dialect']>
+
+export function telemetrySQLDialect(attributes: Record<string, unknown>): SQLDialect | undefined {
+  for (const key of ['db.system.name', 'db.system']) {
+    const system = attributes[key]
+    switch (system) {
+      case 'postgresql':
+      case 'duckdb':
+      case 'sqlite':
+      case 'mysql':
+      case 'clickhouse':
+        return system
+    }
+  }
+}
 
 export async function formatSQL(sql: string, dialect: SQLDialect = 'duckdb') {
   const result = await api.sql.format({ sql, dialect })
