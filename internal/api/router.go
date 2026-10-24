@@ -448,6 +448,11 @@ func (r *Router) exportTrace(w http.ResponseWriter, req *http.Request) {
 			s.Status().SetMessage(span.StatusMessage)
 			var attrs map[string]any
 			_ = json.Unmarshal([]byte(span.Attributes), &attrs)
+			for _, key := range []string{"db.query.text", "db.statement"} {
+				if query, ok := attrs[key].(string); ok {
+					attrs[key] = sqlformat.TelemetryQuery(attrs, query)
+				}
+			}
 			putAttrs(s.Attributes(), attrs)
 		}
 	}

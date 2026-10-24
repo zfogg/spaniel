@@ -12,6 +12,18 @@ import (
 
 func Format(query string) string { return sqltrace.FormatSQLOrOriginal(sqltrace.DialectDuckDB, query) }
 
+// TelemetryQuery uses the database identity supplied with a span's attributes.
+func TelemetryQuery(attributes map[string]any, query string) string {
+	dialect := sqltrace.DialectGeneric
+	for _, key := range []string{"db.system.name", "db.system"} {
+		if system, ok := attributes[key].(string); ok {
+			dialect = sqltrace.Dialect(system)
+			break
+		}
+	}
+	return sqltrace.FormatSQLOrOriginal(dialect, query)
+}
+
 // Presentation returns an independent wire representation. It never mutates
 // storage models or editor inputs. UseNumber preserves nanosecond timestamps
 // and other integers beyond JavaScript's exact range, including MCP TOON.
@@ -71,14 +83,7 @@ func walk(value any) {
 				case "query", "query_sql", "instance_discovery_sql", "annotation_query":
 					v[key] = Format(query)
 				case "db.query.text", "db.statement":
-					dialect := sqltrace.DialectGeneric
-					for _, systemKey := range []string{"db.system.name", "db.system"} {
-						if system, ok := v[systemKey].(string); ok {
-							dialect = sqltrace.Dialect(system)
-							break
-						}
-					}
-					v[key] = sqltrace.FormatSQLOrOriginal(dialect, query)
+					v[key] = TelemetryQuery(v, query)
 				case "attributes", "attributes_json", "settings_json":
 					if strings.Contains(query, "db.query.text") || strings.Contains(query, "db.statement") || (key == "settings_json" && strings.Contains(query, "annotation_query")) {
 						decoder := json.NewDecoder(strings.NewReader(query))
