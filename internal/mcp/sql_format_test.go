@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/zfogg/gotel/sqltrace"
+	"github.com/zfogg/spaniel/internal/sqlformat"
 )
 
 func TestFormatSQLTool(t *testing.T) {
@@ -17,5 +18,12 @@ func TestFormatSQLTool(t *testing.T) {
 	_, _, err = h.formatSQL(context.Background(), nil, FormatSQLInput{SQL: "select 'broken"})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestSearchPresentationPreservesSearchText(t *testing.T) {
+	out := sqlformat.Presentation(SearchOutput{Query: "select worker", Results: []SearchHit{}}).(map[string]any)
+	if out["query"] != "select worker" {
+		t.Fatalf("search text formatted as SQL: %#v", out)
 	}
 }

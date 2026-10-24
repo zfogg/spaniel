@@ -46,7 +46,7 @@ func TestGetTraceExport_ReturnsOTLPJSON(t *testing.T) {
 	// 2 spans in svc-a, 1 span in svc-b → 2 resourceSpans blocks
 	insertSpanForExport(t, store, "sess", traceID, "1122334455667788", "0000000000000000", "svc-a", svcARes, "root", 0, 1_000, "{}")
 	insertSpanForExport(t, store, "sess", traceID, "aabbccddeeff0011", "1122334455667788", "svc-a", svcARes, "child", 0, 500, "{}")
-	insertSpanForExport(t, store, "sess", traceID, "99887766554433aa", "1122334455667788", "svc-b", svcBRes, "remote", 0, 300, `{"db.statement":"SELECT 1"}`)
+	insertSpanForExport(t, store, "sess", traceID, "99887766554433aa", "1122334455667788", "svc-b", svcBRes, "remote", 0, 300, `{"db.system.name":"sqlite","db.statement":"SELECT 1"}`)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/traces/"+traceID+"/export", nil)
 	w := httptest.NewRecorder()

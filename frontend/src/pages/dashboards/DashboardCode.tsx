@@ -1,6 +1,6 @@
 import { useFormattedSQL } from '@/lib/sql-format'
 export function CatalogSql({ value: input }: { value: string }) {
-  const value = useFormattedSQL(input)
+  const value = useFormattedSQL(input, 'duckdb')
   const tokens = value.split(
     /('(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|GROUP|BY|ORDER|LIMIT|AS|AND|OR|CASE|WHEN|THEN|ELSE|END|DESC|ASC|COUNT|AVG|SUM|MIN|MAX|CAST|DISTINCT)\b|\b\d+(?:\.\d+)?\b)/gi,
   )

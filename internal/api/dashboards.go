@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/zfogg/spaniel/internal/dashboardconfig"
 	"github.com/zfogg/spaniel/internal/model"
+	"github.com/zfogg/spaniel/internal/sqlformat"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -607,6 +608,9 @@ func (r *Router) queryCatalog(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		respondErr(w, req, 500, "telemetry search failed: "+err.Error())
 		return
+	}
+	for i := range items {
+		items[i].Query = sqlformat.Format(items[i].Query)
 	}
 	respond(w, items, len(items), 1)
 }

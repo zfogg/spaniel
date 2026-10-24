@@ -204,7 +204,7 @@ export function JsonCode({ value }: { value: string }) {
 }
 
 export function SqlCode({ value }: { value: string }) {
-  const formatted = useFormattedSQL(value)
+  const formatted = useFormattedSQL(value, 'duckdb')
   return (
     <StaticCode
       value={formatted}

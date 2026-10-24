@@ -96,7 +96,7 @@ const staticHighlight = tagHighlighter([
 ])
 
 export function SqlCode({ value: input }: { value: string }) {
-  const value = useFormattedSQL(input)
+  const value = useFormattedSQL(input, 'duckdb')
   const content = useMemo(() => {
     const nodes: ReactNode[] = []
     let end = 0
