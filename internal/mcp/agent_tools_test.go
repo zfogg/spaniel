@@ -10,7 +10,10 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/zfogg/spaniel/internal/storage"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -121,6 +124,11 @@ func TestServiceSummaryScopes(t *testing.T) {
 }
 
 func TestMCPTelemetryIncludesToolErrors(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	previousMeter := otel.GetMeterProvider()
+	otel.SetMeterProvider(meterProvider)
+	t.Cleanup(func() { otel.SetMeterProvider(previousMeter); _ = meterProvider.Shutdown(context.Background()) })
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	previous := otel.GetTracerProvider()
@@ -145,6 +153,33 @@ func TestMCPTelemetryIncludesToolErrors(t *testing.T) {
 	}
 	if !foundOK || !foundError {
 		t.Fatalf("MCP span status: success=%v error=%v names=%v", foundOK, foundError, names)
+	}
+	var data metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &data); err != nil {
+		t.Fatal(err)
+	}
+	foundCounter, foundDuration := false, false
+	for _, scope := range data.ScopeMetrics {
+		if scope.Scope.Name != "spaniel/mcp" {
+			continue
+		}
+		for _, m := range scope.Metrics {
+			switch m.Name {
+			case "spaniel.mcp.requests":
+				for _, p := range m.Data.(metricdata.Sum[int64]).DataPoints {
+					tool, _ := p.Attributes.Value(attribute.Key("tool"))
+					result, _ := p.Attributes.Value(attribute.Key("result"))
+					if tool.AsString() == "list_attribute_values" && result.AsString() == "error" && p.Value == 1 {
+						foundCounter = true
+					}
+				}
+			case "spaniel.mcp.duration":
+				foundDuration = len(m.Data.(metricdata.Histogram[float64]).DataPoints) > 0
+			}
+		}
+	}
+	if !foundCounter || !foundDuration {
+		t.Fatalf("gotel MCP metrics missing: counter=%v duration=%v", foundCounter, foundDuration)
 	}
 }
 

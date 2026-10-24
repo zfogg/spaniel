@@ -12,15 +12,12 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/zfogg/gotel/go/mcptrace"
 	"github.com/zfogg/spaniel/internal/telemetry"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -75,9 +72,8 @@ type Handler struct {
 
 // handler holds the dependencies shared by every tool handler.
 type handler struct {
-	store  *storage.DB
-	opts   Options
-	tracer trace.Tracer
+	store *storage.DB
+	opts  Options
 }
 
 type requestOriginKey struct{}
@@ -124,9 +120,8 @@ func (h *Handler) SetAllowWrites(allow bool) {
 
 func buildHandler(store *storage.DB, opts Options) http.Handler {
 	h := &handler{
-		store:  store,
-		opts:   opts,
-		tracer: telemetry.Tracer("mcp"),
+		store: store,
+		opts:  opts,
 	}
 
 	impl := &mcpsdk.Implementation{
@@ -139,9 +134,19 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 
 	// One receiving middleware instruments every MCP method (and names tool
 	// calls by tool) so MCP usage shows up as spans in Spaniel itself.
-	server.AddReceivingMiddleware(h.telemetryMiddleware)
-
 	h.registerTools(server)
+	var tools []string
+	registeredToolNames.Range(func(key, _ any) bool {
+		tools = append(tools, key.(string))
+		return true
+	})
+	middleware, err := mcptrace.New(mcptrace.Options{
+		Prefix: "spaniel", Tools: tools, Context: telemetry.WithMCPService,
+	})
+	if err != nil {
+		panic(fmt.Errorf("create MCP instrumentation: %w", err))
+	}
+	server.AddReceivingMiddleware(middleware)
 
 	// One server instance, shared across all sessions.
 	//
@@ -183,53 +188,6 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 
 	if h.opts.AllowWrites {
 		h.registerWriteTools(s)
-	}
-}
-
-// telemetryMiddleware starts an OTel span around every received MCP method,
-// naming tool calls after the invoked tool.
-func (h *handler) telemetryMiddleware(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
-	return func(ctx context.Context, method string, req mcpsdk.Request) (mcpsdk.Result, error) {
-		ctx = telemetry.WithMCPService(ctx)
-		started := time.Now()
-		name := "mcp." + method
-		tool := ""
-		switch p := req.GetParams().(type) {
-		case *mcpsdk.CallToolParamsRaw:
-			if p != nil {
-				tool = p.Name
-			}
-		case *mcpsdk.CallToolParams:
-			if p != nil {
-				tool = p.Name
-			}
-		}
-		if tool != "" {
-			if _, known := registeredToolNames.Load(tool); !known {
-				tool = "unknown"
-			}
-			name = "mcp.tool/" + tool
-		}
-		ctx, span := h.tracer.Start(ctx, name, trace.WithAttributes(attribute.String("rpc.system", "mcp"), attribute.String("rpc.method", method)))
-		if tool != "" {
-			span.SetAttributes(attribute.String("gen_ai.tool.name", tool))
-		}
-		defer span.End()
-		res, err := next(ctx, method, req)
-		outcome := "ok"
-		toolError := false
-		if result, ok := res.(*mcpsdk.CallToolResult); ok && result != nil {
-			toolError = result.IsError
-		}
-		if err != nil || toolError {
-			outcome = "error"
-			span.SetStatus(codes.Error, "MCP request failed")
-			span.SetAttributes(attribute.String("error.type", "mcp_error"))
-		}
-		span.SetAttributes(attribute.Bool("mcp.is_error", outcome == "error"))
-		telemetry.Catalog().RecordMCP(ctx, method, tool, outcome, float64(time.Since(started).Microseconds())/1000)
-
-		return res, err
 	}
 }
 
