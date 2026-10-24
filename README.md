@@ -247,7 +247,8 @@ For example, discover `service.version` with scope `resource`, then call
 `list_traces` with `resource_attributes: {"service.version": "abc123"}`.
 New time-window inputs use decimal nanosecond strings to preserve precision.
 
-MCP self-telemetry includes `spaniel.mcp.tool/<name>` spans with method/tool attributes,
+MCP self-telemetry uses gotel's reusable [`mcptrace`](https://github.com/zfogg/gotel/tree/main/go/mcptrace)
+middleware and includes `spaniel.mcp.tool/<name>` spans with method/tool attributes,
 error status for protocol and tool failures, and `spaniel.mcp.requests` /
 `spaniel.mcp.duration` metrics labeled by method, registered tool name, and result.
 Enable self-monitoring to store these. Tool arguments and response bodies are

@@ -16,8 +16,6 @@ import (
 )
 
 type Metrics struct {
-	mcpRequests               metric.Int64Counter
-	mcpDuration               metric.Float64Histogram
 	receiverRequests          metric.Int64Counter
 	receiverBytes             metric.Int64Counter
 	receiverDuration          metric.Float64Histogram
@@ -114,7 +112,6 @@ func InitMetrics() *Metrics {
 	metricsMu.Lock()
 	defer metricsMu.Unlock()
 	meter := otel.Meter("spaniel")
-	mcpMeter := otel.Meter("spaniel/mcp")
 	newCounter := func(name, desc, unit string) metric.Int64Counter {
 		v, _ := meter.Int64Counter(name, metric.WithDescription(desc), metric.WithUnit(unit))
 		return v
@@ -124,14 +121,6 @@ func InitMetrics() *Metrics {
 		return v
 	}
 	m := &Metrics{
-		mcpRequests: func() metric.Int64Counter {
-			v, _ := mcpMeter.Int64Counter("spaniel.mcp.requests", metric.WithDescription("MCP requests by method, tool, and result"), metric.WithUnit("{request}"))
-			return v
-		}(),
-		mcpDuration: func() metric.Float64Histogram {
-			v, _ := mcpMeter.Float64Histogram("spaniel.mcp.duration", metric.WithDescription("MCP request duration"), metric.WithUnit("ms"))
-			return v
-		}(),
 		serverStartedAt:  time.Now(),
 		receiverRequests: newCounter("spaniel.receiver.requests", "OTLP receiver requests", "{request}"), receiverBytes: newCounter("spaniel.receiver.bytes", "OTLP receiver payload bytes", "By"), receiverDuration: newDuration("spaniel.receiver.duration", "OTLP receiver request duration"),
 		ingestPoints: newCounter("spaniel.ingest.metrics_points", "Telemetry points accepted by ingestion", "{point}"), ingestDropped: newCounter("spaniel.ingest.dropped", "Telemetry points dropped by ingestion", "{point}"), ingestRejected: newCounter("spaniel.ingest.rejected", "Ingestion requests rejected", "{request}"), ingestDecodeErrors: newCounter("spaniel.ingest.decode.errors", "OTLP decode errors", "{error}"), ingestQueueWait: newDuration("spaniel.ingest.queue_wait", "Time spent waiting for ingestion work"), ingestBatchSize: func() metric.Int64Histogram {
@@ -417,16 +406,4 @@ func (m *Metrics) SetIngestBatchQueue(requests, capacity, bytes int) {
 func (m *Metrics) RecordIngestGroup(exports, bytes int) {
 	m.ingestBatchExports.Record(context.Background(), int64(exports))
 	m.ingestBatchBytes.Record(context.Background(), int64(bytes))
-}
-
-// RecordMCP uses only SDK methods and registered tool names, never arguments or telemetry content.
-func (m *Metrics) RecordMCP(ctx context.Context, method, tool, result string, durationMs float64) {
-	switch method {
-	case "initialize", "ping", "tools/list", "tools/call", "resources/list", "resources/read", "resources/templates/list", "resources/subscribe", "resources/unsubscribe", "prompts/list", "prompts/get", "completion/complete", "logging/setLevel", "notifications/initialized", "notifications/cancelled", "notifications/progress", "notifications/roots/list_changed":
-	default:
-		method = "other"
-	}
-	attrs := metric.WithAttributes(attribute.String("method", method), attribute.String("tool", tool), attribute.String("result", result))
-	m.mcpRequests.Add(ctx, 1, attrs)
-	m.mcpDuration.Record(ctx, durationMs, attrs)
 }
