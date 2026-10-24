@@ -528,3 +528,35 @@ Issues and PRs welcome.
 ## License
 
 MIT © [Zachary Fogg](https://github.com/zfogg)
+
+### Settings policies
+
+`/settings` groups controls into General, Network, Ingestion, Security,
+Notifications, Storage, and About. Changes are saved to `~/.spaniel/config.yaml`
+(`/data/.spaniel/config.yaml` in the standard Docker image).
+
+- **General:** default log/metric time range and polling interval. Manual range
+  selections win; zero refresh pauses polling while WebSocket updates continue.
+- **Network:** `otlp_http_url` and `otlp_grpc_url` override the advertised exporter
+  URLs independently, including external ports or proxy paths. Blank values use
+  the public/browser hostname, receiver TLS, and live ports.
+- **Ingestion:** exact excluded service names apply across signals; exact excluded
+  `http.route` values remove spans. Filters apply before storage and HTTP
+  forwarding. Queue limits include executing exports; bytes measure serialized
+  payloads, not total heap use. The status shows queue usage, filtered records,
+  and rejected requests. HTTP/decoded size limits apply live; the gRPC wire limit
+  takes effect after restart.
+- **Per-signal retention:** independently enable expiry for traces, logs, and
+  metrics. It runs every minute, removes complete old traces and trace metadata,
+  and preserves baseline sessions. Session age/count and disk caps remain upper
+  bounds; disabling signal expiry does not disable those policies.
+- **Security:** the upstream bearer token and optional CA/client certificate/key
+  PEM apply to all HTTP forwarding destinations. Certificate and key must be
+  saved together. Secrets are never included in Settings responses or the query
+  cache; the API reports configured flags. Forwarding endpoint-list changes and
+  inbound bearer-token changes still require restart.
+- **Notifications:** enable browser alerts, grant this browser permission, set
+  quiet hours and their timezone, and choose a minimum cooldown per instance and
+  channel. Per-rule cooldowns also apply. Quiet hours suppress delivery while
+  alert evaluation and state persistence continue; suppressed alerts are not
+  queued for later delivery. Equal start/end times silence the full day.
