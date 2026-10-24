@@ -119,6 +119,27 @@ func globalConfigPath() string {
 // Priority (high → low): CLI flags > project .spaniel.yaml > global config > defaults.
 func initViper(v *viper.Viper) {
 	// Defaults
+	v.SetDefault("otlp_http_url", "")
+	v.SetDefault("otlp_grpc_url", "")
+	v.SetDefault("default_time_range", "1h")
+	v.SetDefault("refresh_interval_seconds", 5)
+	v.SetDefault("ingestion_excluded_services", []string{})
+	v.SetDefault("ingestion_excluded_routes", []string{})
+	v.SetDefault("ingestion_max_request_mb", 64)
+	v.SetDefault("ingestion_queue_requests", 256)
+	v.SetDefault("ingestion_queue_mb", 64)
+	v.SetDefault("traces_retention_enabled", false)
+	v.SetDefault("traces_retention_days", 7)
+	v.SetDefault("logs_retention_enabled", false)
+	v.SetDefault("logs_retention_days", 7)
+	v.SetDefault("metrics_retention_enabled", false)
+	v.SetDefault("metrics_retention_days", 7)
+	v.SetDefault("notification_quiet_enabled", false)
+	v.SetDefault("notification_quiet_start", "22:00")
+	v.SetDefault("notification_quiet_end", "08:00")
+	v.SetDefault("notification_timezone", "UTC")
+	v.SetDefault("notification_cooldown_seconds", 0)
+
 	v.SetDefault("port", 8080)
 	v.SetDefault("public_url", "")
 	v.SetDefault("db_path", defaultDBPath())
