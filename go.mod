@@ -43,7 +43,6 @@ require (
 	gorm.io/plugin/dbresolver v1.6.2
 )
 
-
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/apache/arrow-go/v18 v18.2.0 // indirect
