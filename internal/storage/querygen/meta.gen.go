@@ -162,7 +162,13 @@ type IMetaDo interface {
 
 // DatabaseSize
 //
-// SELECT block_size, used_blocks FROM pragma_database_size() LIMIT 1
+// SELECT
+//
+//	block_size,
+//	used_blocks
+//
+// FROM pragma_database_size()
+// LIMIT 1
 func (m metaDo) DatabaseSize() (result []model.DatabaseSize, err error) {
 	var generateSQL strings.Builder
 	generateSQL.WriteString("SELECT block_size, used_blocks FROM pragma_database_size() LIMIT 1 ")
@@ -176,7 +182,15 @@ func (m metaDo) DatabaseSize() (result []model.DatabaseSize, err error) {
 
 // UpsertValue
 //
-// INSERT INTO @@table (meta_key, meta_value) VALUES (@key, @value) ON CONFLICT (meta_key) DO UPDATE SET meta_value = excluded.meta_value
+// INSERT INTO @@table (meta_key, meta_value)
+// VALUES
+//
+//	(@key, @value)
+//
+// ON CONFLICT (meta_key) DO UPDATE
+// SET
+//
+//	meta_value = excluded.meta_value
 func (m metaDo) UpsertValue(key string, value string) (err error) {
 	var params []interface{}
 

@@ -193,7 +193,31 @@ type ITraceIssueDo interface {
 
 // SearchNPlusOne
 //
-// SELECT ti.trace_id, COALESCE(s.name, '(trace)') AS title, ti.count, ti.session_id FROM @@table ti LEFT JOIN spans s ON s.span_id = ti.example_span_id WHERE ti.kind = 'n_plus_one' AND (@sessionID = ” OR ti.session_id = @sessionID) ORDER BY ti.wasted_ns DESC LIMIT @limit
+// SELECT
+//
+//	ti.trace_id,
+//	COALESCE(s.name, '(trace)') AS title,
+//	ti.count,
+//	ti.session_id
+//
+// FROM @@table ti
+// LEFT JOIN spans s
+//
+//	ON s.span_id = ti.example_span_id
+//
+// WHERE
+//
+//	ti.kind = 'n_plus_one'
+//	AND (
+//	  @sessionID = ''
+//	  OR ti.session_id = @sessionID
+//	)
+//
+// ORDER BY
+//
+//	ti.wasted_ns DESC
+//
+// LIMIT @limit
 func (t traceIssueDo) SearchNPlusOne(sessionID string, limit int) (result []model.NPlusOneSearchResult, err error) {
 	var params []interface{}
 
@@ -201,7 +225,7 @@ func (t traceIssueDo) SearchNPlusOne(sessionID string, limit int) (result []mode
 	params = append(params, sessionID)
 	params = append(params, sessionID)
 	params = append(params, limit)
-	generateSQL.WriteString("SELECT ti.trace_id, COALESCE(s.name, '(trace)') AS title, ti.count, ti.session_id FROM trace_issues ti LEFT JOIN spans s ON s.span_id = ti.example_span_id WHERE ti.kind = 'n_plus_one' AND (? = '' OR ti.session_id = ?) ORDER BY ti.wasted_ns DESC LIMIT ? ")
+	generateSQL.WriteString("SELECT ti.trace_id, COALESCE(s.name, '(trace)') AS title, ti.count, ti.session_id FROM trace_issues ti LEFT JOIN spans s ON s.span_id = ti.example_span_id WHERE ti.kind = 'n_plus_one' AND ( ? = '' OR ti.session_id = ? ) ORDER BY ti.wasted_ns DESC LIMIT ? ")
 
 	var executeSQL *gorm.DB
 	executeSQL = t.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

@@ -189,7 +189,29 @@ type ILogDo interface {
 
 // SearchByBody
 //
-// SELECT 'log' AS kind, trace_id, span_id, LEFT(body, 120) AS title, service_name AS subtitle, session_id FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) AND body ILIKE @pattern ORDER BY timestamp_ns DESC LIMIT @limit
+// SELECT
+//
+//	'log' AS kind,
+//	trace_id,
+//	span_id,
+//	LEFT(body, 120) AS title,
+//	service_name AS subtitle,
+//	session_id
+//
+// FROM @@table
+// WHERE
+//
+//	(
+//	  @sessionID = ''
+//	  OR session_id = @sessionID
+//	)
+//	AND body ILIKE @pattern
+//
+// ORDER BY
+//
+//	timestamp_ns DESC
+//
+// LIMIT @limit
 func (l logDo) SearchByBody(sessionID string, pattern string, limit int) (result []model.SearchResult, err error) {
 	var params []interface{}
 
@@ -198,7 +220,7 @@ func (l logDo) SearchByBody(sessionID string, pattern string, limit int) (result
 	params = append(params, sessionID)
 	params = append(params, pattern)
 	params = append(params, limit)
-	generateSQL.WriteString("SELECT 'log' AS kind, trace_id, span_id, LEFT(body, 120) AS title, service_name AS subtitle, session_id FROM logs WHERE (? = '' OR session_id = ?) AND body ILIKE ? ORDER BY timestamp_ns DESC LIMIT ? ")
+	generateSQL.WriteString("SELECT 'log' AS kind, trace_id, span_id, LEFT(body, 120) AS title, service_name AS subtitle, session_id FROM logs WHERE ( ? = '' OR session_id = ? ) AND body ILIKE ? ORDER BY timestamp_ns DESC LIMIT ? ")
 
 	var executeSQL *gorm.DB
 	executeSQL = l.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

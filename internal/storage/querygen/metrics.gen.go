@@ -302,14 +302,45 @@ type IMetricDo interface {
 
 // ListCatalog
 //
-// SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count, MAX(timestamp_ns) AS last_timestamp_ns FROM @@table WHERE (@sessionID = ” OR session_id = @sessionID) GROUP BY name, service_name, type, unit, description ORDER BY last_timestamp_ns DESC, MAX(rowid) DESC
+// SELECT
+//
+//	name,
+//	service_name,
+//	type,
+//	unit,
+//	description,
+//	any_value(aggregation_temporality) AS aggregation_temporality,
+//	any_value(is_monotonic) AS is_monotonic,
+//	COUNT(*) AS sample_count,
+//	MAX(timestamp_ns) AS last_timestamp_ns
+//
+// FROM @@table
+// WHERE
+//
+//	(
+//	  @sessionID = ''
+//	  OR session_id = @sessionID
+//	)
+//
+// GROUP BY
+//
+//	name,
+//	service_name,
+//	type,
+//	unit,
+//	description
+//
+// ORDER BY
+//
+//	last_timestamp_ns DESC,
+//	MAX(rowid) DESC
 func (m metricDo) ListCatalog(sessionID string) (result []model.MetricCatalogEntry, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, sessionID)
 	params = append(params, sessionID)
-	generateSQL.WriteString("SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count, MAX(timestamp_ns) AS last_timestamp_ns FROM metrics WHERE (? = '' OR session_id = ?) GROUP BY name, service_name, type, unit, description ORDER BY last_timestamp_ns DESC, MAX(rowid) DESC ")
+	generateSQL.WriteString("SELECT name, service_name, type, unit, description, any_value(aggregation_temporality) AS aggregation_temporality, any_value(is_monotonic) AS is_monotonic, COUNT(*) AS sample_count, MAX(timestamp_ns) AS last_timestamp_ns FROM metrics WHERE ( ? = '' OR session_id = ? ) GROUP BY name, service_name, type, unit, description ORDER BY last_timestamp_ns DESC, MAX(rowid) DESC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = m.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -320,7 +351,37 @@ func (m metricDo) ListCatalog(sessionID string) (result []model.MetricCatalogEnt
 
 // GetStreamMetadata
 //
-// SELECT name, description, unit, type, aggregation_temporality, is_monotonic, service_name FROM @@table WHERE (@name = ” OR name = @name) AND (@service = ” OR service_name = @service) AND (@sessionID = ” OR session_id = @sessionID) ORDER BY timestamp_ns DESC LIMIT 1
+// SELECT
+//
+//	name,
+//	description,
+//	unit,
+//	type,
+//	aggregation_temporality,
+//	is_monotonic,
+//	service_name
+//
+// FROM @@table
+// WHERE
+//
+//	(
+//	  @name = ''
+//	  OR name = @name
+//	)
+//	AND (
+//	  @service = ''
+//	  OR service_name = @service
+//	)
+//	AND (
+//	  @sessionID = ''
+//	  OR session_id = @sessionID
+//	)
+//
+// ORDER BY
+//
+//	timestamp_ns DESC
+//
+// LIMIT 1
 func (m metricDo) GetStreamMetadata(name string, service string, sessionID string) (result []model.Metric, err error) {
 	var params []interface{}
 
@@ -331,7 +392,7 @@ func (m metricDo) GetStreamMetadata(name string, service string, sessionID strin
 	params = append(params, service)
 	params = append(params, sessionID)
 	params = append(params, sessionID)
-	generateSQL.WriteString("SELECT name, description, unit, type, aggregation_temporality, is_monotonic, service_name FROM metrics WHERE (? = '' OR name = ?) AND (? = '' OR service_name = ?) AND (? = '' OR session_id = ?) ORDER BY timestamp_ns DESC LIMIT 1 ")
+	generateSQL.WriteString("SELECT name, description, unit, type, aggregation_temporality, is_monotonic, service_name FROM metrics WHERE ( ? = '' OR name = ? ) AND ( ? = '' OR service_name = ? ) AND ( ? = '' OR session_id = ? ) ORDER BY timestamp_ns DESC LIMIT 1 ")
 
 	var executeSQL *gorm.DB
 	executeSQL = m.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
