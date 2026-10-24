@@ -10,25 +10,22 @@ export async function formatSQL(sql: string) {
 
 // Read-only code views also include locally supplied examples and SQL from
 // old telemetry. Editors deliberately never call this hook.
-const displayed = new Map<string, Promise<string>>()
+const displayed = new Map<string, string>()
 export function useFormattedSQL(value: string) {
   const [result, setResult] = useState({ input: '', output: '' })
   useEffect(() => {
     let active = true
-    let formatted = displayed.get(value)
-    if (!formatted) {
-      formatted = formatSQL(value)
-      displayed.set(value, formatted)
-      if (displayed.size > 128) displayed.delete(displayed.keys().next().value!)
-    }
-    formatted
-      .then((output) => {
+    async function update() {
+      try {
+        const output = displayed.get(value) ?? (await formatSQL(value))
+        displayed.set(value, output)
+        if (displayed.size > 128) displayed.delete(displayed.keys().next().value!)
         if (active) setResult({ input: value, output })
-      })
-      .catch(() => {
-        displayed.delete(value)
+      } catch {
         if (active) setResult({ input: value, output: value })
-      })
+      }
+    }
+    void update()
     return () => {
       active = false
     }
