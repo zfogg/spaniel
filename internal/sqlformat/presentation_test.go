@@ -8,6 +8,19 @@ import (
 	toongo "github.com/toon-format/toon-go"
 )
 
+func TestPresentationKeepsRedactedScalarQueryCompact(t *testing.T) {
+	for _, system := range []string{"postgresql", "duckdb", "mysql", "sqlite", "clickhouse"} {
+		input := map[string]any{"attributes": map[string]any{"db.system.name": system, "db.query.text": "SELECT\n  ?", "db.query.summary": "SELECT ?"}}
+		attrs := Presentation(input).(map[string]any)["attributes"].(map[string]any)
+		if attrs["db.query.text"] != "SELECT ?" || attrs["db.query.summary"] != "SELECT ?" {
+			t.Fatalf("%s: %#v", system, attrs)
+		}
+		if input["attributes"].(map[string]any)["db.query.text"] != "SELECT\n  ?" {
+			t.Fatal("stored attributes mutated")
+		}
+	}
+}
+
 func TestPresentationPreservesSourceAndExactIntegers(t *testing.T) {
 	const query = "-- keep\nselect a,b from spans where trace_id=$trace_id; -- trailing  "
 	input := struct {
@@ -87,7 +100,7 @@ func TestTelemetryPreservesMySQLLiteralAndUnknownDialect(t *testing.T) {
 		}
 	}
 	for _, key := range []string{"db.system.name", "db.system"} {
-		if got := TelemetryQuery(map[string]any{key: "mysql"}, query); got != "select\n  "+strings.TrimPrefix(query, "select ") {
+		if got := TelemetryQuery(map[string]any{key: "mysql"}, query); got != query {
 			t.Fatalf("MySQL literal changed: %q", got)
 		}
 	}
