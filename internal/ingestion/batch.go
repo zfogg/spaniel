@@ -302,16 +302,19 @@ func (p *Pipeline) submit(ctx context.Context, signal string, rows, size int, ru
 }
 
 func (p *Pipeline) IngestTraces(ctx context.Context, td ptrace.Traces) error {
+	size := (&ptrace.ProtoMarshaler{}).TracesSize(td)
 	p.filterTraces(td)
-	return p.submit(ctx, "traces", td.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(td), func(ctx context.Context) error { return p.ingestTraces(ctx, td) })
+	return p.submit(ctx, "traces", td.SpanCount(), size, func(ctx context.Context) error { return p.ingestTraces(ctx, td) })
 }
 func (p *Pipeline) IngestLogs(ctx context.Context, ld plog.Logs) error {
+	size := (&plog.ProtoMarshaler{}).LogsSize(ld)
 	p.filterLogs(ld)
-	return p.submit(ctx, "logs", ld.LogRecordCount(), (&plog.ProtoMarshaler{}).LogsSize(ld), func(ctx context.Context) error { return p.ingestLogs(ctx, ld) })
+	return p.submit(ctx, "logs", ld.LogRecordCount(), size, func(ctx context.Context) error { return p.ingestLogs(ctx, ld) })
 }
 func (p *Pipeline) IngestMetrics(ctx context.Context, md pmetric.Metrics) error {
+	size := (&pmetric.ProtoMarshaler{}).MetricsSize(md)
 	p.filterMetrics(md)
-	return p.submit(ctx, "metrics", md.DataPointCount(), (&pmetric.ProtoMarshaler{}).MetricsSize(md), func(ctx context.Context) error { return p.ingestMetrics(ctx, md) })
+	return p.submit(ctx, "metrics", md.DataPointCount(), size, func(ctx context.Context) error { return p.ingestMetrics(ctx, md) })
 }
 
 func (p *Pipeline) afterPersist(ctx context.Context, after func()) {

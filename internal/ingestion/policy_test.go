@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"strings"
 	"testing"
 )
 
@@ -57,5 +58,20 @@ func TestPolicyFiltersAndQueueLimits(t *testing.T) {
 	}
 	if p.IngestionStatus()["filtered_records"] != 4 {
 		t.Fatal("filter count mismatch")
+	}
+}
+
+func TestPolicyFiltersDoNotBypassRequestLimit(t *testing.T) {
+	p := &Pipeline{batches: newIngestBatcher(nil, nil)}
+	v := viper.New()
+	v.Set("ingestion_excluded_services", []string{"noise"})
+	v.Set("ingestion_max_request_mb", 1)
+	p.Configure(v)
+	td := ptrace.NewTraces()
+	r := td.ResourceSpans().AppendEmpty()
+	r.Resource().Attributes().PutStr("service.name", "noise")
+	r.ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetName(strings.Repeat("x", 1<<20))
+	if e := p.IngestTraces(context.Background(), td); !errors.Is(e, ErrIngestTooLarge) {
+		t.Fatal("filters bypassed incoming request limit")
 	}
 }
