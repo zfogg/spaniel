@@ -44,6 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=gobuild /out/spaniel /usr/local/bin/spaniel
 
+ENV SPANIEL_BIND_ADDRESS_V4=0.0.0.0 SPANIEL_BIND_ADDRESS_V6=::
 USER spaniel
 WORKDIR /data
 VOLUME ["/data"]
