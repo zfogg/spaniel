@@ -225,9 +225,6 @@ func (r *Router) importDashboardConfig(w http.ResponseWriter, req *http.Request)
 	respond(w, dashboard, 1, 1)
 }
 func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
-	if r.rejectFileManagedDashboard(w, req) {
-		return
-	}
 	x, err := r.store.GetDashboard(chi.URLParam(req, "id"))
 	if err != nil {
 		respondErr(w, req, 404, "dashboard not found")
@@ -235,6 +232,27 @@ func (r *Router) patchDashboard(w http.ResponseWriter, req *http.Request) {
 	}
 	var in dashboardInput
 	if !decodeAndValidate(w, req, &in) {
+		return
+	}
+	if x.SourceFile != "" {
+		if r.settings == nil || r.settings.ReloadDashboards == nil {
+			respondErr(w, req, http.StatusConflict, "dashboard YAML reload is not configured")
+			return
+		}
+		if err := dashboardconfig.WriteMetadata(x.SourceFile, x.ID, x.SourceHash, in.Name, in.Description); err != nil {
+			respondErr(w, req, http.StatusConflict, "could not save dashboard YAML: "+err.Error())
+			return
+		}
+		if err := r.settings.ReloadDashboards(); err != nil {
+			respondErr(w, req, http.StatusInternalServerError, "dashboard YAML saved but reload failed: "+err.Error())
+			return
+		}
+		updated, err := r.store.GetDashboard(x.ID)
+		if err != nil {
+			respondErr(w, req, http.StatusInternalServerError, err.Error())
+			return
+		}
+		respond(w, updated, 1, 1)
 		return
 	}
 	x.Name, x.Description = in.Name, in.Description
