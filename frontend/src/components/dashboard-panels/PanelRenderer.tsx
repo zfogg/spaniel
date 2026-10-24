@@ -1,3 +1,4 @@
+import { useRefreshInterval } from '@/lib/display-preferences'
 import { liveDashboardPanel } from './dashboard-live'
 import { useEffect } from 'react'
 import { CategoryPanel, GaugePanel } from './ChartPanels'
@@ -44,7 +45,7 @@ export function PanelRenderer({
     queryKey: qk.activeSession(),
     queryFn: () => api.sessions.getActive().then((response) => response.data),
     enabled: usesSession || annotationUsesSession,
-    refetchInterval: 5000,
+    refetchInterval: useRefreshInterval(),
     staleTime: 5000,
   })
   const result = useQuery({
@@ -67,7 +68,7 @@ export function PanelRenderer({
         .then((response) => response.data),
     staleTime: 5000,
     enabled: !usesSession || Boolean(session.data?.id),
-    refetchInterval: live ? 5000 : 30_000,
+    refetchInterval: useRefreshInterval(),
     retry: 1,
     refetchOnWindowFocus: false,
   })
@@ -93,7 +94,7 @@ export function PanelRenderer({
       Boolean(annotationQuery) &&
       (!annotationUsesSession || Boolean(session.data?.id)),
     staleTime: 5000,
-    refetchInterval: live ? 5000 : 30_000,
+    refetchInterval: useRefreshInterval(),
     retry: 1,
     refetchOnWindowFocus: false,
   })

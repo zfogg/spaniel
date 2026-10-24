@@ -1,3 +1,4 @@
+import { useRefreshInterval } from './display-preferences'
 import { useEffect, useRef } from 'react'
 import { isPageVisible } from './page-visibility'
 import {
@@ -35,7 +36,10 @@ export function useSharedPollingQuery<
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 >(options: UseQueryOptions<TQueryFnData, TError, TData, TQueryKey> & { intervalMs: number }) {
-  const { intervalMs, queryKey, ...queryOptions } = options
+  const { intervalMs: requestedInterval, queryKey, ...queryOptions } = options
+  const configuredInterval = useRefreshInterval()
+  const intervalMs =
+    configuredInterval === false ? 0 : Math.max(requestedInterval, configuredInterval)
   const queryClient = useQueryClient()
   const query = useQuery({ ...queryOptions, queryKey, refetchInterval: false })
   const id = pollerID(queryKey)

@@ -1,3 +1,4 @@
+import { useDefaultTimeRange } from '@/lib/display-preferences'
 import { logTraceQuery, logTraceUrl } from '@/lib/log-trace'
 import LogLevelBadge from '@/components/LogLevelBadge'
 import ServiceNameBadge from '@/components/ServiceNameBadge'
@@ -392,7 +393,7 @@ export default function LogViewer() {
   const sessionId = searchParams.get('session') ?? undefined
   const [filterSource, setFilterSource] = useState('all')
   const [filterSev, setFilterSev] = useState<SevFilter>('ALL')
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('1h')
+  const [timeFilter, setTimeFilter] = useDefaultTimeRange<TimeFilter>()
   const [search, setSearch] = useState('')
   const selectedKey = searchParams.get('log')
   const setSelectedLog = useCallback(
