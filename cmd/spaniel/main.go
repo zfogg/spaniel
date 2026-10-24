@@ -378,6 +378,7 @@ Examples:
 	root.AddCommand(seedSubcommand(v))
 	root.AddCommand(runSubcommand())
 	root.AddCommand(recordSubcommand())
+	root.AddCommand(mcpSubcommand())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

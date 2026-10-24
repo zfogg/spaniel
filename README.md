@@ -209,18 +209,37 @@ Or commit a project-scoped `.mcp.json` to your repo so collaborators get it auto
 }
 ```
 
-For **Claude Desktop** (or any client without native HTTP MCP support), bridge with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+For **Claude Desktop** (or any client using stdio), use Spaniel's built-in bridge.
+Start Spaniel normally first, then configure the client to launch:
 
 ```json
 {
   "mcpServers": {
     "spaniel": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:8080/mcp"]
+      "command": "spaniel",
+      "args": ["mcp", "--url", "http://localhost:8080/mcp"]
     }
   }
 }
 ```
+
+Use the full path to the Spaniel binary if it is not on your client's `PATH`.
+For Codex, the equivalent `.codex/config.toml` entry is:
+
+```toml
+[mcp_servers.spaniel]
+command = "spaniel"
+args = ["mcp", "--url", "http://localhost:8080/mcp"]
+```
+
+The bridge forwards tools, resources, prompts, and notifications to the running
+server without opening DuckDB or starting another collector. Write access follows
+the server's MCP setting. Stdout contains only MCP messages; diagnostics go to
+stderr. Closing stdin ends the bridge and its HTTP session. For an authenticated
+server, set `SPANIEL_BEARER_TOKEN` in the client's environment, or pass
+`--bearer-token-env NAME` to read a different environment variable.
+In Codex, add `env_vars = ["SPANIEL_BEARER_TOKEN"]` to the server table to
+forward that variable to the bridge.
 
 > The Settings page (⚙️ → **MCP**) shows the endpoint and has copy buttons for both the command and the `.mcp.json` above.
 
