@@ -31,8 +31,11 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
     const path = new URL(route.request().url()).pathname
     let data: unknown = []
     if (path === '/api/dashboards') data = [dashboard]
-    else if (path === '/api/dashboards/charts') data = dashboard
-    else if (path.endsWith('/query-preview')) {
+    else if (path === '/api/dashboards/charts') {
+      if (route.request().method() === 'PATCH')
+        Object.assign(dashboard, route.request().postDataJSON())
+      data = dashboard
+    } else if (path.endsWith('/query-preview')) {
       const kind = route.request().postDataJSON().display_type as string
       requests.push(kind)
       data = {
@@ -163,6 +166,20 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
   await page.reload()
   await page.getByRole('button', { name: 'Dashboard settings', exact: true }).click()
   await expect(live).toBeChecked()
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Renamed chart coverage')
+  await page
+    .getByRole('textbox', { name: 'Description', exact: true })
+    .fill('Saved dashboard description')
+  await page.getByRole('button', { name: 'Save dashboard', exact: true }).click()
+  await expect(page.getByRole('dialog').getByRole('status')).toHaveText('Dashboard saved.')
+  await page.reload()
+  await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(
+    'Renamed chart coverage',
+  )
+  await expect(page.getByRole('textbox', { name: 'Description', exact: true })).toHaveValue(
+    'Saved dashboard description',
+  )
+
   await live.uncheck()
   await page.getByRole('button', { name: 'Done', exact: true }).click()
   await page.goto('/dashboards/charts')

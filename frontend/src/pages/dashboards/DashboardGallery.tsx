@@ -1,3 +1,4 @@
+import { DashboardMetadataSettings } from './DashboardMetadataSettings'
 import { Toggle } from '@/components/ui/toggle'
 import * as Dialog from '@radix-ui/react-dialog'
 
@@ -244,6 +245,7 @@ export function DashboardGallery() {
                   <Dialog.Description className="mt-2 text-sm text-muted-foreground">
                     Choose how dashboards follow time. This preference is saved in this browser.
                   </Dialog.Description>
+                  {selected && <DashboardMetadataSettings key={selected.id} dashboard={selected} />}
                   <label className="my-5 flex items-center justify-between gap-4 text-sm">
                     Live rolling time window
                     <Toggle
