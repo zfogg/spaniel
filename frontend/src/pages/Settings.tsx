@@ -922,7 +922,7 @@ function StorageSection({
   )
 }
 
-function GeneralSection({
+function SelfMonitoringSection({
   s,
   mutate,
   hidden,
@@ -942,12 +942,7 @@ function GeneralSection({
       if (kind !== 'alerts') results.push((await api.settings.installSelfMonitorDashboards()).data)
       if (kind !== 'dashboards') results.push((await api.settings.installSelfMonitorAlerts()).data)
       setInstallMessage(
-        results
-          .map(
-            (r) =>
-              `${r.created} created, ${r.refreshed} refreshed, ${r.skipped} existing alerts kept`,
-          )
-          .join('; '),
+        results.map((r) => `${r.created} created, ${r.refreshed} refreshed`).join('; '),
       )
       await queryClient.invalidateQueries({ queryKey: ['dashboards'] })
       await queryClient.invalidateQueries({ queryKey: ['alerts'] })
@@ -957,6 +952,78 @@ function GeneralSection({
       setInstalling(false)
     }
   }
+  return (
+    <Card
+      id="self-monitoring"
+      title="Self-monitoring"
+      sub="Spaniel telemetry, dashboards, and alerts"
+      hidden={hidden}
+    >
+      <Row
+        label="Self-monitor"
+        hint="Send Spaniel's own traces, metrics, and structured logs to itself via its OTLP gRPC port. Enables the dogfood loop: see request latency, DB query times, ingest spans, and Spaniel logs in the Traces, Metrics, and Logs tabs. Takes effect immediately."
+        testid="row-self-monitor"
+      >
+        <Toggle
+          on={s.self_monitor}
+          onChange={(v) => {
+            mutate({ self_monitor: v })
+            if (
+              v &&
+              confirm(
+                'Create Spaniel dashboards and alerts? Existing dashboards and alerts with the same names will be refreshed from this binary, replacing your edits.',
+              )
+            ) {
+              void install('both')
+            }
+          }}
+          label="self monitor"
+        />
+        {s.self_monitor && (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            → localhost:{s.runtime.otlp_grpc_port}
+          </span>
+        )}
+      </Row>
+      <Row
+        label="Install definitions"
+        hint="Matching dashboard and alert names are refreshed from this binary, replacing edits."
+      >
+        <button
+          type="button"
+          disabled={installing}
+          onClick={() => void install('dashboards')}
+          className="rounded border border-border px-3 py-1 text-xs disabled:opacity-50"
+        >
+          Create / refresh Spaniel dashboards
+        </button>
+        <button
+          type="button"
+          disabled={installing}
+          onClick={() => void install('alerts')}
+          className="rounded border border-border px-3 py-1 text-xs disabled:opacity-50"
+        >
+          Create / refresh Spaniel alerts
+        </button>
+        {installMessage && (
+          <span role="status" className="basis-full text-xs">
+            {installMessage}
+          </span>
+        )}
+      </Row>
+    </Card>
+  )
+}
+
+function GeneralSection({
+  s,
+  mutate,
+  hidden,
+}: {
+  s: SettingsT
+  mutate: (patch: SettingsUpdate) => void
+  hidden: boolean
+}) {
   const [copied, setCopied] = useState<string | null>(null)
   const endpoint = `${window.location.origin}/mcp`
   const claudeAddCmd = `claude mcp add --transport http spaniel ${endpoint}`
@@ -981,7 +1048,7 @@ function GeneralSection({
 
   return (
     <>
-      <Card id="general" title="General" sub="Startup and self-monitoring" hidden={hidden}>
+      <Card id="general" title="General" sub="Startup preferences" hidden={hidden}>
         <Row
           label="Auto-open browser on startup"
           hint="When the daemon starts, open the spaniel UI in the default browser."
@@ -992,66 +1059,6 @@ function GeneralSection({
             onChange={(v) => mutate({ no_browser: !v })}
             label="auto open browser"
           />
-        </Row>
-        <Row
-          label="Self-monitor"
-          hint="Send Spaniel's own traces, metrics, and structured logs to itself via its OTLP gRPC port. Enables the dogfood loop: see request latency, DB query times, ingest spans, and Spaniel logs in the Traces, Metrics, and Logs tabs. Takes effect immediately."
-          testid="row-self-monitor"
-        >
-          <Toggle
-            on={s.self_monitor}
-            onChange={(v) => {
-              mutate({ self_monitor: v })
-              if (
-                v &&
-                confirm(
-                  'Create Spaniel dashboards and alerts? Existing dashboards with the same names will be refreshed from this binary, replacing your edits. Existing alerts will be kept.',
-                )
-              ) {
-                void install('both')
-              }
-            }}
-            label="self monitor"
-          />
-          {s.self_monitor && (
-            <span className="font-mono text-[11px] text-muted-foreground">
-              → localhost:{s.runtime.otlp_grpc_port}
-            </span>
-          )}
-        </Row>
-      </Card>
-
-      <Card
-        id="self-monitor-definitions"
-        title="Self-monitoring definitions"
-        sub="Bundled Spaniel dashboards and alerts"
-        hidden={hidden}
-      >
-        <Row
-          label="Install definitions"
-          hint="Matching dashboard names are refreshed, replacing edits; existing alerts are kept."
-        >
-          <button
-            type="button"
-            disabled={installing}
-            onClick={() => void install('dashboards')}
-            className="rounded border border-border px-3 py-1 text-xs disabled:opacity-50"
-          >
-            Create / refresh Spaniel dashboards
-          </button>
-          <button
-            type="button"
-            disabled={installing}
-            onClick={() => void install('alerts')}
-            className="rounded border border-border px-3 py-1 text-xs disabled:opacity-50"
-          >
-            Create Spaniel alerts
-          </button>
-          {installMessage && (
-            <span role="status" className="basis-full text-xs">
-              {installMessage}
-            </span>
-          )}
         </Row>
       </Card>
 
@@ -1343,6 +1350,7 @@ function SecuritySection({
 
 type Section =
   | 'general'
+  | 'self-monitoring'
   | 'network'
   | 'ingestion'
   | 'security'
@@ -1462,6 +1470,7 @@ export default function Settings() {
   const sections = useMemo(
     () => [
       { id: 'general' as const, label: 'General' },
+      { id: 'self-monitoring' as const, label: 'Self-monitoring' },
       { id: 'network' as const, label: 'Network' },
       { id: 'ingestion' as const, label: 'Ingestion' },
       { id: 'security' as const, label: 'Security' },
@@ -1581,6 +1590,7 @@ export default function Settings() {
             hidden={section !== 'notifications'}
           />
           <GeneralSection s={data} mutate={mutate} hidden={section !== 'general'} />
+          <SelfMonitoringSection s={data} mutate={mutate} hidden={section !== 'self-monitoring'} />
           <NetworkSection s={data} mutate={mutate} hidden={section !== 'network'} />
           <StorageSection
             s={data}

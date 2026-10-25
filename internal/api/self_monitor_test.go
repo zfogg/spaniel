@@ -2,10 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
-
-	"encoding/json"
 )
 
 func TestSelfMonitorDefinitions(t *testing.T) {
@@ -57,15 +56,21 @@ func TestSelfMonitorDefinitions(t *testing.T) {
 		}
 	}
 	rule := rules[0]
+	originalSQL := rule.QuerySQL
+	originalCreatedAt := rule.CreatedAt
 	rule.Enabled = false
 	rule.QuerySQL = "SELECT 42 AS value"
 	if err := store.ReplaceAlertDefinition(rule); err != nil {
 		t.Fatal(err)
 	}
-	install("alerts", 0, 0, 3)
-	kept, err := store.GetAlertRule(rule.ID)
-	if err != nil || kept.Enabled || kept.QuerySQL != rule.QuerySQL {
-		t.Fatal("existing alert was overwritten")
+	install("alerts", 0, 3, 0)
+	refreshed, err := store.GetAlertRule(rule.ID)
+	if err != nil || !refreshed.Enabled || refreshed.QuerySQL != originalSQL || refreshed.CreatedAt != originalCreatedAt {
+		t.Fatalf("existing alert was not refreshed in place: %+v, %v", refreshed, err)
+	}
+	rules, err = store.ListAlertRules()
+	if err != nil || len(rules) != 3 {
+		t.Fatalf("duplicate alerts: %v", err)
 	}
 	dashboards, err := store.ListDashboards()
 	if err != nil || len(dashboards) != 3 {

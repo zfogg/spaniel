@@ -93,11 +93,11 @@ func (r *Router) installSelfMonitorDefinitions(req *http.Request, kind string) (
 			if err != nil {
 				return result, fmt.Errorf("%s: %w", file.Name(), err)
 			}
-			if _, exists := names[definition.Name]; exists {
-				result.Skipped++
-				continue
+			id, exists := names[definition.Name]
+			if !exists {
+				id = uuid.NewString()
 			}
-			definition.ID = uuid.NewString()
+			definition.ID = id
 			rule, err := definition.Alert(definition.ID)
 			if err != nil {
 				return result, err
@@ -106,7 +106,11 @@ func (r *Router) installSelfMonitorDefinitions(req *http.Request, kind string) (
 				return result, err
 			}
 			names[definition.Name] = rule.ID
-			result.Created++
+			if exists {
+				result.Refreshed++
+			} else {
+				result.Created++
+			}
 		}
 	}
 	return result, nil

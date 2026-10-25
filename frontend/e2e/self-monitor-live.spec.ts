@@ -13,22 +13,24 @@ test('self-monitoring buttons and switch install real bundled definitions', asyn
     'Requires an isolated live collector',
   )
   await page.goto('/settings')
+  await page.getByRole('button', { name: 'Self-monitoring', exact: true }).click()
   const dashboardsButton = page.getByRole('button', { name: 'Create / refresh Spaniel dashboards' })
   await dashboardsButton.click()
   await expect(page.getByRole('status')).toContainText('3 created')
   await dashboardsButton.click()
   await expect(page.getByRole('status')).toContainText('3 refreshed')
-  await page.getByRole('button', { name: 'Create Spaniel alerts', exact: true }).click()
+  await page.getByRole('button', { name: 'Create / refresh Spaniel alerts', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('3 created')
-  await page.getByRole('button', { name: 'Create Spaniel alerts', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('3 existing alerts kept')
+  await page.getByRole('button', { name: 'Create / refresh Spaniel alerts', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('3 refreshed')
 
   const toggle = page.getByRole('switch', { name: 'self monitor', exact: true })
   page.once('dialog', (dialog) => dialog.accept())
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-checked', 'true')
-  await expect(page.getByRole('status')).toContainText('3 refreshed')
-  await expect(page.getByRole('status')).toContainText('3 existing alerts kept')
+  await expect(page.getByRole('status')).toHaveText(
+    '0 created, 3 refreshed; 0 created, 3 refreshed',
+  )
   await expect
     .poll(async () => (await (await request.get('/api/settings')).json()).data.self_monitor)
     .toBe(true)

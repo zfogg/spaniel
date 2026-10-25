@@ -449,19 +449,31 @@ test.describe('Self-monitoring definitions', () => {
           contentType: 'application/json',
           body: JSON.stringify({ error: 'test failure' }),
         })
-      return jsonResponse(r, { created: 3, refreshed: 0, skipped: 0 })
+      return jsonResponse(r, {
+        created: alerts === 2 ? 3 : 0,
+        refreshed: alerts > 2 ? 3 : 0,
+        skipped: 0,
+      })
     })
     await page.goto('/settings')
+    await expect(page.getByRole('switch', { name: 'self monitor', exact: true })).toBeHidden()
+    await expect(
+      page.getByRole('button', { name: 'Create / refresh Spaniel alerts', exact: true }),
+    ).toBeHidden()
+    await page.getByRole('button', { name: 'Self-monitoring', exact: true }).click()
+    await expect(page.locator('#self-monitoring').getByRole('switch')).toBeVisible()
     await page.getByRole('button', { name: 'Create / refresh Spaniel dashboards' }).click()
     await expect(page.getByRole('status')).toContainText('3 created')
     await page.getByRole('button', { name: 'Create / refresh Spaniel dashboards' }).click()
     await expect(page.getByRole('status')).toContainText('3 refreshed')
-    await page.getByRole('button', { name: 'Create Spaniel alerts', exact: true }).click()
+    await page.getByRole('button', { name: 'Create / refresh Spaniel alerts', exact: true }).click()
     await expect(page.getByRole('status')).toContainText('Installation failed')
-    await page.getByRole('button', { name: 'Create Spaniel alerts', exact: true }).click()
+    await page.getByRole('button', { name: 'Create / refresh Spaniel alerts', exact: true }).click()
     await expect(page.getByRole('status')).toContainText('3 created')
+    await page.getByRole('button', { name: 'Create / refresh Spaniel alerts', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('3 refreshed')
     expect(dashboards).toBe(2)
-    expect(alerts).toBe(2)
+    expect(alerts).toBe(3)
   })
 
   for (const accept of [true, false]) {
@@ -474,6 +486,8 @@ test.describe('Self-monitoring definitions', () => {
         return jsonResponse(r, { created: 3, refreshed: 0, skipped: 0 })
       })
       await page.goto('/settings')
+      await expect(page.getByRole('switch', { name: 'self monitor', exact: true })).toBeHidden()
+      await page.getByRole('button', { name: 'Self-monitoring', exact: true }).click()
       let dialogs = 0
       page.on('dialog', async (dialog) => {
         dialogs++

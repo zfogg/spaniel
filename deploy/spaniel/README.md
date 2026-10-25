@@ -46,10 +46,10 @@ produce Linux filesystem-watch events.
 
 
 The binary embeds these dashboards and the rules in `alerts/*.yaml`.
-Settings → General offers buttons to install them, and enabling self-monitoring
+Settings → Self-monitoring offers buttons to install them, and enabling self-monitoring
 offers the same installation through a confirmation dialog. Installation matches
-exact names: dashboards are refreshed from the binary (including panels and
-variables), while existing alerts retain their settings. New copies remain
+exact names: dashboards (including panels and variables) and alerts are refreshed from the
+binary, replacing edits while retaining their IDs. New copies remain
 editable in the UI. File-managed dashboards retain their file provenance.
 
 The bundled alerts cover storage-full state, database budget above 90%, and
