@@ -7,19 +7,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zfogg/gotel/go/sqltrace"
+	sequel "github.com/zfogg/sequel/go"
 )
 
-func Format(query string) string { return sqltrace.FormatSQLOrOriginal(sqltrace.DialectDuckDB, query) }
+func Format(query string) string { return sequel.FormatSQLOrOriginal(sequel.DialectDuckDB, query) }
 
 // TelemetryQuery uses the database identity supplied with a span's attributes.
 func TelemetryQuery(attributes map[string]any, query string) string {
 	for _, key := range []string{"db.system.name", "db.system"} {
 		if system, ok := attributes[key].(string); ok {
-			dialect := sqltrace.Dialect(system)
+			dialect := sequel.Dialect(system)
 			switch dialect {
-			case sqltrace.DialectPostgreSQL, sqltrace.DialectDuckDB, sqltrace.DialectSQLite, sqltrace.DialectMySQL, sqltrace.DialectClickHouse:
-				return sqltrace.FormatSQLOrOriginal(dialect, query)
+			case sequel.DialectPostgreSQL, sequel.DialectDuckDB, sequel.DialectSQLite, sequel.DialectMySQL, sequel.DialectClickHouse:
+				return sequel.FormatSQLOrOriginal(dialect, query)
 			}
 		}
 	}

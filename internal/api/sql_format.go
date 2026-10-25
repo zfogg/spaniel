@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/zfogg/gotel/go/sqltrace"
+	sequel "github.com/zfogg/sequel/go"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 )
 
@@ -12,11 +12,11 @@ func (r *Router) formatSQL(w http.ResponseWriter, req *http.Request) {
 	if !decodeAndValidate(w, req, &in) {
 		return
 	}
-	dialect := sqltrace.DialectDuckDB
+	dialect := sequel.DialectDuckDB
 	if in.Dialect != nil {
-		dialect = sqltrace.Dialect(*in.Dialect)
+		dialect = sequel.Dialect(*in.Dialect)
 	}
-	out, err := sqltrace.FormatSQL(dialect, in.Sql)
+	out, err := sequel.FormatSQL(dialect, in.Sql)
 	if err != nil {
 		respondErr(w, req, http.StatusBadRequest, err.Error())
 		return
