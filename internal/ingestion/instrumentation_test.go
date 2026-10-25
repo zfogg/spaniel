@@ -153,14 +153,14 @@ func TestMetricCatalogPreservesIngestContext(t *testing.T) {
 				if self && span.Name() != "metrics request" {
 					t.Fatalf("self ingest emitted %s", span.Name())
 				}
-				if strings.HasPrefix(span.Name(), "spaniel.storage.") {
+				if strings.HasPrefix(span.Name(), "storage.duckdb.") {
 					if span.SpanContext().TraceID() != request.SpanContext().TraceID() || !span.Parent().IsValid() {
 						t.Fatalf("orphan catalog query: %s", span.Name())
 					}
 					found[span.Name()] = true
 				}
 			}
-			if !self && (!found["spaniel.storage.RecordMetricSeries"] || !found["spaniel.storage.ActiveMetricSeries"]) {
+			if !self && (!found["storage.duckdb.RecordMetricSeries"] || !found["storage.duckdb.ActiveMetricSeries"]) {
 				t.Fatalf("missing catalog spans: %v", found)
 			}
 			rows, err := db.ListMetricCatalog(sess.ID)

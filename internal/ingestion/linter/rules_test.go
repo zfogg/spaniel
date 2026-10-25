@@ -45,6 +45,7 @@ func TestGotelConventionRules(t *testing.T) {
 		{"http.client.missing_destination", namedSpan("ratio-api", "ratio.http.client.GET api.example/orders", 3, map[string]string{"http.request.method": "GET", "url.full": "https://api.example/orders"}), true},
 		{"http.server.raw_url_name", namedSpan("ratio-api", "ratio.http.server.GET https://ratio.test/orders?id=1", 2, map[string]string{"http.request.method": "GET"}), true},
 		{"redis.nonstandard_name", namedSpan("stonkpile-worker", "sscan", 3, map[string]string{"db.system.name": "redis"}), true},
+		{"redis.nonstandard_name", namedSpan("stonkpile-worker", "storage.redis.SSCAN", 3, map[string]string{"db.system.name": "redis"}), false},
 		{"redis.nonstandard_name", namedSpan("stonkpile-worker", "stonkpile.storage.redis.sscan", 3, map[string]string{"db.system.name": "redis"}), false},
 		{"temporal.nonstandard_name", namedSpan("ratio-worker", "RunActivity:Refresh", 1, map[string]string{"temporalActivityType": "Refresh"}), true},
 		{"temporal.nonstandard_name", namedSpan("ratio-worker", "ratio.temporal.activity.Refresh", 1, map[string]string{"temporalActivityType": "Refresh"}), false},

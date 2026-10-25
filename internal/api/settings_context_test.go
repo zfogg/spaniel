@@ -28,7 +28,7 @@ func TestSettingsStorageSharesRequestTrace(t *testing.T) {
 		if span.Name() == "spaniel.http.server.GET /api/settings" {
 			root = span
 		}
-		if span.Name() == "spaniel.storage.GetStats" {
+		if span.Name() == "storage.duckdb.GetStats" {
 			storageSpan = span
 		}
 	}

@@ -18,9 +18,9 @@ func TestQuerySQL_SpanNames(t *testing.T) {
 	t.Cleanup(func() { otel.SetTracerProvider(previous); _ = provider.Shutdown(context.Background()) })
 	cs, _ := connect(t, Options{Version: "t"})
 	for _, tc := range []struct{ name, want string }{
-		{"", "spaniel.storage.UserQuery"},
-		{" \t", "spaniel.storage.UserQuery"},
-		{"Custom_Query1", "spaniel.storage.Custom_Query1"},
+		{"", "storage.duckdb.UserQuery"},
+		{" \t", "storage.duckdb.UserQuery"},
+		{"Custom_Query1", "storage.duckdb.Custom_Query1"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before := len(recorder.Ended())

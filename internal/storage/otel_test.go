@@ -36,7 +36,7 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 	parentID := parent.SpanContext().SpanID()
 	var dbSpan sdktrace.ReadOnlySpan
 	for _, s := range sr.Ended() {
-		if s.Name() == "spaniel.storage.ListTraces" && s.Parent().SpanID() == parentID {
+		if s.Name() == "storage.duckdb.ListTraces" && s.Parent().SpanID() == parentID {
 			dbSpan = s
 			break
 		}
@@ -46,7 +46,7 @@ func TestWithContext_NestsDBSpans(t *testing.T) {
 		for _, s := range sr.Ended() {
 			names = append(names, s.Name())
 		}
-		t.Fatalf("no spaniel.storage.ListTraces span nested under parent; recorded spans: %v", names)
+		t.Fatalf("no storage.duckdb.ListTraces span nested under parent; recorded spans: %v", names)
 	}
 	for _, s := range sr.Ended() {
 		if s.Parent().SpanID() == parentID && (s.Name() == "db.query" || s.Name() == "db.row") {
@@ -95,7 +95,7 @@ func TestWithoutContext_DBSpanIsRoot(t *testing.T) {
 
 	parentID := parent.SpanContext().SpanID()
 	for _, s := range sr.Ended() {
-		if s.Name() == "spaniel.storage.ListTraces" && s.Parent().SpanID() == parentID {
+		if s.Name() == "storage.duckdb.ListTraces" && s.Parent().SpanID() == parentID {
 			t.Errorf("storage span unexpectedly nested under parent without WithContext")
 		}
 	}
@@ -122,7 +122,7 @@ func TestWithContext_NamesGeneratedWriteSpan(t *testing.T) {
 
 	parentID := parent.SpanContext().SpanID()
 	for _, s := range sr.Ended() {
-		if s.Name() == "spaniel.storage.SetSpanielVersion" && s.Parent().SpanID() == parentID {
+		if s.Name() == "storage.duckdb.SetSpanielVersion" && s.Parent().SpanID() == parentID {
 			return
 		}
 	}
@@ -158,13 +158,13 @@ func TestNamedHelpersPrefixSimpleNames(t *testing.T) {
 			counts[span.Name()]++
 		}
 	}
-	for _, name := range []string{"spaniel.storage.CountSpans", "spaniel.storage.SelectOne"} {
+	for _, name := range []string{"storage.duckdb.CountSpans", "storage.duckdb.SelectOne"} {
 		if counts[name] != 1 {
 			t.Errorf("%s spans = %d, want 1; recorded %v", name, counts[name], counts)
 		}
 	}
 	for _, span := range recorder.Ended() {
-		if span.Name() != "spaniel.storage.SelectOne" {
+		if span.Name() != "storage.duckdb.SelectOne" {
 			continue
 		}
 		attrs := map[string]any{}
@@ -209,7 +209,7 @@ func TestGORMPluginFallbackIsStorageNamed(t *testing.T) {
 		if strings.HasPrefix(span.Name(), "db.") {
 			t.Errorf("generic database span name %q recorded", span.Name())
 		}
-		if strings.HasPrefix(span.Name(), "spaniel.storage.") {
+		if strings.HasPrefix(span.Name(), "storage.duckdb.") {
 			return
 		}
 	}
@@ -235,11 +235,11 @@ func TestWithContext_NamesActiveMetricSeriesSpan(t *testing.T) {
 	}
 	parent.End()
 	for _, span := range sr.Ended() {
-		if span.Name() == "spaniel.storage.ActiveMetricSeries" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
+		if span.Name() == "storage.duckdb.ActiveMetricSeries" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
 			return
 		}
 	}
-	t.Fatal("no spaniel.storage.ActiveMetricSeries span nested under parent")
+	t.Fatal("no storage.duckdb.ActiveMetricSeries span nested under parent")
 }
 
 func TestWithContext_GetStatsEmitsOneStorageSpan(t *testing.T) {
@@ -263,11 +263,11 @@ func TestWithContext_GetStatsEmitsOneStorageSpan(t *testing.T) {
 
 	var count int
 	for _, span := range sr.Ended() {
-		if span.Name() == "spaniel.storage.GetStats" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
+		if span.Name() == "storage.duckdb.GetStats" && span.Parent().SpanID() == parent.SpanContext().SpanID() {
 			count++
 		}
 	}
 	if count != 1 {
-		t.Fatalf("spaniel.storage.GetStats spans = %d, want 1", count)
+		t.Fatalf("storage.duckdb.GetStats spans = %d, want 1", count)
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 func TestStorageQueryNameValidation(t *testing.T) {
 	for _, name := range []string{"A", "z", "Ab", "z0", "ListAlertRules", "Query_123", "a_", "Z09_a"} {
-		if got, want := storageQueryName(name), "spaniel.storage."+name; got != want {
+		if got, want := storageQueryName(name), "storage.duckdb."+name; got != want {
 			t.Errorf("storageQueryName(%q) = %q, want %q", name, got, want)
 		}
 	}
@@ -31,10 +31,10 @@ func TestStorageQueryNameValidation(t *testing.T) {
 func TestWithQueryNamePrefixesSimpleNames(t *testing.T) {
 	parent := WithQueryName(context.Background(), "Parent")
 	ctx := WithQueryName(parent, "  DashboardLatency  ")
-	if got := queryNameFromContext(ctx); got != "spaniel.storage.DashboardLatency" {
-		t.Errorf("query name = %q, want spaniel.storage.DashboardLatency", got)
+	if got := queryNameFromContext(ctx); got != "storage.duckdb.DashboardLatency" {
+		t.Errorf("query name = %q, want storage.duckdb.DashboardLatency", got)
 	}
-	if got := queryNameFromContext(parent); got != "spaniel.storage.Parent" {
+	if got := queryNameFromContext(parent); got != "storage.duckdb.Parent" {
 		t.Errorf("parent query name changed to %q", got)
 	}
 }
@@ -100,7 +100,7 @@ func TestReadOnlyQueryNamesAndSanitizesUserSQL(t *testing.T) {
 	}
 
 	for _, span := range recorder.Ended() {
-		if span.Name() != "spaniel.storage.ReadOnlyQuery" {
+		if span.Name() != "storage.duckdb.ReadOnlyQuery" {
 			continue
 		}
 		attrs := map[string]string{}
@@ -136,7 +136,7 @@ func TestReadOnlyQueryUsesExplicitUserName(t *testing.T) {
 	}
 
 	for _, span := range recorder.Ended() {
-		if span.Name() != "spaniel.storage.DashboardLatency" {
+		if span.Name() != "storage.duckdb.DashboardLatency" {
 			continue
 		}
 		foundSummary := false
@@ -180,7 +180,7 @@ func TestReadOnlyQueryStructuralSummary(t *testing.T) {
 	}
 	const want = "WITH recent AS MATERIALIZED (SELECT … FROM spans ORDER BY … LIMIT 1) SELECT … FROM recent AS r LEFT JOIN LATERAL (SELECT … FROM logs LIMIT 1) AS l ON l.trace_id=r.trace_id AND l.trace_id <> ? UNION ALL SELECT … FROM spans LIMIT ?"
 	for _, span := range recorder.Ended() {
-		if span.Name() != "spaniel.storage.VerifyStructuralSummary" {
+		if span.Name() != "storage.duckdb.VerifyStructuralSummary" {
 			continue
 		}
 		for _, attr := range span.Attributes() {

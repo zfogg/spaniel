@@ -68,8 +68,10 @@ var rules = []LintRule{
 		ID: "redis.nonstandard_name", Severity: "warning",
 		Check: func(s *storage.Span) (string, bool) {
 			if strings.EqualFold(firstAttr(s.Attributes, "db.system.name", "db.system"), "redis") {
-				prefix := applicationPrefix(s) + ".storage.redis."
-				if !strings.HasPrefix(strings.ToLower(s.Name), strings.ToLower(prefix)) {
+				prefix := "storage.redis."
+				name := strings.ToLower(s.Name)
+				legacyPrefix := strings.ToLower(applicationPrefix(s) + "." + prefix)
+				if !strings.HasPrefix(name, prefix) && !strings.HasPrefix(name, legacyPrefix) {
 					return "Redis span name must use " + prefix + "<command>", true
 				}
 			}

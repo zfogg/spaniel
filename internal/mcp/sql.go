@@ -31,7 +31,7 @@ func (h *handler) registerSQLTool(s *mcpsdk.Server) {
 
 type QuerySQLInput struct {
 	SQL     string `json:"sql" jsonschema:"the SQL to run (read-only; mutating statements are rejected)"`
-	Name    string `json:"name,omitempty" jsonschema:"optional simple query name; Spaniel adds the spaniel.storage. prefix (default UserQuery)"`
+	Name    string `json:"name,omitempty" jsonschema:"optional simple query name; Spaniel adds the storage.duckdb. prefix (default UserQuery)"`
 	MaxRows int    `json:"max_rows,omitempty" jsonschema:"max rows to return (default 1000, max 50000)"`
 }
 

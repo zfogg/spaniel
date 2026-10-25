@@ -74,7 +74,7 @@ func TestPublisherGroupsSnapshotQueries(t *testing.T) {
 	}
 	count := 0
 	for _, span := range recorder.Ended()[before:] {
-		if strings.HasPrefix(span.Name(), "spaniel.storage.") {
+		if strings.HasPrefix(span.Name(), "storage.duckdb.") {
 			count++
 			if span.Parent().SpanID() != root.SpanContext().SpanID() {
 				t.Fatalf("orphan snapshot query %s", span.Name())

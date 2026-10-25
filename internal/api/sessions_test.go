@@ -61,8 +61,14 @@ func TestListSessions_Empty(t *testing.T) {
 
 func TestListSessions_ReturnsAll(t *testing.T) {
 	handler, store := setupRouter(t)
-	a, _ := store.CreateSession("alpha", false)
-	b, _ := store.CreateSession("beta", true)
+	a, err := store.CreateSession("alpha", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := store.CreateSession("beta", true)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	w := do(t, handler, http.MethodGet, "/api/sessions", nil)
 	if w.Code != http.StatusOK {
@@ -72,12 +78,20 @@ func TestListSessions_ReturnsAll(t *testing.T) {
 	if len(data) != 2 {
 		t.Fatalf("expected 2 sessions, got %d", len(data))
 	}
-	// list is ordered by created_at DESC, so b (newer) comes first.
-	if data[0].ID != b.ID || data[1].ID != a.ID {
+	// Equal wall-clock timestamps have no defined relative order.
+	if (a.CreatedAt < b.CreatedAt && data[0].ID != b.ID) ||
+		(a.CreatedAt > b.CreatedAt && data[0].ID != a.ID) {
 		t.Errorf("order wrong: got %s, %s", data[0].ID, data[1].ID)
 	}
-	if !data[0].IsBaseline {
-		t.Errorf("expected baseline=true on b")
+	byID := make(map[string]sessionData)
+	for _, session := range data {
+		byID[session.ID] = session
+	}
+	if alpha, ok := byID[a.ID]; !ok || alpha.Label != "alpha" || alpha.IsBaseline {
+		t.Errorf("wrong alpha session: %+v, present=%v", alpha, ok)
+	}
+	if beta, ok := byID[b.ID]; !ok || beta.Label != "beta" || !beta.IsBaseline {
+		t.Errorf("wrong beta session: %+v, present=%v", beta, ok)
 	}
 }
 

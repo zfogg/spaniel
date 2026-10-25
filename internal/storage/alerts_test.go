@@ -55,7 +55,7 @@ func TestListAlertRulesLoadsInstancesInOneQuery(t *testing.T) {
 			counts[span.Name()]++
 		}
 	}
-	for _, name := range []string{"spaniel.storage.ListAlertRules", "spaniel.storage.ListAlertRuleInstances"} {
+	for _, name := range []string{"storage.duckdb.ListAlertRules", "storage.duckdb.ListAlertRuleInstances"} {
 		if counts[name] != 1 {
 			t.Errorf("%s spans = %d, want 1", name, counts[name])
 		}

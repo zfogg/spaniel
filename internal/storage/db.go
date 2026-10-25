@@ -56,7 +56,7 @@ func (d *DB) WithContext(ctx context.Context) *DB {
 // namedQuery preserves the caller context while attaching a stable,
 // source-owned span name to generated SQL whose implementation executes via
 // GORM's raw callback (for example, named DML templates).
-// name is a simple operation name, without the spaniel.storage. prefix.
+// name is a simple operation name, without the storage.duckdb. prefix.
 func (d *DB) namedQuery(name string) *querygen.Query {
 	return querygen.Use(d.namedGORM(name))
 }

@@ -7,7 +7,7 @@ import (
 	sequel "github.com/zfogg/sequel/go"
 )
 
-var storageNamer = sqltrace.MustNamer("spaniel.storage")
+var storageNamer = sqltrace.StorageNamer("duckdb")
 
 // storageQueryName qualifies and validates a stable storage operation name.
 func storageQueryName(name string) string { return storageNamer.MustName(name) }
