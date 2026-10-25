@@ -38,6 +38,8 @@ type Options struct {
 	// session, set baseline, prune). When false, those tools are not registered
 	// at all — they do not appear in tools/list and cannot be called.
 	AllowWrites bool
+	// AllowSQLWrites independently enables mutations through query_sql.
+	AllowSQLWrites bool
 	// Runtime dependencies are optional so tests and storage-only embeddings can
 	// still construct the MCP server. When supplied they enrich operational
 	// tools and preserve the same live behavior as the HTTP API.
@@ -202,6 +204,7 @@ type ServerInfo struct {
 	ActiveSessionID    string `json:"active_session_id" jsonschema:"id of the session new telemetry is written to"`
 	ActiveSessionLabel string `json:"active_session_label" jsonschema:"human-readable label of the active session"`
 	WritesEnabled      bool   `json:"writes_enabled" jsonschema:"whether mutating tools are available (server started with --mcp-allow-writes)"`
+	SQLWritesEnabled   bool   `json:"sql_writes_enabled" jsonschema:"whether query_sql permits mutations"`
 	SpanCount          int    `json:"span_count"`
 	TraceCount         int    `json:"trace_count"`
 	LogCount           int    `json:"log_count"`
@@ -224,6 +227,7 @@ func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		ActiveSessionID:    h.store.ActiveSessionID(),
 		ActiveSessionLabel: h.store.ActiveSessionLabel(),
 		WritesEnabled:      h.opts.AllowWrites,
+		SQLWritesEnabled:   h.opts.AllowSQLWrites,
 		SpanCount:          stats.SpanCount,
 		TraceCount:         stats.TraceCount,
 		LogCount:           stats.LogCount,

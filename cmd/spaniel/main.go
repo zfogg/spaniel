@@ -163,6 +163,7 @@ func main() {
 		debugMode         bool
 		mcpEnabled        bool
 		mcpAllowWrites    bool
+		mcpAllowWritesSQL bool
 	)
 
 	root := &cobra.Command{
@@ -202,6 +203,9 @@ func main() {
 			if f := cmd.Flags().Lookup("mcp-enabled"); f != nil && f.Changed {
 				cfg.MCPEnabled = mcpEnabled
 			}
+			if f := cmd.Flags().Lookup("mcp-allow-writes-sql"); f != nil && f.Changed {
+				cfg.MCPAllowWritesSQL = mcpAllowWritesSQL
+			}
 			if f := cmd.Flags().Lookup("mcp-allow-writes"); f != nil && f.Changed {
 				cfg.MCPAllowWrites = mcpAllowWrites
 			}
@@ -233,6 +237,7 @@ func main() {
 	root.Flags().IntVar(&sourceBurst, "source-burst", 0, "Per-source burst capacity (0 = source-rps * 5)")
 	root.Flags().BoolVar(&debugMode, "debug", false, "Mount /debug/pprof profiling endpoints")
 	root.Flags().BoolVar(&mcpEnabled, "mcp-enabled", true, "Serve the MCP endpoint at /mcp for Claude Code/Desktop")
+	root.Flags().BoolVar(&mcpAllowWritesSQL, "mcp-allow-writes-sql", false, "Allow MCP query_sql writes independently of other MCP write tools")
 	root.Flags().BoolVar(&mcpAllowWrites, "mcp-allow-writes", false, "Allow MCP clients to mutate state (create/activate sessions, set baseline, prune)")
 
 	// session subcommand
@@ -423,6 +428,7 @@ type runConfig struct {
 	Debug                 bool
 	MCPEnabled            bool
 	MCPAllowWrites        bool
+	MCPAllowWritesSQL     bool
 	PublicURL             string
 	AlertsBrowserEnabled  bool
 	AlertsPushoverEnabled bool
@@ -467,6 +473,7 @@ func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPat
 		SelfMonitor:           v.GetBool("self_monitor"),
 		MCPEnabled:            v.GetBool("mcp_enabled"),
 		MCPAllowWrites:        v.GetBool("mcp_allow_writes"),
+		MCPAllowWritesSQL:     v.GetBool("mcp_allow_writes_sql"),
 		PublicURL:             v.GetString("public_url"),
 		AlertsBrowserEnabled:  v.GetBool("alerts.browser_enabled"),
 		AlertsPushoverEnabled: v.GetBool("alerts.pushover_enabled"),
@@ -896,15 +903,16 @@ func run(cfg runConfig) error {
 	var mcpHandler *mcp.Handler
 	if cfg.MCPEnabled {
 		mcpHandler = mcp.NewHandler(store, mcp.Options{
-			Version:     version,
-			AllowWrites: cfg.MCPAllowWrites,
-			PublicURL:   cfg.PublicURL,
-			Hub:         hub,
-			Manifests:   manifests,
-			Forwarder:   fwd,
-			Throughput:  pipeline,
-			Drops:       pipeline.DropCounters(),
-			Sources:     pipeline,
+			Version:        version,
+			AllowWrites:    cfg.MCPAllowWrites,
+			AllowSQLWrites: cfg.MCPAllowWritesSQL,
+			PublicURL:      cfg.PublicURL,
+			Hub:            hub,
+			Manifests:      manifests,
+			Forwarder:      fwd,
+			Throughput:     pipeline,
+			Drops:          pipeline.DropCounters(),
+			Sources:        pipeline,
 		})
 	}
 	// Include the effective CLI token in settings persistence as well.
@@ -1221,7 +1229,13 @@ func printBanner(cfg runConfig) {
 	if cfg.MCPEnabled {
 		writes := "read-only"
 		if cfg.MCPAllowWrites {
-			writes = "read+write"
+			writes = "read+write tools"
+		}
+		if cfg.MCPAllowWritesSQL {
+			if !cfg.MCPAllowWrites {
+				writes = "read tools"
+			}
+			writes += ", SQL writes enabled"
 		}
 		fmt.Printf("  MCP       →  %s://%s:%d/mcp  (%s)\n", scheme, displayHost(cfg), cfg.Port, writes)
 	}

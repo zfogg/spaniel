@@ -15,12 +15,7 @@ import { useDebouncedSave } from '@/lib/useDebouncedSave'
 import { toast } from 'sonner'
 import { type PanelLayout } from '@/components/dashboard-panels/DashboardCanvas'
 import { dashboardTemplates } from '@/components/dashboard-panels/dashboard-templates'
-import {
-  readLocalDashboards,
-  saveLocalDashboards,
-  backendUnavailable,
-  nextDashboardName,
-} from './dashboard-model'
+import { readLocalDashboards, saveLocalDashboards, nextDashboardName } from './dashboard-model'
 export function useDashboardEditor() {
   const { dashboardId } = useParams()
   const editorNavigate = useNavigate()
@@ -251,7 +246,6 @@ export function useDashboardEditor() {
       else await api.dashboards.panel(active.id, body)
       refresh()
     } catch (error) {
-      if (!backendUnavailable(error)) throw error
       // A non-local dashboard never turns into a hidden browser-only draft.
       toast.error(`Could not save panel: ${error instanceof Error ? error.message : String(error)}`)
       return

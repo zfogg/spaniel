@@ -156,7 +156,7 @@ spaniel --forward http://tempo:4318
 
 ### 🤖 MCP server for AI agents
 
-Spaniel speaks [MCP](https://modelcontextprotocol.io) over a streamable-HTTP endpoint at `/mcp`, so a coding agent (Claude Code / Desktop) can read the traces it just generated — find the slow span, see the detected N+1, diff against a baseline — and fix the code, no screenshots required. Includes a read-only `query_sql` escape hatch for ad-hoc DuckDB queries. See [MCP server](#mcp-server).
+Spaniel speaks [MCP](https://modelcontextprotocol.io) over a streamable-HTTP endpoint at `/mcp`, so a coding agent (Claude Code / Desktop) can read the traces it just generated — find the slow span, see the detected N+1, diff against a baseline — and fix the code, no screenshots required. Includes a `query_sql` escape hatch (read-only by default) for ad-hoc DuckDB queries. See [MCP server](#mcp-server).
 
 ---
 
@@ -284,7 +284,7 @@ are recognized as self-telemetry to prevent recursive ingestion instrumentation.
 The legacy default self-telemetry name `spaniel` maps to `spaniel-api`.
 
 
-All tools are **read-only** unless you start spaniel with `--mcp-allow-writes`.
+Tools are **read-only** by default. `--mcp-allow-writes` enables dedicated mutation tools; `--mcp-allow-writes-sql` independently enables writes and DDL through `query_sql`. Neither flag enables the other. Dashboard and alert SQL stays read-only.
 
 `get_server_info` includes an absolute `openapi_url` using the MCP request's
 host and port. Behind a reverse proxy, set `SPANIEL_PUBLIC_URL` to the public
@@ -308,7 +308,7 @@ MCP links pick up changes after restart.
 | `get_metrics` / `get_metric_series` | metric catalog and time series |
 | `list_sessions` / `diff_sessions` | sessions; before/after comparison |
 | `format_sql` | format SQL without executing it; preserves comments, literals, and bind placeholders |
-| `query_sql` | **read-only** raw SQL over the DuckDB tables (validated before execution; external access disabled) |
+| `query_sql` | raw SQL over DuckDB (read-only unless `--mcp-allow-writes-sql`; external access disabled) |
 | `list_dashboards` / `get_dashboard` / `run_dashboard_panel` / `validate_dashboard` | inspect, execute, and validate dashboard definitions |
 | `export_dashboard_yaml` / `import_dashboard_yaml` / `apply_dashboard` / `delete_dashboard` | portable dashboard YAML and structured dashboard lifecycle; imports with an ID update that dashboard, while imports without an ID create a copy |
 | `list_alerts` / `get_alert` / `list_alert_history` / `preview_alert` / `validate_alert` | alert definitions, state, history, query previews, and validation |
@@ -330,7 +330,7 @@ series. Three user-selectable prompts guide complete workflows:
 prompt only applies its validated draft when the user explicitly asks and MCP
 writes are enabled.
 
-Config: `mcp_enabled` (default `true`), `mcp_allow_writes` (default `false`), or the `--mcp-enabled` / `--mcp-allow-writes` flags. Write access can also be toggled from `/settings`; Spaniel persists the choice and reconnects MCP clients with the updated tool permissions.
+Config: `mcp_enabled` (default `true`), `mcp_allow_writes` (default `false`), or the `--mcp-enabled` / `--mcp-allow-writes` flags. SQL writes can be configured with `mcp_allow_writes_sql` or `SPANIEL_MCP_ALLOW_WRITES_SQL` and require a restart. Other write access can also be toggled from `/settings`; Spaniel persists the choice and reconnects MCP clients with the updated tool permissions.
 
 ---
 
@@ -376,6 +376,7 @@ auto_prune: true      # physical DB file + WAL: start at 80%, reclaim to 70%; fa
 no_browser: false
 mcp_enabled: true        # serve the MCP endpoint at /mcp
 mcp_allow_writes: false  # let MCP clients mutate state (sessions, prune)
+mcp_allow_writes_sql: false  # independently permit MCP query_sql writes; requires restart
 forward:
   - http://tempo:4318
   - http://otelcollector:4318
@@ -439,6 +440,7 @@ spaniel                              start the server + UI (opens browser)
 spaniel --no-browser                 ... without opening a browser (CI/servers)
 spaniel --forward <url>              also forward OTLP upstream (repeatable)
 spaniel --mcp-allow-writes           let MCP clients mutate state (off by default)
+spaniel --mcp-allow-writes-sql       independently allow MCP SQL writes (off by default)
 ```
 
 **Sessions**

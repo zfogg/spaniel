@@ -83,6 +83,7 @@ func TestResolveConfig_MCPKeys(t *testing.T) {
 	v.SetDefault("otlp_grpc_port", 4317)
 	v.Set("mcp_enabled", true)
 	v.Set("mcp_allow_writes", true)
+	v.Set("mcp_allow_writes_sql", true)
 	t.Setenv("SPANIEL_PUBLIC_URL", "https://telemetry.example.com")
 	v.SetEnvPrefix("SPANIEL")
 	v.AutomaticEnv()
@@ -94,6 +95,9 @@ func TestResolveConfig_MCPKeys(t *testing.T) {
 	}
 	if !cfg.MCPAllowWrites {
 		t.Error("MCPAllowWrites: got false, want true")
+	}
+	if !cfg.MCPAllowWritesSQL {
+		t.Error("MCPAllowWritesSQL: got false, want true")
 	}
 	if cfg.PublicURL != "https://telemetry.example.com" {
 		t.Errorf("PublicURL = %q, want environment override", cfg.PublicURL)

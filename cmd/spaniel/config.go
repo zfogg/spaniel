@@ -142,6 +142,8 @@ mcp_enabled: true
 # prune). When false, the write tools are not registered and won't appear in
 # the MCP tool list. Override per-run with --mcp-allow-writes.
 mcp_allow_writes: false
+# Independently enable MCP SQL writes (requires restart).
+mcp_allow_writes_sql: false
 `
 
 // globalConfigPath returns the path to ~/.spaniel/config.yaml.
@@ -211,6 +213,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("self_monitor", false)
 	v.SetDefault("mcp_enabled", true)
 	v.SetDefault("mcp_allow_writes", false)
+	v.SetDefault("mcp_allow_writes_sql", false)
 	v.SetDefault("alerts.browser_enabled", true)
 	v.SetDefault("alerts.pushover_enabled", true)
 	v.SetDefault("alerts.pushover_user_key", "")

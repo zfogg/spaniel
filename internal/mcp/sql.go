@@ -14,23 +14,27 @@ import (
 // sqlQueryTimeout bounds how long a single query may run.
 const sqlQueryTimeout = 30 * time.Second
 
-// registerSQLTool adds the read-only raw-SQL tool.
+// registerSQLTool advertises the configured SQL permission.
 func (h *handler) registerSQLTool(s *mcpsdk.Server) {
+	access := "Read-only SQL validation rejects mutations: any write, DDL, COPY, or ATTACH is rejected. "
+	if h.opts.AllowSQLWrites {
+		access = "SQL writes and DDL are enabled with --mcp-allow-writes-sql. "
+	}
 	addTOONTool(s, &mcpsdk.Tool{
 		Name: "query_sql",
-		Description: "Run SQL directly against Spaniel's DuckDB (read-only) and get back columns + rows. " +
+		Description: "Run SQL directly against Spaniel's DuckDB and get back columns + rows. " +
 			"Use this for ad-hoc analysis the other tools don't cover — custom aggregations, joins, group-bys, window functions. " +
 			"Tables: spans, logs, metrics, sessions, trace_issues, lint_warnings, span_events, span_links, meta. " +
 			"The attributes/resource columns are JSON stored as VARCHAR (use DuckDB's json functions or ::JSON). " +
 			"Run `SHOW TABLES` or `DESCRIBE <table>` to inspect the schema. " +
-			"Read-only SQL validation rejects mutations: any write, DDL, COPY, or ATTACH is rejected. " +
+			access +
 			"Results are capped at max_rows (default 1000).",
-		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: !h.opts.AllowSQLWrites},
 	}, h.querySQL)
 }
 
 type QuerySQLInput struct {
-	SQL     string `json:"sql" jsonschema:"the SQL to run (read-only; mutating statements are rejected)"`
+	SQL     string `json:"sql" jsonschema:"the SQL to run (mutations require --mcp-allow-writes-sql)"`
 	Name    string `json:"name,omitempty" jsonschema:"optional simple query name; Spaniel adds the storage.duckdb. prefix (default UserQuery)"`
 	MaxRows int    `json:"max_rows,omitempty" jsonschema:"max rows to return (default 1000, max 50000)"`
 }
@@ -57,14 +61,17 @@ func (h *handler) querySQL(ctx context.Context, _ *mcpsdk.CallToolRequest, in Qu
 	qctx, cancel := context.WithTimeout(ctx, sqlQueryTimeout)
 	defer cancel()
 
-	// The storage query gate rejects writes, DDL, COPY, and ATTACH before
-	// running SQL on the shared DuckDB pool.
+	// SQL mutations require the separate SQL write opt-in.
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		name = "UserQuery"
 	}
 	qctx = storage.WithQueryName(qctx, name)
-	cols, rows, truncated, err := h.store.ReadOnlyQuery(qctx, in.SQL, maxRows)
+	run := h.store.ReadOnlyQuery
+	if h.opts.AllowSQLWrites {
+		run = h.store.WriteEnabledQuery
+	}
+	cols, rows, truncated, err := run(qctx, in.SQL, maxRows)
 	if err != nil {
 		return nil, QuerySQLOutput{}, fmt.Errorf("query failed: %w", err)
 	}

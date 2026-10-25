@@ -109,3 +109,41 @@ func TestQuerySQL_Registered(t *testing.T) {
 		t.Error("query_sql not registered")
 	}
 }
+
+func TestQuerySQL_WritePermissions(t *testing.T) {
+	for _, allowTools := range []bool{false, true} {
+		for _, allowSQL := range []bool{false, true} {
+			t.Run(fmt.Sprintf("tools=%t/sql=%t", allowTools, allowSQL), func(t *testing.T) {
+				cs, store := connect(t, Options{AllowWrites: allowTools, AllowSQLWrites: allowSQL})
+				seedTrace(t, store, store.ActiveSessionID())
+				if got := toolNames(t, cs)["create_session"]; got != allowTools {
+					t.Fatalf("create_session = %t", got)
+				}
+				tools, err := cs.ListTools(context.Background(), nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, tool := range tools.Tools {
+					if tool.Name == "query_sql" && tool.Annotations.ReadOnlyHint == allowSQL {
+						t.Fatal("incorrect SQL read-only annotation")
+					}
+				}
+				failed := callToolIsError(t, cs, "query_sql", map[string]any{"sql": "DELETE FROM spans"})
+				if failed == allowSQL {
+					t.Fatalf("DELETE failed = %t, SQL writes = %t", failed, allowSQL)
+				}
+				out := callStructured[QuerySQLOutput](t, cs, "query_sql", map[string]any{"sql": "SELECT count(*) FROM spans"})
+				want := "2"
+				if allowSQL {
+					want = "0"
+				}
+				if got := fmt.Sprint(out.Rows[0][0]); got != want {
+					t.Fatalf("count = %s, want %s", got, want)
+				}
+				if _, _, _, err := store.ReadOnlyQuery(context.Background(), "DELETE FROM spans", 1); err == nil {
+					t.Fatal("read-only runner accepted write")
+				}
+			})
+		}
+	}
+}

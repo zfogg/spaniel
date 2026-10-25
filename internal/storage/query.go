@@ -22,11 +22,21 @@ func (d *DB) ReadOnlyQuery(ctx context.Context, query string, maxRows int) (cols
 // ReadOnlyQueryArgs is ReadOnlyQuery with bound DuckDB parameters. Query text
 // is always checked before execution; values are never interpolated into SQL.
 func (d *DB) ReadOnlyQueryArgs(ctx context.Context, query string, args []any, maxRows int) (cols []string, rows [][]any, truncated bool, err error) {
-	if maxRows <= 0 {
-		maxRows = 1000
-	}
 	if err := validateReadOnlySQL(query); err != nil {
 		return nil, nil, false, err
+	}
+	return d.querySQLArgs(ctx, query, args, maxRows)
+}
+
+// WriteEnabledQuery is reserved for MCP's explicit SQL write opt-in.
+// Dashboard and alert callers must continue using ReadOnlyQuery.
+func (d *DB) WriteEnabledQuery(ctx context.Context, query string, maxRows int) ([]string, [][]any, bool, error) {
+	return d.querySQLArgs(ctx, query, nil, maxRows)
+}
+
+func (d *DB) querySQLArgs(ctx context.Context, query string, args []any, maxRows int) (cols []string, rows [][]any, truncated bool, err error) {
+	if maxRows <= 0 {
+		maxRows = 1000
 	}
 
 	// Internal callers such as catalog discovery can opt out through
