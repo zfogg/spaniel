@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/zfogg/gotel/go/sqltrace"
+	sequel "github.com/zfogg/sequel/go"
 )
 
 var storageNamer = sqltrace.MustNamer("spaniel.storage")
@@ -19,10 +20,10 @@ func WithQueryName(ctx context.Context, name string) context.Context {
 func queryNameFromContext(ctx context.Context) string { return sqltrace.NameFromContext(ctx) }
 
 // sqlSummary returns a bounded, parameter-free description of DuckDB SQL.
-func sqlSummary(query string) string { return sqltrace.Summary(sqltrace.DialectDuckDB, query) }
+func sqlSummary(query string) string { return sequel.Summary(sequel.DialectDuckDB, query) }
 
-// sanitizeSQL delegates the privacy boundary to gotel's DuckDB policy.
+// sanitizeSQL delegates the privacy boundary to sequel's DuckDB policy.
 func sanitizeSQL(query string) (string, bool) {
-	result, ok := sqltrace.SanitizeDialect(sqltrace.DialectDuckDB, query)
+	result, ok := sequel.SanitizeDialect(sequel.DialectDuckDB, query)
 	return result.Text, ok
 }
