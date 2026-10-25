@@ -217,6 +217,9 @@ describe('httpDisplayName', () => {
     for (const name of [
       'stonkpile.http.client.GET paper-api.alpaca.markets/v2/positions',
       'stonkpile.http.server.GET /api/health',
+      'http.client.GET data.alpaca.markets/v2/stocks/bars',
+      'http.server.GET /api/health',
+      'http.client.PROPFIND storage.example/{id}',
     ]) {
       expect(
         httpDisplayName({

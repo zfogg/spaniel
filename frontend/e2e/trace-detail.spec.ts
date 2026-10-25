@@ -751,3 +751,36 @@ test('live trace updates include lint, issues, links and the selected inspector 
   await expect(inspector.getByRole('button', { name: 'logs', exact: true })).toBeVisible()
   expect(new URL(page.url()).searchParams.get('span')).toBe('root')
 })
+
+test('waterfall preserves unprefixed HTTP client and server role names', async ({ page }) => {
+  await stubBackend(page, {
+    spans: [
+      span({
+        span_id: 'root',
+        name: 'http.server.GET /api/research',
+        duration_ns: 10000000,
+        attributes: {
+          'http.request.method': 'GET',
+          'url.full': 'http://pi5:8081/api/research?secret=omitted',
+        },
+      }),
+      span({
+        span_id: 'http',
+        parent_span_id: 'root',
+        name: 'http.client.GET data.alpaca.markets/v2/stocks/bars',
+        start_ns: 1000000,
+        attributes: {
+          'http.request.method': 'GET',
+          'url.full': 'https://data.alpaca.markets/v2/stocks/bars?symbols=TEST',
+        },
+      }),
+    ],
+  })
+  await page.goto(`/traces/${TRACE_ID}?view=waterfall`)
+  const rows = page.getByTestId('waterfall-span-row')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.filter({ hasText: 'http.server.GET /api/research' })).toBeVisible()
+  await expect(
+    rows.filter({ hasText: 'http.client.GET data.alpaca.markets/v2/stocks/bars' }),
+  ).toBeVisible()
+})

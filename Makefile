@@ -1,4 +1,4 @@
-.PHONY: dev build build-server run test test-coverage test-extensive test-storage test-ingestion test-mcp-e2e generate verify-generated setup
+.PHONY: dev build build-server run test test-coverage test-extensive test-storage test-ingestion test-mcp-e2e test-telemetry generate verify-generated setup
 
 # Use MSYS2 Bash when available; otherwise use Bash from PATH. Scoop's sh.exe
 # shim may select a broken Zsh process on Windows.
@@ -266,3 +266,9 @@ test-settings:
 	    go test $(SETTINGS_TEST_FLAGS) -c -o "$$test_binary" "$$package"; \
 	    ( cd "$$package_dir" && "$$test_binary" -test.run 'TestSettingsConcurrent|TestExtendedSettings|TestQuietHours|TestPolicyFilters|TestSignalRetention|TestForwardingSecurity|TestSettingsPublicURL|TestSourceLimiter|TestPublicURLFlag' -test.count=1 -test.timeout=5m -test.v ); \
 	  done
+
+# SDK lifecycle/whole-trace regressions, using a stable Windows test binary.
+test-telemetry:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/telemetry.test$(EXE) ./internal/telemetry
+	./$(BIN_DIR)/telemetry.test$(EXE) -test.count=1 -test.timeout=2m

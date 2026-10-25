@@ -97,7 +97,7 @@ export function shortTraceId(id: string): string {
 const HTTP_METHOD_RE =
   /^(?:HTTP\s+)?(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)(?:\s+|$)/i
 const GOTEL_HTTP_NAME_RE =
-  /^[a-z0-9][a-z0-9._-]*\.http\.(?:client|server)\.(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE|[A-Z][A-Z0-9_-]*)\s+/i
+  /^(?:[a-z0-9][a-z0-9._-]*\.)?http\.(?:client|server)\.(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE|[A-Z][A-Z0-9_-]*)\s+/i
 
 /** Build a human-friendly display name for HTTP spans.
  *  Preserve a templated span name: it is the stable operation name, whereas
