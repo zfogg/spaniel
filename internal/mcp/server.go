@@ -169,7 +169,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 func (h *handler) registerTools(s *mcpsdk.Server) {
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_server_info",
-		Description: "Get Spaniel server version, the OpenAPI specification URL, and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection and see how much data is available.",
+		Description: "Get Spaniel server version, the OpenAPI specification URL, write permissions (writes_enabled for dedicated mutation tools; sql_writes_enabled for query_sql), and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection, permissions, and available data.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, h.getServerInfo)
 
@@ -203,8 +203,8 @@ type ServerInfo struct {
 	OpenAPIURL         string `json:"openapi_url" jsonschema:"absolute URL of the OpenAPI JSON specification"`
 	ActiveSessionID    string `json:"active_session_id" jsonschema:"id of the session new telemetry is written to"`
 	ActiveSessionLabel string `json:"active_session_label" jsonschema:"human-readable label of the active session"`
-	WritesEnabled      bool   `json:"writes_enabled" jsonschema:"whether mutating tools are available (server started with --mcp-allow-writes)"`
-	SQLWritesEnabled   bool   `json:"sql_writes_enabled" jsonschema:"whether query_sql permits mutations"`
+	WritesEnabled      bool   `json:"writes_enabled" jsonschema:"whether dedicated mutation tools are available; independent of SQL write permission"`
+	SQLWritesEnabled   bool   `json:"sql_writes_enabled" jsonschema:"whether query_sql permits mutations; independent of dedicated tool write permission"`
 	SpanCount          int    `json:"span_count"`
 	TraceCount         int    `json:"trace_count"`
 	LogCount           int    `json:"log_count"`

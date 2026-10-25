@@ -116,6 +116,10 @@ func TestQuerySQL_WritePermissions(t *testing.T) {
 			t.Run(fmt.Sprintf("tools=%t/sql=%t", allowTools, allowSQL), func(t *testing.T) {
 				cs, store := connect(t, Options{AllowWrites: allowTools, AllowSQLWrites: allowSQL})
 				seedTrace(t, store, store.ActiveSessionID())
+				info := callStructured[ServerInfo](t, cs, "get_server_info", nil)
+				if info.WritesEnabled != allowTools || info.SQLWritesEnabled != allowSQL {
+					t.Fatalf("reported permissions: tools=%t SQL=%t, want tools=%t SQL=%t", info.WritesEnabled, info.SQLWritesEnabled, allowTools, allowSQL)
+				}
 				if got := toolNames(t, cs)["create_session"]; got != allowTools {
 					t.Fatalf("create_session = %t", got)
 				}
