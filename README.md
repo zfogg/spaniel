@@ -382,6 +382,12 @@ forward:
   - http://otelcollector:4318
 ```
 
+Size-based autoprune evicts the oldest telemetry, notification inbox records,
+alert history, and orphaned findings together. Saved dashboards, alert rules,
+and current alert state are preserved. The 70% target is optional: a safe
+reclamation stop below the hard cap does not itself reject ingestion; recovery
+already paused at the cap can resume below 80% if the target is unreachable.
+
 To version-control dashboards and alerts, point `dashboards_dir` and
 `alerts_dir` at directories in your project. Spaniel reconciles those YAML
 files at startup and whenever a YAML file is created, edited, renamed, or deleted: existing IDs update the same objects, IDs recreate them on a

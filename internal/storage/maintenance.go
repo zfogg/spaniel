@@ -54,7 +54,7 @@ func (d *DB) GetStorageBreakdown() (*StorageBreakdown, error) {
 		}
 	}
 
-	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings"}
+	tableNames := []string{"spans", "logs", "metrics", "span_events", "span_links", "sessions", "trace_issues", "lint_warnings", "notification_records", "alert_events", "metric_series_catalog"}
 	sizes, _ := d.query.Span.StorageTableSizes()
 
 	byTable := make(map[string]model.TableSizeRow, len(sizes))

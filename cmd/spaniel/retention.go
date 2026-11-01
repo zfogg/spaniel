@@ -171,7 +171,8 @@ type storageGuardStore interface {
 // checkStorageGuard applies one storage policy pass. With auto-prune disabled,
 // it never deletes and marks storage full only at the hard cap. With it enabled,
 // pruning begins at 80% and targets 70%, leaving headroom for ingest bursts. If
-// pruning cannot restore that headroom, ingestion pauses before the hard cap.
+// pruning encounters a genuine storage failure, ingestion pauses. An optional
+// target safety stop alone does not declare a below-cap store full.
 func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	maxBytes := policy.maxBytes.Load()
 	if maxBytes <= 0 {
@@ -231,9 +232,10 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 	after := store.FileSize()
 	deleted := res.DeletedByAge + res.DeletedByCount + res.DeletedBySize
 	// Each successful phase includes a completed physical copy. Remaining
-	// proactive work is not a full store; only the hard cap or failed recovery
+	// proactive work is not a full store; only the hard cap or a genuine failure
 	// acquires the emergency admission latch.
-	if after >= maxBytes || (err != nil && after > target) {
+	soft := storage.IsRetentionTargetUnreached(err)
+	if after >= maxBytes || (err != nil && !soft && after > target) {
 		policy.recovering.Store(true)
 	}
 	if after <= target {
@@ -241,17 +243,21 @@ func checkStorageGuard(store storageGuardStore, policy *storageGuardPolicy) {
 		policy.recovering.Store(false)
 		slog.Info("storage guard restored low-water headroom", "db_mb", float64(after)/1024/1024, "target_mb", float64(target)/1024/1024)
 	}
+	// A safety stop (including an irreducible metadata floor) is not ENOSPC.
+	// Once below high water, release emergency admission even if the optional
+	// low-water target is unreachable. Continue proactive retries without
+	// rejecting exporters forever while most of the cap is still available.
+	if soft && after < highWater {
+		policy.recovering.Store(false)
+	}
 	if !policy.recovering.Load() && after > target {
 		policy.nextPruneAfter.Store(time.Now().Add(storageProactiveCooldown).UnixNano())
 	}
-	soft := storage.IsRetentionTargetUnreached(err)
 	if err != nil && !soft {
 		slog.Error("storage guard auto-prune failed", "err", err)
 	}
-	// Once the hard cap or a committed eviction has paused exporters, do not
-	// reopen them into a nearly
-	// full store between bounded phases. Finish the same low-water recovery,
-	// retaining its larger rebuild budget even below the cap/high-water trigger.
+	// Keep emergency recovery paused between successful bounded phases until
+	// low water. A safety stop below high water releases the latch above.
 	blocked := (err != nil && !soft) || policy.recovering.Load()
 	store.SetFull(blocked)
 	if blocked {

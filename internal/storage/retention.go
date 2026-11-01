@@ -367,9 +367,10 @@ func (d *DB) reclaimRetentionSpace(progress ...*reclaimProgress) error {
 	return d.rebuildTelemetry(progress...)
 }
 
-// deleteOldestTelemetryBatch selects coherent trace groups and independent logs
-// and metrics in global age order. Auxiliary trace rows leave before their spans.
-// It returns the number of primary telemetry rows removed.
+// deleteOldestTelemetryBatch selects coherent trace groups, independent logs and
+// metrics, notification/alert history and orphaned findings in global age order.
+// Saved rules, dashboards and current alert state are never size candidates.
+// Auxiliary trace rows leave before their spans. It returns rows removed.
 func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64) (int, error) {
 	// Use one age-ordered queue across all signals. Small proportional batches
 	// avoid discarding 1,000 traces (or all logs) to free a few database blocks.
@@ -379,7 +380,13 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64
 		FROM spans GROUP BY session_id, trace_id
 		UNION ALL SELECT 'log', session_id, '', rowid, timestamp_ns FROM logs l
 		WHERE NOT EXISTS (SELECT 1 FROM spans s WHERE s.session_id = l.session_id AND s.trace_id = l.trace_id)
-		UNION ALL SELECT 'metric', session_id, '', rowid, timestamp_ns FROM metrics`
+		UNION ALL SELECT 'metric', session_id, '', rowid, timestamp_ns FROM metrics
+		UNION ALL SELECT 'notification', '', '', rowid, created_at FROM notification_records
+		UNION ALL SELECT 'alert_event', '', '', rowid, created_at FROM alert_events
+		UNION ALL SELECT 'issue', session_id, trace_id, rowid, created_at FROM trace_issues i
+		WHERE NOT EXISTS (SELECT 1 FROM spans s WHERE s.session_id = i.session_id AND s.trace_id = i.trace_id)
+		UNION ALL SELECT 'lint', session_id, trace_id, rowid, created_at FROM lint_warnings l
+		WHERE NOT EXISTS (SELECT 1 FROM spans s WHERE s.session_id = l.session_id AND s.trace_id = l.trace_id)`
 	var groups int64
 	if err := d.namedGORM("RetentionCandidateCount").Raw(`SELECT COUNT(*) FROM (` + candidates + `) candidates`).Scan(&groups).Error; err != nil {
 		return 0, err
@@ -427,7 +434,11 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64
 			return fmt.Errorf("delete old spans: %w", result.Error)
 		}
 		deleted += int(result.RowsAffected)
-		for _, spec := range []struct{ table, kind string }{{"logs", "log"}, {"metrics", "metric"}} {
+		for _, spec := range []struct{ table, kind string }{
+			{"logs", "log"}, {"metrics", "metric"},
+			{"notification_records", "notification"}, {"alert_events", "alert_event"},
+			{"trace_issues", "issue"}, {"lint_warnings", "lint"},
+		} {
 			result = tx.Exec(`DELETE FROM `+spec.table+` WHERE rowid IN (
 				SELECT record_id FROM retention_trace_batch WHERE kind = ?
 			)`, spec.kind)

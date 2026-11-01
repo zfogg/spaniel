@@ -2617,9 +2617,27 @@ func (s spanDo) GetStats(sessionID string) (result []model.StatsRow, err error) 
 //	CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT)
 //
 // FROM lint_warnings
+// UNION ALL
+// SELECT 'notification_records', COUNT(*),
+//
+//	CAST(COALESCE(SUM(LENGTH(title) + LENGTH(body) + LENGTH(link) + LENGTH(dedupe_key) + 160), 0) AS BIGINT)
+//
+// FROM notification_records
+// UNION ALL
+// SELECT 'alert_events', COUNT(*),
+//
+//	CAST(COALESCE(SUM(LENGTH(detail) + LENGTH(group_key) + 120), 0) AS BIGINT)
+//
+// FROM alert_events
+// UNION ALL
+// SELECT 'metric_series_catalog', COUNT(*),
+//
+//	CAST(COALESCE(SUM(LENGTH(series_attributes) + LENGTH(name) + 160), 0) AS BIGINT)
+//
+// FROM metric_series_catalog
 func (s spanDo) StorageTableSizes() (result []model.TableSizeRow, err error) {
 	var generateSQL strings.Builder
-	generateSQL.WriteString("SELECT 'spans' AS name, COUNT(*) AS row_count, CAST( COALESCE( SUM( LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 ), 0 ) AS BIGINT ) AS payload_bytes FROM spans UNION ALL SELECT 'logs', COUNT(*), CAST( COALESCE( SUM(LENGTH(body) + LENGTH(attributes::VARCHAR) + 100), 0 ) AS BIGINT ) FROM logs UNION ALL SELECT 'metrics', COUNT(*), CAST( COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT ) FROM metrics UNION ALL SELECT 'span_events', COUNT(*), CAST( COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT ) FROM span_events UNION ALL SELECT 'span_links', COUNT(*), CAST( COALESCE(SUM(LENGTH(attributes::VARCHAR) + 120), 0) AS BIGINT ) FROM span_links UNION ALL SELECT 'sessions', COUNT(*), CAST(COUNT(*) * 200 AS BIGINT) FROM sessions UNION ALL SELECT 'trace_issues', COUNT(*), CAST(COALESCE(SUM(LENGTH(fingerprint) + 150), 0) AS BIGINT) FROM trace_issues UNION ALL SELECT 'lint_warnings', COUNT(*), CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT) FROM lint_warnings ")
+	generateSQL.WriteString("SELECT 'spans' AS name, COUNT(*) AS row_count, CAST( COALESCE( SUM( LENGTH(attributes::VARCHAR) + LENGTH(resource::VARCHAR) + LENGTH(name) + 300 ), 0 ) AS BIGINT ) AS payload_bytes FROM spans UNION ALL SELECT 'logs', COUNT(*), CAST( COALESCE( SUM(LENGTH(body) + LENGTH(attributes::VARCHAR) + 100), 0 ) AS BIGINT ) FROM logs UNION ALL SELECT 'metrics', COUNT(*), CAST( COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT ) FROM metrics UNION ALL SELECT 'span_events', COUNT(*), CAST( COALESCE(SUM(LENGTH(attributes::VARCHAR) + LENGTH(name) + 80), 0) AS BIGINT ) FROM span_events UNION ALL SELECT 'span_links', COUNT(*), CAST( COALESCE(SUM(LENGTH(attributes::VARCHAR) + 120), 0) AS BIGINT ) FROM span_links UNION ALL SELECT 'sessions', COUNT(*), CAST(COUNT(*) * 200 AS BIGINT) FROM sessions UNION ALL SELECT 'trace_issues', COUNT(*), CAST(COALESCE(SUM(LENGTH(fingerprint) + 150), 0) AS BIGINT) FROM trace_issues UNION ALL SELECT 'lint_warnings', COUNT(*), CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT) FROM lint_warnings UNION ALL SELECT 'notification_records', COUNT(*), CAST(COALESCE(SUM(LENGTH(title) + LENGTH(body) + LENGTH(link) + LENGTH(dedupe_key) + 160), 0) AS BIGINT) FROM notification_records UNION ALL SELECT 'alert_events', COUNT(*), CAST(COALESCE(SUM(LENGTH(detail) + LENGTH(group_key) + 120), 0) AS BIGINT) FROM alert_events UNION ALL SELECT 'metric_series_catalog', COUNT(*), CAST(COALESCE(SUM(LENGTH(series_attributes) + LENGTH(name) + 160), 0) AS BIGINT) FROM metric_series_catalog ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String()).Find(&result) // ignore_security_alert

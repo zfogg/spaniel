@@ -1489,6 +1489,18 @@ type SpanStorageMethods interface {
 	//   COUNT(*),
 	//   CAST(COALESCE(SUM(LENGTH(message) + 100), 0) AS BIGINT)
 	// FROM lint_warnings
+	// UNION ALL
+	// SELECT 'notification_records', COUNT(*),
+	//   CAST(COALESCE(SUM(LENGTH(title) + LENGTH(body) + LENGTH(link) + LENGTH(dedupe_key) + 160), 0) AS BIGINT)
+	// FROM notification_records
+	// UNION ALL
+	// SELECT 'alert_events', COUNT(*),
+	//   CAST(COALESCE(SUM(LENGTH(detail) + LENGTH(group_key) + 120), 0) AS BIGINT)
+	// FROM alert_events
+	// UNION ALL
+	// SELECT 'metric_series_catalog', COUNT(*),
+	//   CAST(COALESCE(SUM(LENGTH(series_attributes) + LENGTH(name) + 160), 0) AS BIGINT)
+	// FROM metric_series_catalog
 	StorageTableSizes() ([]TableSizeRow, error)
 
 	// TopSessionSizes
