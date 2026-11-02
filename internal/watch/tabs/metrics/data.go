@@ -377,7 +377,7 @@ func sampleDescription(p sample, typ string, width int) []string {
 	if p.Flags&1 != 0 {
 		lines = append(lines, "OTLP no recorded value: excluded from chart")
 	}
-	if p.ScopeName != "" {
+	if p.ScopeName != "" || p.ScopeVersion != "" || len(p.ScopeAttributes) > 0 {
 		lines = append(lines, "scope "+safe(p.ScopeName)+" "+safe(p.ScopeVersion))
 		lines = append(lines, attributeTable("Scope attributes", p.ScopeAttributes, width)...)
 	}

@@ -69,3 +69,10 @@ func TestMetricLabelAndScopeAttributesAreScrollableTables(t *testing.T) {
 		}
 	}
 }
+
+func TestScopeAttributesRemainVisibleWithoutScopeName(t *testing.T) {
+	text := strings.Join(sampleDescription(sample{ScopeAttributes: map[string]any{"sdk.enabled": true}}, "gauge", 100), "\n")
+	if !strings.Contains(text, "Scope attributes") || !strings.Contains(text, "sdk.enabled") {
+		t.Fatal("unnamed scope lost its attributes")
+	}
+}
