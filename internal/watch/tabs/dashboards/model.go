@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
@@ -66,6 +67,71 @@ func (m *model) registerActive() {
 }
 func (m *model) Init() tea.Cmd      { return nil }
 func (m *model) CapturesKeys() bool { return m.editing }
+
+// ShortHelp is structural until the coordinator connects focused feature help
+// to the shared footer. Keep shortcuts separate from status/data in View.
+func (m *model) ShortHelp() []key.Binding {
+	binding := func(keys []string, label, description string) key.Binding {
+		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(label, description))
+	}
+	if m.editing {
+		help := []key.Binding{
+			binding([]string{"enter"}, "Enter", "apply value"),
+			binding([]string{"esc"}, "Esc", "cancel input"),
+		}
+		if m.draft != "" {
+			help = append(help, binding([]string{"backspace", "ctrl+h"}, "⌫", "delete"), binding([]string{"ctrl+u"}, "Ctrl+U", "clear"))
+		}
+		return help
+	}
+	if m.detailID == "" {
+		if len(m.rows) == 0 {
+			return nil
+		}
+		help := []key.Binding{}
+		if len(m.rows) > 1 {
+			help = append(help, binding([]string{"up", "down", "k", "j"}, "↑/↓", "select dashboard"))
+		}
+		return append(help, binding([]string{"enter"}, "Enter", "open panels"))
+	}
+	d := m.dashboard()
+	if d == nil || m.removed {
+		return nil
+	}
+	help := []key.Binding{}
+	if len(d.Panels) > 1 {
+		help = append(help, binding([]string{"left", "right", "h", "l"}, "←/→", "panel"))
+	}
+	if len(d.Panels) > 0 {
+		mode := "live 15m window"
+		if m.live {
+			mode = "saved SQL/window"
+		}
+		help = append(help,
+			binding([]string{"up", "down", "k", "j", "pgup", "pgdown", "home"}, "↑/↓ PgUp/PgDn", "scroll"),
+			binding([]string{"t"}, "t", mode),
+		)
+	}
+	if len(d.Variables) > 0 {
+		if len(d.Variables) > 1 {
+			help = append(help, binding([]string{"v"}, "v", "next variable"))
+		}
+		help = append(help, binding([]string{"e"}, "e", "edit $"+d.Variables[m.variable].Name))
+		if len(m.overrides) > 0 {
+			help = append(help, binding([]string{"r"}, "r", "restore defaults"))
+		}
+	}
+	return help
+}
+
+func inlineHelp(bindings []key.Binding) string {
+	labels := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		help := binding.Help()
+		labels = append(labels, help.Key+" "+help.Desc)
+	}
+	return strings.Join(labels, " · ")
+}
 func (m *model) dashboard() *apigen.Dashboard {
 	for i := range m.rows {
 		if m.rows[i].Id == m.detailID {
@@ -465,7 +531,10 @@ func (m *model) View() string {
 		return screen(lines, m.width, m.height)
 	}
 	if m.detailID == "" {
-		lines = append(lines, fmt.Sprintf("%d dashboards · read-only · ↑/↓ select · Enter panels", len(m.rows)))
+		lines = append(lines, fmt.Sprintf("%d dashboards · read-only", len(m.rows)))
+		if help := inlineHelp(m.ShortHelp()); help != "" {
+			lines = append(lines, help)
+		}
 		if len(m.rows) == 0 {
 			lines = append(lines, "No saved or file-managed dashboards.")
 		}
@@ -484,7 +553,7 @@ func (m *model) View() string {
 		return screen(lines, m.width, m.height)
 	}
 	if m.removed {
-		lines = append(lines, "Dashboard removed externally. Escape returns to dashboards.")
+		lines = append(lines, "Dashboard removed externally.", "Esc returns to dashboards.")
 		return screen(lines, m.width, m.height)
 	}
 	d := m.dashboard()
@@ -495,7 +564,10 @@ func (m *model) View() string {
 	if m.live {
 		mode = "live SQL clock · 15m chart window"
 	}
-	lines = append(lines, d.Name+" · read-only · "+mode, "←/→ panel · ↑/↓ scroll · t saved/live · v variable · e value · r defaults")
+	lines = append(lines, d.Name+" · read-only · "+mode)
+	if help := inlineHelp(m.ShortHelp()); help != "" {
+		lines = append(lines, help)
+	}
 	lines = append(lines, "Scope: "+m.session+" · $session_id is server active: "+m.activeID)
 	if len(d.Variables) > 0 {
 		x := d.Variables[m.variable]
@@ -505,7 +577,7 @@ func (m *model) View() string {
 		}
 		lines = append(lines, fmt.Sprintf("$%s (%s) = %s · default %s · options %s", x.Name, x.Kind, value, x.DefaultValue, x.OptionsJson))
 		if m.editing {
-			lines = append(lines, "Value: "+m.draft+"█ · Enter apply · Esc cancel")
+			lines = append(lines, "Value: "+m.draft+"█")
 		}
 	}
 	if m.inputError != "" {

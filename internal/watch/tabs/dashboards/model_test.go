@@ -379,3 +379,75 @@ func TestPinnedSessionTracksActiveFramesAndResync(t *testing.T) {
 		t.Fatal("reconnect reused an unverified session")
 	}
 }
+
+func TestShortHelpFollowsFocusedViewAndInputState(t *testing.T) {
+	env, _ := envFor(t, http.NotFoundHandler())
+	list := New(env).(*model)
+	if len(list.ShortHelp()) != 0 {
+		t.Fatal("loading list advertises unavailable actions")
+	}
+	d := definition(t, example)
+	saved := definition(t, example)
+	saved.Id = "saved"
+	saved.SourceFile = ""
+	snapshot(list, d, saved)
+	if help := inlineHelp(list.ShortHelp()); !strings.Contains(help, "select dashboard") || !strings.Contains(help, "open panels") || strings.Contains(help, "edit $") {
+		t.Fatal(help)
+	}
+	env.Owner = "detail:help"
+	detail := newModel(env, "demo")
+	snapshot(detail, d)
+	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "←/→ panel") || !strings.Contains(help, "scroll") || !strings.Contains(help, "live 15m window") || !strings.Contains(help, "edit $service") || strings.Contains(help, "restore defaults") {
+		t.Fatal(help)
+	}
+	key(detail, "e")
+	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "Enter apply value") || !strings.Contains(help, "Esc cancel input") || !strings.Contains(help, "Ctrl+U clear") || strings.Contains(help, "panel") || strings.Contains(help, "window") {
+		t.Fatal(help)
+	}
+	for _, binding := range detail.ShortHelp() {
+		if !binding.Enabled() || len(binding.Keys()) == 0 {
+			t.Fatal("non-actionable help binding")
+		}
+	}
+	detail.draft = ""
+	if help := inlineHelp(detail.ShortHelp()); strings.Contains(help, "clear") || strings.Contains(help, "delete") {
+		t.Fatal(help)
+	}
+	key(detail, "q")
+	if detail.draft != "q" || !detail.CapturesKeys() {
+		t.Fatal("input stopped capturing global shortcut text")
+	}
+	key(detail, "esc")
+	key(detail, "e")
+	detail.draft = "worker"
+	key(detail, "enter")
+	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "restore defaults") || strings.Contains(help, "cancel input") {
+		t.Fatal(help)
+	}
+	key(detail, "t")
+	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "saved SQL/window") || strings.Contains(help, "live 15m window") {
+		t.Fatal(help)
+	}
+	key(detail, "r")
+	if strings.Contains(inlineHelp(detail.ShortHelp()), "restore defaults") {
+		t.Fatal("unchanged defaults still advertise reset")
+	}
+	d.Panels = nil
+	snapshot(detail, d)
+	if help := inlineHelp(detail.ShortHelp()); strings.Contains(help, "panel") || strings.Contains(help, "scroll") || strings.Contains(help, "window") || !strings.Contains(help, "edit $service") {
+		t.Fatal(help)
+	}
+	d.Variables = nil
+	snapshot(detail, d)
+	if len(detail.ShortHelp()) != 0 {
+		t.Fatal("empty dashboard advertises unavailable actions")
+	}
+	snapshot(detail)
+	if len(detail.ShortHelp()) != 0 {
+		t.Fatal("removed dashboard advertises unavailable actions")
+	}
+	snapshot(list)
+	if len(list.ShortHelp()) != 0 {
+		t.Fatal("empty list advertises unavailable actions")
+	}
+}
