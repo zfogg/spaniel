@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	keys "github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
@@ -28,7 +29,7 @@ func testEnv(t *testing.T) protocol.Env {
 	refresh.SetSession("seed")
 	return protocol.Env{Context: ctx, API: api, Refresh: refresh, Owner: "metrics"}
 }
-func key(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
+func press(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
 func streamRow(row *liveevent.MetricRowPayload, only bool) protocol.Live {
 	return protocol.Live{Event: liveevent.Message{Type: "metric", Decoded: &liveevent.MetricPayload{Name: row.Name, ServiceName: row.ServiceName, Type: row.Type, CatalogOnly: only, Row: row}}}
 }
@@ -54,8 +55,8 @@ func TestCatalogNavigationSearchReturnAndLiveScope(t *testing.T) {
 	if m.selected != wanted {
 		t.Fatal("snapshot shifted selection")
 	}
-	m.Update(key("/"))
-	m.Update(key("service=api type=gauge"))
+	m.Update(press("/"))
+	m.Update(press("service=api type=gauge"))
 	if !m.CapturesKeys() || len(m.filtered()) != 1 {
 		t.Fatal("search qualifiers failed")
 	}
@@ -112,8 +113,8 @@ func TestDetailHiddenLifecycleFilteringWindowsAndErrors(t *testing.T) {
 	if m.selected != "b" || len(m.data.Series) != 3 || len(m.data.Series[2].Points) != 1 {
 		t.Fatal("hidden live update duplicated or selection changed")
 	}
-	m.Update(key("/"))
-	m.Update(key("http.route=/new"))
+	m.Update(press("/"))
+	m.Update(press("http.route=/new"))
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if len(m.candidates()) != 1 || m.selected != "c" {
 		t.Fatal("label filter failed")
@@ -131,7 +132,7 @@ func TestDetailHiddenLifecycleFilteringWindowsAndErrors(t *testing.T) {
 	}
 	oldKey := m.key
 	selected, replacement := m.selected, m.data
-	m.Update(key("w"))
+	m.Update(press("w"))
 	if m.key == oldKey || m.loaded {
 		t.Fatal("time range did not supersede snapshot")
 	}
@@ -223,7 +224,7 @@ func TestHTTPQueryWindowSupersessionAndIdleRefresh(t *testing.T) {
 		t.Fatal("idle window did not refresh")
 	}
 	env.Refresh.Resync()
-	m.Update(key("w"))
+	m.Update(press("w"))
 	m.Update(result)
 	if m.loaded {
 		t.Fatal("replaced request overwrote window")
@@ -288,5 +289,66 @@ func TestCatalogCoalescesDescriptorVariants(t *testing.T) {
 	}
 	if m.rows[0].SampleCount != 25 || m.rows[0].Description != "new" || m.rows[0].LastTimestampNs != 200 {
 		t.Fatalf("wrong merged count or latest metadata: %+v", m.rows[0])
+	}
+}
+
+func helpAction(bindings []keys.Binding, msg tea.KeyMsg) string {
+	for _, binding := range bindings {
+		if keys.Matches(msg, binding) {
+			return binding.Help().Desc
+		}
+	}
+	return ""
+}
+func TestShortHelpTracksCatalogDetailAndInputModes(t *testing.T) {
+	env := testEnv(t)
+	m := New(env).(*catalog)
+	if helpAction(m.ShortHelp(), tea.KeyMsg{Type: tea.KeyEnter}) != "" {
+		t.Fatal("empty catalog advertises inspection")
+	}
+	m.Update(catalogResult(m, apigen.MetricCatalogEntry{Name: "cpu", ServiceName: "api", Type: "gauge"}))
+	if helpAction(m.ShortHelp(), tea.KeyMsg{Type: tea.KeyEnter}) != "inspect series" {
+		t.Fatal("catalog omitted inspection")
+	}
+	m.Update(press("/"))
+	if helpAction(m.ShortHelp(), tea.KeyMsg{Type: tea.KeyEsc}) != "cancel search" || helpAction(m.ShortHelp(), press("/")) != "" {
+		t.Fatal("search help did not replace list actions")
+	}
+	m.Update(press("cpu"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if helpAction(m.ShortHelp(), tea.KeyMsg{Type: tea.KeyEsc}) != "clear search" {
+		t.Fatal("applied search omitted clear action")
+	}
+	env.Owner = "detail:help"
+	d := newDetail(env, apigen.MetricCatalogEntry{Name: "cpu", ServiceName: "api", Type: "gauge"})
+	if helpAction(d.ShortHelp(), press("o")) != "view: raw" || helpAction(d.ShortHelp(), press("a")) != "" {
+		t.Fatal("initial detail help is not applicable")
+	}
+	d.data = seriesData{Type: "gauge", Series: []labeledSeries{{Key: "a", Points: []sample{{Timestamp: d.now.UnixNano(), Value: 1}}}, {Key: "b", Points: []sample{{Timestamp: d.now.UnixNano(), Value: 2}}}}}
+	d.loaded = true
+	d.reconcile()
+	if helpAction(d.ShortHelp(), tea.KeyMsg{Type: tea.KeyRight}) != "select series" {
+		t.Fatal("multi-series help omitted navigation")
+	}
+	d.Update(press("a"))
+	if helpAction(d.ShortHelp(), press("a")) != "show selected series" {
+		t.Fatal("overlay help did not follow state")
+	}
+	d.Update(press("o"))
+	if helpAction(d.ShortHelp(), press("o")) != "view: last" {
+		t.Fatal("operation help did not follow state")
+	}
+	d.Update(press("w"))
+	if helpAction(d.ShortHelp(), press("w")) != "window: 1h0m0s" {
+		t.Fatal("window help did not follow state")
+	}
+	d.Update(press("/"))
+	if helpAction(d.ShortHelp(), tea.KeyMsg{Type: tea.KeyEnter}) != "apply label filter" || helpAction(d.ShortHelp(), press("w")) != "" {
+		t.Fatal("label-input help did not replace inspector actions")
+	}
+	d.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	d.data.Type = "summary"
+	if helpAction(d.ShortHelp(), press("o")) != "" || helpAction(d.ShortHelp(), press("a")) != "" {
+		t.Fatal("distribution fallback advertises scalar actions")
 	}
 }

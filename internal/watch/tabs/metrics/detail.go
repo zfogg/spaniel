@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
@@ -46,6 +47,34 @@ func newDetail(env protocol.Env, row apigen.MetricCatalogEntry) *detail {
 }
 func (m *detail) Init() tea.Cmd      { return nil }
 func (m *detail) CapturesKeys() bool { return m.editing }
+
+// ShortHelp reports this inspector's current subview without owning footer
+// composition or global navigation bindings.
+func (m *detail) ShortHelp() []key.Binding {
+	if m.editing {
+		return inputHelp("label filter", m.draft)
+	}
+	out := []key.Binding{binding("/", "filter labels", "/"), binding("w", "window: "+windows[m.window].String(), "w")}
+	rows := m.candidates()
+	if len(rows) > 1 {
+		out = append(out, binding("←/→", "select series", "left", "right", "[", "]"))
+	}
+	if len(operations(m.kind())) > 1 {
+		out = append(out, binding("o", "view: "+m.operation, "o"))
+	}
+	scalar := m.kind() == "gauge" || m.kind() == "sum" || m.kind() == "counter" || (m.kind() == "histogram" && m.operation != "raw")
+	if scalar && (len(rows) > 1 || m.overlay) {
+		action := "overlay matching series"
+		if m.overlay {
+			action = "show selected series"
+		}
+		out = append(out, binding("a", action, "a"))
+	}
+	if len(rows) > 0 {
+		out = append(out, binding("↑/↓/PgDn", "scroll samples", "up", "down", "pgup", "pgdown", "j", "k"))
+	}
+	return out
+}
 func (m *detail) register() {
 	if m.key.Name != "" {
 		m.env.Refresh.Remove(m.key)

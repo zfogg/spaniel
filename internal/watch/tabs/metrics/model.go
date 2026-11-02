@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
@@ -42,8 +43,34 @@ func New(env protocol.Env) tea.Model {
 	})
 	return m
 }
-func (m *catalog) Init() tea.Cmd                    { return nil }
-func (m *catalog) CapturesKeys() bool               { return m.editing }
+func (m *catalog) Init() tea.Cmd      { return nil }
+func (m *catalog) CapturesKeys() bool { return m.editing }
+
+// ShortHelp is consumed structurally by the integration footer. Inline legends
+// remain until that shared shell change can move all feature help together.
+func (m *catalog) ShortHelp() []key.Binding {
+	if m.editing {
+		return inputHelp("search", m.draft)
+	}
+	out := []key.Binding{binding("/", "search metrics", "/")}
+	if len(m.filtered()) > 0 {
+		out = append(out, binding("↑/↓", "select metric", "up", "down", "j", "k"), binding("PgUp/PgDn", "page metrics", "pgup", "pgdown"), binding("Enter", "inspect series", "enter"))
+	}
+	if m.query != "" {
+		out = append(out, binding("Esc", "clear search", "esc"))
+	}
+	return out
+}
+func binding(label, action string, keys ...string) key.Binding {
+	return key.NewBinding(key.WithKeys(keys...), key.WithHelp(label, action))
+}
+func inputHelp(subject, draft string) []key.Binding {
+	out := []key.Binding{binding("Enter", "apply "+subject, "enter"), binding("Esc", "cancel "+subject, "esc")}
+	if draft != "" {
+		out = append(out, binding("Backspace", "erase character", "backspace"))
+	}
+	return out
+}
 func identity(row apigen.MetricCatalogEntry) string { return row.ServiceName + "\x00" + row.Name }
 
 // Catalog snapshots may group descriptor variants separately (for example when

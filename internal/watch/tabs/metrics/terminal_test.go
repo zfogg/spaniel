@@ -200,11 +200,11 @@ func TestRealIngestTerminalMetrics(t *testing.T) {
 	capture("metrics-catalog")
 	program.Send(tea.KeyMsg{Type: tea.KeyEnter})
 	waitText("Authoritative samples")
-	program.Send(key("o"))
-	program.Send(key("o"))
+	program.Send(press("o"))
+	program.Send(press("o"))
 	waitText("view rate")
 	for range 4 {
-		program.Send(key("w"))
+		program.Send(press("w"))
 	}
 	waitText("window 1m0s")
 	time.Sleep(400 * time.Millisecond)
@@ -234,8 +234,8 @@ func TestRealIngestTerminalMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	program.Send(tea.KeyMsg{Type: tea.KeyShiftTab})
-	program.Send(key("/"))
-	program.Send(key("http.route=/refund"))
+	program.Send(press("/"))
+	program.Send(press("http.route=/refund"))
 	program.Send(tea.KeyMsg{Type: tea.KeyEnter})
 	waitText("/refund")
 	program.Send(tea.KeyMsg{Type: tea.KeyEsc})
@@ -244,7 +244,7 @@ func TestRealIngestTerminalMetrics(t *testing.T) {
 	program.Send(tea.KeyMsg{Type: tea.KeyEnter})
 	waitText("view p95")
 	for range 4 {
-		program.Send(key("w"))
+		program.Send(press("w"))
 	}
 	time.Sleep(400 * time.Millisecond)
 	capture("metrics-histogram")
