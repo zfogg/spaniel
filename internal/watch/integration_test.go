@@ -254,6 +254,9 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 		if captureDir == "" {
 			return
 		}
+		// Record a complete production repaint, independent of incremental
+		// cursor updates between the rapidly driven navigation steps.
+		program.Send(tea.ClearScreen())
 		time.Sleep(100 * time.Millisecond)
 		if err := os.MkdirAll(captureDir, 0755); err != nil {
 			t.Fatal(err)
