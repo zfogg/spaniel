@@ -51,13 +51,15 @@ func TestRealIngestionCanonicalHTTPPreservesExactLabelsAndCachedScope(t *testing
 		point := points.AppendEmpty()
 		point.SetTimestamp(pcommon.Timestamp(1793631000000000001 + int64(i)))
 		point.SetDoubleValue(42.5)
-		point.Attributes().PutInt("revision", 9007199254740995)
+		// Use an admitted dimension; arbitrary revision labels remain unindexed.
+		point.Attributes().PutInt("operation", 9007199254740995)
+		point.Attributes().PutInt("revision", 9007199254740997)
 	}
 	if err := pipeline.IngestMetrics(context.Background(), md); err != nil {
 		t.Fatal(err)
 	}
 	stored, err := db.GetMetricChartSeries(storage.MetricSeriesFilter{Name: "exact.metric", Service: "api", SessionID: session.ID})
-	if err != nil || len(stored) != 2 || !strings.Contains(stored[0].ScopeAttributes, "9007199254740993") || !strings.Contains(stored[0].SeriesAttributes, "9007199254740995") {
+	if err != nil || len(stored) != 2 || !strings.Contains(stored[0].ScopeAttributes, "9007199254740993") || !strings.Contains(stored[0].SeriesAttributes, "9007199254740995") || !strings.Contains(stored[0].Attributes, "9007199254740997") || strings.Contains(stored[0].SeriesAttributes, "revision") {
 		t.Fatal("storage lost exact OTLP values", stored, err)
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -74,7 +76,7 @@ func TestRealIngestionCanonicalHTTPPreservesExactLabelsAndCachedScope(t *testing
 		t.Fatal(err)
 	}
 	for refresh := 0; refresh < 2; refresh++ {
-		response, err := api.MetricSeries(context.Background(), url.Values{"name": {"exact.metric"}, "sessionId": {session.ID}, "attributes[revision]": {"9007199254740995"}})
+		response, err := api.MetricSeries(context.Background(), url.Values{"name": {"exact.metric"}, "sessionId": {session.ID}, "attributes[operation]": {"9007199254740995"}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +85,7 @@ func TestRealIngestionCanonicalHTTPPreservesExactLabelsAndCachedScope(t *testing
 			t.Fatal("canonical exact dimension filter failed", response, err)
 		}
 		series := data.Series[0]
-		if series.Attributes["revision"] != json.Number("9007199254740995") || len(series.Points) != 2 {
+		if series.Attributes["operation"] != json.Number("9007199254740995") || len(series.Points) != 2 {
 			t.Fatal("canonical labels rounded", series)
 		}
 		for _, point := range series.Points {
