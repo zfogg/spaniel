@@ -87,6 +87,11 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (res PruneResult, err e
 		defer cancel()
 		d = d.WithContext(ctx)
 	}
+	defer func() {
+		if err != nil || res.DeletedByAge+res.DeletedByCount+res.DeletedBySize > 0 {
+			d.changed("retention", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "alerts", "sessions", "stats", "sources", "services", "coverage", "service-map")
+		}
+	}()
 	started := time.Now()
 	result := "ok"
 	defer func() {

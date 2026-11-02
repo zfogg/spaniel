@@ -7,7 +7,13 @@ import { createElement, type ReactNode } from 'react'
 // Capture the event handler that useLiveInvalidation registers with the socket
 // so we can drive it synthetically.
 let captured: ((ev: unknown) => void) | null = null
+let capturedStatus: ((status: { connected: boolean }) => void) | null = null
 vi.mock('./ws', () => ({
+  onWSStatus: (handler: (status: { connected: boolean }) => void) => {
+    capturedStatus = handler
+    handler({ connected: false })
+    return () => {}
+  },
   onWSEvent: (onEvent: (ev: unknown) => void) => {
     captured = onEvent
     return () => {}
@@ -59,7 +65,7 @@ describe('useLiveInvalidation', () => {
     vi.useRealTimers()
   })
 
-  it('does not refetch trace or span lists after a span WebSocket event', () => {
+  it('repairs lists when a compatible server omits durable row payloads', () => {
     const qc = new QueryClient()
     const spy = vi.spyOn(qc, 'invalidateQueries')
     const wrapper = ({ children }: { children: ReactNode }) =>
@@ -73,8 +79,8 @@ describe('useLiveInvalidation', () => {
     expect(spy).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(1_000)
-    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['traces'] }, { cancelRefetch: false })
-    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['spans'] }, { cancelRefetch: false })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['traces'] }, { cancelRefetch: false })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['spans'] }, { cancelRefetch: false })
     expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] }, { cancelRefetch: false })
   })
 
@@ -88,6 +94,13 @@ describe('useLiveInvalidation', () => {
     captured!({ type, timestamp_ns: 0, payload: {} })
     vi.advanceTimersByTime(1_000)
     expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard-panel'] }, { cancelRefetch: false })
+    if (type === 'metric') {
+      expect(spy).not.toHaveBeenCalledWith({ queryKey: ['metrics'] }, { cancelRefetch: false })
+      expect(spy).not.toHaveBeenCalledWith(
+        { queryKey: ['metric-series'] },
+        { cancelRefetch: false },
+      )
+    }
   })
 
   it('updates forwarder status from the live event without invalidating its query', () => {
@@ -366,4 +379,18 @@ describe('useLiveInvalidation', () => {
     ).toEqual([log])
     expect(qc.getQueryData<{ name: string }[]>(['metrics', null])?.[0]?.name).toBe('requests')
   })
+})
+
+it('resynchronizes active browser resources only after a recovered connection', () => {
+  const qc = new QueryClient()
+  const spy = vi.spyOn(qc, 'invalidateQueries')
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: qc }, children)
+  const hook = renderHook(() => useLiveInvalidation(), { wrapper })
+  capturedStatus!({ connected: true })
+  expect(spy).not.toHaveBeenCalled()
+  capturedStatus!({ connected: false })
+  capturedStatus!({ connected: true })
+  expect(spy).toHaveBeenCalledWith({ refetchType: 'active' }, { cancelRefetch: false })
+  hook.unmount()
 })

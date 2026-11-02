@@ -8,6 +8,7 @@ import { useLiveInvalidation } from './query'
 
 let receive: ((event: unknown) => void) | undefined
 vi.mock('./ws', () => ({
+  onWSStatus: () => () => {},
   onWSEvent: (listener: (event: unknown) => void) => {
     receive = listener
     return () => {

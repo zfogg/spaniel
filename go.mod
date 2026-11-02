@@ -45,6 +45,11 @@ require (
 )
 
 require (
+	github.com/NimbleMarkets/ntcharts v0.5.1
+	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
+)
+
+require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/apache/arrow-go/v18 v18.2.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect

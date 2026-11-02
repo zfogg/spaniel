@@ -18,6 +18,7 @@ import (
 )
 
 type DB struct {
+	changeNotify             func([]string, string)
 	pool                     *switchablePool
 	maintenanceMu            *sync.Mutex
 	gorm                     *gorm.DB
@@ -227,4 +228,13 @@ func (d *DB) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// SetChangeNotifier installs a nonblocking durable-change sink before serving
+// requests. WithContext copies inherit it. It must not read the database.
+func (d *DB) SetChangeNotifier(fn func([]string, string)) { d.changeNotify = fn }
+func (d *DB) changed(reason string, resources ...string) {
+	if d.changeNotify != nil {
+		d.changeNotify(resources, reason)
+	}
 }

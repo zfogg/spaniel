@@ -41,6 +41,7 @@ import (
 	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/ingestion"
 	"github.com/zfogg/spaniel/internal/live"
+	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/mcp"
 	"github.com/zfogg/spaniel/internal/receiver"
 	"github.com/zfogg/spaniel/internal/storage"
@@ -677,6 +678,15 @@ func run(cfg runConfig) error {
 		return err
 	}
 
+	hub := ws.NewHub()
+	store.SetChangeNotifier(func(resources []string, reason string) {
+		rs := make([]liveevent.Resource, len(resources))
+		for i, r := range resources {
+			rs[i] = liveevent.Resource(r)
+		}
+		hub.Broadcast(liveevent.NewResourcesChangedEvent(rs, reason, ""))
+	})
+
 	storagePolicy := newStorageGuardPolicy(int64(cfg.MaxDBSizeMB)*1024*1024, cfg.AutoPrune)
 	telemetry.Catalog().SetStorageDBSizeLimit(int64(cfg.MaxDBSizeMB) * 1024 * 1024)
 
@@ -692,7 +702,6 @@ func run(cfg runConfig) error {
 		runStorageGuard(store, storagePolicy)
 	}, "subsystem", "storage-guard")
 
-	hub := ws.NewHub()
 	sampler := ingestion.NewSampler(cfg.SampleRate, ingestion.ParseAlwaysKeep(cfg.SampleAlwaysKeep))
 	limiter := ingestion.NewSourceLimiter(cfg.SourceRPS, cfg.SourceBurst)
 	pipeline := ingestion.NewPipelineFull(store, hub, sampler, limiter)

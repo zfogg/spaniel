@@ -45,7 +45,7 @@ function setup() {
   })
   return { client, hook }
 }
-it.each(['span', 'log', 'issue', 'self_span', 'self_trace', 'self_log'])(
+it.each(['span', 'log', 'issue'])(
   'refreshes all trace resources for %s events, coalescing bursts',
   (type) => {
     const { client, hook } = setup()
@@ -102,3 +102,20 @@ it('refreshes once when a connection recovers', () => {
   expect(spy).toHaveBeenCalledTimes(1)
   hook.unmount()
 })
+
+it.each(['self_span', 'self_trace', 'self_log'])(
+  'does not refetch self telemetry for %s',
+  (type) => {
+    const { client, hook } = setup()
+    const spy = vi.spyOn(client, 'invalidateQueries')
+    act(() => {
+      socket.handler!({
+        type,
+        payload: { trace_id: 'target', span_id: 'self' },
+      } as unknown as WsEvent)
+      vi.advanceTimersByTime(2000)
+    })
+    expect(spy).not.toHaveBeenCalled()
+    hook.unmount()
+  },
+)
