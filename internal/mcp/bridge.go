@@ -111,6 +111,8 @@ func runBridge(ctx context.Context, conn mcpsdk.Connection, endpoint, token stri
 		}
 	})
 	err := group.Wait()
+	// The client may close stdout before the notification reader observes EOF.
+	// forward classifies that write as client closure; upstream errors stay errors.
 	if errors.Is(err, context.Canceled) || errors.Is(err, errStdioClientClosed) {
 		return nil
 	}

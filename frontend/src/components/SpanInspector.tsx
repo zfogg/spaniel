@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/auth'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
 import { useState, useEffect } from 'react'
@@ -209,7 +210,9 @@ function SpanLinksList({ spanId, traceId }: { spanId: string; traceId: string })
   const links = useQuery({
     queryKey: ['trace-incoming-links', traceId],
     queryFn: async () => {
-      const response = await fetch(`/api/traces/${encodeURIComponent(traceId)}/incoming-links`)
+      const response = await authenticatedFetch(
+        `/api/traces/${encodeURIComponent(traceId)}/incoming-links`,
+      )
       if (!response.ok) throw new Error('Unable to load incoming links')
       const result = await response.json()
       return (result.data ?? []) as import('@/lib/api').SpanLink[]

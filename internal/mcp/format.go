@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/zfogg/spaniel/internal/querydiagnostics"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -154,6 +155,27 @@ func parseAttrs(raw string) map[string]string {
 	}
 	for k, v := range m {
 		out[k] = fmt.Sprintf("%v", v)
+	}
+	return out
+}
+
+// spanAttrs retains the existing scalar presentation while exposing query
+// diagnostics as actual structured results, including for older stored spans.
+func spanAttrs(raw string, keysOnly bool) map[string]any {
+	flat := parseAttrs(raw)
+	if keysOnly {
+		flat = selectKeyAttrs(flat)
+	}
+	out := make(map[string]any, len(flat))
+	for key, value := range flat {
+		out[key] = value
+	}
+	var attrs map[string]any
+	if json.Unmarshal([]byte(raw), &attrs) == nil && attrs != nil {
+		querydiagnostics.Normalize(attrs)
+		if diagnostics, ok := attrs[querydiagnostics.Attribute]; ok {
+			out[querydiagnostics.Attribute] = diagnostics
+		}
 	}
 	return out
 }

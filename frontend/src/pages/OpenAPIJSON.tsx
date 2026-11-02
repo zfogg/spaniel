@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/auth'
 import { useQuery } from '@tanstack/react-query'
 import { Braces, Copy, ExternalLink, FileCode2, LoaderCircle } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -7,7 +8,7 @@ import { JsonCode, YamlCode } from '@/components/ui/HighlightedCode'
 type SpecFormat = 'yaml' | 'json'
 
 async function loadOpenAPI(format: SpecFormat) {
-  const response = await fetch(`/api/openapi.${format}`)
+  const response = await authenticatedFetch(`/api/openapi.${format}`)
   if (!response.ok) throw new Error(`The OpenAPI document returned ${response.status}.`)
   return response.text()
 }

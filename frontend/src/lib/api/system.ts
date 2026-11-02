@@ -1,3 +1,4 @@
+import { authenticate } from '../auth'
 import type { SettingsUpdate } from './requests'
 import { openapiClient } from '../openapi'
 import { unwrap } from './transport'
@@ -35,9 +36,7 @@ export const issues = {
 
 export const health = {
   get: () => unwrap(openapiClient.GET('/api/health')),
-  // Presents the bearer token to /api/health so the server sets the auth cookie.
-  seed: (token: string): Promise<void> =>
-    fetch('/api/health', { headers: { Authorization: `Bearer ${token}` } }).then(() => undefined),
+  seed: authenticate,
 }
 
 export const sources = {

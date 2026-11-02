@@ -1315,6 +1315,78 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/security': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** getSecurity */
+    get: operations['getSecurity']
+    /** putSecurity */
+    put: operations['putSecurity']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/security/tokens': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** listTokens */
+    get: operations['listTokens']
+    put?: never
+    /** createToken */
+    post: operations['createToken']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/security/tokens/{tokenId}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /** deleteToken */
+    delete: operations['deleteToken']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/security/session': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** getSecuritySession */
+    get: operations['getSecuritySession']
+    put?: never
+    /** createSecuritySession */
+    post: operations['createSecuritySession']
+    /** deleteSecuritySession */
+    delete: operations['deleteSecuritySession']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -1885,6 +1957,8 @@ export interface components {
     }
     Error: {
       error: string
+      /** @description Stable machine-readable error code; authentication failures use token_required, token_invalid, token_expired, or token_revoked. */
+      code?: string
     }
     ForwarderStatus: {
       /** Format: double */
@@ -2782,6 +2856,35 @@ export interface components {
       latest: string
       release_notes_url: string
     }
+    APIToken: {
+      id: string
+      name: string
+      prefix: string
+      /** Format: date-time */
+      created_at: string
+      /** Format: date-time */
+      expires_at: string | null
+      /** @enum {string} */
+      status: 'active' | 'expired' | 'revoked'
+    }
+    CreateTokenInput: {
+      name: string
+      /** Format: date-time */
+      expires_at?: string
+      /** @default false */
+      no_expiry: boolean
+    }
+    CreatedToken: {
+      token: components['schemas']['APIToken']
+      /** @description Secret returned once only. Store securely; never returned by list. */
+      secret: string
+    }
+    SecurityStatus: {
+      enabled: boolean
+      encryption_password_set: boolean
+      enabled_source: string
+      password_source: string
+    }
   }
   responses: {
     /** @description The request was invalid. */
@@ -2838,6 +2941,16 @@ export interface operations {
             data: components['schemas']['AlertList']
             meta: components['schemas']['Meta']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -2920,6 +3033,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -2973,6 +3096,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -3014,6 +3147,16 @@ export interface operations {
       /** @description The request was invalid. */
       400: {
         headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
           [name: string]: unknown
         }
         content: {
@@ -3109,6 +3252,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   reloadAlertDefinitions: {
@@ -3138,6 +3291,16 @@ export interface operations {
       /** @description The request was invalid. */
       400: {
         headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
           [name: string]: unknown
         }
         content: {
@@ -3181,6 +3344,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -3213,6 +3386,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Ok']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -3316,6 +3499,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -3372,6 +3565,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -3405,6 +3608,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The file-managed alert was not found. */
       404: {
         headers: {
@@ -3435,6 +3648,16 @@ export interface operations {
         }
         content: {
           'application/yaml': string
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -3484,6 +3707,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -3526,6 +3759,16 @@ export interface operations {
             /** @description Current silences for this rule, included with the timeline so the inspector needs one request. */
             silences: components['schemas']['AlertSilence'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -3571,6 +3814,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -3610,6 +3863,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['AlertInstance']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -3659,6 +3922,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -3700,6 +3973,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['AlertSilence'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -3758,6 +4041,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -3792,6 +4085,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Ok']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -3852,6 +4155,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -3905,6 +4218,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested alert rule was not found. */
       404: {
         headers: {
@@ -3948,6 +4271,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -3979,6 +4312,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   createCoverageSpec: {
@@ -4005,6 +4348,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getCoverageSpec: {
@@ -4027,6 +4380,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['JSONValue']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
     }
@@ -4057,6 +4420,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   deleteCoverageSpec: {
@@ -4079,6 +4452,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['JSONValue']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
     }
@@ -4116,6 +4499,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description This optional capability is not configured. */
       501: {
         headers: {
@@ -4145,6 +4538,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Dashboard'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -4211,6 +4614,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -4252,6 +4665,16 @@ export interface operations {
       /** @description The request was invalid. */
       400: {
         headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
           [name: string]: unknown
         }
         content: {
@@ -4305,6 +4728,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The request conflicts with the current resource state. */
       409: {
         headers: {
@@ -4351,6 +4784,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -4383,6 +4826,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Ok']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -4461,6 +4914,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -4512,6 +4975,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The file-managed dashboard was not found. */
       404: {
         headers: {
@@ -4542,6 +5015,16 @@ export interface operations {
         }
         content: {
           'application/yaml': string
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -4613,6 +5096,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -4665,6 +5158,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Ok']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -4747,6 +5250,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -4809,6 +5322,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Ok']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -4889,6 +5412,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -4941,6 +5474,16 @@ export interface operations {
       /** @description The request was invalid. */
       400: {
         headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
           [name: string]: unknown
         }
         content: {
@@ -5001,6 +5544,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -5050,6 +5603,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5095,6 +5658,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -5133,6 +5706,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['ForwarderStatus'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
     }
@@ -5184,6 +5767,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5216,6 +5809,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['LintWarning'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -5282,6 +5885,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5316,6 +5929,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5348,6 +5971,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['MetricCardinalityStream'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -5409,6 +6042,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5448,6 +6091,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5480,6 +6133,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Ok']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -5516,6 +6179,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5545,6 +6218,16 @@ export interface operations {
           'application/vnd.oai.openapi+json;version=3.1': string
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getOpenAPIYAML: {
@@ -5565,6 +6248,16 @@ export interface operations {
         }
         content: {
           'text/yaml': string
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
     }
@@ -5597,6 +6290,16 @@ export interface operations {
       /** @description The request was invalid. */
       400: {
         headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
           [name: string]: unknown
         }
         content: {
@@ -5641,6 +6344,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5673,6 +6386,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['ServiceMapData']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -5710,6 +6433,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5739,6 +6472,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Session'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -5779,6 +6522,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5808,6 +6561,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['ActiveSession']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
     }
@@ -5850,6 +6613,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   getSession: {
@@ -5873,6 +6646,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Session']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -5927,6 +6710,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -5968,6 +6761,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Session']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -6015,6 +6818,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Session']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -6067,6 +6880,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -6097,6 +6920,16 @@ export interface operations {
         }
         content: {
           'application/json': string
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -6139,6 +6972,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -6178,7 +7021,7 @@ export interface operations {
           bind_address_v4?: string
           /** @description Sets the IPv6 address on which Spaniel listens for HTTP traffic. */
           bind_address_v6?: string
-          /** @description Sets the path of Spaniel’s DuckDB telemetry database. */
+          /** @description Sets the path of Spanielâ€™s DuckDB telemetry database. */
           db_path?: string
           /** @description Lists upstream OTLP destinations to receive forwarded telemetry. */
           forward?: string[]
@@ -6200,7 +7043,7 @@ export interface operations {
           port?: number
           /** @description Sets how long telemetry is retained before age-based pruning. */
           retention_days?: number
-          /** @description Enables Spaniel’s own telemetry instrumentation. */
+          /** @description Enables Spanielâ€™s own telemetry instrumentation. */
           self_monitor?: boolean
           /** @description Sets the maximum short-term telemetry burst accepted from a source. */
           source_burst?: number
@@ -6258,6 +7101,16 @@ export interface operations {
           'application/json': components['schemas']['Error']
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -6302,6 +7155,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description The requested Spaniel resource was not found. */
       404: {
         headers: {
@@ -6337,6 +7200,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -6366,6 +7239,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Ok']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -6401,6 +7284,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['PruneResult']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -6444,6 +7337,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['SourceStats'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -6497,6 +7400,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -6532,6 +7445,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Span']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -6577,6 +7500,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -6606,6 +7539,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['StorageBreakdown']
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Spaniel could not complete the request. */
@@ -6651,6 +7594,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -6686,6 +7639,16 @@ export interface operations {
           'application/json': {
             data: components['schemas']['Span'][]
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -6730,6 +7693,16 @@ export interface operations {
         }
         content: {
           'application/json': string
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description The requested Spaniel resource was not found. */
@@ -6778,6 +7751,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Spaniel could not complete the request. */
       500: {
         headers: {
@@ -6813,6 +7796,16 @@ export interface operations {
           }
         }
       }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       /** @description Installation failed */
       500: {
         headers: {
@@ -6846,6 +7839,16 @@ export interface operations {
               skipped: number
             }
           }
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
         }
       }
       /** @description Installation failed */
@@ -6899,6 +7902,506 @@ export interface operations {
         }
       }
       400: components['responses']['BadRequest']
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  getSecurity: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['SecurityStatus']
+          }
+        }
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  putSecurity: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': {
+          enabled?: boolean
+          /** Format: password */
+          encryption_password?: string
+        }
+      }
+    }
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['SecurityStatus']
+          }
+        }
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  listTokens: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['APIToken'][]
+          }
+        }
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  createToken: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateTokenInput']
+      }
+    }
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['CreatedToken']
+          }
+        }
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  deleteToken: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        tokenId: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: {
+              ok: boolean
+            }
+          }
+        }
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  getSecuritySession: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: {
+              enabled: boolean
+              authenticated: boolean
+            }
+          }
+        }
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  createSecuritySession: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: password */
+          token: string
+        }
+      }
+    }
+    responses: {
+      /** @description Browser session updated. HttpOnly cookie is set or cleared. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
+  deleteSecuritySession: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Browser session updated. HttpOnly cookie is set or cleared. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Setting override or security invariant prevents this operation */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+      /** @description Security service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
 }

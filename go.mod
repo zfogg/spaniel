@@ -22,8 +22,8 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/toon-format/toon-go v1.0.1
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
-	github.com/zfogg/gotel/go v0.12.1-0.20261025034723-0755050e8ce7
-	github.com/zfogg/sequel v0.0.0-20261025015649-67601263c947
+	github.com/zfogg/gotel/go v0.13.0
+	github.com/zfogg/sequel v0.0.0-20261102205853-77a21f8c8dee
 	go.opentelemetry.io/collector/pdata v1.59.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
@@ -130,7 +130,7 @@ require (
 	go.opentelemetry.io/otel/sdk/log v0.20.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/crypto v0.55.0
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.58.0 // indirect

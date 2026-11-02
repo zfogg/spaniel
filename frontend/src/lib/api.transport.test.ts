@@ -18,10 +18,10 @@ describe('generated API transport boundary', () => {
     expect(apiSource).not.toMatch(/openapiClient\.(GET|POST|PUT|PATCH|DELETE)\(path/)
   })
 
-  it('limits raw fetch to non-JSON configuration and bearer-cookie seeding', () => {
-    expect(apiSource.match(/\bfetch\(/g) ?? []).toHaveLength(5)
+  it('routes non-JSON configuration through authenticated transport', () => {
+    expect(apiSource.match(/\bfetch\(/g) ?? []).toHaveLength(0)
     expect(apiSource).toContain('/api/dashboards/${id}/config')
     expect(apiSource).toContain('/api/alerts/${id}/config')
-    expect(apiSource).toContain("fetch('/api/health'")
+    expect(apiSource).toContain('authenticatedFetch(')
   })
 })

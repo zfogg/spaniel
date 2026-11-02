@@ -1,3 +1,4 @@
+import { authenticatedFetch, getAuthState, requireAuthentication } from './auth'
 import { useEffect, useRef, useState } from 'react'
 
 export type * from '../generated/liveevent'
@@ -41,7 +42,9 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
     if (Date.now() - lastActivity > STALE_MS) ws.close()
   }, STALE_CHECK_MS)
 
-  function connect() {
+  async function connect() {
+    if (getAuthState().required) await requireAuthentication(getAuthState().code)
+    if (closed) return
     ws = new WebSocket(url)
 
     ws.onopen = () => {
@@ -70,7 +73,11 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
       if (!closed) {
         retryTimeout = setTimeout(() => {
           backoff = Math.min(backoff * 2, MAX_BACKOFF_MS)
-          connect()
+          void authenticatedFetch('/api/security/session')
+            .catch(() => undefined)
+            .finally(() => {
+              if (!closed) void connect()
+            })
         }, backoff)
       }
     }
