@@ -402,6 +402,7 @@ export const invalidations: Record<string, string[]> = {
   ],
 }
 const resourceAliases: Record<string, string[]> = {
+  alerts: ['alert-rule', 'alert-events', 'alert-history', 'alert-rule-sparklines'],
   'dashboard-panel': ['dashboard-annotations', 'dashboard-runtime'],
   span: ['trace-span'],
   trace: ['trace-incoming-links'],

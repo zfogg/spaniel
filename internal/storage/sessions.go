@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,14 +43,32 @@ func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session,
 	return s, nil
 }
 
+// activeSessionState is shared by WithContext/maintenance copies. Atomic
+// snapshots keep reset and concurrent readers from retaining a cleared scope.
+type activeSessionState struct{ ID, Label string }
+
 func (d *DB) SetActiveSession(id, label string) {
-	d.activeSessionID = id
-	d.activeSessionLabel = label
+	if d.activeSession == nil {
+		d.activeSession = &atomic.Pointer[activeSessionState]{}
+	}
+	d.activeSession.Store(&activeSessionState{ID: id, Label: label})
 }
-
-func (d *DB) ActiveSessionID() string { return d.activeSessionID }
-
-func (d *DB) ActiveSessionLabel() string { return d.activeSessionLabel }
+func (d *DB) ActiveSessionID() string {
+	if d.activeSession != nil {
+		if state := d.activeSession.Load(); state != nil {
+			return state.ID
+		}
+	}
+	return ""
+}
+func (d *DB) ActiveSessionLabel() string {
+	if d.activeSession != nil {
+		if state := d.activeSession.Load(); state != nil {
+			return state.Label
+		}
+	}
+	return ""
+}
 
 func (d *DB) ListSessions() ([]*Session, error) {
 	rows, err := d.query.Session.ListWithStats()

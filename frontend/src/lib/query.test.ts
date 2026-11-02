@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act, renderHook } from '@testing-library/react'
+import { QueryClient, QueryClientProvider, useQueries } from '@tanstack/react-query'
 import { createElement, type ReactNode } from 'react'
 
 // Capture the event handler that useLiveInvalidation registers with the socket
@@ -393,4 +393,85 @@ it('resynchronizes active browser resources only after a recovered connection', 
   capturedStatus!({ connected: true })
   expect(spy).toHaveBeenCalledWith({ refetchType: 'active' }, { cancelRefetch: false })
   hook.unmount()
+})
+
+describe('durable resource recovery', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+  it('refreshes subscribed alert lists, off-page rule details and history without an alert transition', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const keys = [
+      ['alerts', null],
+      ['alert-rule', 'off-page'],
+      ['alert-events', 'selected'],
+      ['alert-history', null],
+      ['alert-rule-sparklines', 'off-page'],
+    ]
+    const fetches = keys.map(() => vi.fn().mockResolvedValue(['new state']))
+    for (const key of keys) qc.setQueryData(key, ['old state'])
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children)
+    const hook = renderHook(
+      () => {
+        useLiveInvalidation()
+        return useQueries({
+          queries: keys.map((key, i) => ({
+            queryKey: key,
+            queryFn: fetches[i],
+            staleTime: Infinity,
+          })),
+        })
+      },
+      { wrapper },
+    )
+    captured!({
+      type: 'resources_changed',
+      timestamp_ns: 1,
+      payload: { resources: ['alerts'], reason: 'UpsertAlertInstances' },
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    for (const [i, key] of keys.entries()) {
+      expect(fetches[i]).toHaveBeenCalledTimes(1)
+      expect(qc.getQueryData(key)).toEqual(['new state'])
+    }
+    hook.unmount()
+  })
+  it('replaces populated browser state and active-session metadata after a durable reset', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const keys = [['traces', { sessionId: 'old' }], ['active-session']]
+    qc.setQueryData(keys[0], { data: [{ trace_id: 'old-trace' }] })
+    qc.setQueryData(keys[1], { id: 'old', label: 'Old' })
+    const fetches = [
+      vi.fn().mockResolvedValue({ data: [] }),
+      vi.fn().mockResolvedValue({ id: '', label: '' }),
+    ]
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children)
+    const hook = renderHook(
+      () => {
+        useLiveInvalidation()
+        return useQueries({
+          queries: keys.map((key, i) => ({
+            queryKey: key,
+            queryFn: fetches[i],
+            staleTime: Infinity,
+          })),
+        })
+      },
+      { wrapper },
+    )
+    captured!({
+      type: 'resources_changed',
+      timestamp_ns: 1,
+      payload: { resources: ['traces', 'active-session'], reason: 'reset' },
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(qc.getQueryData(keys[0])).toEqual({ data: [] })
+    expect(qc.getQueryData(keys[1])).toEqual({ id: '', label: '' })
+    hook.unmount()
+  })
 })

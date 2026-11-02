@@ -86,6 +86,7 @@ func Decode(data []byte) (Message, error) {
 var ResourceAliases = map[Resource][]Resource{
 	"span": {"trace-span"}, "trace": {"trace-incoming-links"},
 	"dashboard-panel": {"dashboard-annotations", "dashboard-runtime"},
+	"alerts":          {"alert-rule", "alert-events", "alert-history", "alert-rule-sparklines"},
 }
 
 func Changes(m Message) []Resource {

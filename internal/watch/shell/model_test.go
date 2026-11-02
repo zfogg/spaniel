@@ -2,10 +2,13 @@ package shell
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,19 +19,31 @@ type recorder struct {
 	results, live, owned, focus int
 	keys                        []string
 	capture                     bool
+	lifecycle                   []string
+	connection                  protocol.Connection
+	session                     string
 }
 
-func (m *recorder) Init() tea.Cmd      { return nil }
+func (m *recorder) Init() tea.Cmd      { m.lifecycle = append(m.lifecycle, "init"); return nil }
 func (m *recorder) View() string       { return m.owner }
 func (m *recorder) CapturesKeys() bool { return m.capture }
 func (m *recorder) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case protocol.Connection:
+		m.connection = msg
+		m.lifecycle = append(m.lifecycle, "connection")
+	case protocol.SessionChanged:
+		m.session = msg.ID
+		m.lifecycle = append(m.lifecycle, "session")
+	case tea.WindowSizeMsg:
+		m.lifecycle = append(m.lifecycle, "size")
 	case protocol.Result:
 		m.results++
 	case protocol.Live:
 		m.live++
 	case protocol.Focus:
 		if msg.Active {
+			m.lifecycle = append(m.lifecycle, "focus")
 			m.focus++
 		}
 	case string:
@@ -179,5 +194,26 @@ func TestSnapshotReplayAndReconnectSession(t *testing.T) {
 		if model.results != before {
 			t.Fatal("stale session result reached model")
 		}
+	}
+}
+
+func TestDetailsReceiveCurrentLifecycleBeforeInitAndFocus(t *testing.T) {
+	for _, connected := range []bool{true, false} {
+		t.Run(fmt.Sprint(connected), func(t *testing.T) {
+			m, _, details := fixture(t)
+			m.env.Refresh.SetSession("current-session")
+			m.status = client.Status{Connected: connected, Epoch: 7}
+			if !connected {
+				m.status.Err = errors.New("socket lost")
+			}
+			m.Update(protocol.OpenTrace{TraceID: "t"})
+			detail := details.models[0]
+			if detail.connection != m.status || detail.session != "current-session" {
+				t.Fatalf("detail lifecycle: %+v / %q", detail.connection, detail.session)
+			}
+			if !slices.Equal(detail.lifecycle, []string{"connection", "session", "size", "init", "focus"}) {
+				t.Fatalf("lifecycle order: %v", detail.lifecycle)
+			}
+		})
 	}
 }

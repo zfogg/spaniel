@@ -4,6 +4,7 @@ package watch
 import (
 	"context"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 	"github.com/zfogg/spaniel/internal/watch/shell"
@@ -29,7 +30,7 @@ func New(ctx context.Context, api *client.Client, options Options) (*shell.Model
 	refresh := client.NewRefreshes(ctx, api)
 	refresh.SetSession(options.SessionID)
 	if options.SessionID == "" {
-		refresh.Register(client.Spec{Key: client.Key{Owner: "$shell", Name: "active-session"}, Fetch: func(ctx context.Context, api *client.Client, _ string) (any, error) {
+		refresh.Register(client.Spec{Key: client.Key{Owner: "$shell", Name: "active-session"}, Resources: []liveevent.Resource{"active-session"}, Fetch: func(ctx context.Context, api *client.Client, _ string) (any, error) {
 			return api.ActiveSession(ctx, nil)
 		}})
 	}

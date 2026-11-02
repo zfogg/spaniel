@@ -1,5 +1,7 @@
 .PHONY: dev build build-server run test test-coverage test-extensive test-storage test-ingestion test-mcp-e2e test-telemetry generate verify-generated setup
 
+.DEFAULT_GOAL := dev
+
 .PHONY: lint-go
 lint-go:
 	go vet ./...

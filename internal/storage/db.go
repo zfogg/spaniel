@@ -25,8 +25,7 @@ type DB struct {
 	query                    *querygen.Query
 	batcher                  *Batcher
 	path                     string
-	activeSessionID          string
-	activeSessionLabel       string
+	activeSession            *atomic.Pointer[activeSessionState]
 	full                     *atomic.Bool   // writes rejected when true (see full.go); shared across WithContext copies
 	notificationMu           *sync.Mutex    // shared by WithContext copies; serializes inbox deduplication
 	traceLintMu              *sync.Mutex    // shared by WithContext copies; serializes incremental trace lint insertion
@@ -117,7 +116,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, notificationMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalLast: &atomic.Int64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}}
+	d := &DB{activeSession: &atomic.Pointer[activeSessionState]{}, gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, notificationMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalLast: &atomic.Int64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}}
 	if err := d.recoverReclaimIndexes(); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("recover interrupted reclamation: %w", err)

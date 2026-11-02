@@ -150,7 +150,15 @@ func (m *Model) open(factory protocol.Factory, back protocol.ReturnContext) tea.
 	env.Owner = fmt.Sprintf("detail:%d", m.serial)
 	oldOwner := m.owner()
 	m.stack = append(m.stack, pane{owner: env.Owner, model: factory(env), back: back, cancel: cancel})
-	return tea.Batch(m.route(oldOwner, protocol.Focus{Active: false}), m.stack[len(m.stack)-1].model.Init(), m.route(env.Owner, tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-2)}), m.route(env.Owner, protocol.Focus{Active: true}), m.flush(time.Now()))
+	// Seed lifecycle state synchronously before Init or focused input can use it.
+	commands := []tea.Cmd{
+		m.route(oldOwner, protocol.Focus{Active: false}),
+		m.route(env.Owner, protocol.Connection(m.status)),
+		m.route(env.Owner, protocol.SessionChanged{ID: m.env.Refresh.Session()}),
+		m.route(env.Owner, tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-2)}),
+	}
+	commands = append(commands, m.stack[len(m.stack)-1].model.Init(), m.route(env.Owner, protocol.Focus{Active: true}), m.flush(time.Now()))
+	return tea.Batch(commands...)
 }
 func (m *Model) back() tea.Cmd {
 	if len(m.stack) == 0 {

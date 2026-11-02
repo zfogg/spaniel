@@ -11,6 +11,7 @@ import (
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 	"github.com/zfogg/spaniel/internal/ws"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -23,16 +24,16 @@ import (
 )
 
 type terminalOutput struct {
-	sync.Mutex
-	bytes.Buffer
+	mu     sync.Mutex
+	buffer bytes.Buffer
 }
 
 func (o *terminalOutput) Write(p []byte) (int, error) {
-	o.Lock()
-	defer o.Unlock()
-	return o.Buffer.Write(p)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.buffer.Write(p)
 }
-func (o *terminalOutput) text() string { o.Lock(); defer o.Unlock(); return o.Buffer.String() }
+func (o *terminalOutput) text() string { o.mu.Lock(); defer o.mu.Unlock(); return o.buffer.String() }
 
 // This runs the production Bubble Tea program against seeded HTTP and real hub
 // sockets, without a user console or a second collector/ingestion pipeline.
@@ -185,4 +186,30 @@ func TestSeededTerminalSmoke(t *testing.T) {
 		t.Fatal("heading/window title missing from terminal output")
 	}
 	cancel()
+}
+
+func TestTerminalOutputSerializesStringAndByteWrites(t *testing.T) {
+	var output terminalOutput
+	if _, promoted := any(&output).(io.StringWriter); promoted {
+		t.Fatal("unlocked StringWriter exposed")
+	}
+	var writers sync.WaitGroup
+	writers.Add(2)
+	go func() {
+		defer writers.Done()
+		for range 1000 {
+			io.WriteString(&output, "a")
+		}
+	}()
+	go func() {
+		defer writers.Done()
+		for range 1000 {
+			output.Write([]byte("b"))
+			output.text()
+		}
+	}()
+	writers.Wait()
+	if len(output.text()) != 2000 {
+		t.Fatal("concurrent terminal output lost bytes")
+	}
 }
