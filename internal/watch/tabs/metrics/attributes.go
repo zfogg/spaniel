@@ -15,9 +15,9 @@ type attributeCell struct{ key, kind, value string }
 // attributeTable keeps typed leaf values separate from paths and expands
 // containers instead of hiding arbitrary telemetry in a serialized JSON cell.
 func attributeTable(title string, attributes map[string]any, width int) []string {
-	lines := []string{title}
+	lines := strings.Split(ansi.Hardwrap(safe(title), max(1, width), true), "\n")
 	if len(attributes) == 0 {
-		return append(lines, "(none)")
+		return append(lines, strings.Split(ansi.Hardwrap("(none)", max(1, width), true), "\n")...)
 	}
 	rows := []attributeCell{}
 	var visit func(string, any)
@@ -70,7 +70,7 @@ func attributeTable(title string, attributes map[string]any, width int) []string
 		visit(name, attributes[name])
 	}
 	if width < 24 {
-		lines = append(lines, "KEY / TYPE / VALUE")
+		lines = append(lines, strings.Split(ansi.Hardwrap("KEY / TYPE / VALUE", max(1, width), true), "\n")...)
 		for _, row := range rows {
 			lines = append(lines, strings.Split(ansi.Hardwrap(safe(row.key)+" / "+row.kind, max(1, width), true), "\n")...)
 			lines = append(lines, strings.Split(ansi.Hardwrap(safe(row.value), max(1, width), true), "\n")...)

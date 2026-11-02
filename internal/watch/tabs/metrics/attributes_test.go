@@ -30,7 +30,7 @@ func TestAttributeTablePreservesTypesNumbersContainersAndWrappedValues(t *testin
 	}
 	long := "BEGIN_" + strings.Repeat("very-long-value-", 10) + "_END"
 	for _, width := range []int{12, 32, 60} {
-		lines = attributeTable("Attributes", map[string]any{"long.key": long}, width)
+		lines = attributeTable("Telemetry attributes", map[string]any{"long.key": long}, width)
 		pieces := []string{}
 		for _, line := range lines {
 			if ansi.StringWidth(line) > width {
