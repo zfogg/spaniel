@@ -58,9 +58,12 @@ func TestRealIngestionCanonicalHTTPPreservesExactLabelsAndCachedScope(t *testing
 	if err := pipeline.IngestMetrics(context.Background(), md); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := db.GetMetricChartSeries(storage.MetricSeriesFilter{Name: "exact.metric", Service: "api", SessionID: session.ID})
-	if err != nil || len(stored) != 2 || !strings.Contains(stored[0].ScopeAttributes, "9007199254740993") || !strings.Contains(stored[0].SeriesAttributes, "9007199254740995") || !strings.Contains(stored[0].Attributes, "9007199254740997") || strings.Contains(stored[0].SeriesAttributes, "revision") {
-		t.Fatal("storage lost exact OTLP values", stored, err)
+	stored, err := db.GetMetricSeries(storage.MetricSeriesFilter{Name: "exact.metric", Service: "api", SessionID: session.ID})
+	if err != nil || len(stored) != 2 {
+		t.Fatalf("stored points: count=%d error=%v", len(stored), err)
+	}
+	if !strings.Contains(stored[0].ScopeAttributes, "9007199254740993") || !strings.Contains(stored[0].SeriesAttributes, "9007199254740995") || !strings.Contains(stored[0].Attributes, "9007199254740997") || strings.Contains(stored[0].SeriesAttributes, "revision") {
+		t.Fatalf("stored scope=%s indexed=%s raw=%s", stored[0].ScopeAttributes, stored[0].SeriesAttributes, stored[0].Attributes)
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
