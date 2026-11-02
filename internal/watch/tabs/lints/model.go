@@ -124,15 +124,24 @@ func (m *model) register() {
 		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: owner, Name: "services"}, Resources: []liveevent.Resource{"spans"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
 			return fetchServices(ctx, api, session)
 		}})
-	} else if trace != "" {
-		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: owner, Name: "target"}, Resources: []liveevent.Resource{"trace", "spans"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
+	} else {
+		m.registerTarget()
+	}
+}
+
+func (m *model) registerTarget() {
+	trace, span := m.detail.trace, m.detail.span
+	key := client.Key{Owner: m.env.Owner, Name: "target"}
+	if trace != "" {
+		m.env.Refresh.Register(client.Spec{Key: key, Resources: []liveevent.Resource{"trace", "spans"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
 			return api.Trace(ctx, trace, client.Scope(nil, session))
 		}})
-	} else if m.detail.span != "" {
-		span := m.detail.span
-		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: owner, Name: "target"}, Resources: []liveevent.Resource{"span"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
+	} else if span != "" {
+		m.env.Refresh.Register(client.Spec{Key: key, Resources: []liveevent.Resource{"span"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
 			return api.Span(ctx, span, client.Scope(nil, session))
 		}})
+	} else {
+		m.env.Refresh.Remove(key)
 	}
 }
 func (m *model) Init() tea.Cmd      { return nil }
@@ -272,6 +281,10 @@ func (m *model) result(msg protocol.Result) {
 	if msg.Key.Owner != m.env.Owner || msg.Session != m.session || m.wrongSession {
 		return
 	}
+	trace, span := "", ""
+	if m.detail != nil {
+		trace, span = m.detail.trace, m.detail.span
+	}
 	s := m.states[msg.Key.Name]
 	if msg.Sequence <= s.sequence {
 		return
@@ -342,6 +355,16 @@ func (m *model) result(msg protocol.Result) {
 	}
 	m.states[msg.Key.Name] = s
 	m.rebuild()
+	if m.detail != nil && msg.Key.Name == "issues" && (m.detail.trace != trace || m.detail.span != span) {
+		// A target snapshot can finish before a detector switches its example
+		// span. Replace only the target request, on the UI goroutine, so that
+		// its old existence witnesses cannot validate the new association.
+		m.registerTarget()
+		state := m.states["target"]
+		state.loaded, state.pending, state.err = false, true, nil
+		m.states["target"] = state
+		m.target = nil
+	}
 }
 func (m *model) rebuild() {
 	rows := make(map[string]finding, len(m.lints)+len(m.issues))

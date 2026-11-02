@@ -311,3 +311,28 @@ func TestSpanOnlyCorrelationAndSummaryUpgrade(t *testing.T) {
 		t.Fatal("early summary detail did not upgrade")
 	}
 }
+
+func TestDetectorAssociationChangeRepairsCompletedTarget(t *testing.T) {
+	m := New(testEnv("lints")).(*model)
+	seed(m)
+	m.filter = "rule:n_plus_one"
+	m.refilter()
+	d := openDetail(t, m)
+	seed(d)
+	target(d)
+	_, issues, _ := fixtures()
+	issues[0].ExampleSpanId = "new-example-span"
+	d.Update(protocol.Focus{Active: false})
+	deliver(d, "issues", client.Envelope[[]apigen.TraceIssue]{Data: issues})
+	if !d.env.Refresh.Pending(client.Key{Owner: d.env.Owner, Name: "target"}) || d.navigate("s") != nil {
+		t.Fatal("changed detector association did not schedule guarded validation")
+	}
+	deliver(d, "target", client.Envelope[[]apigen.Span]{Data: []apigen.Span{{SessionId: "demo", TraceId: "checkout-trace", SpanId: "http-span"}, {SessionId: "demo", TraceId: "checkout-trace", SpanId: "new-example-span", ServiceName: "catalog-db"}}})
+	cmd := d.navigate("s")
+	if cmd == nil {
+		t.Fatal("new example span was not validated")
+	}
+	if msg, ok := cmd().(protocol.OpenSpan); !ok || msg.SpanID != "new-example-span" {
+		t.Fatal("navigation used the previous example span")
+	}
+}
