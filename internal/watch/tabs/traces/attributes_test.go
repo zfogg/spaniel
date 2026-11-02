@@ -90,6 +90,15 @@ func TestBothListEntryPathsAndExternalNavigationUseSameAttributeTables(t *testin
 }
 
 func TestAttributeValuesRemainFullyScrollableAfterNarrowResize(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Run("ascii="+mode, func(t *testing.T) {
+			t.Setenv("SPANIEL_ASCII", mode)
+			testScrollableAttributeValues(t)
+		})
+	}
+}
+
+func testScrollableAttributeValues(t *testing.T) {
 	m := NewDetails().Span(testEnv("detail:1"), protocol.OpenSpan{TraceID: "trace", SpanID: "span"}).(*spanModel)
 	s := sampleSpan("span", "", 1793631000000000000)
 	s.Attributes = `{"long":"BEGIN` + strings.Repeat("value-", 80) + `TAIL","multiline":"first\nsecond","unsafe":"\u001b]0;bad\u0007safe"}`
@@ -107,7 +116,7 @@ func TestAttributeValuesRemainFullyScrollableAfterNarrowResize(t *testing.T) {
 				}
 			}
 			// A value can continue across a column boundary between frames.
-			flat := strings.NewReplacer("\n", "", " ", "", "│", "").Replace(view)
+			flat := strings.NewReplacer("\n", "", " ", "", "│", "", "|", "").Replace(view)
 			if strings.Contains(flat, "TAIL") {
 				foundTail = true
 			}
