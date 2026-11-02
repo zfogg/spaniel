@@ -218,9 +218,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if len(rows) > 0 {
 				row := rows[i]
+				session := m.session
 				back := protocol.ReturnContext{Tab: protocol.Logs, Selection: identity(row)}
 				return m, func() tea.Msg {
-					return protocol.ShowDetail{Return: back, New: func(env protocol.Env) tea.Model { return newDetail(env, row) }}
+					return protocol.ShowDetail{Return: back, New: func(env protocol.Env) tea.Model { return newDetail(env, row, session) }}
 				}
 			}
 		}

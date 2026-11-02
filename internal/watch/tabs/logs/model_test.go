@@ -262,7 +262,7 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	}
 	uncorrelated := row
 	uncorrelated.TraceId, uncorrelated.SpanId = "", ""
-	d = newDetail(de, uncorrelated)
+	d = newDetail(de, uncorrelated, de.Refresh.Session())
 	if key(d, "enter") != nil || !strings.Contains(d.View(), "No trace/span correlation") {
 		t.Fatal(d.View())
 	}
@@ -281,7 +281,7 @@ func TestErrorRemovalLookupLimitAndResize(t *testing.T) {
 	if !strings.Contains(m.View(), "HTTP unavailable") || len(m.rows) != 1 {
 		t.Fatal("failure lost rows or error")
 	}
-	d := newDetail(env, row)
+	d := newDetail(env, row, env.Refresh.Session())
 	total := 1001
 	d.Update(protocol.Connection{Connected: true})
 	d.Update(protocol.Result{Key: client.Key{Owner: env.Owner, Name: "log"}, Data: client.Envelope[[]apigen.Log]{Meta: &apigen.Meta{Total: &total}}})
@@ -313,18 +313,22 @@ func TestErrorRemovalLookupLimitAndResize(t *testing.T) {
 }
 
 func TestQueuedInspectorCannotReopenPreviousSession(t *testing.T) {
-	env := testEnv(t)
-	m := New(env).(*model)
-	row := logRow("private previous session", 100)
-	snapshot(m, env.Owner, "list", row)
-	queued := key(m, "enter")().(protocol.ShowDetail)
-	env.Refresh.SetSession("other")
-	env.Owner = "detail:late"
-	d := queued.New(env).(*detail)
-	d.Update(protocol.Connection{Connected: true})
-	d.Update(protocol.SessionChanged{ID: "other"})
-	snapshot(d, env.Owner, "log", row)
-	if !d.changedSession || d.row.Body != "" || strings.Contains(d.View(), row.Body) || key(d, "enter") != nil {
-		t.Fatal("queued navigation reopened previous-session data")
+	for _, next := range []string{"other", ""} {
+		t.Run("next="+next, func(t *testing.T) {
+			env := testEnv(t)
+			m := New(env).(*model)
+			row := logRow("private previous session", 100)
+			snapshot(m, env.Owner, "list", row)
+			queued := key(m, "enter")().(protocol.ShowDetail)
+			env.Refresh.SetSession(next)
+			env.Owner = "detail:late"
+			d := queued.New(env).(*detail)
+			d.Update(protocol.Connection{Connected: true})
+			d.Update(protocol.SessionChanged{ID: next})
+			snapshot(d, env.Owner, "log", row)
+			if !d.changedSession || d.row.Body != "" || strings.Contains(d.View(), row.Body) || key(d, "enter") != nil {
+				t.Fatal("queued navigation reopened previous-session data")
+			}
+		})
 	}
 }

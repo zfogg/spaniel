@@ -29,11 +29,11 @@ type detail struct {
 	err                                                             error
 }
 
-func newDetail(env protocol.Env, row apigen.Log) *detail {
+func newDetail(env protocol.Env, row apigen.Log, originSession string) *detail {
 	m := &detail{env: env, row: row, session: env.Refresh.Session(), width: 100, height: 24, view: viewport.New(100, 19), loading: true}
 	// A queued ShowDetail can arrive after a session transition. The factory's
 	// environment is authoritative; never reopen a cached row from the old scope.
-	if m.session != "" && row.SessionId != m.session {
+	if originSession != m.session || (m.session != "" && row.SessionId != m.session) {
 		m.changedSession, m.row = true, apigen.Log{}
 		m.content()
 		return m
