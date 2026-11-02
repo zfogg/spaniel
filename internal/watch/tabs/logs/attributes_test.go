@@ -85,13 +85,13 @@ func TestFullLogAgesFollowSharedRenderClock(t *testing.T) {
 
 func TestLogHeadersAlignWithAgeAwareRows(t *testing.T) {
 	now := time.Date(2026, 11, 2, 21, 5, 0, 0, time.UTC)
-	row := logRow("body-marker", now.Add(-2*time.Minute).UnixNano())
+	row := logRow("body", now.Add(-2*time.Minute).UnixNano())
 	row.ServiceName = "service-marker"
 	row.Severity = 17
 	for _, width := range []int{40, 60, 80, 120} {
 		header := RenderHeader(width)
 		line := ansi.Strip(RenderRow(row, false, width, now))
-		pairs := map[string]string{"LEVEL": "ERROR", "BODY": "body-marker"}
+		pairs := map[string]string{"LEVEL": "ERROR", "BODY": "body"}
 		if width >= 70 {
 			pairs["SERVICE"] = "service-marker"
 		}
