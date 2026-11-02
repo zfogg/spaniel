@@ -275,3 +275,18 @@ func TestShellRoutesHiddenCatalogAndRetainedDetail(t *testing.T) {
 		t.Fatal("closed detail subscription leaked")
 	}
 }
+
+func TestCatalogCoalescesDescriptorVariants(t *testing.T) {
+	m := New(testEnv(t)).(*catalog)
+	m.Update(catalogResult(m,
+		apigen.MetricCatalogEntry{Name: "requests", ServiceName: "api", Description: "old", SampleCount: 24, LastTimestampNs: 100},
+		apigen.MetricCatalogEntry{Name: "requests", ServiceName: "api", Description: "new", SampleCount: 1, LastTimestampNs: 200},
+		apigen.MetricCatalogEntry{Name: "requests", ServiceName: "worker", SampleCount: 10, LastTimestampNs: 300},
+	))
+	if len(m.rows) != 2 {
+		t.Fatalf("descriptor variants became duplicate streams: %+v", m.rows)
+	}
+	if m.rows[0].SampleCount != 25 || m.rows[0].Description != "new" || m.rows[0].LastTimestampNs != 200 {
+		t.Fatalf("wrong merged count or latest metadata: %+v", m.rows[0])
+	}
+}

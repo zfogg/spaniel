@@ -45,6 +45,29 @@ func New(env protocol.Env) tea.Model {
 func (m *catalog) Init() tea.Cmd                    { return nil }
 func (m *catalog) CapturesKeys() bool               { return m.editing }
 func identity(row apigen.MetricCatalogEntry) string { return row.ServiceName + "\x00" + row.Name }
+
+// Catalog snapshots may group descriptor variants separately (for example when
+// an exporter changes its description). The series endpoint addresses a stream
+// by service/name, so keep that same identity and combine its disjoint counts.
+func catalogRows(rows []apigen.MetricCatalogEntry) []apigen.MetricCatalogEntry {
+	byID := make(map[string]apigen.MetricCatalogEntry, len(rows))
+	for _, row := range rows {
+		id := identity(row)
+		if old, ok := byID[id]; ok {
+			count := old.SampleCount + row.SampleCount
+			if old.LastTimestampNs > row.LastTimestampNs {
+				row = old
+			}
+			row.SampleCount = count
+		}
+		byID[id] = row
+	}
+	out := make([]apigen.MetricCatalogEntry, 0, len(byID))
+	for _, row := range byID {
+		out = append(out, row)
+	}
+	return out
+}
 func (m *catalog) filtered() []apigen.MetricCatalogEntry {
 	rows := make([]apigen.MetricCatalogEntry, 0, len(m.rows))
 	query := m.query
@@ -118,7 +141,7 @@ func (m *catalog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		if msg.Err == nil {
 			if value, ok := msg.Data.(client.Envelope[[]apigen.MetricCatalogEntry]); ok {
-				m.rows = append([]apigen.MetricCatalogEntry(nil), value.Data...)
+				m.rows = catalogRows(value.Data)
 				sort.Slice(m.rows, func(i, j int) bool { return identity(m.rows[i]) < identity(m.rows[j]) })
 				m.capped = len(m.rows) > catalogLimit
 				if m.capped {
