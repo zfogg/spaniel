@@ -31,6 +31,13 @@ type detail struct {
 
 func newDetail(env protocol.Env, row apigen.Log) *detail {
 	m := &detail{env: env, row: row, session: env.Refresh.Session(), width: 100, height: 24, view: viewport.New(100, 19), loading: true}
+	// A queued ShowDetail can arrive after a session transition. The factory's
+	// environment is authoritative; never reopen a cached row from the old scope.
+	if m.session != "" && row.SessionId != m.session {
+		m.changedSession, m.row = true, apigen.Log{}
+		m.content()
+		return m
+	}
 	// A log is immutable and has no ID endpoint. Restrict the durable refresh to
 	// its exact timestamp and correlation/service, then compare its full identity.
 	query := url.Values{"limit": {"1000"}, "fromNs": {strconv.FormatInt(row.TimestampNs, 10)}, "toNs": {strconv.FormatInt(row.TimestampNs, 10)}}

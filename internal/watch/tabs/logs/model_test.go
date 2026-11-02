@@ -311,3 +311,20 @@ func TestErrorRemovalLookupLimitAndResize(t *testing.T) {
 		t.Fatalf("terminal escapes not removed: %q", got)
 	}
 }
+
+func TestQueuedInspectorCannotReopenPreviousSession(t *testing.T) {
+	env := testEnv(t)
+	m := New(env).(*model)
+	row := logRow("private previous session", 100)
+	snapshot(m, env.Owner, "list", row)
+	queued := key(m, "enter")().(protocol.ShowDetail)
+	env.Refresh.SetSession("other")
+	env.Owner = "detail:late"
+	d := queued.New(env).(*detail)
+	d.Update(protocol.Connection{Connected: true})
+	d.Update(protocol.SessionChanged{ID: "other"})
+	snapshot(d, env.Owner, "log", row)
+	if !d.changedSession || d.row.Body != "" || strings.Contains(d.View(), row.Body) || key(d, "enter") != nil {
+		t.Fatal("queued navigation reopened previous-session data")
+	}
+}

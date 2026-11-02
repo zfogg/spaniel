@@ -236,7 +236,9 @@ func (m *model) View() string {
 	if !m.connected {
 		state = "STALE · disconnected; reconnect will resync"
 	}
-	if m.pending && m.connected {
+	if m.connected && m.err != nil {
+		state = "STALE · API read failed"
+	} else if m.pending && m.connected {
 		state = "resyncing stored logs"
 	}
 	if m.paused {
