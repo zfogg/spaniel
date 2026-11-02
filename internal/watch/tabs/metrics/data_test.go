@@ -125,3 +125,19 @@ func TestBoundDeduplicatesSortsExpiresAndCaps(t *testing.T) {
 		t.Fatal("expired series remains current")
 	}
 }
+
+func TestTimestampPresentationUsesReadableUTCMilliseconds(t *testing.T) {
+	const precise int64 = 1793631000123456789
+	if got := timestamp(precise); got != "2026-11-02 15:30:00.123Z" {
+		t.Fatalf("timestamp presentation = %q", got)
+	}
+	if timestamp(0) != "—" {
+		t.Fatal("missing timestamp should remain unavailable")
+	}
+	// Presentation is separate from exact point identity and calculation fields.
+	point := sample{Timestamp: precise}
+	_ = sampleDescription(point, "gauge")
+	if point.Timestamp != precise {
+		t.Fatal("presentation changed internal precision")
+	}
+}

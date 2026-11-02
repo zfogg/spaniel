@@ -365,5 +365,5 @@ func timestamp(ns int64) string {
 	if ns == 0 {
 		return "—"
 	}
-	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000000000Z")
+	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000Z")
 }
