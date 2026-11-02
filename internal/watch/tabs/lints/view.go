@@ -84,7 +84,9 @@ func (m *model) View() string {
 	} else {
 		lines = append(lines, "Filter: "+filter)
 	}
-	lines = append(lines, muted.Render("/ filter  severity:warning rule:http service:api text  ·  c clear"))
+	lines = append(lines, muted.Render("Filter terms: severity:warning rule:http service:api text"))
+	// #132 removes these standalone shortcut lines when wiring ShortHelp.
+	lines = append(lines, muted.Render("/ filter · c clear"))
 	if status := m.status(); status != "" {
 		lines = append(lines, status)
 	} else {
@@ -116,7 +118,8 @@ func (m *model) View() string {
 			}
 			lines = append(lines, "  "+clean(message)+"  [trace "+unknown(row.trace)+" / span "+unknown(row.span)+"]")
 		}
-		lines = append(lines, muted.Render(fmt.Sprintf("Page %d/%d · ↑↓ select · ←→/PgUp/PgDn page · Enter inspect", start/size+1, (len(m.visible)+size-1)/size)))
+		lines = append(lines, muted.Render(fmt.Sprintf("Page %d/%d", start/size+1, (len(m.visible)+size-1)/size)))
+		lines = append(lines, muted.Render("↑↓ select · ←→/PgUp/PgDn page · Enter inspect"))
 	}
 	lines = append(lines, muted.Render("Latest ≤2000 findings; service lookup: latest ≤2000 spans; unavailable services do not match filters."))
 	return m.fit(lines)
@@ -163,13 +166,11 @@ func (m *model) detailBody() []string {
 			}
 			navigation = "Correlated trace is unavailable (deleted or expired)."
 			if traceExists {
-				navigation = "t open trace"
+				navigation = "Correlated trace is available."
 				if spanExists && row.span != "" {
-					navigation += " · s / Enter open span"
+					navigation = "Correlated trace and span are available."
 				} else if row.span != "" {
-					navigation += " · correlated span unavailable (deleted or expired)"
-				} else {
-					navigation += " · Enter open trace"
+					navigation = "Correlated span unavailable (deleted or expired); trace is available."
 				}
 			}
 		}
@@ -184,10 +185,27 @@ func (m *model) detailBody() []string {
 	}
 	// Wrap before vertical scrolling so complete messages and IDs remain accessible.
 	body := []string{}
-	for _, line := range append(lines, navigation) {
+	lines = append(lines, navigation)
+	if shortcuts := m.inlineNavigation(); shortcuts != "" {
+		lines = append(lines, shortcuts)
+	}
+	for _, line := range lines {
 		body = append(body, strings.Split(ansi.Wrap(line, max(1, m.width), ""), "\n")...)
 	}
 	return body
+}
+
+// This standalone legend can be removed without deleting correlation status
+// when the integration shell moves all ShortHelp bindings to the footer.
+func (m *model) inlineNavigation() string {
+	var actions []string
+	for _, binding := range m.navigationHelp() {
+		help := binding.Help()
+		if help.Desc == "open trace" || help.Desc == "open span" {
+			actions = append(actions, help.Key+" "+help.Desc)
+		}
+	}
+	return strings.Join(actions, " · ")
 }
 
 func (m *model) clampScroll() {

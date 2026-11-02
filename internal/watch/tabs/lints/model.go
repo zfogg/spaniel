@@ -459,7 +459,7 @@ func (m *model) refilter() {
 		m.selected = m.visible[m.cursor].id
 	}
 }
-func (m *model) pageSize() int { return max(1, (m.height-7)/2) }
+func (m *model) pageSize() int { return max(1, (m.height-8)/2) }
 func (m *model) clamp()        { m.cursor = max(0, min(m.cursor, len(m.visible)-1)) }
 func (m *model) navigate(key string) tea.Cmd {
 	if m.detail == nil || !m.found || m.wrongSession || !m.connection.Connected || m.detail.trace == "" {
@@ -512,5 +512,5 @@ func created(ns int64) string {
 	if ns == 0 {
 		return "unknown"
 	}
-	return time.Unix(0, ns).UTC().Format(time.RFC3339Nano)
+	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000 MST")
 }
