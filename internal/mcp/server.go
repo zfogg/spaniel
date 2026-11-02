@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/zfogg/gotel/go/mcptrace"
+	gotelmcp "github.com/zfogg/gotel/go/tracers/mcp"
 	"github.com/zfogg/spaniel/internal/telemetry"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -144,7 +144,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 		tools = append(tools, key.(string))
 		return true
 	})
-	middleware, err := mcptrace.New(mcptrace.Options{
+	middleware, err := gotelmcp.New(gotelmcp.Options{
 		Prefix: "spaniel", Tools: tools, Context: telemetry.WithMCPService,
 	})
 	if err != nil {

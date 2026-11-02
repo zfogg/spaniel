@@ -1,5 +1,5 @@
 package telemetry
 
-import "github.com/zfogg/gotel/go/httptrace"
+import gotelhttp "github.com/zfogg/gotel/go/tracers/http"
 
-var HTTP = httptrace.Namer{Prefix: "spaniel"}
+var HTTP = gotelhttp.Namer{Prefix: "spaniel"}

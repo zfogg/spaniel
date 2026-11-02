@@ -150,16 +150,16 @@ type GetTraceInput struct {
 }
 
 type TraceSpanOut struct {
-	SpanID        string            `json:"span_id"`
-	ParentSpanID  string            `json:"parent_span_id"`
-	Service       string            `json:"service"`
-	Name          string            `json:"name"`
-	Kind          string            `json:"kind"`
-	Status        string            `json:"status"`
-	StatusMessage string            `json:"status_message,omitempty"`
-	DurationMs    float64           `json:"duration_ms"`
-	StartUnixNs   int64             `json:"start_unix_ns"`
-	Attributes    map[string]string `json:"attributes,omitempty"`
+	SpanID        string         `json:"span_id"`
+	ParentSpanID  string         `json:"parent_span_id"`
+	Service       string         `json:"service"`
+	Name          string         `json:"name"`
+	Kind          string         `json:"kind"`
+	Status        string         `json:"status"`
+	StatusMessage string         `json:"status_message,omitempty"`
+	DurationMs    float64        `json:"duration_ms"`
+	StartUnixNs   int64          `json:"start_unix_ns"`
+	Attributes    map[string]any `json:"attributes,omitempty"`
 }
 
 type TraceIssueOut struct {
@@ -243,7 +243,7 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 			StatusMessage: s.StatusMessage,
 			DurationMs:    nsToMs(s.DurationNs),
 			StartUnixNs:   s.StartNs,
-			Attributes:    selectKeyAttrs(parseAttrs(s.Attributes)),
+			Attributes:    spanAttrs(s.Attributes, true),
 		})
 	}
 	out.DurationMs = nsToMs(maxEnd - minStart)
@@ -326,7 +326,7 @@ type GetSpanOutput struct {
 	StatusMessage string            `json:"status_message,omitempty"`
 	DurationMs    float64           `json:"duration_ms"`
 	StartUnixNs   int64             `json:"start_unix_ns"`
-	Attributes    map[string]string `json:"attributes"`
+	Attributes    map[string]any    `json:"attributes"`
 	Resource      map[string]string `json:"resource"`
 	Events        []SpanEventOut    `json:"events"`
 	Links         []SpanLinkOut     `json:"links"`
@@ -355,7 +355,7 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 		StatusMessage: span.StatusMessage,
 		DurationMs:    nsToMs(span.DurationNs),
 		StartUnixNs:   span.StartNs,
-		Attributes:    parseAttrs(span.Attributes),
+		Attributes:    spanAttrs(span.Attributes, false),
 		Resource:      parseAttrs(span.Resource),
 		Events:        []SpanEventOut{},
 		Links:         []SpanLinkOut{},

@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zfogg/gotel/go/sqltrace"
+	gotelsql "github.com/zfogg/gotel/go/tracers/sql"
 	"github.com/zfogg/spaniel/internal/sqlformat"
 )
 
 func TestFormatSQLTool(t *testing.T) {
 	h := &handler{}
-	_, out, err := h.formatSQL(context.Background(), nil, FormatSQLInput{SQL: "-- name\nselect id,name from t where id=$1; -- keep", Dialect: sqltrace.DialectPostgreSQL})
+	_, out, err := h.formatSQL(context.Background(), nil, FormatSQLInput{SQL: "-- name\nselect id,name from t where id=$1; -- keep", Dialect: gotelsql.DialectPostgreSQL})
 	if err != nil || !strings.Contains(out.SQL, "$1") || !strings.Contains(out.SQL, "-- keep") || !strings.Contains(out.SQL, "select\n") {
 		t.Fatalf("%q %v", out.SQL, err)
 	}
@@ -30,7 +30,7 @@ func TestSearchPresentationPreservesSearchText(t *testing.T) {
 
 func TestFormatSQLToolClickHouse(t *testing.T) {
 	h := &handler{}
-	_, out, err := h.formatSQL(context.Background(), nil, FormatSQLInput{SQL: "SELECT id,name FROM builds FINAL PREWHERE id={id:UInt64}", Dialect: sqltrace.DialectClickHouse})
+	_, out, err := h.formatSQL(context.Background(), nil, FormatSQLInput{SQL: "SELECT id,name FROM builds FINAL PREWHERE id={id:UInt64}", Dialect: gotelsql.DialectClickHouse})
 	if err != nil || !strings.Contains(out.SQL, "{id:UInt64}") || !strings.Contains(out.SQL, "SELECT\n") {
 		t.Fatalf("%q %v", out.SQL, err)
 	}

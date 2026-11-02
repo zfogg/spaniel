@@ -3,11 +3,11 @@ package storage
 import (
 	"context"
 
-	"github.com/zfogg/gotel/go/sqltrace"
+	gotelsql "github.com/zfogg/gotel/go/tracers/sql"
 	sequel "github.com/zfogg/sequel/go"
 )
 
-var storageNamer = sqltrace.StorageNamer("duckdb")
+var storageNamer = gotelsql.StorageNamer("duckdb")
 
 // storageQueryName qualifies and validates a stable storage operation name.
 func storageQueryName(name string) string { return storageNamer.MustName(name) }
@@ -17,7 +17,7 @@ func WithQueryName(ctx context.Context, name string) context.Context {
 	return storageNamer.WithName(ctx, name)
 }
 
-func queryNameFromContext(ctx context.Context) string { return sqltrace.NameFromContext(ctx) }
+func queryNameFromContext(ctx context.Context) string { return gotelsql.NameFromContext(ctx) }
 
 // sqlSummary returns a bounded, parameter-free description of DuckDB SQL.
 func sqlSummary(query string) string { return sequel.Summary(sequel.DialectDuckDB, query) }

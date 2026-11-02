@@ -212,6 +212,17 @@ test-ingestion:
 	go test -c -o $(BIN_DIR)/ingestion.test$(EXE) ./internal/ingestion
 	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestChildStartingBeforeParent|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration' -test.v
 
+.PHONY: test-query-diagnostics
+# Optional bounded real-DuckDB probe export: SPANIEL_DIAGNOSTICS_PROBE_ENDPOINT
+# is a local OTLP gRPC endpoint. No deliberately malformed SQL runs in servers.
+test-query-diagnostics:
+	@set -e; \
+	  mkdir -p $(BIN_DIR); \
+	  for package in querydiagnostics ingestion storage api mcp; do \
+	    go test -c -o $(BIN_DIR)/diagnostics-$$package.test$(EXE) ./internal/$$package; \
+	    ./$(BIN_DIR)/diagnostics-$$package.test$(EXE) -test.run 'TestNormalize|TestQueryDiagnostics' -test.count=1 -test.timeout=3m -test.v; \
+	  done
+
 .PHONY: test-query-name-race
 test-query-name-race:
 	mkdir -p $(BIN_DIR)

@@ -483,6 +483,8 @@ func putAttrs(m pcommon.Map, raw map[string]any) {
 			m.PutBool(k, vv)
 		case float64:
 			m.PutDouble(k, vv)
+		case []any, map[string]any:
+			_ = m.PutEmpty(k).FromRaw(vv)
 		}
 	}
 }
