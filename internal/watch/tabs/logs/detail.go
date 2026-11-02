@@ -167,13 +167,11 @@ func (m *detail) View() string {
 	switch {
 	case m.changedSession:
 		state = "previous session cleared"
-	case !m.connected:
-		state = "STALE · disconnected; reconnect will resync"
 	case m.err != nil:
 		state = "STALE · Logs API: " + preview(m.err.Error()) + " · retrying automatically"
 	case m.loading:
 		state = "checking stored log…"
-	case m.pending:
+	case m.pending && m.connected:
 		state = "resyncing stored log…"
 	case m.missing:
 		state = "Log expired or removed · showing retained copy"

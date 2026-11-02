@@ -53,15 +53,20 @@ func TestShortHelpTracksListSelectionPagingPauseAndInput(t *testing.T) {
 	}
 }
 
-func TestListUsesShellHeadingAndConnectionStatus(t *testing.T) {
+func TestViewsUseShellHeadingAndConnectionStatus(t *testing.T) {
 	env := testEnv(t)
 	m := New(env).(*model)
 	snapshot(m, env.Owner, "list", logRow("stored body", 100))
+	d := newDetail(env, logRow("stored body", 100), env.Refresh.Session())
 	for _, connected := range []bool{true, false} {
 		m.Update(protocol.Connection{Connected: connected})
 		view := ansi.Strip(m.View())
 		if !strings.HasPrefix(view, "service=") || strings.Contains(view, "live") || strings.Contains(view, "disconnected") || !strings.Contains(view, "stored body") {
 			t.Fatal("list duplicated shell heading/connection state or lost data", view)
+		}
+		d.Update(protocol.Connection{Connected: connected})
+		if strings.Contains(d.View(), "disconnected") {
+			t.Fatal("inspector duplicated shell connection state")
 		}
 	}
 }
