@@ -91,7 +91,7 @@ func renderCategories(kind string, config settings, rows []map[string]any, width
 	if pie {
 		lines = append(lines, "Proportional bars · total "+categoryTotal(values)+" "+safe(config.Unit))
 	} else {
-		lines = append(lines, fmt.Sprintf("Signed bars · zero │ · range %g → %g %s", minV*scale, maxV*scale, safe(config.Unit)))
+		lines = append(lines, fmt.Sprintf("Signed bars · zero %s · range %g → %g %s", terminal.Glyphs().Pipe, minV*scale, maxV*scale, safe(config.Unit)))
 	}
 	for i, row := range values {
 		label := row.label
@@ -116,7 +116,7 @@ func renderCategories(kind string, config settings, rows []map[string]any, width
 			for x := min(zero, end); x <= max(zero, end); x++ {
 				bar[x] = '█'
 			}
-			bar[zero] = '│'
+			bar[zero] = []rune(terminal.Glyphs().Pipe)[0]
 		}
 		lines = append(lines, text+row.context, "  "+string(bar))
 	}
@@ -341,7 +341,7 @@ func renderHeatmap(data apigen.QueryPreview, width int, now ...time.Time) []stri
 		s = ansi.Truncate(s, size, "…")
 		return s + strings.Repeat(" ", max(0, size-ansi.StringWidth(s)))
 	}
-	header := pad("Y / X", labelWidth) + " │"
+	header := pad("Y / X", labelWidth) + " " + terminal.Glyphs().Pipe
 	for i := range xs {
 		header += fmt.Sprintf("%3d", i+1)
 	}
@@ -349,7 +349,7 @@ func renderHeatmap(data apigen.QueryPreview, width int, now ...time.Time) []stri
 	shades := []rune("░▒▓█")
 	for i := len(ys) - 1; i >= 0; i-- {
 		y := ys[i]
-		line := pad(yLabels[y], labelWidth) + " │"
+		line := pad(yLabels[y], labelWidth) + " " + terminal.Glyphs().Pipe
 		for _, x := range xs {
 			v, present := values[[2]string{x, y}]
 			glyph := '·'

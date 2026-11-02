@@ -42,7 +42,8 @@ func (m *model) table(columns []tableColumn, rows [][]string, ids []string, sele
 	for i, column := range columns {
 		header = append(header, cell(column.title, widths[i], false))
 	}
-	lines := []string{"  " + strings.Join(header, " │ ")}
+	separator := terminal.ColumnSeparator()
+	lines := []string{"  " + strings.Join(header, separator)}
 	for index, row := range rows {
 		var cells []string
 		for i, column := range columns {
@@ -52,7 +53,7 @@ func (m *model) table(columns []tableColumn, rows [][]string, ids []string, sele
 			}
 			cells = append(cells, cell(text, widths[i], column.state))
 		}
-		lines = append(lines, marker(index < len(ids) && ids[index] == selected)+strings.Join(cells, " │ "))
+		lines = append(lines, marker(index < len(ids) && ids[index] == selected)+strings.Join(cells, separator))
 	}
 	return lines
 }

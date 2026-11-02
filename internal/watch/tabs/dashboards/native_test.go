@@ -22,6 +22,7 @@ func preview(t *testing.T, raw string) apigen.QueryPreview {
 }
 
 func TestNativeSignedBarsPieSharesAndExactTotal(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	data := preview(t, `{"rows":[{"label":"credit","value":6},{"group_value":"debit","value":-2},{"label":"zero","value":0},{"label":"unknown","value":null}]}`)
 	bar := strings.Join(renderPanel("bar", `{"unit":"requests"}`, data, 60, 20, false), "\n")
 	for _, text := range []string{"Signed bars", "credit  6 requests", "debit  -2 requests", "zero  0 requests", "│", "█", "1 null/invalid"} {

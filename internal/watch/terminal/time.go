@@ -53,7 +53,7 @@ func Timestamp(ns int64, layout string, zone *time.Location, now time.Time) stri
 	if zone != nil {
 		t = t.In(zone)
 	}
-	return t.Format(layout) + " * " + Relative(t, now)
+	return t.Format(layout) + " " + Glyphs().Bullet + " " + Relative(t, now)
 }
 
 // FitTimestamp keeps the relative suffix useful when an absolute timestamp
@@ -63,16 +63,20 @@ func FitTimestamp(value string, width int) string {
 	if ansi.StringWidth(value) <= width {
 		return value
 	}
-	if at := strings.LastIndex(value, " * "); at >= 0 {
-		age := value[at+3:]
+	for _, separator := range []string{" • ", " * "} {
+		at := strings.LastIndex(value, separator)
+		if at < 0 {
+			continue
+		}
+		age := value[at+len(separator):]
 		if strings.HasSuffix(age, " ago") || strings.HasPrefix(age, "in ") {
-			suffix := " * " + age
+			suffix := separator + age
 			room := width - ansi.StringWidth(suffix)
 			if room > 0 {
-				return ansi.Truncate(value[:at], room, "…") + suffix
+				return Truncate(value[:at], room) + suffix
 			}
-			return ansi.Truncate(age, width, "…")
+			return Truncate(age, width)
 		}
 	}
-	return ansi.Truncate(value, width, "…")
+	return Truncate(value, width)
 }

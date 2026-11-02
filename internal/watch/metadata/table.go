@@ -17,6 +17,7 @@ type Field struct {
 
 // Table keeps each field on one physical row, including at narrow widths.
 func Table(fields []Field, width int) []string {
+	glyphs := terminal.Glyphs()
 	width = max(1, width)
 	keyWidth := 5
 	for _, field := range fields {
@@ -32,9 +33,9 @@ func Table(fields []Field, width int) []string {
 		if width < 5 {
 			return cell(key+" "+value, width)
 		}
-		return cell(key, keyWidth) + " │ " + cell(value, width-keyWidth-3)
+		return cell(key, keyWidth) + " " + glyphs.Pipe + " " + cell(value, width-keyWidth-3)
 	}
-	lines := []string{tui.Muted.Render(row("FIELD", "VALUE")), tui.Muted.Render(strings.Repeat("─", width))}
+	lines := []string{tui.Muted.Render(row("FIELD", "VALUE")), tui.Muted.Render(strings.Repeat(glyphs.Rule, width))}
 	for _, field := range fields {
 		lines = append(lines, field.Style.Render(row(field.Name, field.Value)))
 	}

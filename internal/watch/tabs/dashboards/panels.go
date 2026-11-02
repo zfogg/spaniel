@@ -99,7 +99,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			for _, s := range series {
 				labels = append(labels, s.Name)
 			}
-			lines = append(lines, "Series: "+strings.Join(labels, " | "), "From: "+displayTime(from, reference), "To: "+displayTime(to, reference))
+			lines = append(lines, "Series: "+strings.Join(labels, terminal.ColumnSeparator()), "From: "+displayTime(from, reference), "To: "+displayTime(to, reference))
 			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series, reference), "\n")...)
 		}
 		if fallback {
@@ -154,7 +154,7 @@ func renderTableAt(data apigen.QueryPreview, sampleTimes bool, reference time.Ti
 	if len(widths) > 0 {
 		return layoutTable(columns, rows, widths[0])
 	}
-	lines := []string{fmt.Sprintf("%d rows · columns: %s", len(rows), strings.Join(columns, " | "))}
+	lines := []string{fmt.Sprintf("%d rows · columns: %s", len(rows), strings.Join(columns, terminal.ColumnSeparator()))}
 	for i, row := range rows {
 		values := []string{}
 		for j, value := range row {
@@ -168,6 +168,7 @@ func renderTableAt(data apigen.QueryPreview, sampleTimes bool, reference time.Ti
 // Result cells wrap instead of truncating. Wide terminals get aligned columns;
 // narrow terminals get labeled records, preserving every SQL column and value.
 func layoutTable(columns []string, rows [][]string, width int) []string {
+	glyphs := terminal.Glyphs()
 	lines := []string{fmt.Sprintf("%d rows", len(rows))}
 	if len(columns) == 0 {
 		return lines
@@ -206,15 +207,15 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 				}
 				parts[i] = text + strings.Repeat(" ", max(0, columnWidths[i]-ansi.StringWidth(text)))
 			}
-			lines = append(lines, strings.Join(parts, " │ "))
+			lines = append(lines, strings.Join(parts, " "+glyphs.Pipe+" "))
 		}
 	}
 	appendRow(columns)
 	separators := make([]string, len(columns))
 	for i, size := range columnWidths {
-		separators[i] = strings.Repeat("─", size)
+		separators[i] = strings.Repeat(glyphs.Rule, size)
 	}
-	lines = append(lines, strings.Join(separators, "─┼─"))
+	lines = append(lines, strings.Join(separators, glyphs.Rule+glyphs.Cross+glyphs.Rule))
 	for _, row := range rows {
 		appendRow(row)
 	}

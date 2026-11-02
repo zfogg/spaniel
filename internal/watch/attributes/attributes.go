@@ -145,8 +145,10 @@ func Render(rows []Row, width int) []string {
 	pad := func(value string, size int) string {
 		return value + strings.Repeat(" ", max(0, size-ansi.StringWidth(value)))
 	}
-	lines = append(lines, tui.Muted.Render(pad("KEY", keyWidth)+" │ "+pad("TYPE", typeWidth)+" │ VALUE"))
-	lines = append(lines, tui.Muted.Render(strings.Repeat("─", keyWidth)+"─┼─"+strings.Repeat("─", typeWidth)+"─┼─"+strings.Repeat("─", valueWidth)))
+	glyphs := terminal.Glyphs()
+	separator, joint := " "+glyphs.Pipe+" ", glyphs.Rule+glyphs.Cross+glyphs.Rule
+	lines = append(lines, tui.Muted.Render(pad("KEY", keyWidth)+separator+pad("TYPE", typeWidth)+separator+"VALUE"))
+	lines = append(lines, tui.Muted.Render(strings.Repeat(glyphs.Rule, keyWidth)+joint+strings.Repeat(glyphs.Rule, typeWidth)+joint+strings.Repeat(glyphs.Rule, valueWidth)))
 	for _, row := range rows {
 		cells := [3][]string{terminal.Wrap(row.Key, keyWidth), terminal.Wrap(row.Type, typeWidth), terminal.Wrap(row.Value, valueWidth)}
 		for i := 0; i < max(len(cells[0]), len(cells[1]), len(cells[2])); i++ {
@@ -156,7 +158,7 @@ func Render(rows []Row, width int) []string {
 					parts[column] = cells[column][i]
 				}
 			}
-			lines = append(lines, pad(parts[0], keyWidth)+" │ "+pad(parts[1], typeWidth)+" │ "+parts[2])
+			lines = append(lines, pad(parts[0], keyWidth)+separator+pad(parts[1], typeWidth)+separator+parts[2])
 		}
 	}
 	return lines

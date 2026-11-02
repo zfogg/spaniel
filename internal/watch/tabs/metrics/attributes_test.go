@@ -11,6 +11,7 @@ import (
 )
 
 func TestAttributeTablePreservesTypesNumbersContainersAndWrappedValues(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	var attrs map[string]any
 	if err := jsonDecode(`{"count":9007199254740993,"decimal":1.234567890123456789,"enabled":true,"missing":null,"deployment":{"region":"us-east","replicas":3},"tags":["api",false,7]}`, &attrs); err != nil {
 		t.Fatal(err)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 func TestJSONPathsTypesAndExactNumbers(t *testing.T) {
@@ -38,6 +39,17 @@ func TestJSONPathsTypesAndExactNumbers(t *testing.T) {
 	ordered, _ := Parse(`{"z":0,"a":1}`)
 	if ordered[0].Key != "a" || ordered[1].Key != "z" {
 		t.Fatal("object keys are not sorted", ordered)
+	}
+}
+
+func TestAttributeGlyphModesPreservePayload(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", mode)
+		lines := Render([]Row{{Key: "payload", Type: "string", Value: "user │ | • * data"}}, 100)
+		glyphs := terminal.Glyphs()
+		if !strings.Contains(lines[0], terminal.ColumnSeparator()) || !strings.Contains(lines[1], glyphs.Rule+glyphs.Cross+glyphs.Rule) || !strings.Contains(lines[2], "user │ | • * data") {
+			t.Fatal(mode, lines)
+		}
 	}
 }
 
@@ -86,6 +98,7 @@ func TestMalformedTrailingAndRootValues(t *testing.T) {
 }
 
 func TestFullValuesWrapSafelyAtEveryWidth(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	long := "BEGIN" + strings.Repeat("long-界-value-", 40) + "END"
 	for _, width := range []int{1, 12, 24, 39, 40, 60, 120} {
 		full := long

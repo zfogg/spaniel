@@ -12,6 +12,7 @@ import (
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"strings"
 	"time"
 )
@@ -306,7 +307,8 @@ func (m *Model) View() string {
 	if width <= 0 {
 		width = 100
 	}
-	header := ansi.Truncate(tui.Ink.Bold(true).Render(m.title())+tui.Faint.Render("  │  ")+m.connectionLabel()+tui.Faint.Render("  │  ")+strings.Join(labels, "  "), width, "…")
+	separator := tui.Faint.Render("  " + terminal.Glyphs().Pipe + "  ")
+	header := ansi.Truncate(tui.Ink.Bold(true).Render(m.title())+separator+m.connectionLabel()+separator+strings.Join(labels, "  "), width, "…")
 	lines := []string{header}
 	height := m.contentHeight()
 	body := strings.Split(m.focused().View(), "\n")

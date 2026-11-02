@@ -149,12 +149,12 @@ single bottom shortcut row follows the focused tab, inspector or input. `? help`
 opens the complete shortcut popup; while editing text, use `F2 help` and type `?`
 normally. Popup arrows/page keys scroll and Escape closes it. Connection state
 stays in the heading. Trace, span and full-log metadata use aligned tables with
-ellipses for long fields; timestamps include relative ages (` * 2m ago` or ` * in 2m`).
+ellipses for long fields; timestamps include relative ages (` • 2m ago` or ` • in 2m`).
 Attribute tables preserve complete scrollable values.
 `tui --session ID` pins a recording; omission follows the
 active recording. Dashboards and alerts are read-only. Dashboard panels include
 heatmaps, signed bars, gauges, proportional pie bars, and linked telemetry lists. `trace --session ID` uses
-the same live inspector. See [watch development](docs/watch-development.md) for
+the same live inspector. See [TUI development](docs/watch-development.md) for
 filter/history bounds and integration validation.
 
 

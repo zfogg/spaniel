@@ -1,4 +1,4 @@
-# Watch development handoff
+# TUI development handoff
 
 Foundation: [#125](https://github.com/zfogg/spaniel/issues/125), parent [#123](https://github.com/zfogg/spaniel/issues/123). Feature PRs target `codex/watch-dashboard`. The foundation must merge before feature branches start. The integration coordinator owns shared infrastructure and final assembly (#132).
 
@@ -181,4 +181,6 @@ Dashboard native panels use the same scoped preview subscriptions and five-secon
 `span_list`, `trace_list` and `log_list` reuse existing row presenters and inspector factories. Up/down/page/home/end select result rows; Enter follows available correlation while Escape restores the retained dashboard, panel and selected row. Missing/foreign-session IDs remain read-only. SQL log projections hydrate only a unique timestamp/correlation match in the selected session; ambiguous results retain their projected fields with an explicit status. `i` retains full SQL/result inspection. `deploy_correlation` is still an explicit ordered-data fallback.
 
 
-All displayed timestamps append ` * <relative age>` using one shell-owned render-clock snapshot. Future timestamps use `in …`; missing/never values remain unchanged. The existing shared shell tick repaints ages without per-row timers or extra sockets. Absolute timestamps retain timezone context and sensible precision; narrow timestamp cells keep the age suffix while ellipsizing the absolute part, and shared chart ticks reduce density to fit. Durations, numeric attributes and explicit SQL inspection values remain unchanged.
+All displayed timestamps append ` • <relative age>` using one shell-owned render-clock snapshot. Future timestamps use `in …`; missing/never values remain unchanged. The existing shared shell tick repaints ages without per-row timers or extra sockets. Absolute timestamps retain timezone context and sensible precision; narrow timestamp cells keep the age suffix while ellipsizing the absolute part, and shared chart ticks reduce density to fit. Durations, numeric attributes and explicit SQL inspection values remain unchanged.
+
+Shared terminal glyphs use Unicode bullets and box-drawing table pipes/rules on modern terminals. Dumb terminals and explicit non-Unicode locales use ASCII `*`, `|`, `-` and `+`; `SPANIEL_ASCII=1` forces this fallback and `SPANIEL_ASCII=0` forces Unicode. Color support does not determine glyph support. Only UI punctuation changes; telemetry/attribute/SQL payload characters are preserved. Healthy trace/span views omit redundant LIVE-only status rows; loading, syncing, paused, stale, disconnected and error information remains visible.

@@ -8,9 +8,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	attributeview "github.com/zfogg/spaniel/internal/watch/attributes"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	_, env := newFixture(t)
 	m := New(env).(*model)
 	drain(t, env, m)
@@ -52,11 +54,22 @@ func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
 			}
 		}
 	}
-	if got := stamp(1793640000123456789, time.Unix(0, 1793640000123456789).Add(2*time.Minute)); got != "2026-11-02 17:20:00 UTC * 2m ago" {
+	if got := stamp(1793640000123456789, time.Unix(0, 1793640000123456789).Add(2*time.Minute)); got != "2026-11-02 17:20:00 UTC "+terminal.Glyphs().Bullet+" 2m ago" {
 		t.Fatal(got)
 	}
 	if got := duration(1234567); got != "1.23ms" {
 		t.Fatal(got)
+	}
+}
+
+func TestAlertTableGlyphModesKeepPayload(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", mode)
+		m := &model{width: 80}
+		lines := m.table([]tableColumn{{title: "STATE", width: 10}, {title: "GROUP"}}, [][]string{{"firing", "user │ | • * data"}}, nil, "")
+		if !strings.Contains(lines[0], terminal.ColumnSeparator()) || !strings.Contains(lines[1], "user │ | • * data") {
+			t.Fatal(mode, lines)
+		}
 	}
 }
 

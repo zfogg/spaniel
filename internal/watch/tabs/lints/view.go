@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/watch/client"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 var muted = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
@@ -60,7 +61,7 @@ func (m *model) status() string {
 			parts = append(parts, name+" refreshing…")
 		}
 	}
-	return strings.Join(parts, " | ")
+	return strings.Join(parts, terminal.ColumnSeparator())
 }
 func (m *model) View() string {
 	if m.detail != nil {

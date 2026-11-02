@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 func TestMetadataStaysOnOneRowAndEllipsizes(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	fields := []Field{
 		{Name: "Trace ID", Value: strings.Repeat("abcdef", 10)},
 		{Name: "Span ID", Value: "1234567890abcdef"},
@@ -32,6 +34,21 @@ func TestMetadataStaysOnOneRowAndEllipsizes(t *testing.T) {
 		}
 		if width >= 24 && !strings.Contains(lines[4], "2m ago") {
 			t.Fatalf("width %d: timestamp lost relative age: %q", width, lines[4])
+		}
+	}
+}
+
+func TestTableGlyphModesPreservePayloadAndWidths(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", mode)
+		lines := Table([]Field{{Name: "Payload", Value: "user │ | • * data"}}, 60)
+		if !strings.Contains(lines[0], terminal.ColumnSeparator()) || lines[1] != strings.Repeat(terminal.Glyphs().Rule, 60) || !strings.Contains(lines[2], "user │ | • * data") {
+			t.Fatal(mode, lines)
+		}
+		for _, line := range lines {
+			if ansi.StringWidth(line) != 60 {
+				t.Fatal("glyph mode changed alignment", mode, line)
+			}
 		}
 	}
 }

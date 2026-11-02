@@ -175,6 +175,7 @@ func TestTraceSpanRoundTripAndLateParentSelection(t *testing.T) {
 }
 
 func TestInspectorCompleteDataRelatedLogsAndErrors(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	m := NewDetails().Span(testEnv("detail:1"), protocol.OpenSpan{TraceID: "trace", SpanID: "child"}).(*spanModel)
 	s := sampleSpan("child", "parent", 1793631000000000000)
 	s.StatusCode = 2

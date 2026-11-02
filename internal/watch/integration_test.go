@@ -45,6 +45,7 @@ func (m inspectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // External fixture writes represent collectors/evaluators/definition sync; the
 // terminal is observed to issue GETs and read-only query previews exclusively.
 func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0") // Exercise and record a Unicode-capable terminal.
 	captureDir := os.Getenv("SPANIEL_INTEGRATION_CAPTURE_DIR")
 	if captureDir != "" {
 		profile, dark := lipgloss.ColorProfile(), lipgloss.HasDarkBackground()

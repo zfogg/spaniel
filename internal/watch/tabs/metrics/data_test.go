@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -129,7 +130,7 @@ func TestBoundDeduplicatesSortsExpiresAndCaps(t *testing.T) {
 
 func TestTimestampPresentationUsesReadableUTCMilliseconds(t *testing.T) {
 	const precise int64 = 1793631000123456789
-	if got := timestamp(precise, time.Unix(0, precise).Add(2*time.Minute)); got != "2026-11-02 14:50:00.123 UTC * 2m ago" {
+	if got := timestamp(precise, time.Unix(0, precise).Add(2*time.Minute)); got != "2026-11-02 14:50:00.123 UTC "+terminal.Glyphs().Bullet+" 2m ago" {
 		t.Fatalf("timestamp presentation = %q", got)
 	}
 	if timestamp(0) != "—" {

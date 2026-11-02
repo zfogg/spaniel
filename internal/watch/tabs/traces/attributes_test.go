@@ -126,8 +126,9 @@ func TestAttributeValuesRemainFullyScrollableAfterNarrowResize(t *testing.T) {
 }
 
 func TestReadableTimestampPresentationKeepsInternalPrecision(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	const ns int64 = 1793631000123456789
-	if got := stamp(ns, time.Unix(0, ns).Add(2*time.Minute)); got != "2026-11-02 14:50:00.123 UTC * 2m ago" {
+	if got := stamp(ns, time.Unix(0, ns).Add(2*time.Minute)); got != "2026-11-02 14:50:00.123 UTC • 2m ago" {
 		t.Fatalf("timestamp: %s", got)
 	}
 	s := sampleSpan("span", "", ns)

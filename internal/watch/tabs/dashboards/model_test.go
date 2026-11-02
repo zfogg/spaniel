@@ -18,6 +18,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 func definition(t *testing.T, raw string) apigen.Dashboard {
@@ -478,6 +479,16 @@ func TestSampleTimestampPresentationPreservesQueryValues(t *testing.T) {
 	}
 }
 
+func TestSQLTableGlyphModesPreservePayload(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", mode)
+		lines := layoutTable([]string{"value", "count"}, [][]string{{"user │ | • * data", "9007199254740993"}}, 100)
+		if !strings.Contains(lines[1], terminal.ColumnSeparator()) || !strings.Contains(lines[2], terminal.Glyphs().Cross) || !strings.Contains(strings.Join(lines[3:], "\n"), "user │ | • * data") {
+			t.Fatal(mode, lines)
+		}
+	}
+}
+
 func TestPrimaryLayoutAndSecondaryInspection(t *testing.T) {
 	env, _ := envFor(t, http.NotFoundHandler())
 	m := newModel(env, "demo")
@@ -529,6 +540,7 @@ func TestPrimaryLayoutAndSecondaryInspection(t *testing.T) {
 }
 
 func TestResponsiveSQLTableRetainsValuesAndTypes(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	exact := json.Number("9007199254740993")
 	long := "start-" + strings.Repeat("wide-value-", 12) + "-end"
 	data := apigen.QueryPreview{Columns: []string{"name", "amount", "optional", "payload"}, Rows: []map[string]any{{"name": long, "amount": exact, "optional": nil, "payload": map[string]any{"flag": true, "items": []any{"x", exact}}}}}

@@ -223,6 +223,7 @@ func TestFiltersDedupeAndInputCapture(t *testing.T) {
 }
 
 func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	env := testEnv(t)
 	m := New(env).(*model)
 	row := logRow("first line\nsecond line", 100)
