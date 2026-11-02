@@ -428,3 +428,20 @@ func TestLiveSpanPreservesDerivedFilterAndRejectsMalformedMetadata(t *testing.T)
 		t.Fatal("partially decoded malformed span accepted")
 	}
 }
+
+func TestBoundedTraceLiveWindowPinsSelectionUntilSnapshotRepair(t *testing.T) {
+	m := NewDetails().Trace(testEnv("detail:1"), protocol.OpenTrace{TraceID: "trace", SpanID: "selected"}).(*traceModel)
+	selected := sampleSpan("selected", "", 1000)
+	m.Update(result(m.env.Owner, "trace", 1, client.Envelope[[]apigen.Span]{Data: []apigen.Span{selected}}))
+	m.liveLimit = 3 // Exercise the same bound without manufacturing 20k events.
+	for i := 0; i < 8; i++ {
+		m.Update(spanEvent(sampleSpan(fmt.Sprint(i), "selected", int64(1100+i))))
+	}
+	if len(m.spans) != 3 || m.selected != "seed/selected" || !strings.Contains(m.View(), "Live window full") {
+		t.Fatal("bounded window hid truncation or evicted selection")
+	}
+	m.Update(result(m.env.Owner, "trace", 2, client.Envelope[[]apigen.Span]{Data: []apigen.Span{selected}}))
+	if m.truncated || len(m.spans) != 1 || m.selected != "seed/selected" {
+		t.Fatal("authoritative repair did not clear bounded live state")
+	}
+}

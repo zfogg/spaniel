@@ -23,7 +23,7 @@ func NewDetails() protocol.Details { return details{} }
 type details struct{}
 
 func (details) Trace(env protocol.Env, target protocol.OpenTrace) tea.Model {
-	m := &traceModel{env: env, state: newState(env), traceID: target.TraceID, selected: target.SpanID, pendingSpan: target.SpanID, width: 100, height: 24}
+	m := &traceModel{env: env, state: newState(env), traceID: target.TraceID, selected: target.SpanID, pendingSpan: target.SpanID, liveLimit: liveSpanWindow, width: 100, height: 24}
 	m.register()
 	return m
 }
@@ -39,7 +39,32 @@ type traceModel struct {
 	traceID, selected, pendingSpan string
 	spans, frozen                  []apigen.Span
 	paused                         bool
+	truncated                      bool
+	liveLimit                      int
 	width, height                  int
+}
+
+const liveSpanWindow = 20000
+
+func (m *traceModel) patch(s apigen.Span) {
+	for _, old := range m.spans {
+		if spanKey(old) == spanKey(s) {
+			s = patchSpan(old, s)
+			break
+		}
+	}
+	rows := client.MergeByID(m.spans, []apigen.Span{s}, m.liveLimit+1, spanKey)
+	if len(rows) > m.liveLimit {
+		// A bounded live window must not evict the selected row merely because
+		// more spans arrive. The next authoritative snapshot restores full data.
+		evict := 0
+		if spanKey(rows[evict]) == m.selected {
+			evict++
+		}
+		rows = append(rows[:evict], rows[evict+1:]...)
+		m.truncated = true
+	}
+	m.spans = rows
 }
 
 func (m *traceModel) register() {
@@ -62,6 +87,7 @@ func (m *traceModel) selectExisting() {
 		if m.pendingSpan != "" && r.span.SpanId == m.pendingSpan {
 			m.selected = spanKey(r.span)
 			m.pendingSpan = ""
+			m.liveLimit, m.truncated = liveSpanWindow, false
 			return
 		}
 	}
@@ -125,17 +151,13 @@ func (m *traceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.spans = dedupeSpans(m.spans)
+		// Preserve every HTTP span, even in traces larger than the live window.
+		m.liveLimit, m.truncated = len(m.spans)+liveSpanWindow, false
 		m.selectExisting()
 	case protocol.Live:
 		s, ok := eventSpan(v.Event)
 		if ok && s.TraceId == m.traceID && m.state.matches(s.SessionId) {
-			for _, old := range m.spans {
-				if spanKey(old) == spanKey(s) {
-					s = patchSpan(old, s)
-					break
-				}
-			}
-			m.spans = client.MergeByID(m.spans, []apigen.Span{s}, 20000, spanKey)
+			m.patch(s)
 			m.selectExisting()
 		}
 	case tea.KeyMsg:
@@ -211,7 +233,11 @@ func (m *traceModel) View() string {
 		for _, r := range rows[a:b] {
 			lines = append(lines, waterfallRow(r, spanKey(r.span) == m.selected, start, end, m.width))
 		}
-		lines = append(lines, tui.Muted.Render(fmt.Sprintf("%d–%d / %d · missing parents marked ? · incomplete timing marked !", a+1, b, len(rows))))
+		footer := fmt.Sprintf("%d–%d / %d · missing parents marked ? · incomplete timing marked !", a+1, b, len(rows))
+		if m.truncated {
+			footer = "Live window full · r reload complete trace · " + footer
+		}
+		lines = append(lines, tui.Muted.Render(footer))
 	}
 	return screen(lines, m.width, m.height)
 }
