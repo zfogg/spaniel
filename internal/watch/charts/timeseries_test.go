@@ -9,8 +9,8 @@ import (
 
 func TestIntradayAxisShowsUsefulUTCTimes(t *testing.T) {
 	from := time.Date(2026, 11, 2, 14, 0, 0, 0, time.UTC)
-	chart := NewTimeSeries(100, 12, from, from.Add(15*time.Minute), 0, 10)
-	if got := chart.XLabelFormatter(0, float64(from.Add(7*time.Minute).Unix())); got != "14:07:00" {
+	chart := NewTimeSeries(100, 12, from, from.Add(15*time.Minute), 0, 10, from.Add(15*time.Minute))
+	if got := chart.XLabelFormatter(0, float64(from.Add(7*time.Minute).Unix())); got != "14:07:00Z * 8m ago" {
 		t.Fatalf("intraday tick: %s", got)
 	}
 	view := RenderTimeSeries(100, 12, from, from.Add(15*time.Minute), []Series{{Name: "real", Points: []Point{{from, 1}, {from.Add(10 * time.Minute), 9}}}})

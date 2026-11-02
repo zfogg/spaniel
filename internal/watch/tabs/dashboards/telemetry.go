@@ -193,7 +193,7 @@ func (m *model) telemetryView(top, body []uiLine, rows []telemetryRow, selected 
 				style = errorStyle
 			}
 		case "log_list":
-			line = logs.RenderRow(row.log, i == selected, m.width)
+			line = logs.RenderRow(row.log, i == selected, m.width, m.env.Now())
 			if row.log.Severity >= 17 {
 				style = errorStyle
 			}

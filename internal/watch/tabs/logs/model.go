@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -15,6 +16,7 @@ import (
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 const pageSize = 100
@@ -290,14 +292,15 @@ func (m *model) View() string {
 		capacity := max(1, m.height-len(lines))
 		start := max(0, i-capacity+1)
 		for n := start; n < min(len(rows), start+capacity); n++ {
-			lines = append(lines, RenderRow(rows[n], n == i, m.width))
+			lines = append(lines, RenderRow(rows[n], n == i, m.width, m.env.Now()))
 		}
 	}
 	return fit(lines, m.width, m.height)
 }
 
 // RenderRow shares the log list columns, severity and correlation display with dashboard panels.
-func RenderRow(row apigen.Log, selected bool, width int) string {
+func RenderRow(row apigen.Log, selected bool, width int, now ...time.Time) string {
+	reference := terminal.BatchTime(now...)
 	prefix := "  "
 	if selected {
 		prefix = "› "
@@ -307,9 +310,13 @@ func RenderRow(row apigen.Log, selected bool, width int) string {
 		correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
 	}
 	level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
-	line := prefix + stamp(row.TimestampNs, false) + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, width-64)) + "  " + correlation
+	timeWidth := min(26, max(12, width/4))
+	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), timeWidth)
+	timeText += strings.Repeat(" ", max(0, timeWidth-ansi.StringWidth(timeText)))
+	line := prefix + timeText + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, width-timeWidth-52)) + "  " + correlation
 	if width < 70 {
-		line = prefix + level + " " + cell(preview(row.ServiceName), 10) + " " + preview(row.Body)
+		timeText = terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), max(1, min(22, width/2)))
+		line = prefix + timeText + " " + level + " " + preview(row.Body)
 	}
 	return ansi.Truncate(line, max(1, width), "…")
 }

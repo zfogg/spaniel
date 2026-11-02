@@ -3,6 +3,7 @@ package alerts
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -51,7 +52,7 @@ func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
 			}
 		}
 	}
-	if got := stamp(1793640000123456789); got != "2026-11-02 17:20:00Z" {
+	if got := stamp(1793640000123456789, time.Unix(0, 1793640000123456789).Add(2*time.Minute)); got != "2026-11-02 17:20:00 UTC * 2m ago" {
 		t.Fatal(got)
 	}
 	if got := duration(1234567); got != "1.23ms" {

@@ -120,8 +120,8 @@ func (m *detail) content() {
 		{Name: "Service", Value: m.row.ServiceName},
 		{Name: "Severity", Value: fmt.Sprintf("%s (%g)", severityName(m.row.Severity), m.row.Severity)},
 		{Name: "Session", Value: m.row.SessionId},
-		{Name: "Timestamp", Value: stamp(m.row.TimestampNs, true)},
-		{Name: "Received at", Value: stamp(m.row.ReceivedAt, true)},
+		{Name: "Timestamp", Value: stamp(m.row.TimestampNs, true, m.env.Now())},
+		{Name: "Received at", Value: stamp(m.row.ReceivedAt, true, m.env.Now())},
 		{Name: "Trace ID", Value: trace}, {Name: "Span ID", Value: span},
 	}, m.view.Width)
 	text := strings.Join(info, "\n") + "\n\nBody\n" + body + "\n\nAttributes\n" + attrs
@@ -213,6 +213,7 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m *detail) View() string {
+	m.content()
 	state := "stored log"
 	switch {
 	case m.changedSession:

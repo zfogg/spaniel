@@ -40,6 +40,9 @@ type Model struct {
 type streamClosed struct{}
 
 func New(env protocol.Env, tabs []protocol.Tab, details protocol.Details, updates <-chan client.Update, fixedSession bool) *Model {
+	if env.Time == nil {
+		env.Time = protocol.NewClock(time.Now())
+	}
 	m := &Model{env: env, tabs: tabs, details: details, updates: updates, fixedSession: fixedSession, saved: map[protocol.TabID][]pane{}}
 	for _, tab := range tabs {
 		e := env
@@ -289,6 +292,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, m.broadcast(msg)
 }
 func (m *Model) View() string {
+	if m.env.Time != nil {
+		m.env.Time.Set(time.Now())
+	}
 	labels := make([]string, len(m.tabs))
 	for i, t := range m.tabs {
 		labels[i] = tui.Muted.Render(t.Title)

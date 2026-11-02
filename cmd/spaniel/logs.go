@@ -33,7 +33,7 @@ type logEntry struct {
 
 // logsSubcommand returns the `spaniel logs` group. Only `tail` exists today.
 // The old non-TTY printf path was removed — `spaniel logs tail` now requires
-// a terminal (use `spaniel watch | …` style piping if you need plain text).
+// a terminal (use `spaniel tui | …` style piping if you need plain text).
 func logsSubcommand() *cobra.Command {
 	logs := &cobra.Command{
 		Use:   "logs",
@@ -121,9 +121,9 @@ type logsModel struct {
 	width  int
 	height int
 
-	totalSeen   int
-	warns       int
-	errors      int
+	totalSeen int
+	warns     int
+	errors    int
 }
 
 func newLogsModel(filter logFilter) logsModel {

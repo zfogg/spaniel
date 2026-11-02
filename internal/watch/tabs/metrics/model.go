@@ -360,9 +360,9 @@ func state(loaded bool, err error, connection protocol.Connection) string {
 	}
 	return ""
 }
-func timestamp(ns int64) string {
+func timestamp(ns int64, now ...time.Time) string {
 	if ns == 0 {
 		return "—"
 	}
-	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000Z")
+	return terminal.Timestamp(ns, "2006-01-02 15:04:05.000 MST", time.UTC, terminal.BatchTime(now...))
 }

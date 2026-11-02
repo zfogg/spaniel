@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/metadata"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
-func spanContent(s apigen.Span, width int) []string {
+func spanContent(s apigen.Span, width int, now ...time.Time) []string {
+	reference := terminal.BatchTime(now...)
 	status := metadata.Field{Name: "Status", Value: statusText(s.StatusCode) + " · " + clean(s.StatusMessage)}
 	if s.StatusCode >= 2 {
 		status.Style = errorStyle
@@ -26,8 +29,8 @@ func spanContent(s apigen.Span, width int) []string {
 		{Name: "Parent ID", Value: fallback(s.ParentSpanId, "(root)")},
 		{Name: "Session", Value: s.SessionId + " · " + s.SessionLabel},
 		{Name: "Kind", Value: kind}, {Name: "Duration", Value: duration(s.DurationNs)},
-		{Name: "Start", Value: stamp(s.StartNs)}, {Name: "End", Value: stamp(s.EndNs)},
-		{Name: "Received", Value: stamp(s.ReceivedAt)},
+		{Name: "Start", Value: stamp(s.StartNs, reference)}, {Name: "End", Value: stamp(s.EndNs, reference)},
+		{Name: "Received", Value: stamp(s.ReceivedAt, reference)},
 	}, width)
 	if _, _, ok := timing(s); !ok || s.EndNs == 0 {
 		lines = append(lines, "! Timing incomplete or invalid.")
@@ -47,7 +50,7 @@ func spanContent(s apigen.Span, width int) []string {
 			continue
 		}
 		seen[key] = true
-		lines = append(lines, stamp(e.TimeNs)+" · "+clean(e.Name))
+		lines = append(lines, stamp(e.TimeNs, reference)+" · "+clean(e.Name))
 		lines = append(lines, attributeLines("Event attributes", e.Attributes, width)...)
 	}
 	if len(seen) == 0 {

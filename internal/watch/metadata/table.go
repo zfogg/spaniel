@@ -25,7 +25,7 @@ func Table(fields []Field, width int) []string {
 	keyWidth = min(keyWidth, max(1, width/3))
 	cell := func(value string, size int) string {
 		value = terminal.SingleLine(value)
-		value = ansi.Truncate(value, size, "…")
+		value = terminal.FitTimestamp(value, size)
 		return value + strings.Repeat(" ", max(0, size-ansi.StringWidth(value)))
 	}
 	row := func(key, value string) string {

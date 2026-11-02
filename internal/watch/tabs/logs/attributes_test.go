@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
 
 func TestAttributeTablePreservesTypesExactNumbersAndNestedValues(t *testing.T) {
@@ -47,11 +48,12 @@ func TestAttributeTableWrapsFullValuesAndHandlesMalformedData(t *testing.T) {
 
 func TestTimestampPresentationUsesMillisecondsAndKeepsInternalPrecision(t *testing.T) {
 	ns := time.Date(2026, 11, 2, 17, 30, 0, 123456789, time.UTC).UnixNano()
-	full := stamp(ns, true)
-	if !strings.Contains(full, ".123 ") || strings.Contains(full, "123456789") || !strings.Contains(full[len(full)-6:], ":") {
+	reference := time.Unix(0, ns).Add(2 * time.Minute)
+	full := stamp(ns, true, reference)
+	if !strings.Contains(full, ".123 ") || strings.Contains(full, "123456789") || !strings.HasSuffix(full, " * 2m ago") {
 		t.Fatal("timestamp is not a readable millisecond date/time with timezone", full)
 	}
-	if !strings.HasSuffix(stamp(ns, false), ".123") {
+	if !strings.HasSuffix(stamp(ns, false, reference), ".123 * 2m ago") {
 		t.Fatal("list timestamp precision")
 	}
 	row := logRow("body", ns)
@@ -63,5 +65,20 @@ func TestTimestampPresentationUsesMillisecondsAndKeepsInternalPrecision(t *testi
 	d := newDetail(testEnv(t), row, "session")
 	if strings.Contains(d.View(), "Timestamp ns:") || strings.Contains(d.View(), "Received at ns:") || strings.Contains(d.View(), ".123456789") {
 		t.Fatal("inspector exposes raw nanosecond timestamps", d.View())
+	}
+}
+
+func TestFullLogAgesFollowSharedRenderClock(t *testing.T) {
+	now := time.Date(2026, 11, 2, 21, 5, 0, 0, time.UTC)
+	env := testEnv(t)
+	env.Time = protocol.NewClock(now)
+	row := logRow("clocked log", now.Add(-2*time.Minute).UnixNano())
+	detail := newDetail(env, row, "session")
+	if !strings.Contains(detail.View(), " * 2m ago") {
+		t.Fatal(detail.View())
+	}
+	env.Time.Set(now.Add(time.Minute))
+	if !strings.Contains(detail.View(), " * 3m ago") || row.TimestampNs != now.Add(-2*time.Minute).UnixNano() {
+		t.Fatal("age did not repaint or changed durable time", detail.View())
 	}
 }

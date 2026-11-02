@@ -219,7 +219,7 @@ func (m *traceModel) View() string {
 	lines = append(lines, metadata.Table([]metadata.Field{
 		{Name: "Trace ID", Value: m.traceID}, {Name: "Session", Value: m.state.session},
 		{Name: "Spans", Value: fmt.Sprint(len(rows))}, {Name: "Duration", Value: duration(end - start)},
-		{Name: "Start", Value: stamp(start)}, {Name: "End", Value: stamp(end)},
+		{Name: "Start", Value: stamp(start, m.env.Now())}, {Name: "End", Value: stamp(end, m.env.Now())},
 	}, m.width)...)
 	if len(rows) == 0 {
 		text := "No spans in this trace/session. Data may have expired; waiting for telemetry…"
@@ -400,7 +400,7 @@ func (m *spanModel) content() []string {
 		}
 		return []string{"Span missing, unavailable in this session, or expired. The originating view is retained."}
 	}
-	lines := spanContent(*m.span, m.width)
+	lines := spanContent(*m.span, m.width, m.env.Now())
 	lines = append(lines, "", tui.Title.Render("Associated logs · latest 100"), m.logState.banner())
 	if len(m.logs) == 0 {
 		if m.logState.loading {
@@ -410,7 +410,7 @@ func (m *spanModel) content() []string {
 		}
 	}
 	for _, l := range m.logs {
-		text := stamp(l.TimestampNs) + " · " + clean(l.ServiceName) + fmt.Sprintf(" · severity %.0f", l.Severity) + " · " + clean(l.Body)
+		text := stamp(l.TimestampNs, m.env.Now()) + " · " + clean(l.ServiceName) + fmt.Sprintf(" · severity %.0f", l.Severity) + " · " + clean(l.Body)
 		if l.Severity >= 17 {
 			text = errorStyle.Render(text)
 		}

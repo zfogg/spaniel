@@ -173,11 +173,11 @@ func statusText(code float64) string {
 	}
 	return "UNSET"
 }
-func stamp(ns int64) string {
+func stamp(ns int64, now ...time.Time) string {
 	if ns <= 0 {
 		return "(missing or invalid)"
 	}
-	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000 MST")
+	return terminal.Timestamp(ns, "2006-01-02 15:04:05.000 MST", time.UTC, terminal.BatchTime(now...))
 }
 func rowWindow(n, cursor, height int) (int, int) {
 	height = max(1, height)

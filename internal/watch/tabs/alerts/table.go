@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type tableColumn struct {
@@ -30,7 +31,7 @@ func (m *model) table(columns []tableColumn, rows [][]string, ids []string, sele
 	}
 	cell := func(text string, width int, state bool) string {
 		text = oneLine(text)
-		truncated := ansi.Truncate(text, width, "…")
+		truncated := terminal.FitTimestamp(text, width)
 		padding := strings.Repeat(" ", max(0, width-ansi.StringWidth(truncated)))
 		if state {
 			truncated = tone(truncated)
@@ -85,7 +86,7 @@ func (m *model) ruleLines(rowsIDs []string) []string {
 			case "INSTANCES":
 				values = append(values, strconv.Itoa(len(r.Instances)))
 			case "LAST EVAL (UTC)":
-				values = append(values, stamp(r.LastEvaluatedAt))
+				values = append(values, m.stamp(r.LastEvaluatedAt))
 			}
 		}
 		rows = append(rows, values)

@@ -133,7 +133,7 @@ func (m *model) detailBody() []string {
 	if row.source == "detector" {
 		lines = append(lines, "Fingerprint: "+unknown(row.fingerprint), "Wasted time: "+time.Duration(row.wasted).String(), "Parent span: "+unknown(row.parent))
 	}
-	lines = append(lines, "Session: "+unknown(row.session), "Trace: "+unknown(row.trace), "Span: "+unknown(row.span), "Created: "+created(row.created))
+	lines = append(lines, "Session: "+unknown(row.session), "Trace: "+unknown(row.trace), "Span: "+unknown(row.span), "Created: "+created(row.created, m.env.Now()))
 	navigation := "No trace/span correlation was recorded."
 	if row.trace == "" && row.span != "" {
 		navigation = "Resolving correlated span…"

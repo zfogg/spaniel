@@ -103,12 +103,12 @@ func fit(lines []string, width, height int) string {
 	}
 	return strings.Join(lines, "\n")
 }
-func stamp(ns int64, full bool) string {
+func stamp(ns int64, full bool, now ...time.Time) string {
 	if ns == 0 {
 		return "unknown"
 	}
 	if full {
-		return time.Unix(0, ns).Format("2006-01-02 15:04:05.000 -07:00")
+		return terminal.Timestamp(ns, "2006-01-02 15:04:05.000 MST", time.Local, terminal.BatchTime(now...))
 	}
-	return time.Unix(0, ns).Format("15:04:05.000")
+	return terminal.Timestamp(ns, "15:04:05.000", time.Local, terminal.BatchTime(now...))
 }

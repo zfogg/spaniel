@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/watch/client"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 // All data is sanitized before styles are applied. Styles originate here, never
@@ -211,7 +212,7 @@ func (m *model) View() string {
 	}
 	if state.loaded {
 		if m.inspect {
-			for _, line := range renderTable(state.result, string(p.DisplayType) == "time_series", m.width) {
+			for _, line := range renderTable(state.result, false, m.width) {
 				body = append(body, plain(line))
 			}
 		} else {
@@ -229,7 +230,7 @@ func (m *model) View() string {
 				body = append(body, plain(""), plain(""))
 			}
 			chartHeight := max(4, m.height-len(top)-3)
-			rendered := renderPanel(string(p.DisplayType), p.SettingsJson, state.result, m.width, chartHeight, m.live)
+			rendered := renderPanel(string(p.DisplayType), p.SettingsJson, state.result, m.width, chartHeight, m.live, m.env.Now())
 			for i, line := range rendered {
 				if strings.HasPrefix(line, "Unit: ") {
 					continue
@@ -293,7 +294,7 @@ func (m *model) listView(top []uiLine) string {
 		if d.SourceFile != "" {
 			source = "File"
 		}
-		updated := time.Unix(0, d.UpdatedAt).Local().Format("Jan 02 15:04 MST")
+		updated := terminal.Timestamp(d.UpdatedAt, "Jan 02 15:04 MST", time.Local, m.env.Now())
 		body = append(body, ui(fmt.Sprintf("  %s   ·   %d panels   ·   %d variables   ·   %s", source, len(d.Panels), len(d.Variables), updated), mutedStyle))
 		if selected {
 			if d.Description != "" {

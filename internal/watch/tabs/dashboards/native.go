@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type category struct {
@@ -221,7 +222,8 @@ func renderGauge(config settings, rows []map[string]any, width int) []string {
 	return lines
 }
 
-func renderHeatmap(data apigen.QueryPreview, width int) []string {
+func renderHeatmap(data apigen.QueryPreview, width int, now ...time.Time) []string {
+	reference := terminal.BatchTime(now...)
 	values := map[[2]string]float64{}
 	xLabels, yLabels := map[string]string{}, map[string]string{}
 	xOrder, yOrder := map[string]float64{}, map[string]float64{}
@@ -244,7 +246,7 @@ func renderHeatmap(data apigen.QueryPreview, width int) []string {
 			temporal = true
 			xKey = t.UTC().Format(time.RFC3339Nano)
 			xTimes[xKey] = t
-			xLabels[xKey], xOrder[xKey] = t.UTC().Format("15:04:05.000 UTC"), float64(t.UnixNano())
+			xLabels[xKey], xOrder[xKey] = terminal.Timestamp(t.UnixNano(), "15:04:05.000 MST", time.UTC, reference), float64(t.UnixNano())
 		} else {
 			if _, numeric := x.(string); !numeric {
 				if _, valid := number(x); !valid {
@@ -280,7 +282,7 @@ func renderHeatmap(data apigen.QueryPreview, width int) []string {
 		key := [2]string{xKey, yKey}
 		values[key] += v
 		if math.IsInf(values[key], 0) {
-			return append([]string{"Heatmap count overflow; inspect exact query values."}, renderTable(data, true, width)...)
+			return append([]string{"Heatmap count overflow; inspect exact query values."}, renderTableAt(data, true, reference, width)...)
 		}
 	}
 	var lines []string
@@ -325,7 +327,7 @@ func renderHeatmap(data apigen.QueryPreview, width int) []string {
 	}
 	labelWidth := min(18, max(8, width/5))
 	if width < 28 || len(xs) > 64 || len(ys) > 32 || len(xs)*len(ys) > 2048 || labelWidth+3*len(xs)+3 > width {
-		return append(append(lines, "Heatmap grid exceeds terminal width/bucket bounds; labeled query cells follow."), renderTable(data, true, width)...)
+		return append(append(lines, "Heatmap grid exceeds terminal width/bucket bounds; labeled query cells follow."), renderTableAt(data, true, reference, width)...)
 	}
 	caption := "X buckets → · Y buckets ↑"
 	if temporal {

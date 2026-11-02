@@ -24,11 +24,11 @@ func label(s string) string {
 	}
 	return s
 }
-func stamp(ns int64) string {
+func stamp(ns int64, now ...time.Time) string {
 	if ns == 0 {
 		return "never"
 	}
-	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05Z")
+	return terminal.Timestamp(ns, "2006-01-02 15:04:05 MST", time.UTC, terminal.BatchTime(now...))
 }
 func tone(state string) string {
 	color := "245"
@@ -190,8 +190,8 @@ func (m *model) definition() []string {
 	}
 	lines = append(lines, m.attributeTable(`{"group_by":`+groups+`}`)...)
 	lines = append(lines, fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
-		"Last evaluation: "+stamp(r.LastEvaluatedAt)+" · duration "+duration(r.LastDurationNs),
-		"Last success: "+stamp(r.LastSuccessAt)+" · next: "+stamp(r.NextEvaluationAt),
+		"Last evaluation: "+m.stamp(r.LastEvaluatedAt)+" · duration "+duration(r.LastDurationNs),
+		"Last success: "+m.stamp(r.LastSuccessAt)+" · next: "+m.stamp(r.NextEvaluationAt),
 		fmt.Sprintf("Notifications: browser=%t · pushover=%t", r.BrowserEnabled, r.PushoverEnabled))
 	if r.LastError != "" {
 		lines = append(lines, "Evaluation error: "+clean(r.LastError))
@@ -200,7 +200,7 @@ func (m *model) definition() []string {
 		lines = append(lines, fmt.Sprintf("Source: %s · modified=%t · updated=%t", clean(r.SourceFile), r.SourceFileModified, r.Updated != nil && *r.Updated))
 	}
 	if r.InstanceDiscoverySql != "" {
-		lines = append(lines, "Instance discovery: "+clean(r.InstanceDiscoverySql), fmt.Sprintf("Every %s · stale after %s · last run %s", duration(r.InstanceDiscoveryIntervalNs), duration(r.InstanceDiscoveryStaleAfterNs), stamp(r.InstanceDiscoveryLastRunAt)))
+		lines = append(lines, "Instance discovery: "+clean(r.InstanceDiscoverySql), fmt.Sprintf("Every %s · stale after %s · last run %s", duration(r.InstanceDiscoveryIntervalNs), duration(r.InstanceDiscoveryStaleAfterNs), m.stamp(r.InstanceDiscoveryLastRunAt)))
 	}
 	lines = append(lines, "Annotations:")
 	lines = append(lines, m.attributeTable(r.AnnotationsJson)...)
@@ -217,7 +217,7 @@ func (m *model) silenceLines() []string {
 	}
 	lines = append(lines, fmt.Sprintf("Silences: %d server records (read-only)", len(m.silences)))
 	for _, s := range m.silences {
-		lines = append(lines, fmt.Sprintf("  group %s · %s → %s · %s", oneLine(label(s.GroupKey)), stamp(s.StartsAt), stamp(s.EndsAt), oneLine(s.Comment)))
+		lines = append(lines, fmt.Sprintf("  group %s · %s → %s · %s", oneLine(label(s.GroupKey)), m.stamp(s.StartsAt), m.stamp(s.EndsAt), oneLine(s.Comment)))
 	}
 	return lines
 }
@@ -247,7 +247,7 @@ func (m *model) instanceLines() []string {
 			case "GROUP":
 				cells = append(cells, r.GroupKey)
 			case "LAST EVAL (UTC)":
-				cells = append(cells, stamp(r.LastEvaluatedAt))
+				cells = append(cells, m.stamp(r.LastEvaluatedAt))
 			}
 		}
 		rows = append(rows, cells)
@@ -270,22 +270,22 @@ func (m *model) instanceDetail() []string {
 		}
 		lines := []string{"Group: " + clean(r.GroupKey), "State: " + instanceState(r) + " / condition: " + r.State + " / value: " + value(r.Value), "Labels:"}
 		lines = append(lines, m.attributeTable(r.LabelsJson)...)
-		lines = append(lines, "Last evaluated: "+stamp(r.LastEvaluatedAt))
+		lines = append(lines, "Last evaluated: "+m.stamp(r.LastEvaluatedAt))
 
 		if r.FirstPendingAt != nil {
-			lines = append(lines, "Pending since: "+stamp(*r.FirstPendingAt))
+			lines = append(lines, "Pending since: "+m.stamp(*r.FirstPendingAt))
 		}
 		if r.FiredAt != nil {
-			lines = append(lines, "Fired: "+stamp(*r.FiredAt))
+			lines = append(lines, "Fired: "+m.stamp(*r.FiredAt))
 		}
 		if r.ResolvedAt != nil {
-			lines = append(lines, "Resolved: "+stamp(*r.ResolvedAt))
+			lines = append(lines, "Resolved: "+m.stamp(*r.ResolvedAt))
 		}
 		if r.LastError != "" {
 			lines = append(lines, "Error: "+clean(r.LastError))
 		}
 		if r.AcknowledgedAt != nil {
-			lines = append(lines, "Acknowledgment: "+stamp(*r.AcknowledgedAt)+" / "+clean(r.AcknowledgementNote))
+			lines = append(lines, "Acknowledgment: "+m.stamp(*r.AcknowledgedAt)+" / "+clean(r.AcknowledgementNote))
 		}
 		return append(lines, m.silenceLines()...)
 	}
@@ -297,7 +297,7 @@ func (m *model) eventDetail() []string {
 	}
 	for _, r := range m.events {
 		if r.Id == m.event {
-			return []string{"Event: " + r.Id, "Kind: " + r.Kind + " / state: " + r.State + " / value: " + value(r.Value), "Group: " + r.GroupKey, "Time: " + stamp(r.CreatedAt), r.Detail}
+			return []string{"Event: " + r.Id, "Kind: " + r.Kind + " / state: " + r.State + " / value: " + value(r.Value), "Group: " + r.GroupKey, "Time: " + m.stamp(r.CreatedAt), r.Detail}
 		}
 	}
 	return []string{"This event is no longer on the current history page. Press h for history."}
@@ -325,10 +325,7 @@ func (m *model) historyLines() []string {
 		for _, column := range columns {
 			switch column.title {
 			case "TIME (UTC)", "UTC TIME":
-				text := stamp(r.CreatedAt)
-				if column.width == 8 && r.CreatedAt != 0 {
-					text = time.Unix(0, r.CreatedAt).UTC().Format("15:04:05")
-				}
+				text := m.stamp(r.CreatedAt)
 				cells = append(cells, text)
 			case "KIND":
 				cells = append(cells, r.Kind)
@@ -365,3 +362,5 @@ func sortedKeys(v map[string]string) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+func (m *model) stamp(ns int64) string { return stamp(ns, m.env.Now()) }

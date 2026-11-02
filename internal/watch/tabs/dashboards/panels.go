@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/watch/charts"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
 	"sort"
 	"strconv"
@@ -23,7 +24,8 @@ type settings struct {
 	Columns    map[string]string `json:"columns"`
 }
 
-func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, live bool) []string {
+func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, live bool, now ...time.Time) []string {
+	reference := terminal.BatchTime(now...)
 	var config settings
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.UseNumber()
@@ -50,7 +52,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 		case "gauge":
 			lines = append(lines, renderGauge(config, data.Rows, width)...)
 		case "heatmap":
-			lines = append(lines, renderHeatmap(data, width)...)
+			lines = append(lines, renderHeatmap(data, width, reference)...)
 		default:
 			lines = append(lines, renderCategories(kind, config, data.Rows, width)...)
 		}
@@ -81,7 +83,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 				config.TimeWindow = 900
 			}
 			if config.TimeWindow > 0 {
-				to = time.Now()
+				to = reference
 				from = to.Add(-time.Duration(config.TimeWindow * float64(time.Second)))
 				for i := range series {
 					points := series[i].Points[:0]
@@ -97,11 +99,11 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			for _, s := range series {
 				labels = append(labels, s.Name)
 			}
-			lines = append(lines, "Series: "+strings.Join(labels, " | "), displayTime(from)+" → "+displayTime(to))
-			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series), "\n")...)
+			lines = append(lines, "Series: "+strings.Join(labels, " | "), "From: "+displayTime(from, reference), "To: "+displayTime(to, reference))
+			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series, reference), "\n")...)
 		}
 		if fallback {
-			lines = append(lines, renderTable(data, true, width)...)
+			lines = append(lines, renderTableAt(data, true, reference, width)...)
 		}
 	default:
 		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", kind))
@@ -109,9 +111,14 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 	}
 	return lines
 }
-func displayTime(t time.Time) string { return t.Local().Format("2006-01-02 15:04:05.000 MST") }
+func displayTime(t time.Time, now ...time.Time) string {
+	return terminal.Timestamp(t.UnixNano(), "2006-01-02 15:04:05.000 MST", time.Local, terminal.BatchTime(now...))
+}
 
 func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []string {
+	return renderTableAt(data, sampleTimes, time.Now(), widths...)
+}
+func renderTableAt(data apigen.QueryPreview, sampleTimes bool, reference time.Time, widths ...int) []string {
 	columns := append([]string(nil), data.Columns...)
 	if len(columns) == 0 {
 		seen := map[string]bool{}
@@ -136,7 +143,7 @@ func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []st
 				switch name {
 				case "timestamp_ns", "time_ns", "timestamp", "time", "start_ns":
 					if sampleTime, ok := timestamp(map[string]any{name: row[name]}); ok {
-						value = displayTime(sampleTime)
+						value = displayTime(sampleTime, reference)
 					}
 				}
 			}

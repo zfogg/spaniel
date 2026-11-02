@@ -33,10 +33,10 @@ type issueEntry struct {
 	WastedNs    int64  `json:"wastedNs"`
 }
 
-// watchSubcommand routes to the Bubble Tea TUI when stdout is a terminal,
+// tuiSubcommand routes to the Bubble Tea TUI when stdout is a terminal,
 // and falls back to the original one-line-per-span printer when stdout is a
-// pipe — so `spaniel watch | grep` still does the right thing.
-func watchSubcommand() *cobra.Command {
+// pipe — so `spaniel tui | grep` still does the right thing.
+func tuiSubcommand() *cobra.Command {
 	var (
 		apiBase    string
 		sessionID  string
@@ -45,7 +45,7 @@ func watchSubcommand() *cobra.Command {
 		n1Only     bool
 	)
 	cmd := &cobra.Command{
-		Use:   "watch",
+		Use:   "tui",
 		Short: "Live seven-tab dashboard (span/issue line stream on a pipe)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := spanFilter{
@@ -99,7 +99,7 @@ func (f spanFilter) matchIssue(_ *issueEntry) bool {
 }
 
 // runWatch is the non-TTY (piped) one-line-per-span path. Kept so
-// `spaniel watch | grep 'POST /pay'` still works. No color — pipes aren't
+// `spaniel tui | grep 'POST /pay'` still works. No color — pipes aren't
 // terminals.
 func runWatch(ctx context.Context, w io.Writer, apiBase string, filter spanFilter) error {
 	ch, errCh, err := streamWS(ctx, apiBase)

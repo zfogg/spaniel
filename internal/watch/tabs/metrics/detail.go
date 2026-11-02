@@ -325,6 +325,7 @@ func (m *detail) kind() string {
 	return m.metric.Type
 }
 func (m *detail) render() ([]string, []string) {
+	reference := m.env.Now()
 	unit := m.data.Unit
 	if unit == "" {
 		unit = m.metric.Unit
@@ -353,7 +354,7 @@ func (m *detail) render() ([]string, []string) {
 	if query != "" {
 		header = append(header, "Label filter: "+safe(query))
 	}
-	body := []string{safe(m.metric.Description), m.admission.summary(m.metric.ServiceName, m.metric.Name), "Session: " + safe(m.session) + " · UTC · " + timestamp(m.now.Add(-windows[m.window]).UnixNano()) + " → " + timestamp(m.now.UnixNano())}
+	body := []string{safe(m.metric.Description), m.admission.summary(m.metric.ServiceName, m.metric.Name), "Session: " + safe(m.session), "From: " + timestamp(m.now.Add(-windows[m.window]).UnixNano(), reference), "To: " + timestamp(m.now.UnixNano(), reference)}
 	if m.data.Capped {
 		body = append(body, "Bounded view: first 256 series, latest 2048 samples per series; no aggregation.")
 	}
@@ -411,7 +412,7 @@ func (m *detail) render() ([]string, []string) {
 				}
 			}
 			if m.width >= 40 && m.height >= 15 {
-				body = append(body, strings.Split(charts.RenderTimeSeries(m.width-2, min(10, max(4, m.height/3)), m.now.Add(-windows[m.window]), m.now, sets), "\n")...)
+				body = append(body, strings.Split(charts.RenderTimeSeries(m.width-2, min(10, max(4, m.height/3)), m.now.Add(-windows[m.window]), m.now, sets, reference), "\n")...)
 			} else {
 				body = append(body, "Chart hidden at this terminal size; sample table remains available.")
 			}
@@ -433,7 +434,7 @@ func (m *detail) render() ([]string, []string) {
 			if m.kind() == "gauge" || m.kind() == "sum" || m.kind() == "counter" || m.kind() == "histogram" {
 				body = append(body, fmt.Sprintf("%s = %s %s", m.operation, display, safe(unit)))
 			}
-			body = append(body, sampleDescription(p, m.kind(), m.width)...)
+			body = append(body, sampleDescription(p, m.kind(), m.width, reference)...)
 			if m.operation == "rate" {
 				body = append(body, "Raw fields use the original unit: "+safe(m.metric.Unit))
 			}

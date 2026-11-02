@@ -17,7 +17,7 @@ Every constructor below is wired in `internal/watch/app.go`. Feature packages ow
 
 All seven feature packages are implemented and composed by the shared shell. `internal/watch/foundation` remains a test/support view and is not used by the production dashboard. Feature rendering belongs in the packages above; shared trace/span details serve every telemetry entry path.
 
-The seven ordered tabs are traces, spans, metrics, logs, lints, dashboards, alerts. `spaniel watch` uses the shared shell on a TTY; piped output and existing span filters keep their original line format. `spaniel tui` is deprecated and calls the same command implementation. `--api` selects the HTTP base; `--session ID` pins the dashboard scope; omission follows the active session. The heading and terminal title are `spaniel - <tab title>`.
+The seven ordered tabs are traces, spans, metrics, logs, lints, dashboards, alerts. `spaniel tui` uses the shared shell on a TTY; piped output and existing span filters keep their original line format. `spaniel tui` is the sole canonical UI command; no `watch` command or alias is registered. `--api` selects the HTTP base; `--session ID` pins the dashboard scope; omission follows the active session. The heading and terminal title are `spaniel - <tab title>`.
 
 ## Tab lifecycle and messages
 
@@ -163,7 +163,7 @@ Inspect all generated PNGs before attaching them to a PR. The capture script ras
 
 ## Integrated commands and boundaries
 
-`spaniel trace <id|short-id> [--session ID]` requires a TTY and reuses the shared client, one-tab shell, `traces.NewDetails`, waterfall and span inspector. Exact-ID preflight preserves unscoped lookup when no session is supplied, then pins the selected recording for live repair. Prefix lookup retains its existing latest-500-trace bound; use a full ID for older traces. The obsolete command-local renderer is removed. `watch` pipe filters/output and the deprecated `tui` alias retain their existing behavior.
+`spaniel trace <id|short-id> [--session ID]` requires a TTY and reuses the shared client, one-tab shell, `traces.NewDetails`, waterfall and span inspector. Exact-ID preflight preserves unscoped lookup when no session is supplied, then pins the selected recording for live repair. Prefix lookup retains its existing latest-500-trace bound; use a full ID for older traces. The obsolete command-local renderer is removed. `tui` pipe filters/output and the canonical `tui` command retain their existing behavior.
 
 Logs now send canonical `text` and `severity=error+` for server-wide literal substring/error filtering before COUNT/LIMIT/OFFSET. Service and exact severity bands intersect those filters. Text also matches attributes, IDs and service. The loaded page uses the same text semantics for live patches. An inspector revalidates at most 1000 records at its selected timestamp and distinguishes exhausted lookup uncertainty from confirmed removal. Byte-identical records without distinct durable fields remain indistinguishable on the wire.
 
@@ -179,3 +179,6 @@ Dashboard native panels use the same scoped preview subscriptions and five-secon
 `heatmap` consumes the website aliases (timestamp/time/x, bucket_ms/y, value), aggregates duplicate coordinates and preserves sparse cells: `·` means missing, `0` is an explicit zero, and fill density uses square-root count intensity. UTC time and duration axes/legend stay readable. Grids are bounded to 64 x buckets, 32 y buckets and 2048 cells and must fit the terminal; otherwise an explicit sizing/bucket diagnostic accompanies the labeled query cells. Invalid or negative counts are identified, never fabricated into zero cells.
 
 `span_list`, `trace_list` and `log_list` reuse existing row presenters and inspector factories. Up/down/page/home/end select result rows; Enter follows available correlation while Escape restores the retained dashboard, panel and selected row. Missing/foreign-session IDs remain read-only. SQL log projections hydrate only a unique timestamp/correlation match in the selected session; ambiguous results retain their projected fields with an explicit status. `i` retains full SQL/result inspection. `deploy_correlation` is still an explicit ordered-data fallback.
+
+
+All displayed timestamps append ` * <relative age>` using one shell-owned render-clock snapshot. Future timestamps use `in …`; missing/never values remain unchanged. The existing shared shell tick repaints ages without per-row timers or extra sockets. Absolute timestamps retain timezone context and sensible precision; narrow timestamp cells keep the age suffix while ellipsizing the absolute part, and shared chart ticks reduce density to fit. Durations, numeric attributes and explicit SQL inspection values remain unchanged.
