@@ -327,7 +327,8 @@ func (m *catalog) View() string {
 		lines = append(lines, line, "  "+safe(row.Description))
 	}
 	if len(rows) > 0 {
-		lines = append(lines, tui.Muted.Render(fmt.Sprintf("%d/%d · Enter: labeled series, dimensions, chart and raw samples", index+1, len(rows))))
+		lines = append(lines, fmt.Sprintf("%d/%d", index+1, len(rows)))
+		lines = append(lines, tui.Muted.Render("Enter: labeled series, dimensions, chart and raw samples"))
 	}
 	return fit(lines, m.width, m.height)
 }

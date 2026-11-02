@@ -308,7 +308,7 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if _, ok := msg.(tea.KeyMsg); ok {
 		header, body := m.render()
-		m.offset = min(m.offset, max(0, len(body)-max(1, m.height-len(header)-1)))
+		m.offset = min(m.offset, max(0, len(body)-max(1, m.height-len(header)-2)))
 	}
 	return m, nil
 }
@@ -370,7 +370,7 @@ func (m *detail) render() ([]string, []string) {
 		if m.kind() == "exponential_histogram" || m.kind() == "summary" {
 			body = append(body, "Distribution table: scalar/percentile chart unavailable for this type; raw observations below.")
 		} else if m.kind() == "histogram" && m.operation == "raw" {
-			body = append(body, "Raw histogram: inspect count/sum/buckets below; o selects interval mean or estimated percentile.")
+			body = append(body, "Raw histogram: inspect count/sum/buckets below.")
 		} else if m.kind() != "gauge" && m.kind() != "sum" && m.kind() != "counter" && m.kind() != "histogram" {
 			body = append(body, "Unsupported metric presentation: raw metadata below; no scalar chart.")
 		} else {
@@ -455,9 +455,10 @@ func (m *detail) render() ([]string, []string) {
 
 func (m *detail) View() string {
 	header, wrapped := m.render()
-	available := max(1, m.height-len(header)-1)
+	available := max(1, m.height-len(header)-2)
 	offset := min(m.offset, max(0, len(wrapped)-available))
 	header = append(header, wrapped[offset:min(len(wrapped), offset+available)]...)
-	header = append(header, tui.Muted.Render(fmt.Sprintf("Scroll %d/%d · Esc returns to catalog", offset+1, max(1, len(wrapped)-available+1))))
+	header = append(header, fmt.Sprintf("Scroll %d/%d", offset+1, max(1, len(wrapped)-available+1)))
+	header = append(header, tui.Muted.Render("Esc returns to catalog"))
 	return fit(header, m.width, m.height)
 }
