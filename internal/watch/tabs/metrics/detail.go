@@ -365,7 +365,8 @@ func (m *detail) render() ([]string, []string) {
 		}
 	} else {
 		current := rows[index]
-		body = append(body, fmt.Sprintf("Series %d/%d (%d in window) · %d samples", index+1, len(rows), len(m.data.Series), len(current.Points)), "Labels: "+jsonText(current.Attributes))
+		body = append(body, fmt.Sprintf("Series %d/%d (%d in window) · %d samples", index+1, len(rows), len(m.data.Series), len(current.Points)))
+		body = append(body, attributeTable("Series labels", current.Attributes, m.width)...)
 		if m.kind() == "exponential_histogram" || m.kind() == "summary" {
 			body = append(body, "Distribution table: scalar/percentile chart unavailable for this type; raw observations below.")
 		} else if m.kind() == "histogram" && m.operation == "raw" {
@@ -400,7 +401,7 @@ func (m *detail) render() ([]string, []string) {
 					sets = append(sets, set)
 				}
 				if m.overlay {
-					body = append(body, fmt.Sprintf("%d: %s", i+1, jsonText(s.Attributes)))
+					body = append(body, attributeTable(fmt.Sprintf("Overlay series %d labels", i+1), s.Attributes, m.width)...)
 				}
 			}
 			if m.width >= 40 && m.height >= 15 {
@@ -426,7 +427,7 @@ func (m *detail) render() ([]string, []string) {
 			if m.kind() == "gauge" || m.kind() == "sum" || m.kind() == "counter" || m.kind() == "histogram" {
 				body = append(body, fmt.Sprintf("%s = %s %s", m.operation, display, safe(unit)))
 			}
-			body = append(body, sampleDescription(p, m.kind())...)
+			body = append(body, sampleDescription(p, m.kind(), m.width)...)
 			if m.operation == "rate" {
 				body = append(body, "Raw fields use the original unit: "+safe(m.metric.Unit))
 			}
@@ -438,7 +439,11 @@ func (m *detail) render() ([]string, []string) {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			body = append(body, "Dimension "+safe(k)+": "+jsonText(m.data.Dimensions[k]))
+			values := make([]any, 0, len(m.data.Dimensions[k]))
+			for _, v := range m.data.Dimensions[k] {
+				values = append(values, v)
+			}
+			body = append(body, attributeTable("Available dimension", map[string]any{k: values}, m.width)...)
 		}
 	}
 	wrapped := []string{}

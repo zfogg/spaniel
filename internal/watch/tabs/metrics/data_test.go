@@ -100,7 +100,7 @@ func TestGeneratedHTTPNormalizationPreservesDistributions(t *testing.T) {
 	if p.Timestamp != 1793631000000000001 || p.Count == nil || *p.Count != 3 || p.ExpScale == nil || *p.ExpScale != 2 || p.Quantiles["0.95"] != 15 || len(p.Exemplars) != 1 {
 		t.Fatalf("lost API fields: %+v", p)
 	}
-	text := strings.Join(sampleDescription(p, "exponential_histogram"), "\n")
+	text := strings.Join(sampleDescription(p, "exponential_histogram", 100), "\n")
 	for _, want := range []string{"scale 2", "positive offset", "[1,1]", "OTLP no recorded value", "exemplar trace=t span=s"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("missing %q in %s", want, text)
@@ -136,7 +136,7 @@ func TestTimestampPresentationUsesReadableUTCMilliseconds(t *testing.T) {
 	}
 	// Presentation is separate from exact point identity and calculation fields.
 	point := sample{Timestamp: precise}
-	_ = sampleDescription(point, "gauge")
+	_ = sampleDescription(point, "gauge", 100)
 	if point.Timestamp != precise {
 		t.Fatal("presentation changed internal precision")
 	}

@@ -64,7 +64,7 @@ func normalize(value apigen.MetricSeries) (seriesData, error) {
 	if err != nil {
 		return out, err
 	}
-	err = json.Unmarshal(b, &out)
+	err = jsonDecode(string(b), &out)
 	// Older APIs expose just the single-series points array.
 	if len(out.Series) == 0 && len(out.Points) > 0 {
 		out.Series = []labeledSeries{{Key: "legacy", Attributes: map[string]any{}, Points: out.Points}}
@@ -149,7 +149,7 @@ func rowSample(row *liveevent.MetricRowPayload) sample {
 	_ = json.Unmarshal([]byte(row.SummaryQuantiles), &p.Quantiles)
 	_ = json.Unmarshal([]byte(row.ExpPositiveCounts), &p.ExpPositiveCounts)
 	_ = json.Unmarshal([]byte(row.ExpNegativeCounts), &p.ExpNegativeCounts)
-	_ = json.Unmarshal([]byte(row.ScopeAttributes), &p.ScopeAttributes)
+	_ = jsonDecode(row.ScopeAttributes, &p.ScopeAttributes)
 	_ = json.Unmarshal([]byte(row.Exemplars), &p.Exemplars)
 	return p
 }
@@ -358,7 +358,7 @@ func histogramInterval(points []sample, index int, temporality string) (float64,
 	}
 	return count, sum, buckets, true
 }
-func sampleDescription(p sample, typ string) []string {
+func sampleDescription(p sample, typ string, width int) []string {
 	lines := []string{fmt.Sprintf("timestamp %s · start %s · flags %d", timestamp(p.Timestamp), timestamp(p.Start), p.Flags)}
 	if typ == "gauge" || typ == "sum" || typ == "counter" {
 		lines = append(lines, "raw value "+number(p.Value))
@@ -378,7 +378,8 @@ func sampleDescription(p sample, typ string) []string {
 		lines = append(lines, "OTLP no recorded value: excluded from chart")
 	}
 	if p.ScopeName != "" {
-		lines = append(lines, "scope "+safe(p.ScopeName)+" "+safe(p.ScopeVersion)+" "+jsonText(p.ScopeAttributes))
+		lines = append(lines, "scope "+safe(p.ScopeName)+" "+safe(p.ScopeVersion))
+		lines = append(lines, attributeTable("Scope attributes", p.ScopeAttributes, width)...)
 	}
 	for _, ex := range p.Exemplars {
 		lines = append(lines, "exemplar trace="+safe(ex.TraceID)+" span="+safe(ex.SpanID))
@@ -386,4 +387,8 @@ func sampleDescription(p sample, typ string) []string {
 	return lines
 }
 
-func jsonDecode(s string, v any) error { return json.Unmarshal([]byte(s), v) }
+func jsonDecode(s string, v any) error {
+	decoder := json.NewDecoder(strings.NewReader(s))
+	decoder.UseNumber()
+	return decoder.Decode(v)
+}
