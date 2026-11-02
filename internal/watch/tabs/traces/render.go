@@ -89,7 +89,7 @@ func eventSpan(e liveevent.Message) (apigen.Span, bool) {
 	if row == nil || row.SpanID == "" || row.TraceID == "" {
 		return apigen.Span{}, false
 	}
-	return convert[apigen.Span](row), true
+	return decodeRow[apigen.Span](row)
 }
 func eventTrace(e liveevent.Message) (apigen.TraceRow, bool) {
 	var row *liveevent.SelfTracePayload
@@ -102,7 +102,7 @@ func eventTrace(e liveevent.Message) (apigen.TraceRow, bool) {
 	if row == nil || row.TraceID == "" {
 		return apigen.TraceRow{}, false
 	}
-	return convert[apigen.TraceRow](row), true
+	return decodeRow[apigen.TraceRow](row)
 }
 func eventLog(e liveevent.Message) (apigen.Log, bool) {
 	var row *liveevent.SelfLogPayload
@@ -115,16 +115,18 @@ func eventLog(e liveevent.Message) (apigen.Log, bool) {
 	if row == nil {
 		return apigen.Log{}, false
 	}
-	return convert[apigen.Log](row), true
+	return decodeRow[apigen.Log](row)
 }
-func convert[T any](v any) T {
+func decodeRow[T any](v any) (T, bool) {
 	var out T
 	data, err := json.Marshal(v)
-	if err == nil {
-		_ = json.Unmarshal(data, &out)
+	if err != nil {
+		return out, false
 	}
-	return out
+	err = json.Unmarshal(data, &out)
+	return out, err == nil
 }
+func convert[T any](v any) T               { out, _ := decodeRow[T](v); return out }
 func spanRow(s apigen.Span) apigen.SpanRow { return convert[apigen.SpanRow](s) }
 
 // Telemetry is untrusted terminal text, including stored attributes and IDs.

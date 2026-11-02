@@ -408,3 +408,23 @@ func TestLongTraceScrollKeepsLastSpanVisible(t *testing.T) {
 		t.Fatal("long trace did not scroll to selection")
 	}
 }
+
+func TestLiveSpanPreservesDerivedFilterAndRejectsMalformedMetadata(t *testing.T) {
+	m := newList(testEnv("spans"), true)
+	s := sampleSpan("n1", "root", 1000)
+	row := spanRow(s)
+	tag := "n+1"
+	row.Tag = &tag
+	m.Update(result("spans", "list", 1, client.Envelope[[]apigen.SpanRow]{Data: []apigen.SpanRow{row}}))
+	m.Update(key("n"))
+	selected := m.selected
+	m.Update(spanEvent(s))
+	if len(m.visible()) != 1 || m.selected != selected {
+		t.Fatal("live row erased the server-derived N+1 filter/selection")
+	}
+	p := convert[liveevent.SelfSpanPayload](s)
+	p.Events = []any{map[string]any{"time_ns": "invalid timestamp"}}
+	if _, ok := eventSpan(liveevent.Message{Type: "self_span", Decoded: &p}); ok {
+		t.Fatal("partially decoded malformed span accepted")
+	}
+}

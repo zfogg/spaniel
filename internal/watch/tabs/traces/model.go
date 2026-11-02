@@ -158,6 +158,16 @@ func (m *listModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.state.matches(session) {
 			break
 		}
+		// Stream rows carry span fields but no derived tag. Keep a hydrated
+		// N+1/lint tag until the authoritative list snapshot replaces it.
+		if m.spans && row.tag == "" {
+			for _, old := range m.rows {
+				if old.id == row.id {
+					row.tag, row.n1 = old.tag, old.n1
+					break
+				}
+			}
+		}
 		if m.service != "" && row.service != m.service {
 			for i, old := range m.rows {
 				if old.id == row.id {
