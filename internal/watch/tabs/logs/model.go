@@ -249,7 +249,8 @@ func (m *model) View() string {
 	}
 	lines = append(lines, tui.Muted.Render(filters))
 	if m.editing != "" {
-		lines = append(lines, tui.Accent.Render(m.editing+": "+clean(m.input)+"▏  Enter apply · Esc cancel"))
+		lines = append(lines, tui.Accent.Render(m.editing+": "+clean(m.input)+"▏"))
+		lines = append(lines, tui.Muted.Render("Enter apply · Esc cancel · Ctrl+U clear input"))
 	} else {
 		lines = append(lines, tui.Muted.Render("↑↓ select · Enter full log · / text (page) · s service · v severity · [ ] pages · p pause"))
 	}
@@ -270,7 +271,7 @@ func (m *model) View() string {
 	}
 	if len(rows) == 0 && !m.loading {
 		if m.loaded || len(m.rows) > 0 {
-			lines = append(lines, "No logs match on this page. Change filters or use [ ] to browse stored pages.")
+			lines = append(lines, "No logs match on this page. Adjust filters or browse stored pages.")
 		} else if m.err == nil {
 			lines = append(lines, "Waiting for stored logs…")
 		}
