@@ -210,17 +210,20 @@ func (m *model) inlineNavigation() string {
 
 func (m *model) clampScroll() {
 	if m.detail != nil {
-		m.scroll = max(0, min(m.scroll, len(m.detailBody())-max(1, m.height-1)))
+		m.scroll = max(0, min(m.scroll, len(m.detailBody())-m.detailHeight()))
 	}
 }
 
+func (m *model) detailHeight() int { return max(1, m.height-2) }
+
 func (m *model) detailView() string {
 	body := m.detailBody()
-	height := max(1, m.height-1)
+	height := m.detailHeight()
 	start := min(m.scroll, max(0, len(body)-height))
 	end := min(len(body), start+height)
 	visible := append([]string(nil), body[start:end]...)
-	visible = append(visible, muted.Render(fmt.Sprintf("↑↓/PgUp/PgDn scroll · Esc/Backspace Back · %d–%d/%d", start+1, end, len(body))))
+	visible = append(visible, muted.Render(fmt.Sprintf("Lines %d–%d/%d", start+1, end, len(body))))
+	visible = append(visible, muted.Render("↑↓/PgUp/PgDn scroll · Esc/Backspace Back"))
 	return m.fit(visible)
 }
 func (m *model) fit(lines []string) string {

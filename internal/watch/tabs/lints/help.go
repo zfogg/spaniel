@@ -15,7 +15,7 @@ func (m *model) ShortHelp() []keys.Binding {
 	}
 	if m.detail != nil {
 		help := []keys.Binding{}
-		if len(m.detailBody()) > max(1, m.height-1) {
+		if len(m.detailBody()) > m.detailHeight() {
 			help = append(help, binding([]string{"up", "down", "k", "j"}, "↑/↓", "scroll"), binding([]string{"pgup", "pgdown"}, "pgup/pgdn", "scroll page"))
 		}
 		help = append(help, m.navigationHelp()...)
