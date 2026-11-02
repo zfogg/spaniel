@@ -134,7 +134,7 @@ func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []st
 			// timestamps. Arbitrary table/fallback SQL columns retain their values.
 			if sampleTimes {
 				switch name {
-				case "timestamp_ns", "time_ns", "timestamp", "start_ns":
+				case "timestamp_ns", "time_ns", "timestamp", "time", "start_ns":
 					if sampleTime, ok := timestamp(map[string]any{name: row[name]}); ok {
 						value = displayTime(sampleTime)
 					}

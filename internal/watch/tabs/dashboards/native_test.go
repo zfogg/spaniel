@@ -95,6 +95,10 @@ func TestNativeHeatmapSparseZeroDuplicatesInvalidAndBounds(t *testing.T) {
 	if narrow := strings.Join(renderPanel("heatmap", "{}", data, 20, 12, false), "\n"); !strings.Contains(narrow, "grid exceeds") || !strings.Contains(narrow, "bucket_ms") {
 		t.Fatal(narrow)
 	}
+	alias := preview(t, `{"columns":["time","y","value"],"rows":[{"time":1793631000000,"y":"bucket","value":0}]}`)
+	if narrow := strings.Join(renderPanel("heatmap", "{}", alias, 20, 12, false), "\n"); !strings.Contains(narrow, "2026-11-02") || strings.Contains(narrow, "1793631000000") {
+		t.Fatal("narrow time alias lost readable timestamp", narrow)
+	}
 	malformed := apigen.QueryPreview{Rows: []map[string]any{{"x": math.Inf(1), "y": 1, "value": 2}, {"x": 1, "y": math.NaN(), "value": 2}, {"x": 1, "y": 2, "value": math.NaN()}}}
 	if bad := strings.Join(renderPanel("heatmap", "{}", malformed, 80, 12, false), "\n"); !strings.Contains(bad, "No valid heatmap") {
 		t.Fatal(bad)
