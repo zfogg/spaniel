@@ -74,7 +74,7 @@ func TestRunningFindingsHiddenRefreshAndCapture(t *testing.T) {
 		case "/api/issues":
 			data = append([]apigen.TraceIssue(nil), issues...)
 		case "/api/spans":
-			if r.URL.Query().Get("limit") != "2000" || r.URL.Query().Get("view") != "flat" {
+			if r.URL.Query().Get("limit") != "1000" || r.URL.Query().Get("view") != "flat" {
 				t.Error("unbounded service lookup")
 			}
 			data = spans

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -19,6 +20,25 @@ import (
 )
 
 const rowLimit = 2000
+
+const servicePageSize = 1000 // /api/spans resets larger page sizes to 100.
+
+func fetchServices(ctx context.Context, api *client.Client, session string) (client.Envelope[[]apigen.SpanRow], error) {
+	var snapshot client.Envelope[[]apigen.SpanRow]
+	for page := 1; len(snapshot.Data) < rowLimit; page++ {
+		q := url.Values{"limit": {strconv.Itoa(servicePageSize)}, "page": {strconv.Itoa(page)}, "view": {"flat"}, "sort": {"time"}}
+		response, err := api.Spans(ctx, client.Scope(q, session))
+		if err != nil {
+			return snapshot, err
+		}
+		remaining := rowLimit - len(snapshot.Data)
+		snapshot.Data = append(snapshot.Data, response.Data[:min(len(response.Data), remaining)]...)
+		if len(response.Data) < servicePageSize || (response.Meta != nil && response.Meta.Total != nil && len(snapshot.Data) >= *response.Meta.Total) {
+			break
+		}
+	}
+	return snapshot, nil
+}
 
 type finding struct {
 	id, source, session, trace, span, parent, rule, severity, message, fingerprint, service string
@@ -102,7 +122,7 @@ func (m *model) register() {
 	}})
 	if m.detail == nil {
 		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: owner, Name: "services"}, Resources: []liveevent.Resource{"spans"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
-			return api.Spans(ctx, client.Scope(url.Values{"limit": {"2000"}, "page": {"1"}, "view": {"flat"}}, session))
+			return fetchServices(ctx, api, session)
 		}})
 	} else if trace != "" {
 		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: owner, Name: "target"}, Resources: []liveevent.Resource{"trace", "spans"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
