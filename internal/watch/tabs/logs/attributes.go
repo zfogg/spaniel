@@ -48,7 +48,7 @@ func attributeTable(raw string, width int) string {
 				child := path + "[" + strconv.Quote(name) + "]"
 				if path == "" {
 					child = name
-					if strings.ContainsAny(name, "[]\"") || strings.IndexFunc(name, unicode.IsControl) >= 0 {
+					if name == "" || strings.ContainsAny(name, "[]\"") || strings.IndexFunc(name, unicode.IsControl) >= 0 {
 						child = strconv.Quote(name)
 					}
 				}

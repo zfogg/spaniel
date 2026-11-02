@@ -50,7 +50,7 @@ func TestLogsTerminalLifecycle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	ns := time.Date(2026, 11, 2, 17, 30, 0, 123000000, time.UTC).UnixNano()
-	row := apigen.Log{TimestampNs: ns, ReceivedAt: ns + 2000000, ServiceName: "checkout-api", Severity: 9, Body: "Order accepted\nReserved 3 items; payment authorized.\nReceipt queued for delivery.", TraceId: "4bf92f3577b34da6a3ce929d0e0e4736", SpanId: "00f067aa0ba902b7", SessionId: "demo", Attributes: `{"order.id":"demo-1042","cart.items":3,"payment.provider":"sandbox","http.request.method":"POST"}`}
+	row := apigen.Log{TimestampNs: ns, ReceivedAt: ns + 2000000, ServiceName: "checkout-api", Severity: 9, Body: "Order accepted\nReserved 3 items; payment authorized.\nReceipt queued for delivery.", TraceId: "4bf92f3577b34da6a3ce929d0e0e4736", SpanId: "00f067aa0ba902b7", SessionId: "demo", Attributes: `{"order.id":"demo-1042","cart.items":3,"payment.provider":"sandbox","http.request.method":"POST","retryable":false,"inventory":{"region":"us-east","attempts":[1,2]},"receipt.sequence":18446744073709551615}`}
 	warn := row
 	warn.TimestampNs -= 1000000000
 	warn.ReceivedAt -= 1000000000
@@ -154,6 +154,9 @@ func TestLogsTerminalLifecycle(t *testing.T) {
 	wait("Full log")
 	wait("cart.items")
 	capture("logs-detail")
+	send(tea.KeyEnd)
+	wait("18446744073709551615")
+	capture("logs-attributes")
 	// An expired shared trace viewer must be escapable back to the retained log.
 	send(tea.KeyEnter)
 	wait("HTTP 404")

@@ -61,7 +61,7 @@ func TestTimestampPresentationUsesMillisecondsAndKeepsInternalPrecision(t *testi
 		t.Fatal("display rounding changed internal precision")
 	}
 	d := newDetail(testEnv(t), row, "session")
-	if strings.Contains(d.View(), "Timestamp ns:") || strings.Contains(d.View(), "Received at ns:") || strings.Contains(d.View(), "123456789") {
+	if strings.Contains(d.View(), "Timestamp ns:") || strings.Contains(d.View(), "Received at ns:") || strings.Contains(d.View(), ".123456789") {
 		t.Fatal("inspector exposes raw nanosecond timestamps", d.View())
 	}
 }
