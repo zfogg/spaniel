@@ -130,6 +130,7 @@ func TestDetailHiddenLifecycleFilteringWindowsAndErrors(t *testing.T) {
 		}
 	}
 	oldKey := m.key
+	selected, replacement := m.selected, m.data
 	m.Update(key("w"))
 	if m.key == oldKey || m.loaded {
 		t.Fatal("time range did not supersede snapshot")
@@ -137,6 +138,14 @@ func TestDetailHiddenLifecycleFilteringWindowsAndErrors(t *testing.T) {
 	m.Update(result)
 	if m.loaded {
 		t.Fatal("obsolete range response accepted")
+	}
+	m.Update(protocol.Tick{Time: now.Add(time.Second)})
+	if m.selected != selected {
+		t.Fatal("loading window lost series selection")
+	}
+	m.Update(protocol.Result{Key: m.key, Session: "seed", Data: seriesSnapshot{Data: replacement, To: now.Add(time.Second)}})
+	if m.selected != selected {
+		t.Fatal("new window did not preserve label identity")
 	}
 	m.Update(protocol.Tick{Time: now.Add(25 * time.Hour)})
 	if len(m.data.Series) != 0 {

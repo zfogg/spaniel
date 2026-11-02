@@ -106,6 +106,10 @@ func (m *detail) candidates() []labeledSeries {
 }
 func (m *detail) reconcile() {
 	rows := m.candidates()
+	// Keep the chosen label identity while a replacement window is loading.
+	if len(rows) == 0 && !m.loaded {
+		return
+	}
 	for _, s := range rows {
 		if s.Key == m.selected {
 			return
@@ -268,7 +272,6 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.window = (m.window + 1) % len(windows)
 			m.data = seriesData{}
 			m.loaded = false
-			m.selected = ""
 			m.offset = 0
 			m.err = nil
 			m.register()
