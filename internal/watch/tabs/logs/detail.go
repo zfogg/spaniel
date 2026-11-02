@@ -1,9 +1,7 @@
 package logs
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -65,14 +63,7 @@ func (m *detail) content() {
 		m.view.SetContent("Session changed. Back returns to logs in the current session.")
 		return
 	}
-	var attributes bytes.Buffer
-	if json.Indent(&attributes, []byte(m.row.Attributes), "", "  ") != nil {
-		attributes.WriteString(m.row.Attributes)
-	}
-	attrs := clean(attributes.String())
-	if attrs == "" {
-		attrs = "(none)"
-	}
+	attrs := attributeTable(m.row.Attributes, m.view.Width)
 	trace, span := clean(m.row.TraceId), clean(m.row.SpanId)
 	if trace == "" {
 		trace = "(none)"
@@ -84,7 +75,7 @@ func (m *detail) content() {
 	if body == "" {
 		body = "(empty body)"
 	}
-	text := fmt.Sprintf("Service: %s\nSeverity: %s (%g)\nSession: %s\nTimestamp: %s\nTimestamp ns: %d\nReceived at: %s\nReceived at ns: %d\nTrace ID: %s\nSpan ID: %s\n\nBody\n%s\n\nAttributes\n%s", clean(m.row.ServiceName), severityName(m.row.Severity), m.row.Severity, clean(m.row.SessionId), stamp(m.row.TimestampNs, true), m.row.TimestampNs, stamp(m.row.ReceivedAt, true), m.row.ReceivedAt, trace, span, body, attrs)
+	text := fmt.Sprintf("Service: %s\nSeverity: %s (%g)\nSession: %s\nTimestamp: %s\nReceived at: %s\nTrace ID: %s\nSpan ID: %s\n\nBody\n%s\n\nAttributes\n%s", clean(m.row.ServiceName), severityName(m.row.Severity), m.row.Severity, clean(m.row.SessionId), stamp(m.row.TimestampNs, true), stamp(m.row.ReceivedAt, true), trace, span, body, attrs)
 	offset := m.view.YOffset
 	m.view.SetContent(ansi.Hardwrap(text, max(1, m.view.Width), true))
 	m.view.SetYOffset(offset)

@@ -120,7 +120,7 @@ func stamp(ns int64, full bool) string {
 		return "unknown"
 	}
 	if full {
-		return time.Unix(0, ns).Format(time.RFC3339Nano)
+		return time.Unix(0, ns).Format("2006-01-02 15:04:05.000 -07:00")
 	}
 	return time.Unix(0, ns).Format("15:04:05.000")
 }

@@ -233,7 +233,7 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	d.Update(protocol.Connection{Connected: true})
 	d.Update(protocol.SessionChanged{ID: "session"})
 	d.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
-	for _, value := range []string{"first line", "second line", "cart.items", "Received at ns", row.TraceId, row.SpanId} {
+	for _, value := range []string{"first line", "second line", "cart.items", "Received at:", row.TraceId, row.SpanId} {
 		if !strings.Contains(d.View(), value) {
 			t.Fatalf("full log missing %q: %s", value, d.View())
 		}
