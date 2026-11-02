@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/auth'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryState } from 'nuqs'
@@ -302,7 +303,7 @@ export default function DiffPage() {
     queryKey: ['diff', baselineId, compareId],
     enabled: !!baselineId && !!compareId,
     queryFn: async () => {
-      const res = await fetch(`/api/diff?baseline=${baselineId}&compare=${compareId}`)
+      const res = await authenticatedFetch(`/api/diff?baseline=${baselineId}&compare=${compareId}`)
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
       const json = await res.json()
       const result = json.data as DiffResult | null

@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/auth'
 import { useEffect, useRef } from 'react'
 import { useTheme } from 'next-themes'
 import { Braces } from 'lucide-react'
@@ -260,7 +261,7 @@ export default function OpenAPI() {
     const mount = async () => {
       if (!window.Redoc || target.dataset.redocMounted === 'true') return
       target.dataset.redocMounted = 'true'
-      const response = await fetch('/api/openapi.json')
+      const response = await authenticatedFetch('/api/openapi.json')
       if (!response.ok) throw new Error(`The OpenAPI document returned ${response.status}.`)
       const document = makeParameterDescriptionsVisible((await response.json()) as OpenAPIDocument)
       window.Redoc.init(document, options(resolvedTheme === 'dark'), target, () =>

@@ -23,12 +23,14 @@ import (
 
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
+	"github.com/zfogg/spaniel/internal/security"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
 // Options configures the MCP server.
 type Options struct {
+	Security *security.Service
 	// Version is the spaniel build version, reported in the MCP handshake and by
 	// get_server_info.
 	Version string
@@ -167,6 +169,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 // tools are added by registerWriteTools only when AllowWrites is set. Tool
 // groups are split across files in this package; this is the single entry point.
 func (h *handler) registerTools(s *mcpsdk.Server) {
+	h.registerTokenTools(s)
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_server_info",
 		Description: "Get Spaniel server version, the OpenAPI specification URL, write permissions (writes_enabled for dedicated mutation tools; sql_writes_enabled for query_sql), and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection, permissions, and available data.",

@@ -105,7 +105,9 @@ func runBridge(ctx context.Context, conn mcpsdk.Connection, endpoint, token stri
 		}
 	})
 	err := group.Wait()
-	if errors.Is(err, context.Canceled) {
+	// The client may close stdout before the notification reader observes EOF.
+	// A final in-flight write then reports ErrClosedPipe: normal disconnection.
+	if errors.Is(err, context.Canceled) || errors.Is(err, io.ErrClosedPipe) {
 		return nil
 	}
 	return err

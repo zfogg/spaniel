@@ -1,3 +1,5 @@
+import { useNavigate, useParams } from 'react-router-dom'
+import { SecuritySettings } from '@/components/SecuritySettings'
 import { Toggle } from '@/components/ui/toggle'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AdvancedSettings } from '@/components/AdvancedSettings'
@@ -1301,48 +1303,9 @@ function SecuritySection({
   mutate: (patch: SettingsUpdate) => void
   hidden: boolean
 }) {
-  const [token, setToken] = useState('')
   return (
     <>
-      <Card id="security" title="Security" sub="Inbound authentication" hidden={hidden}>
-        {' '}
-        <Row
-          label="Bearer token"
-          hint="Save to config.yaml and SPANIEL_BEARER_TOKEN in this process. Restart Spaniel to apply authentication changes. Leave blank to keep the current token."
-          testid="row-bearer-token"
-        >
-          <span className="font-mono text-xs text-muted-foreground">
-            {s.bearer_token_set ? 'enabled in running server' : 'disabled in running server'}
-          </span>
-          <input
-            type="password"
-            aria-label="New bearer token"
-            autoComplete="new-password"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            className="h-[30px] rounded-md border border-border bg-background px-2 font-mono text-xs"
-          />
-          <button
-            type="button"
-            disabled={!token}
-            onClick={() => {
-              mutate({ bearer_token: token })
-              setToken('')
-            }}
-          >
-            Save token
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              mutate({ bearer_token: '' })
-              setToken('')
-            }}
-          >
-            Disable authentication
-          </button>
-        </Row>
-      </Card>
+      <SecuritySettings hidden={hidden} />
       <AdvancedSettings s={s} mutate={mutate} tab="security" hidden={hidden} />
     </>
   )
@@ -1361,7 +1324,9 @@ type Section =
 export default function Settings() {
   const queryClient = useQueryClient()
   const [localError, setLocalError] = useState<string | null>(null)
-  const [section, setSection] = useState<Section>('general')
+  const { section: routeSection } = useParams<{ section: Section }>()
+  const section = routeSection ?? 'general'
+  const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
@@ -1515,7 +1480,7 @@ export default function Settings() {
                 <button
                   key={sec.id}
                   type="button"
-                  onClick={() => setSection(sec.id)}
+                  onClick={() => navigate(`/settings/${sec.id}`)}
                   className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer text-foreground font-mono text-[11px] outline-hidden text-left mb-0.5 ${on ? 'bg-background border border-border' : 'bg-transparent border border-transparent'}`}
                 >
                   {sec.label}

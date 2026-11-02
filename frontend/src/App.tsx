@@ -1,3 +1,4 @@
+import { AuthenticationGate } from './components/AuthenticationGate'
 import { usePeriodicRefresh } from './lib/display-preferences'
 import { SERVICE_COLORS_EVENT } from '@/lib/service-color'
 import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom'
@@ -287,23 +288,6 @@ function AppShell() {
   usePeriodicRefresh()
   const [paletteOpen, setPaletteOpen] = useState(false)
 
-  // Seed the auth cookie when the user first visits with ?token=<value>.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const token = params.get('token')
-    if (!token) return
-    api.health
-      .seed(token)
-      .then(() => {
-        params.delete('token')
-        const qs = params.toString()
-        window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''))
-      })
-      .catch(() => {
-        /* server will reject API calls with 401 until token is correct */
-      })
-  }, [])
-
   useEffect(() => {
     const open = () => setPaletteOpen(true)
     window.addEventListener(SEARCH_PALETTE_EVENT, open)
@@ -312,6 +296,7 @@ function AppShell() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
+      <AuthenticationGate />
       <Chrome />
       <StorageFullBanner />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -333,6 +318,7 @@ function AppShell() {
             <Route path="/docs/openapi-spec" element={<OpenAPIJSON />} />
             <Route path="/coverage" element={<Coverage />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/:section" element={<Settings />} />
             <Route path="/services" element={<ServiceMap />} />
             <Route path="/lint" element={<LintPage />} />
             <Route path="/sessions" element={<Sessions />} />

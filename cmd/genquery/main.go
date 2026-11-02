@@ -9,6 +9,7 @@ import (
 	"gorm.io/gen"
 
 	"github.com/zfogg/spaniel/internal/model"
+	securitymodel "github.com/zfogg/spaniel/internal/security/model"
 )
 
 func main() {
@@ -43,4 +44,11 @@ func main() {
 	g.ApplyInterface(func(model.LintWarningSearchMethods) {}, model.LintWarning{})
 	g.ApplyInterface(func(model.LintWarningMethods) {}, model.LintWarning{})
 	g.Execute()
+	private := gen.NewGenerator(gen.Config{
+		OutPath:      "internal/security/querygen",
+		ModelPkgPath: "github.com/zfogg/spaniel/internal/security/model",
+		Mode:         gen.WithoutContext | gen.WithQueryInterface,
+	})
+	private.ApplyBasic(securitymodel.Token{}, securitymodel.Key{})
+	private.Execute()
 }
