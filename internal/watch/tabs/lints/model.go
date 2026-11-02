@@ -123,6 +123,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = max(1, msg.Width), max(1, msg.Height)
 		m.input.Width = max(1, m.width-4)
 		m.clamp()
+		m.clampScroll()
 	case protocol.Connection:
 		m.connection = msg
 		if msg.Resync {
@@ -201,6 +202,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "t", "s", "enter":
 				return m, m.navigate(msg.String())
 			}
+			m.clampScroll()
 			return m, nil
 		}
 		switch msg.String() {
@@ -388,6 +390,7 @@ func (m *model) rebuild() {
 		}
 	}
 	m.refilter()
+	m.clampScroll()
 }
 func matches(row finding, filter string) bool {
 	for _, word := range strings.Fields(strings.ToLower(filter)) {

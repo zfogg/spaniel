@@ -118,6 +118,19 @@ func TestDetailUpdatesSharedNavigationExpiryAndSession(t *testing.T) {
 	d := openDetail(t, m)
 	seed(d)
 	target(d)
+	d.Update(tea.WindowSizeMsg{Width: 40, Height: 6})
+	for i := 0; i < 100; i++ {
+		d.Update(key("j"))
+	}
+	last := d.scroll
+	d.Update(key("k"))
+	if d.scroll != last-1 {
+		t.Fatal("scrolling past the end trapped the detail at the bottom")
+	}
+	d.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	if d.scroll != 0 {
+		t.Fatal("resize did not clamp detail scroll")
+	}
 	if !strings.Contains(d.View(), "Use http.request.method") || !strings.Contains(d.View(), "checkout-api") {
 		t.Fatal(d.View())
 	}

@@ -121,7 +121,7 @@ func (m *model) View() string {
 	lines = append(lines, muted.Render("Latest ≤2000 findings; service lookup: latest ≤2000 spans; unavailable services do not match filters."))
 	return m.fit(lines)
 }
-func (m *model) detailView() string {
+func (m *model) detailBody() []string {
 	row := m.detail
 	lines := []string{accent.Render("Finding · " + clean(row.rule)), m.status()}
 	if m.wrongSession {
@@ -187,6 +187,17 @@ func (m *model) detailView() string {
 	for _, line := range append(lines, navigation) {
 		body = append(body, strings.Split(ansi.Wrap(line, max(1, m.width), ""), "\n")...)
 	}
+	return body
+}
+
+func (m *model) clampScroll() {
+	if m.detail != nil {
+		m.scroll = max(0, min(m.scroll, len(m.detailBody())-max(1, m.height-1)))
+	}
+}
+
+func (m *model) detailView() string {
+	body := m.detailBody()
 	height := max(1, m.height-1)
 	start := min(m.scroll, max(0, len(body)-height))
 	end := min(len(body), start+height)
