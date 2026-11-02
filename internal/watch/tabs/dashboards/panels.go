@@ -43,7 +43,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			lines = append(lines, label+": "+cell(row["value"])+" "+config.Unit)
 		}
 	case "table":
-		lines = append(lines, renderTable(data)...)
+		lines = append(lines, renderTable(data, false)...)
 	case "time_series":
 		series, from, to, skipped := timeSeries(data.Rows)
 		if skipped > 0 {
@@ -74,18 +74,20 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			for _, s := range series {
 				labels = append(labels, s.Name)
 			}
-			lines = append(lines, "Series: "+strings.Join(labels, " | "), from.Format(time.RFC3339)+" → "+to.Format(time.RFC3339))
+			lines = append(lines, "Series: "+strings.Join(labels, " | "), displayTime(from)+" → "+displayTime(to))
 			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, min(12, max(4, height-4)), from, to, series), "\n")...)
 		}
-		lines = append(lines, "Query data:")
-		lines = append(lines, renderTable(data)...)
+		lines = append(lines, "Query data · sample timestamps in local time:")
+		lines = append(lines, renderTable(data, true)...)
 	default:
 		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", kind))
-		lines = append(lines, renderTable(data)...)
+		lines = append(lines, renderTable(data, false)...)
 	}
 	return lines
 }
-func renderTable(data apigen.QueryPreview) []string {
+func displayTime(t time.Time) string { return t.Local().Format("2006-01-02 15:04:05.000 MST") }
+
+func renderTable(data apigen.QueryPreview, sampleTimes bool) []string {
 	columns := append([]string(nil), data.Columns...)
 	if len(columns) == 0 {
 		seen := map[string]bool{}
@@ -103,7 +105,18 @@ func renderTable(data apigen.QueryPreview) []string {
 	for i, row := range data.Rows {
 		values := []string{}
 		for _, name := range columns {
-			values = append(values, name+"="+cell(row[name]))
+			value := cell(row[name])
+			// Only the time-series renderer declares these aliases as sample
+			// timestamps. Arbitrary table/fallback SQL columns retain their values.
+			if sampleTimes {
+				switch name {
+				case "timestamp_ns", "time_ns", "timestamp", "start_ns":
+					if sampleTime, ok := timestamp(map[string]any{name: row[name]}); ok {
+						value = displayTime(sampleTime)
+					}
+				}
+			}
+			values = append(values, name+"="+value)
 		}
 		lines = append(lines, fmt.Sprintf("%d. %s", i+1, strings.Join(values, " · ")))
 	}

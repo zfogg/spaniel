@@ -451,3 +451,23 @@ func TestShortHelpFollowsFocusedViewAndInputState(t *testing.T) {
 		t.Fatal("empty list advertises unavailable actions")
 	}
 }
+
+func TestSampleTimestampPresentationPreservesQueryValues(t *testing.T) {
+	const raw = "1793631000123456789"
+	data := apigen.QueryPreview{Columns: []string{"timestamp_ns", "value", "custom_numeric"}, Rows: []map[string]any{{"timestamp_ns": raw, "value": 2.5, "custom_numeric": raw}}}
+	formatted := strings.Join(renderTable(data, true), "\n")
+	expected := time.Unix(0, 1793631000123456789).Local().Format("2006-01-02 15:04:05.000 MST")
+	if !strings.Contains(formatted, "timestamp_ns="+expected) || strings.Contains(formatted, "timestamp_ns="+raw) || !strings.Contains(formatted, "custom_numeric="+raw) {
+		t.Fatal(formatted)
+	}
+	if !strings.Contains(strings.Join(renderTable(data, false), "\n"), "timestamp_ns="+raw) {
+		t.Fatal("arbitrary user SQL result changed")
+	}
+	if data.Rows[0]["timestamp_ns"] != raw {
+		t.Fatal("presentation mutated internal timestamp")
+	}
+	series, from, _, _ := timeSeries(data.Rows)
+	if len(series) != 1 || from.UnixNano() != 1793631000123456789 {
+		t.Fatal("presentation changed calculation precision")
+	}
+}
