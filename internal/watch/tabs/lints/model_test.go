@@ -293,6 +293,10 @@ func TestSpanOnlyCorrelationAndSummaryUpgrade(t *testing.T) {
 	if d.navigate("s") == nil || d.detail.service != "checkout-api" {
 		t.Fatal("span-only finding did not resolve")
 	}
+	d.Update(protocol.Live{Event: liveevent.Message{Type: "issue"}})
+	if d.states["target"].pending || d.navigate("s") == nil {
+		t.Fatal("trace-only invalidation stranded a span-only target subscription")
+	}
 	deliver(d, "lint", client.Envelope[[]apigen.LintWarning]{Data: []apigen.LintWarning{w}})
 	if d.navigate("t") == nil {
 		t.Fatal("refresh lost resolved trace")

@@ -78,6 +78,7 @@ type model struct {
 	detail                        *finding
 	found, wrongSession           bool
 	target                        []apigen.Span
+	spanTarget                    bool
 }
 
 // New is the stable shell constructor.
@@ -131,6 +132,7 @@ func (m *model) register() {
 
 func (m *model) registerTarget() {
 	trace, span := m.detail.trace, m.detail.span
+	m.spanTarget = trace == "" && span != ""
 	key := client.Key{Owner: m.env.Owner, Name: "target"}
 	if trace != "" {
 		m.env.Refresh.Register(client.Spec{Key: key, Resources: []liveevent.Resource{"trace", "spans"}, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
@@ -191,7 +193,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// is patch-only and never starts an HTTP refresh here.
 		for _, resource := range liveevent.Changes(msg.Event) {
 			for _, name := range []string{"lint", "issues", "services", "target"} {
-				if ((name == "lint" || name == "issues") && string(resource) == name) || (name == "services" && resource == "spans") || (name == "target" && (resource == "trace" || resource == "spans" || resource == "span")) {
+				targetChanged := (m.spanTarget && resource == "span") || (!m.spanTarget && (resource == "trace" || resource == "spans"))
+				if ((name == "lint" || name == "issues") && string(resource) == name) || (name == "services" && resource == "spans") || (name == "target" && targetChanged) {
 					s := m.states[name]
 					s.pending = true
 					m.states[name] = s
