@@ -444,6 +444,19 @@ func TestPartialFailureResizeAndSafeLinks(t *testing.T) {
 	assertContains(t, d, "SELECT service_name")
 	press(d, "h")
 	assertContains(t, d, "Error loading history")
+	d.section = "event"
+	assertContains(t, d, "Error loading history")
+	if strings.Contains(d.View(), "no longer on the current history page") {
+		t.Fatal("failed initial history mistaken for expired event")
+	}
+	f.mu.Lock()
+	f.failures["/api/alerts/latency/events"] = 500
+	f.mu.Unlock()
+	invalidate(env, d)
+	drain(t, env, d)
+	if !strings.Contains(strings.Join(d.silenceLines(), "\n"), "Scheduled maintenance") {
+		t.Fatal("partial failure hid retained silence metadata")
+	}
 	for _, section := range []string{"definition", "instances", "history", "links"} {
 		d.section = section
 		for _, size := range []tea.WindowSizeMsg{{Width: 1, Height: 1}, {Width: 18, Height: 5}, {Width: 60, Height: 12}, {Width: 120, Height: 30}} {

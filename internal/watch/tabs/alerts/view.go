@@ -128,6 +128,9 @@ func (m *model) View() string {
 		case "instance":
 			body = m.scroll(m.instanceDetail())
 		case "event":
+			if status := m.status("history"); status != "" {
+				head = append(head, status)
+			}
 			body = m.scroll(m.eventDetail())
 		case "history":
 			head = append(head, fmt.Sprintf("API page %d/%d · %d events · group %s", m.page, max(1, (m.total+pageSize-1)/pageSize), m.total, oneLine(label(m.group))), fmt.Sprintf("state %s · severity %s · search %s", label(m.hstate), label(m.hseverity), oneLine(m.hsearch)))
@@ -240,10 +243,14 @@ func (m *model) definition() []string {
 	return lines
 }
 func (m *model) silenceLines() []string {
+	var lines []string
 	if s := m.status("silences"); s != "" {
-		return []string{s}
+		lines = append(lines, s)
 	}
-	lines := []string{fmt.Sprintf("Silences: %d server records (read-only)", len(m.silences))}
+	if !m.loads["silences"].loaded {
+		return lines
+	}
+	lines = append(lines, fmt.Sprintf("Silences: %d server records (read-only)", len(m.silences)))
 	for _, s := range m.silences {
 		lines = append(lines, fmt.Sprintf("  group %s · %s → %s · %s", oneLine(label(s.GroupKey)), stamp(s.StartsAt), stamp(s.EndsAt), oneLine(s.Comment)))
 	}
@@ -269,6 +276,9 @@ func (m *model) instanceLines() []string {
 	return append(lines, m.silenceLines()...)
 }
 func (m *model) instanceDetail() []string {
+	if !m.loads["rule"].loaded {
+		return nil
+	}
 	for _, raw := range m.rule.Instances {
 		r := apigen.AlertInstance(raw)
 		if r.GroupKey != m.instance {
@@ -295,6 +305,9 @@ func (m *model) instanceDetail() []string {
 	return []string{"This instance is no longer present. Press i for current instances."}
 }
 func (m *model) eventDetail() []string {
+	if !m.loads["history"].loaded {
+		return nil
+	}
 	for _, r := range m.events {
 		if r.Id == m.event {
 			return []string{"Event: " + r.Id, "Kind: " + r.Kind + " / state: " + r.State + " / value: " + value(r.Value), "Group: " + r.GroupKey, "Time: " + stamp(r.CreatedAt), r.Detail}
