@@ -82,3 +82,24 @@ func TestFullLogAgesFollowSharedRenderClock(t *testing.T) {
 		t.Fatal("age did not repaint or changed durable time", detail.View())
 	}
 }
+
+func TestLogHeadersAlignWithAgeAwareRows(t *testing.T) {
+	now := time.Date(2026, 11, 2, 21, 5, 0, 0, time.UTC)
+	row := logRow("body-marker", now.Add(-2*time.Minute).UnixNano())
+	row.ServiceName = "service-marker"
+	row.Severity = 17
+	for _, width := range []int{40, 60, 80, 120} {
+		header := RenderHeader(width)
+		line := ansi.Strip(RenderRow(row, false, width, now))
+		pairs := map[string]string{"LEVEL": "ERROR", "BODY": "body-marker"}
+		if width >= 70 {
+			pairs["SERVICE"] = "service-marker"
+		}
+		for heading, value := range pairs {
+			headingAt, valueAt := strings.Index(header, heading), strings.Index(line, value)
+			if headingAt < 0 || valueAt < 0 || ansi.StringWidth(header[:headingAt]) != ansi.StringWidth(line[:valueAt]) {
+				t.Fatalf("width %d: %s misaligned:\n%s\n%s", width, heading, header, line)
+			}
+		}
+	}
+}

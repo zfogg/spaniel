@@ -287,7 +287,7 @@ func (m *model) View() string {
 		}
 	}
 	if len(rows) > 0 {
-		lines = append(lines, tui.Faint.Render("  TIME (local)  LEVEL  SERVICE          BODY / CORRELATION"))
+		lines = append(lines, tui.Faint.Render(RenderHeader(m.width)))
 		i := m.selection(rows)
 		capacity := max(1, m.height-len(lines))
 		start := max(0, i-capacity+1)
@@ -296,6 +296,23 @@ func (m *model) View() string {
 		}
 	}
 	return fit(lines, m.width, m.height)
+}
+
+func logTimeWidth(width int) int {
+	if width < 70 {
+		return max(1, min(22, width/2))
+	}
+	return min(26, max(12, width/4))
+}
+
+// RenderHeader uses the same age-aware column widths as logs and dashboard rows.
+func RenderHeader(width int) string {
+	timeWidth := logTimeWidth(width)
+	header := "  " + cell("TIME (local)", timeWidth) + "  " + cell("LEVEL", 5) + "  " + cell("SERVICE", 16) + " " + cell("BODY", max(1, width-timeWidth-52)) + "  CORRELATION"
+	if width < 70 {
+		header = "  " + cell("TIME (local)", timeWidth) + " " + cell("LEVEL", 5) + " BODY"
+	}
+	return ansi.Truncate(header, max(1, width), "…")
 }
 
 // RenderRow shares the log list columns, severity and correlation display with dashboard panels.
@@ -310,12 +327,11 @@ func RenderRow(row apigen.Log, selected bool, width int, now ...time.Time) strin
 		correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
 	}
 	level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
-	timeWidth := min(26, max(12, width/4))
+	timeWidth := logTimeWidth(width)
 	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), timeWidth)
 	timeText += strings.Repeat(" ", max(0, timeWidth-ansi.StringWidth(timeText)))
 	line := prefix + timeText + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, width-timeWidth-52)) + "  " + correlation
 	if width < 70 {
-		timeText = terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), max(1, min(22, width/2)))
 		line = prefix + timeText + " " + level + " " + preview(row.Body)
 	}
 	return ansi.Truncate(line, max(1, width), "…")
