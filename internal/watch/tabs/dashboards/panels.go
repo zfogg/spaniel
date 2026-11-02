@@ -173,12 +173,18 @@ func timestamp(row map[string]any) (time.Time, bool) {
 		if number, ok := v.(json.Number); ok {
 			s, exact = number.String(), true
 		}
+		if integer, ok := v.(int64); ok {
+			s, exact = strconv.FormatInt(integer, 10), true
+		}
 		if exact {
 			if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
 				return t, true
 			}
-			if ns, err := strconv.ParseInt(s, 10, 64); err == nil && key != "timestamp" {
-				return time.Unix(0, ns), true
+			if integer, err := strconv.ParseInt(s, 10, 64); err == nil {
+				if key != "timestamp" || integer > 1e14 || integer < -1e14 {
+					return time.Unix(0, integer), true
+				}
+				return time.UnixMilli(integer), true
 			}
 		}
 		n, ok := number(v)

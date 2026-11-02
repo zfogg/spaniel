@@ -470,4 +470,10 @@ func TestSampleTimestampPresentationPreservesQueryValues(t *testing.T) {
 	if len(series) != 1 || from.UnixNano() != 1793631000123456789 {
 		t.Fatal("presentation changed calculation precision")
 	}
+	for _, value := range []any{int64(1793631000123456789), json.Number(raw)} {
+		stamp, ok := timestamp(map[string]any{"timestamp": value})
+		if !ok || stamp.UnixNano() != 1793631000123456789 {
+			t.Fatal("timestamp alias lost integer precision", stamp)
+		}
+	}
 }
