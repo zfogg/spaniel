@@ -138,7 +138,7 @@ See which of your HTTP routes have ever been traced. Point spaniel at an OpenAPI
 Not everything needs a browser. spaniel ships a full set of TUI commands for the keyboard-first:
 
 ```bash
-spaniel tui            # live seven-tab dashboard on a TTY; span/issue line stream in a pipe
+spaniel tui              # live seven-tab dashboard on a TTY; span/issue line stream in a pipe
 spaniel logs tail        # follow logs with severity/service/trace filters
 spaniel trace <id>       # shared live waterfall/span inspector for one trace
 ```
@@ -489,7 +489,7 @@ spaniel record -- <cmd> [args...]    same, but save as a baseline and open the d
 
 **Terminal viewers**
 ```
-spaniel tui                        live seven-tab dashboard; pipe span/issue lines
+spaniel tui                         live seven-tab dashboard; pipe span/issue lines
 spaniel logs tail                    follow logs (--service / --trace / --severity filters)
 spaniel trace <id|short-id>          shared live waterfall and span inspector
 ```
@@ -570,7 +570,7 @@ spaniel is specifically built for the **local development loop**, not production
 - [x] Baseline import from OTLP / Jaeger JSON (`spaniel import`)
 - [x] Instrumentation coverage (`--routes-file`)
 - [x] CI regression detection (`spaniel ci`)
-- [x] Terminal UI (`spaniel tui` / `tui` / `logs tail`)
+- [x] Terminal UI (`spaniel tui` / `trace` / `logs tail`)
 - [ ] Live import from a running Tempo / Jaeger backend
 - [ ] More detectors (connection-pool exhaustion, retry storms)
 - [ ] Cloud baseline sync (team feature)
