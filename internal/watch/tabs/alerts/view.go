@@ -201,6 +201,7 @@ func (m *model) definition() []string {
 	}
 	r := m.rule
 	lines := []string{tone(ruleState(r)) + " · " + string(r.Severity) + " · id " + oneLine(r.Id),
+		"Name: " + clean(r.Name),
 		"Condition / threshold: " + clean(r.ConditionJson), "Query (version " + fmt.Sprint(r.QueryVersion) + "):", clean(r.QuerySql),
 		"Group by: " + clean(r.GroupByJson),
 		fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
