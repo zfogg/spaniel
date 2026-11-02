@@ -70,11 +70,11 @@ func TestAttributeTablesPreserveTypesPrecisionAndFullValues(t *testing.T) {
 		found[row.Key] = row
 	}
 	for key, want := range map[string]attributeview.Row{
-		"number":             {"number", "number", "9007199254740993"},
-		`nested["items"][1]`: {`nested["items"][1]`, "number", "9223372036854775807"},
-		"flag":               {"flag", "boolean", "true"},
-		`nested["items"][2]`: {`nested["items"][2]`, "null", "null"},
-		"empty":              {"empty", "array", "0 items"},
+		"number":             {Key: "number", Type: "number", Value: "9007199254740993"},
+		`nested["items"][1]`: {Key: `nested["items"][1]`, Type: "number", Value: "9223372036854775807"},
+		"flag":               {Key: "flag", Type: "boolean", Value: "true"},
+		`nested["items"][2]`: {Key: `nested["items"][2]`, Type: "null", Value: "null"},
+		"empty":              {Key: "empty", Type: "array", Value: "0 items"},
 	} {
 		if found[key] != want {
 			t.Fatalf("attribute %s: %#v", key, found[key])
