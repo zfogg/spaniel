@@ -107,6 +107,11 @@ func (m *model) compose(top, body []uiLine, selectedEnd int) string {
 	header = header[:min(len(header), max(0, m.height-len(footer)-1))]
 	available := max(1, m.height-len(header)-len(footer))
 	content := wrapUI(body, m.width)
+	if available < 4 {
+		for len(content) > 0 && strings.TrimSpace(ansi.Strip(content[0])) == "" {
+			content = content[1:]
+		}
+	}
 	offset := 0
 	if m.detailID != "" {
 		m.scroll = min(m.scroll, max(0, len(content)-available))
@@ -239,12 +244,17 @@ func (m *model) View() string {
 					style = valueStyle
 				case "time_series":
 					style = chartStyle
+					if strings.HasPrefix(line, "Series:") {
+						style = captionStyle
+					} else if strings.Contains(line, " → ") {
+						style = secondaryStyle
+					}
 				case "table":
 					if i < 3 {
 						style = captionStyle
 					}
 				}
-				if strings.HasPrefix(line, "Warning:") || strings.HasPrefix(line, "Truncated:") || strings.Contains(line, "unsupported in the terminal") {
+				if strings.HasPrefix(line, "Warning:") || strings.HasPrefix(line, "Truncated:") || strings.Contains(line, "null/invalid") || strings.Contains(line, "unsupported in the terminal") {
 					style = warningStyle
 				}
 				if strings.HasPrefix(line, "No ") {
