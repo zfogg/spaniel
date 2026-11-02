@@ -1,143 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
-export interface SpanPayload {
-  traceId: string
-  spanId: string
-  serviceName: string
-  name: string
-  durationNs: number
-  statusCode: number
-  sessionId: string
-  row?: SelfSpanPayload
-  trace?: SelfTracePayload
-}
-export type SelfTracePayload = import('./api').TraceRow
-export type SelfSpanPayload = import('./api').SpanRow
-export type SelfLogPayload = import('./api').Log
-export interface LogPayload {
-  traceId: string
-  spanId: string
-  severity: number
-  body: string
-  serviceName: string
-  sessionId: string
-  row?: SelfLogPayload
-}
-export interface MetricRowPayload {
-  name: string
-  description: string
-  unit: string
-  type: string
-  aggregation_temporality?: string
-  is_monotonic?: boolean
-  start_timestamp_ns?: number
-  timestamp_ns: number
-  flags?: number
-  value?: number
-  histogram_count?: number
-  histogram_sum?: number
-  histogram_min?: number
-  histogram_max?: number
-  explicit_bounds?: string
-  bucket_counts?: string
-  summary_count?: number
-  summary_sum?: number
-  summary_quantiles?: string
-  attributes: string
-  series_attributes: string
-  scope_name?: string
-  scope_version?: string
-  scope_schema_url?: string
-  scope_attributes?: string
-  exemplars?: string
-  service_name: string
-  session_id: string
-}
-export interface MetricPayload {
-  name: string
-  serviceName: string
-  value: number
-  type: string
-  catalogOnly?: boolean
-  row?: MetricRowPayload
-}
-export interface IssuePayload {
-  traceId: string
-  kind: string
-  fingerprint: string
-  count: number
-  wastedNs: number
-}
-export interface ForwarderPayload {
-  url: string
-  sent: number
-  errors: number
-  lastError?: string
-  pendingBytes?: number
-  droppedSpool?: number
-}
-export interface ThroughputPayload {
-  spansPerSec: number
-  logsPerSec: number
-}
-export interface LiveStatePayload {
-  stats: import('./api').Stats
-  sources: import('./api').SourceStats[]
-}
-export interface ActiveSessionPayload {
-  id: string
-  label: string
-}
-export interface AlertPayload {
-  ruleId: string
-  ruleName: string
-  severity: 'info' | 'warning' | 'critical' | string
-  state: 'pending' | 'firing' | 'resolved' | 'error' | string
-  transition: 'firing' | 'resolved' | 'acknowledged' | string
-  groupLabels: Record<string, string>
-  currentValue?: number | null
-  threshold?: number
-  operator?: string
-  link?: string
-  browser?: boolean
-}
-export interface AlertSyncPayload {
-  ruleId: string
-  reason: string
-  events?: import('./api').AlertEvent[]
-  total?: number
-}
-export interface NotificationPayload {
-  id: string
-  source: string
-  sourceId: string
-}
-
-export type WsEvent =
-  | {
-      type: 'definition_sync'
-      timestamp_ns: number
-      payload: {
-        kind: 'dashboard' | 'alert'
-        status: 'updating' | 'updated' | 'error'
-        message?: string
-      }
-    }
-  | { type: 'span'; timestamp_ns: number; payload: SpanPayload }
-  | { type: 'self_trace'; timestamp_ns: number; payload: SelfTracePayload }
-  | { type: 'self_span'; timestamp_ns: number; payload: SelfSpanPayload }
-  | { type: 'self_log'; timestamp_ns: number; payload: SelfLogPayload }
-  | { type: 'log'; timestamp_ns: number; payload: LogPayload }
-  | { type: 'metric'; timestamp_ns: number; payload: MetricPayload }
-  | { type: 'issue'; timestamp_ns: number; payload: IssuePayload }
-  | { type: 'forwarder'; timestamp_ns: number; payload: ForwarderPayload }
-  | { type: 'throughput'; timestamp_ns: number; payload: ThroughputPayload }
-  | { type: 'live_state'; timestamp_ns: number; payload: LiveStatePayload }
-  | { type: 'active_session'; timestamp_ns: number; payload: ActiveSessionPayload }
-  | { type: 'alert'; timestamp_ns: number; payload: AlertPayload }
-  | { type: 'alert_sync'; timestamp_ns: number; payload: AlertSyncPayload }
-  | { type: 'notification'; timestamp_ns: number; payload: NotificationPayload }
-  | { type: 'heartbeat'; timestamp_ns: number }
+export type * from '../generated/liveevent'
+import { decodeEvent } from '../generated/liveevent'
+import type { WsEvent } from '../generated/liveevent'
 
 // Keep SpanEvent as a backward-compat alias:
 export type SpanEvent = Extract<WsEvent, { type: 'span' }>
@@ -189,9 +54,9 @@ export function createWS(onEvent: Handler, onStatus?: StatusHandler): () => void
     ws.onmessage = (e) => {
       lastActivity = Date.now()
       try {
-        const ev = JSON.parse(e.data)
-        if (typeof ev?.type !== 'string') return
-        onEvent(ev as WsEvent)
+        const ev = decodeEvent(JSON.parse(e.data))
+        if (!ev) return
+        onEvent(ev)
       } catch (err) {
         // A malformed frame is a backend bug, not something to silently eat —
         // log it (with a snippet of the payload) so it's debuggable, but keep
@@ -298,6 +163,17 @@ export function onWSEvent(fn: Listener): () => void {
   listeners.add(fn)
   return () => {
     listeners.delete(fn)
+    releaseSharedWS()
+  }
+}
+
+/** Observe the same shared socket; immediately reports its current state. */
+export function onWSStatus(fn: SharedStatusListener): () => void {
+  ensureSharedWS()
+  statusListeners.add(fn)
+  fn(sharedStatus)
+  return () => {
+    statusListeners.delete(fn)
     releaseSharedWS()
   }
 }

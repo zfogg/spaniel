@@ -87,6 +87,11 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (res PruneResult, err e
 		defer cancel()
 		d = d.WithContext(ctx)
 	}
+	defer func() {
+		if err != nil || res.DeletedByAge+res.DeletedByCount+res.DeletedBySize > 0 {
+			d.changed("retention", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "alerts", "sessions", "stats", "sources", "services", "coverage", "service-map")
+		}
+	}()
 	started := time.Now()
 	result := "ok"
 	defer func() {
@@ -183,19 +188,24 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (res PruneResult, err e
 
 // Reset wipes all telemetry data (spans, logs, lint warnings, trace issues, sessions).
 // The active session pointer in memory is cleared.
-func (d *DB) Reset() error {
-	err := d.withMaintenance(func(d *DB) error {
-		if err := d.resetTelemetry(); err != nil {
+func (d *DB) Reset() error { return d.resetWithCheckpoint((*DB).checkpointWithRetry) }
+
+func (d *DB) resetWithCheckpoint(checkpoint func(*DB) error) error {
+	cleared := false
+	err := d.withMaintenance(func(isolated *DB) error {
+		if err := isolated.resetTelemetry(); err != nil {
 			return err
 		}
-		return d.checkpointWithRetry()
+		cleared = true
+		isolated.SetActiveSession("", "")
+		return checkpoint(isolated)
 	})
-	if err != nil {
-		return err
+	// The transaction is durable before checkpoint. Publish even if checkpoint
+	// or appender restoration fails, once SQL leases are released for resync.
+	if cleared {
+		d.changed("reset", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "alerts", "sessions", "stats", "sources", "services", "service-map", "coverage", "active-session", "storage")
 	}
-	d.activeSessionID = ""
-	d.activeSessionLabel = ""
-	return nil
+	return err
 }
 
 // Path returns the underlying DuckDB file path (":memory:" for in-memory DBs).

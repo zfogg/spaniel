@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -10,14 +9,12 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/zfogg/spaniel/internal/liveevent"
 )
 
 // streamEvent mirrors ws.Event with raw payload bytes so each subcommand can
 // decode the payload into its own typed struct.
-type streamEvent struct {
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
-}
+type streamEvent = liveevent.Message
 
 // streamWS dials apiBase's /ws endpoint and pushes parsed events into the
 // returned channel. The channel closes when ctx is canceled or the connection
@@ -54,8 +51,8 @@ func streamWS(ctx context.Context, apiBase string) (<-chan streamEvent, <-chan e
 				}
 				return
 			}
-			var ev streamEvent
-			if err := json.Unmarshal(data, &ev); err != nil {
+			ev, err := liveevent.Decode(data)
+			if err != nil {
 				continue
 			}
 			select {

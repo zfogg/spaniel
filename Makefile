@@ -1,5 +1,11 @@
 .PHONY: dev build build-server run test test-coverage test-extensive test-storage test-ingestion test-mcp-e2e test-telemetry generate verify-generated setup
 
+.DEFAULT_GOAL := dev
+
+.PHONY: lint-go
+lint-go:
+	go vet ./...
+
 # Use MSYS2 Bash when available; otherwise use Bash from PATH. Scoop's sh.exe
 # shim may select a broken Zsh process on Windows.
 ifeq ($(OS),Windows_NT)
@@ -59,7 +65,7 @@ run: build-server
 
 verify-generated:
 	$(MAKE) generate
-	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
+	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/liveevent.ts frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
 	test -z "$$(git ls-files --others --exclude-standard -- api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
 
 .PHONY: test-linter
@@ -181,6 +187,8 @@ test-dashboard-cli:
 	(cd cmd/spaniel && "$(CURDIR)/$(BIN_DIR)/dashboard-cli.test$(EXE)" -test.count=1 -test.timeout=10m)
 
 generate:
+	go run ./cmd/genliveevent
+	cd frontend && pnpm exec oxfmt --write src/generated/liveevent.ts
 	go run ./cmd/genquery
 	go run ./cmd/genschema
 	cd frontend && pnpm exec oxfmt --write src/generated/schemaCatalog.ts
@@ -272,3 +280,13 @@ test-telemetry:
 	mkdir -p $(BIN_DIR)
 	go test -race -c -o $(BIN_DIR)/telemetry.test$(EXE) ./internal/telemetry
 	./$(BIN_DIR)/telemetry.test$(EXE) -test.count=1 -test.timeout=2m
+
+# Watch foundation transport/model tests use stable, loopback-only binaries.
+.PHONY: test-watch
+test-watch:
+	@set -e; mkdir -p $(BIN_DIR); \
+	  for package in $$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./internal/liveevent ./internal/watch/...); do \
+	    test_binary="$(CURDIR)/$(BIN_DIR)/watch-$$(basename "$$package").test$(EXE)"; \
+	    go test -race -c -o "$$test_binary" "$$package"; \
+	    "$$test_binary" -test.count=1 -test.timeout=2m; \
+	  done

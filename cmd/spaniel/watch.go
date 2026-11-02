@@ -39,13 +39,14 @@ type issueEntry struct {
 func watchSubcommand() *cobra.Command {
 	var (
 		apiBase    string
+		sessionID  string
 		service    string
 		errorsOnly bool
 		n1Only     bool
 	)
 	cmd := &cobra.Command{
 		Use:   "watch",
-		Short: "Live ticker: span/issue feed (interactive table on a TTY, line-stream on a pipe)",
+		Short: "Live seven-tab dashboard (span/issue line stream on a pipe)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := spanFilter{
 				Service:    service,
@@ -55,12 +56,13 @@ func watchSubcommand() *cobra.Command {
 			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
 			if isTerminal(os.Stdout) {
-				return watchTUI(ctx, apiBase, f)
+				return muxTUIWithFilter(ctx, apiBase, f, sessionID)
 			}
 			return runWatch(ctx, cmd.OutOrStdout(), apiBase, f)
 		},
 	}
 	cmd.Flags().StringVar(&apiBase, "api", "http://localhost:8080", "Spaniel API base URL")
+	cmd.Flags().StringVar(&sessionID, "session", "", "Dashboard session ID (default: follow active session)")
 	cmd.Flags().StringVar(&service, "service", "", "Filter: only show spans from this service")
 	cmd.Flags().BoolVar(&errorsOnly, "errors-only", false, "Only show spans with status_code >= ERROR")
 	cmd.Flags().BoolVar(&n1Only, "n+1-only", false, "Only show N+1 detector events (skips regular spans)")

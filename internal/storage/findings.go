@@ -15,6 +15,7 @@ func (d *DB) InsertLintWarning(w *LintWarning) error {
 	if err := d.namedQuery("InsertLintWarning").LintWarning.Create(w); err != nil {
 		return err
 	}
+	d.changed("lint", "lint", "trace")
 	return d.RecordNotification(&NotificationRecord{
 		Source: "lint", SourceID: w.TraceID + ":" + w.SpanID, Severity: w.Severity,
 		Title: "Lint: " + w.RuleID, Body: w.Message, Link: "/lint",
@@ -53,6 +54,7 @@ func (d *DB) InsertMissingTraceLints(traceID, ruleID string, warnings []*LintWar
 	if err = d.namedQuery("TraceLintInsertMissing").LintWarning.Create(missing...); err != nil {
 		return 0, err
 	}
+	d.changed("lint", "lint", "trace")
 	w := missing[0]
 	err = d.RecordNotification(&NotificationRecord{
 		Source: "lint", SourceID: traceID + ":" + ruleID, Severity: w.Severity,

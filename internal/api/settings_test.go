@@ -423,6 +423,9 @@ func TestDropAllData_WipesStore(t *testing.T) {
 	if len(sessions) != 0 {
 		t.Errorf("expected sessions wiped, got %d", len(sessions))
 	}
+	if store.ActiveSessionID() != "" || store.ActiveSessionLabel() != "" {
+		t.Fatal("request-scoped reset retained deleted active session")
+	}
 }
 
 // ── POST /api/settings/prune ───────────────────────────────────────────────

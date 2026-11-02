@@ -11,7 +11,8 @@ import type {
   Stats,
   TraceRow,
 } from './api'
-import { onWSEvent } from './ws'
+import { onWSEvent, onWSStatus } from './ws'
+import { changedResources } from '../generated/liveevent'
 import { isPageVisible } from './page-visibility'
 
 // Single shared client. This is a local dev tool talking to localhost, so we
@@ -60,27 +61,6 @@ export const qk = {
 // Maps a live WebSocket event type to the query-key prefixes it should
 // invalidate. Throughput is intentionally absent — BottomBar consumes it from
 // the live stream directly, it is not query state.
-const INVALIDATIONS: Record<string, string[]> = {
-  // Dashboard panels execute read-only queries over these same live streams.
-  // Invalidate their active observers from the event that made their results
-  // stale, rather than polling the preview endpoint.
-  span: [
-    'services',
-    'trace',
-    'span',
-    'service-map',
-    'lint',
-    'coverage',
-    'sessions',
-    'dashboard-panel',
-  ],
-  log: ['services', 'dashboard-panel'],
-  // The Metrics view refreshes its selected stream from matching metric
-  // events. Do not also refetch it for every unrelated metric in the store.
-  metric: ['services', 'dashboard-panel'],
-  issue: ['issues', 'trace'],
-  alert: ['alerts', 'notifications'],
-}
 
 type TraceListData = { data: TraceRow[]; meta?: { page?: number; total?: number } }
 type ListData<T> = { data: T[]; meta?: { page?: number; total?: number } }
@@ -228,6 +208,15 @@ export function useLiveInvalidation() {
       void qc.invalidateQueries({ refetchType: 'active' }, { cancelRefetch: false })
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
+
+    let hasConnected = false
+    let connected = false
+    const unstatus = onWSStatus((status) => {
+      if (status.connected && !connected && hasConnected && isPageVisible())
+        void qc.invalidateQueries({ refetchType: 'active' }, { cancelRefetch: false })
+      if (status.connected) hasConnected = true
+      connected = status.connected
+    })
 
     const unsub = onWSEvent((ev) => {
       if (ev.type === 'span' && ev.payload.row) {
@@ -487,6 +476,8 @@ export function useLiveInvalidation() {
       }
       if (ev.type === 'active_session') {
         qc.setQueryData(qk.activeSession(), ev.payload)
+        for (const prefix of changedResources(ev)) dirty.add(prefix)
+        if (isPageVisible() && !timer) timer = setTimeout(flush, 1_000)
         return
       }
       if (ev.type === 'forwarder') {
@@ -508,7 +499,16 @@ export function useLiveInvalidation() {
       // Self-telemetry catalog frames update the Metrics sidebar locally. They
       // must not refetch telemetry queries, which would form a feedback loop.
       if (ev.type === 'metric' && ev.payload.catalogOnly) return
-      const prefixes = INVALIDATIONS[ev.type]
+      const prefixes = changedResources(ev).filter((prefix) => {
+        // First pages were patched above; the Metrics view owns matching-series
+        // refreshes even for older rowless events. Other resources
+        // share the durable matrix with terminal subscribers.
+        if (ev.type === 'span' && ev.payload.row && ['traces', 'spans'].includes(prefix))
+          return false
+        if (ev.type === 'log' && ev.payload.row && prefix === 'logs') return false
+        if (ev.type === 'metric' && ['metrics', 'metric-series'].includes(prefix)) return false
+        return true
+      })
       if (!prefixes) return
       for (const p of prefixes) dirty.add(p)
       if (isPageVisible() && !timer) timer = setTimeout(flush, 1_000)
@@ -516,6 +516,7 @@ export function useLiveInvalidation() {
 
     return () => {
       unsub()
+      unstatus()
       document.removeEventListener('visibilitychange', onVisibilityChange)
       if (timer) clearTimeout(timer)
     }
