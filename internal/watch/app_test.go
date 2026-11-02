@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
@@ -35,6 +37,13 @@ func (o *terminalOutput) text() string { o.Lock(); defer o.Unlock(); return o.Bu
 // This runs the production Bubble Tea program against seeded HTTP and real hub
 // sockets, without a user console or a second collector/ingestion pipeline.
 func TestSeededTerminalSmoke(t *testing.T) {
+	if os.Getenv("SPANIEL_WATCH_CAPTURE_DIR") != "" {
+		previousProfile, previousBackground := lipgloss.ColorProfile(), lipgloss.HasDarkBackground()
+		lipgloss.SetColorProfile(termenv.TrueColor)
+		lipgloss.SetHasDarkBackground(true)
+		t.Cleanup(func() { lipgloss.SetColorProfile(previousProfile); lipgloss.SetHasDarkBackground(previousBackground) })
+	}
+
 	hub := ws.NewHub()
 	requests := make(chan string, 128)
 	sockets := make(chan net.Conn, 4)
@@ -150,7 +159,7 @@ func TestSeededTerminalSmoke(t *testing.T) {
 			t.Fatal("no live connection to interrupt")
 		}
 		deadline := time.Now().Add(time.Second)
-		for !strings.Contains(output.text(), "reconnecting:") {
+		for !strings.Contains(output.text(), "reconnecting") {
 			if time.Now().After(deadline) {
 				t.Fatal("connection failure not visible")
 			}

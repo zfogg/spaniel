@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 	"strings"
@@ -255,16 +256,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) View() string {
 	labels := make([]string, len(m.tabs))
 	for i, t := range m.tabs {
-		labels[i] = t.Title
+		labels[i] = tui.Muted.Render(t.Title)
 		if i == m.active {
-			labels[i] = "[" + labels[i] + "]"
+			labels[i] = tui.Title.Underline(true).Render("[" + t.Title + "]")
 		}
 	}
-	state := "connecting"
+	state := tui.Warn.Bold(true).Render("◌ connecting")
 	if m.status.Connected {
-		state = "live"
+		state = tui.Ok.Bold(true).Render("● live")
 	} else if m.status.Err != nil {
-		state = "reconnecting: " + m.status.Err.Error()
+		state = tui.Warn.Bold(true).Render("● reconnecting") + tui.Muted.Render(": "+m.status.Err.Error())
 	}
 	width := m.width
 	if width <= 0 {
@@ -275,7 +276,10 @@ func (m *Model) View() string {
 	if m.height > 0 {
 		body = lipgloss.NewStyle().Width(width).MaxWidth(width).Height(height).MaxHeight(height).Render(body)
 	}
-	header := lipgloss.NewStyle().MaxWidth(width).Render(m.title() + "  " + strings.Join(labels, " "))
-	footer := lipgloss.NewStyle().MaxWidth(width).Render("Tab/Shift-Tab tabs · Esc back · q quit | " + state)
+	header := lipgloss.NewStyle().MaxWidth(width).Render(tui.Ink.Bold(true).Render(m.title()) + tui.Faint.Render("  │  ") + strings.Join(labels, "  "))
+	shortcut := func(k, description string) string {
+		return tui.Accent.Bold(true).Underline(true).Render(k) + tui.Muted.Render(" "+description)
+	}
+	footer := lipgloss.NewStyle().MaxWidth(width).Render(strings.Join([]string{shortcut("Tab/Shift-Tab", "tabs"), shortcut("Esc", "back"), shortcut("q", "quit")}, tui.Faint.Render("  ·  ")) + tui.Faint.Render("  │  ") + state)
 	return header + "\n" + body + "\n" + footer
 }
