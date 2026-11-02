@@ -213,7 +213,7 @@ func TestStartupFiringAndReadOnlyDetails(t *testing.T) {
 	m := New(env).(*model)
 	assertContains(t, m, "Loading list")
 	drain(t, env, m)
-	assertContains(t, m, "Checkout latency", "firing / critical", "2 instances", "1 firing", "1 resolved")
+	assertContains(t, m, "Checkout latency", "STATE", "SEVERITY", "INSTANCES")
 	show := press(m, "enter")().(protocol.ShowDetail)
 	if show.Return.Selection != "latency" {
 		t.Fatal(show.Return)

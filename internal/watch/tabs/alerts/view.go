@@ -88,29 +88,7 @@ func (m *model) View() string {
 		if status := m.status("list"); status != "" {
 			head = append(head, status)
 		}
-		rows := m.visibleRules()
-		body = append(body, "STATE / SEVERITY    RULE · GROUPED INSTANCES")
-		for _, r := range rows {
-			counts := make(map[string]int)
-			for _, i := range r.Instances {
-				counts[instanceState(apigen.AlertInstance(i))]++
-			}
-			var summary []string
-			for _, s := range states[1:] {
-				if counts[s] > 0 {
-					summary = append(summary, fmt.Sprintf("%d %s", counts[s], s))
-				}
-			}
-			text := fmt.Sprintf("%s / %s  %s · %d instances", ruleState(r), oneLine(string(r.Severity)), oneLine(r.Name), len(r.Instances))
-			if len(summary) > 0 {
-				text += " (" + strings.Join(summary, ", ") + ")"
-			}
-			body = append(body, marker(r.Id == m.selected)+text)
-		}
-		if len(rows) == 0 && m.loads["list"].loaded {
-			body = append(body, "No alert rules match this page. Clear filters (c), search (/), or change API page ([ ]).")
-		}
-		body = m.selectedWindow(body, m.selected, ruleIDs(rows), 1)
+		body = m.ruleLines(ruleIDs(m.visibleRules()))
 	} else {
 		head = append(head, "d definition · i instances · h history · l links", "Viewing: "+m.section)
 		if m.deleted() {
@@ -225,8 +203,8 @@ func (m *model) definition() []string {
 	lines := []string{tone(ruleState(r)) + " · " + string(r.Severity) + " · id " + oneLine(r.Id),
 		"Condition / threshold: " + clean(r.ConditionJson), "Query (version " + fmt.Sprint(r.QueryVersion) + "):", clean(r.QuerySql),
 		"Group by: " + clean(r.GroupByJson),
-		fmt.Sprintf("Pending %s · cooldown %s · repeat %s", time.Duration(r.PendingForNs), time.Duration(r.CooldownNs), time.Duration(r.RepeatIntervalNs)),
-		"Last evaluation: " + stamp(r.LastEvaluatedAt) + " · duration " + time.Duration(r.LastDurationNs).String(),
+		fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
+		"Last evaluation: " + stamp(r.LastEvaluatedAt) + " · duration " + duration(r.LastDurationNs),
 		"Last success: " + stamp(r.LastSuccessAt) + " · next: " + stamp(r.NextEvaluationAt),
 		fmt.Sprintf("Notifications: browser=%t · pushover=%t", r.BrowserEnabled, r.PushoverEnabled)}
 	if r.LastError != "" {
@@ -236,9 +214,10 @@ func (m *model) definition() []string {
 		lines = append(lines, fmt.Sprintf("Source: %s · modified=%t · updated=%t", clean(r.SourceFile), r.SourceFileModified, r.Updated != nil && *r.Updated))
 	}
 	if r.InstanceDiscoverySql != "" {
-		lines = append(lines, "Instance discovery: "+clean(r.InstanceDiscoverySql), fmt.Sprintf("Every %s · stale after %s · last run %s", time.Duration(r.InstanceDiscoveryIntervalNs), time.Duration(r.InstanceDiscoveryStaleAfterNs), stamp(r.InstanceDiscoveryLastRunAt)))
+		lines = append(lines, "Instance discovery: "+clean(r.InstanceDiscoverySql), fmt.Sprintf("Every %s · stale after %s · last run %s", duration(r.InstanceDiscoveryIntervalNs), duration(r.InstanceDiscoveryStaleAfterNs), stamp(r.InstanceDiscoveryLastRunAt)))
 	}
-	lines = append(lines, "Annotations: "+clean(r.AnnotationsJson))
+	lines = append(lines, "Annotations:")
+	lines = append(lines, m.attributeTable(r.AnnotationsJson)...)
 	lines = append(lines, m.silenceLines()...)
 	return lines
 }
@@ -257,19 +236,39 @@ func (m *model) silenceLines() []string {
 	return lines
 }
 func (m *model) instanceLines() []string {
-	rows := m.instances()
-	lines := []string{"STATE / VALUE    GROUP"}
-	var ids []string
-	for _, r := range rows {
-		ids = append(ids, r.GroupKey)
-		ack := ""
-		if r.AcknowledgedAt != nil {
-			ack = " (condition " + oneLine(r.State) + "; acknowledged " + stamp(*r.AcknowledgedAt) + ")"
-		}
-		lines = append(lines, marker(r.GroupKey == m.instance)+instanceState(r)+" / "+value(r.Value)+"  "+oneLine(r.GroupKey)+ack)
+	instances := m.instances()
+	columns := []tableColumn{{"GROUP", 0, false}}
+	if m.width >= 22 {
+		columns = []tableColumn{{"STATE", 10, true}, {"GROUP", 0, false}}
 	}
+	if m.width >= 40 {
+		columns = []tableColumn{{"STATE", 12, true}, {"VALUE", 10, false}, {"GROUP", 0, false}}
+	}
+	if m.width >= 80 {
+		columns = append(columns, tableColumn{"LAST EVAL (UTC)", 20, false})
+	}
+	var ids []string
+	var rows [][]string
+	for _, r := range instances {
+		ids = append(ids, r.GroupKey)
+		var cells []string
+		for _, column := range columns {
+			switch column.title {
+			case "STATE":
+				cells = append(cells, instanceState(r))
+			case "VALUE":
+				cells = append(cells, value(r.Value))
+			case "GROUP":
+				cells = append(cells, r.GroupKey)
+			case "LAST EVAL (UTC)":
+				cells = append(cells, stamp(r.LastEvaluatedAt))
+			}
+		}
+		rows = append(rows, cells)
+	}
+	lines := m.table(columns, rows, ids, m.instance)
 	if len(rows) == 0 {
-		lines = append(lines, "No current instances match. Press c to clear filters.")
+		lines = append(lines, "No current instances match.")
 	}
 	lines = m.selectedWindow(lines, m.instance, ids, 1)
 	lines = append(lines, "Enter inspects full labels, evaluation and acknowledgment context.")
@@ -284,7 +283,10 @@ func (m *model) instanceDetail() []string {
 		if r.GroupKey != m.instance {
 			continue
 		}
-		lines := []string{"Group: " + clean(r.GroupKey), "State: " + instanceState(r) + " / condition: " + r.State + " / value: " + value(r.Value), "Labels: " + clean(r.LabelsJson), "Last evaluated: " + stamp(r.LastEvaluatedAt)}
+		lines := []string{"Group: " + clean(r.GroupKey), "State: " + instanceState(r) + " / condition: " + r.State + " / value: " + value(r.Value), "Labels:"}
+		lines = append(lines, m.attributeTable(r.LabelsJson)...)
+		lines = append(lines, "Last evaluated: "+stamp(r.LastEvaluatedAt))
+
 		if r.FirstPendingAt != nil {
 			lines = append(lines, "Pending since: "+stamp(*r.FirstPendingAt))
 		}
@@ -316,16 +318,49 @@ func (m *model) eventDetail() []string {
 	return []string{"This event is no longer on the current history page. Press h for history."}
 }
 func (m *model) historyLines() []string {
-	lines := []string{"UTC TIME / KIND / STATE / VALUE / GROUP"}
+	columns := []tableColumn{{"KIND", 0, false}}
+	if m.width >= 30 {
+		columns = []tableColumn{{"KIND", 12, false}, {"STATE", 10, true}, {"GROUP", 0, false}}
+	}
+	if m.width >= 50 {
+		columns = []tableColumn{{"UTC TIME", 8, false}, {"KIND", 12, false}, {"STATE", 10, true}, {"GROUP", 0, false}}
+	}
+	if m.width >= 75 {
+		columns = []tableColumn{{"TIME (UTC)", 20, false}, {"KIND", 16, false}, {"STATE", 12, true}, {"GROUP", 0, false}}
+	}
+	if m.width >= 100 {
+		columns = append(columns, tableColumn{"VALUE", 10, false})
+	}
 	var ids []string
+	var rows [][]string
 	var selected []string
 	for _, r := range m.events {
 		ids = append(ids, r.Id)
-		lines = append(lines, marker(r.Id == m.event)+fmt.Sprintf("%s  %s / %s / %s  %s", stamp(r.CreatedAt), oneLine(r.Kind), oneLine(r.State), value(r.Value), oneLine(r.GroupKey)))
+		var cells []string
+		for _, column := range columns {
+			switch column.title {
+			case "TIME (UTC)", "UTC TIME":
+				text := stamp(r.CreatedAt)
+				if column.width == 8 && r.CreatedAt != 0 {
+					text = time.Unix(0, r.CreatedAt).UTC().Format("15:04:05")
+				}
+				cells = append(cells, text)
+			case "KIND":
+				cells = append(cells, r.Kind)
+			case "STATE":
+				cells = append(cells, r.State)
+			case "GROUP":
+				cells = append(cells, r.GroupKey)
+			case "VALUE":
+				cells = append(cells, value(r.Value))
+			}
+		}
+		rows = append(rows, cells)
 		if r.Id == m.event {
 			selected = m.wrap("Event detail: " + r.Detail)
 		}
 	}
+	lines := m.table(columns, rows, ids, m.event)
 	if len(m.events) == 0 && m.loads["history"].loaded {
 		lines = append(lines, "No event history matches these filters.")
 	}
