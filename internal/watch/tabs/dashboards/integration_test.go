@@ -71,7 +71,7 @@ func TestDashboardTerminalRealAPI(t *testing.T) {
 		{Title: "Latency by minute", Position: 0, DisplayType: "time_series", QuerySQL: "SELECT (start_ns // 60000000000) * 60000000000 AS timestamp_ns, avg(duration_ns) / 1000000 AS value, service_name AS group_value FROM telemetry_spans WHERE session_id = $session_id AND service_name = $service GROUP BY 1, 3 ORDER BY 1", SettingsJSON: `{"unit":"ms"}`},
 		{Title: "Request count", Position: 1, DisplayType: "single_value", QuerySQL: "SELECT count(*) AS value FROM telemetry_spans WHERE session_id = $session_id AND service_name = $service", SettingsJSON: `{"unit":"requests"}`},
 		{Title: "Stored requests", Position: 2, DisplayType: "table", QuerySQL: "SELECT name, service_name, round(duration_ns / 1000000.0, 2) AS duration_ms, NULL AS optional FROM telemetry_spans WHERE session_id = $session_id AND service_name = $service ORDER BY start_ns DESC LIMIT 3", SettingsJSON: "{}"},
-		{Title: "Category fallback", Position: 3, DisplayType: "bar", QuerySQL: "SELECT service_name AS label, count(*) AS value FROM telemetry_spans GROUP BY 1", SettingsJSON: "{}"},
+		{Title: "Request categories", Position: 3, DisplayType: "bar", QuerySQL: "SELECT service_name AS label, count(*) AS value FROM telemetry_spans GROUP BY 1", SettingsJSON: "{}"},
 		{Title: "Invalid saved query", Position: 4, DisplayType: "single_value", QuerySQL: "SELECT value FROM missing_review_table", SettingsJSON: "{}"},
 	}}
 	if err := store.ReplaceDashboardDefinition(dashboard); err != nil {
@@ -193,8 +193,8 @@ func TestDashboardTerminalRealAPI(t *testing.T) {
 	wait("NULL")
 	capture("dashboard-table")
 	send("l")
-	wait("unsupported in the terminal")
-	capture("dashboard-fallback")
+	wait("Signed bars")
+	capture("dashboard-bars")
 	send("l")
 	wait("missing_review_table")
 	wait("Query error:")

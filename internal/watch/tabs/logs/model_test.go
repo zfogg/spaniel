@@ -276,6 +276,36 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	}
 }
 
+func TestProjectedLogHydratesOnlyUniqueDurableMatch(t *testing.T) {
+	env := testEnv(t)
+	stored := logRow("query result", 1793631000000000001)
+	projected := stored
+	projected.Attributes, projected.ReceivedAt = "", 0
+	fields := []string{"timestamp_ns", "body", "service_name", "trace_id", "span_id", "severity"}
+	inspector := NewQueryDetail(env, projected, "session", fields).(*detail)
+	snapshot(inspector, env.Owner, "log", stored)
+	if inspector.row.ReceivedAt != stored.ReceivedAt || inspector.row.Attributes != stored.Attributes || inspector.projection != nil {
+		t.Fatal("unique projection did not hydrate full log")
+	}
+	other := stored
+	other.ReceivedAt++
+	ambiguous := NewQueryDetail(env, projected, "session", fields).(*detail)
+	snapshot(ambiguous, env.Owner, "log", stored, other)
+	if !ambiguous.ambiguous || ambiguous.row.ReceivedAt != 0 || ambiguous.missing {
+		t.Fatal("ambiguous projection picked a fake identity")
+	}
+	if !strings.Contains(ambiguous.View(), "multiple stored logs") {
+		t.Fatal(ambiguous.View())
+	}
+	wrong := stored
+	wrong.SpanId = "unrelated"
+	notFound := NewQueryDetail(env, projected, "session", fields).(*detail)
+	snapshot(notFound, env.Owner, "log", wrong)
+	if notFound.row.ReceivedAt != 0 || !notFound.uncertain || notFound.missing {
+		t.Fatal("projection crossed correlation or reported confirmed expiry")
+	}
+}
+
 func TestErrorRemovalLookupLimitAndResize(t *testing.T) {
 	env := testEnv(t)
 	m := New(env).(*model)

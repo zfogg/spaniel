@@ -15,13 +15,19 @@ import (
 )
 
 type settings struct {
-	Unit       string  `json:"unit"`
-	TimeWindow float64 `json:"time_window_seconds"`
+	Unit       string            `json:"unit"`
+	TimeWindow float64           `json:"time_window_seconds"`
+	Min        any               `json:"min"`
+	Max        any               `json:"max"`
+	Thresholds []any             `json:"thresholds"`
+	Columns    map[string]string `json:"columns"`
 }
 
 func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, live bool) []string {
 	var config settings
-	_ = json.Unmarshal([]byte(raw), &config)
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.UseNumber()
+	configErr := decoder.Decode(&config)
 	lines := []string{}
 	if config.Unit != "" {
 		lines = append(lines, "Unit: "+config.Unit)
@@ -36,6 +42,18 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 		return append(lines, "No telemetry matches this query.")
 	}
 	switch kind {
+	case "bar", "pie", "entity_list", "gauge", "heatmap":
+		if configErr != nil && strings.TrimSpace(raw) != "" {
+			return append(lines, "Invalid panel settings: "+configErr.Error())
+		}
+		switch kind {
+		case "gauge":
+			lines = append(lines, renderGauge(config, data.Rows, width)...)
+		case "heatmap":
+			lines = append(lines, renderHeatmap(data, width)...)
+		default:
+			lines = append(lines, renderCategories(kind, config, data.Rows, width)...)
+		}
 	case "single_value":
 		for _, row := range data.Rows {
 			label := ""
@@ -230,14 +248,14 @@ func number(v any) (float64, bool) {
 		if strings.TrimSpace(x) == "" {
 			return 0, false
 		}
-		n, err = strconv.ParseFloat(x, 64)
+		n, err = strconv.ParseFloat(strings.TrimSpace(x), 64)
 	default:
 		return 0, false
 	}
 	return n, err == nil && !math.IsNaN(n) && !math.IsInf(n, 0)
 }
 func timestamp(row map[string]any) (time.Time, bool) {
-	for _, key := range []string{"timestamp_ns", "time_ns", "timestamp", "start_ns"} {
+	for _, key := range []string{"timestamp_ns", "time_ns", "timestamp", "time", "start_ns"} {
 		v, exists := row[key]
 		if !exists || v == nil {
 			continue
@@ -254,7 +272,7 @@ func timestamp(row map[string]any) (time.Time, bool) {
 				return t, true
 			}
 			if integer, err := strconv.ParseInt(s, 10, 64); err == nil {
-				if key != "timestamp" || integer > 1e14 || integer < -1e14 {
+				if key != "timestamp" && key != "time" || integer > 1e14 || integer < -1e14 {
 					return time.Unix(0, integer), true
 				}
 				return time.UnixMilli(integer), true
@@ -264,7 +282,7 @@ func timestamp(row map[string]any) (time.Time, bool) {
 		if !ok {
 			return time.Time{}, false
 		}
-		if key != "timestamp" || math.Abs(n) > 1e14 {
+		if key != "timestamp" && key != "time" || math.Abs(n) > 1e14 {
 			if n >= float64(math.MaxInt64) || n < float64(math.MinInt64) {
 				return time.Time{}, false
 			}

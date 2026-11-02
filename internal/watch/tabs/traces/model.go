@@ -368,32 +368,7 @@ func (m *listModel) View() string {
 		}
 		start, end := rowWindow(len(rows), cursor, max(1, m.height-len(lines)-2))
 		for _, r := range rows[start:end] {
-			prefix := "  "
-			if r.id == m.selected {
-				prefix = "› "
-			}
-			name := clean(r.service + " / " + r.name)
-			if m.spans {
-				if r.tag != "" {
-					name += " [" + clean(r.tag) + "]"
-				}
-			} else {
-				name += fmt.Sprintf(" (%.0f spans)", r.count)
-				if r.n1 {
-					name += " [N+1]"
-				}
-			}
-			line := fmt.Sprintf("%s%-6s %-11s %s", prefix, statusText(r.status), duration(r.duration), name)
-			if m.width >= 78 {
-				line = fmt.Sprintf("%s%-6s %-11s %s %s", prefix, statusText(r.status), duration(r.duration), pad(name, max(12, m.width-53)), short(fallback(r.span, r.trace)))
-			}
-			line = clip(line, m.width)
-			if r.status >= 2 {
-				line = errorStyle.Render(line)
-			} else if r.id == m.selected {
-				line = tui.SelectedRow.Render(line)
-			}
-			lines = append(lines, line)
+			lines = append(lines, renderListRow(r, r.id == m.selected, m.spans, m.width))
 		}
 	}
 	return screen(lines, m.width, m.height)
@@ -428,4 +403,44 @@ func boundedRows(rows []listRow) []listRow {
 		out = out[:pageSize]
 	}
 	return out
+}
+
+// RenderSpanRow and RenderTraceRow share the list presentation with dashboard result panels.
+func RenderSpanRow(row apigen.SpanRow, selected bool, width int) string {
+	return renderListRow(spanListRow(row), selected, true, width)
+}
+func RenderTraceRow(row apigen.TraceRow, selected bool, width int) string {
+	return renderListRow(traceListRow(row), selected, false, width)
+}
+func renderListRow(r listRow, selected, spans bool, width int) string {
+	prefix := "  "
+	if selected {
+		prefix = "› "
+	}
+	name := clean(r.service + " / " + r.name)
+	if spans {
+		if r.tag != "" {
+			name += " [" + clean(r.tag) + "]"
+		}
+	} else {
+		if r.count >= 0 {
+			name += fmt.Sprintf(" (%.0f spans)", r.count)
+		} else {
+			name += " (span count unavailable)"
+		}
+		if r.n1 {
+			name += " [N+1]"
+		}
+	}
+	line := fmt.Sprintf("%s%-6s %-11s %s", prefix, statusText(r.status), duration(r.duration), name)
+	if width >= 78 {
+		line = fmt.Sprintf("%s%-6s %-11s %s %s", prefix, statusText(r.status), duration(r.duration), pad(name, max(12, width-53)), short(fallback(r.span, r.trace)))
+	}
+	line = clip(line, width)
+	if r.status >= 2 {
+		line = errorStyle.Render(line)
+	} else if selected {
+		line = tui.SelectedRow.Render(line)
+	}
+	return line
 }

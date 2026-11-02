@@ -152,7 +152,8 @@ normally. Popup arrows/page keys scroll and Escape closes it. Connection state
 stays in the heading. Trace, span and full-log metadata use aligned tables with
 ellipses for long fields; attribute tables preserve complete scrollable values.
 `watch --session ID` pins a recording; omission follows the
-active recording. Dashboards and alerts are read-only. `trace --session ID` uses
+active recording. Dashboards and alerts are read-only. Dashboard panels include
+heatmaps, signed bars, gauges, proportional pie bars, and linked telemetry lists. `trace --session ID` uses
 the same live inspector. See [watch development](docs/watch-development.md) for
 filter/history bounds and integration validation.
 

@@ -43,6 +43,7 @@ type model struct {
 	draft, inputError               string
 	overrides                       map[string]string
 	panels                          map[string]*panelState
+	rowSelections                   map[string]string
 	generation                      uint64
 	listSequence, activeSequence    uint64
 }
@@ -108,8 +109,15 @@ func (m *model) ShortHelp() []key.Binding {
 		if m.live {
 			mode = "saved SQL/window"
 		}
+		scrollDescription := "scroll"
+		if rows, selected := m.telemetry(); len(rows) > 0 {
+			scrollDescription = "select result row"
+			if action := rows[selected].action(); action != "" {
+				help = append(help, binding([]string{"enter"}, "Enter", action))
+			}
+		}
 		help = append(help,
-			binding([]string{"up", "down", "k", "j", "pgup", "pgdown", "home"}, "↑/↓ PgUp/PgDn", "scroll"),
+			binding([]string{"up", "down", "k", "j", "pgup", "pgdown", "home", "end"}, "↑/↓ PgUp/PgDn", scrollDescription),
 			binding([]string{"t"}, "t", mode),
 		)
 		inspection := "SQL/data"
@@ -186,6 +194,15 @@ func (m *model) queryPanels() {
 	if d == nil {
 		return
 	}
+	validPanels := make(map[string]bool, len(d.Panels))
+	for _, panel := range d.Panels {
+		validPanels[panel.Id] = true
+	}
+	for id := range m.rowSelections {
+		if !validPanels[id] {
+			delete(m.rowSelections, id)
+		}
+	}
 	for _, p := range d.Panels {
 		name := fmt.Sprintf("panel:%d:%s", m.generation, p.Id)
 		state := &panelState{}
@@ -250,6 +267,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case protocol.SessionChanged:
 		if m.session != v.ID {
 			m.session = v.ID
+			m.rowSelections = nil
 			m.scroll = 0
 			m.queryPanels()
 		}
@@ -423,6 +441,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d := m.dashboard()
 		if d == nil {
 			return m, nil
+		}
+		if handled, cmd := m.telemetryKey(v.String()); handled {
+			return m, cmd
 		}
 		switch v.String() {
 		case "left", "h", "right", "l":

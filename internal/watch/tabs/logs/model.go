@@ -289,22 +289,26 @@ func (m *model) View() string {
 		capacity := max(1, m.height-len(lines))
 		start := max(0, i-capacity+1)
 		for n := start; n < min(len(rows), start+capacity); n++ {
-			prefix := "  "
-			if n == i {
-				prefix = "› "
-			}
-			row := rows[n]
-			correlation := "t:— s:—"
-			if row.TraceId != "" || row.SpanId != "" {
-				correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
-			}
-			level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
-			line := prefix + stamp(row.TimestampNs, false) + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, m.width-64)) + "  " + correlation
-			if m.width < 70 {
-				line = prefix + level + " " + cell(preview(row.ServiceName), 10) + " " + preview(row.Body)
-			}
-			lines = append(lines, line)
+			lines = append(lines, RenderRow(rows[n], n == i, m.width))
 		}
 	}
 	return fit(lines, m.width, m.height)
+}
+
+// RenderRow shares the log list columns, severity and correlation display with dashboard panels.
+func RenderRow(row apigen.Log, selected bool, width int) string {
+	prefix := "  "
+	if selected {
+		prefix = "› "
+	}
+	correlation := "t:— s:—"
+	if row.TraceId != "" || row.SpanId != "" {
+		correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
+	}
+	level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
+	line := prefix + stamp(row.TimestampNs, false) + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, width-64)) + "  " + correlation
+	if width < 70 {
+		line = prefix + level + " " + cell(preview(row.ServiceName), 10) + " " + preview(row.Body)
+	}
+	return ansi.Truncate(line, max(1, width), "…")
 }

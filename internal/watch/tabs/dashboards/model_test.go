@@ -299,7 +299,7 @@ func TestPanelSemantics(t *testing.T) {
 		if !strings.Contains(view, "ms") {
 			t.Fatal(view)
 		}
-		if kind == "heatmap" && !strings.Contains(view, "unsupported") {
+		if kind == "deploy_correlation" && !strings.Contains(view, "unsupported") {
 			t.Fatal(view)
 		}
 		if kind == "time_series" && (!strings.Contains(view, "Series: api") || strings.Contains(view, "timestamp_ns=")) {

@@ -215,6 +215,16 @@ func (m *model) View() string {
 				body = append(body, plain(line))
 			}
 		} else {
+			if telemetryKind(string(p.DisplayType)) {
+				for _, warning := range state.result.Warnings {
+					body = append(body, ui("Warning: "+warning, warningStyle))
+				}
+				if state.result.Truncated != nil && *state.result.Truncated {
+					body = append(body, ui("Truncated: first 128 result rows; refine query/window.", warningStyle))
+				}
+				rows, selected := m.telemetry()
+				return m.telemetryView(top, body, rows, selected)
+			}
 			if string(p.DisplayType) == "single_value" {
 				body = append(body, plain(""), plain(""))
 			}
@@ -226,6 +236,8 @@ func (m *model) View() string {
 				} // Unit is beside panel status.
 				style := lipgloss.NewStyle()
 				switch string(p.DisplayType) {
+				case "bar", "pie", "entity_list", "gauge", "heatmap":
+					style = chartStyle
 				case "single_value":
 					style = valueStyle
 				case "time_series":
@@ -240,7 +252,7 @@ func (m *model) View() string {
 						style = captionStyle
 					}
 				}
-				if strings.HasPrefix(line, "Warning:") || strings.HasPrefix(line, "Truncated:") || strings.Contains(line, "null/invalid") || strings.Contains(line, "unsupported in the terminal") {
+				if strings.HasPrefix(line, "Warning:") || strings.HasPrefix(line, "Truncated:") || strings.HasPrefix(line, "Invalid ") || strings.HasPrefix(line, "Out of range:") || strings.Contains(line, "null/invalid") || strings.Contains(line, "unsupported in the terminal") {
 					style = warningStyle
 				}
 				if strings.HasPrefix(line, "No ") {

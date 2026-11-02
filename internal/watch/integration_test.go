@@ -117,6 +117,18 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 			point.Attributes().PutStr("queue", "orders")
 			point.Attributes().PutInt("build", 9007199254740993)
 		}
+		if value == 10 {
+			histogram := sm.Metrics().AppendEmpty()
+			histogram.SetName("query.duration.bucket.count")
+			histogram.SetUnit("{query}")
+			buckets := histogram.SetEmptyGauge()
+			for i := 0; i < 8; i++ {
+				point := buckets.DataPoints().AppendEmpty()
+				point.SetTimestamp(pcommon.NewTimestampFromTime(now.Add(time.Duration(i) * time.Second)))
+				point.SetIntValue(int64(i * 3))
+				point.Attributes().PutInt("bucket_ms", int64(10+10*(i%2)))
+			}
+		}
 		return md
 	}
 	if err := pipeline.IngestMetrics(context.Background(), metrics(10)); err != nil {
@@ -125,6 +137,14 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	dashboard := &storage.Dashboard{ID: "checkout", Name: "Checkout overview", Description: "Pinned recording · read-only", Variables: []*storage.DashboardVariable{{Name: "service", Kind: "enum", DefaultValue: "checkout-api", OptionsJSON: `["checkout-api","worker"]`}}, Panels: []*storage.DashboardPanel{
 		{Title: "Latency by second", Position: 0, DisplayType: "time_series", QuerySQL: "SELECT start_ns AS timestamp_ns, duration_ns/1000000.0 AS value FROM telemetry_spans WHERE session_id=$session_id AND service_name=$service ORDER BY start_ns", SettingsJSON: `{"unit":"ms"}`},
 		{Title: "Exact SQL inspection", Position: 1, DisplayType: "table", QuerySQL: "SELECT 9007199254740993::BIGINT AS exact, count(*) AS spans FROM telemetry_spans WHERE session_id=$session_id", SettingsJSON: "{}"},
+		{Title: "Query duration heatmap", Position: 2, DisplayType: "heatmap", QuerySQL: "SELECT timestamp_ns, json_extract(attributes, '$.bucket_ms')::INTEGER AS bucket_ms, value FROM telemetry_metrics WHERE session_id=$session_id AND name='query.duration.bucket.count' ORDER BY timestamp_ns", SettingsJSON: "{}"},
+		{Title: "Signed operation balance", Position: 3, DisplayType: "bar", QuerySQL: "SELECT name AS label, sum(CASE WHEN parent_span_id='' THEN 1 ELSE -1 END) AS value FROM telemetry_spans WHERE session_id=$session_id GROUP BY name ORDER BY name", SettingsJSON: `{"unit":"spans"}`},
+		{Title: "Span count meter", Position: 4, DisplayType: "gauge", QuerySQL: "SELECT count(*) AS value FROM telemetry_spans WHERE session_id=$session_id", SettingsJSON: `{"min":0,"max":4,"unit":"spans","thresholds":[{"label":"review","value":2}]}`},
+		{Title: "Operation proportions", Position: 5, DisplayType: "pie", QuerySQL: "SELECT name AS label, count(*) AS value FROM telemetry_spans WHERE session_id=$session_id GROUP BY name ORDER BY name", SettingsJSON: `{"unit":"spans"}`},
+		{Title: "Ranked operations", Position: 6, DisplayType: "entity_list", QuerySQL: "SELECT name AS label, count(*) AS primary_value, 'errors observed' AS status FROM telemetry_spans WHERE session_id=$session_id GROUP BY name ORDER BY primary_value DESC", SettingsJSON: `{"unit":"spans"}`},
+		{Title: "Linked span results", Position: 7, DisplayType: "span_list", QuerySQL: "SELECT trace_id, span_id, service_name, name, start_ns, duration_ns, status_code FROM telemetry_spans WHERE session_id=$session_id ORDER BY start_ns", SettingsJSON: "{}"},
+		{Title: "Linked trace results", Position: 8, DisplayType: "trace_list", QuerySQL: "SELECT trace_id, first(service_name) AS service_name, first(name) AS name, min(start_ns) AS start_ns, max(end_ns)-min(start_ns) AS duration_ns, max(status_code) AS status_code, count(*) AS span_count FROM telemetry_spans WHERE session_id=$session_id GROUP BY trace_id", SettingsJSON: "{}"},
+		{Title: "Linked log results", Position: 9, DisplayType: "log_list", QuerySQL: "SELECT timestamp_ns, severity, body, service_name, trace_id, span_id FROM telemetry_logs WHERE session_id=$session_id ORDER BY timestamp_ns DESC", SettingsJSON: "{}"},
 	}}
 	if err := db.ReplaceDashboardDefinition(dashboard); err != nil {
 		t.Fatal(err)
@@ -343,6 +363,10 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	send("tab")
 	// Metric admission is independent of chart-window samples and exact labels.
 	wait("checkout.queue.depth")
+	send("/")
+	send("checkout.queue.depth")
+	send("enter")
+	wait("1 matching streams")
 	send("enter")
 	wait("1 active series / 2000 limit")
 	wait("Series labels")
@@ -390,6 +414,57 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	send("i")
 	wait("9007199254740993")
 	capture("dashboard-sql")
+	send("i")
+	for _, step := range []struct{ title, ready, capture string }{
+		{"Query duration heatmap", "Intensity", "native-heatmap"},
+		{"Signed operation balance", "Signed bars", "native-bar"},
+		{"Span count meter", "Range:", "native-gauge"},
+		{"Operation proportions", "Proportional bars", "native-pie-bars"},
+		{"Ranked operations", "Signed bars", "native-entity-list"},
+		{"Linked span results", "GET /orders", "native-span-list"},
+		{"Linked trace results", "2 spans", "native-trace-list"},
+		{"Linked log results", "Order lookup deadline exceeded", "native-log-list"},
+	} {
+		send("l")
+		wait(step.title)
+		wait(step.ready)
+		capture(step.capture)
+		switch step.capture {
+		case "native-heatmap":
+			resize(24, 30)
+			wait("grid exceeds")
+			capture("native-heatmap-narrow")
+			resize(120, 30)
+		case "native-span-list":
+			send("j")
+			send("enter")
+			wait("Attributes · key/value table")
+			wait("SELECT orders")
+			capture("native-linked-span-inspector")
+			send("back")
+			view := wait(step.title)
+			if !strings.Contains(view, "› ERROR") || !strings.Contains(view, "SELECT orders") {
+				t.Fatal("dashboard result selection lost on Back", view)
+			}
+		case "native-trace-list":
+			send("enter")
+			wait("Waterfall")
+			capture("native-linked-waterfall")
+			send("back")
+			wait(step.title)
+		case "native-log-list":
+			send("enter")
+			wait("Full log")
+			wait("9007199254740993")
+			capture("native-linked-full-log")
+			send("s")
+			wait("Attributes · key/value table")
+			send("back")
+			wait("Full log")
+			send("back")
+			wait(step.title)
+		}
+	}
 	send("back")
 	send("tab")
 	wait("Checkout latency")

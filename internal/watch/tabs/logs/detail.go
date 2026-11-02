@@ -26,6 +26,46 @@ type detail struct {
 	width, height                                                   int
 	connected, loading, missing, uncertain, changedSession, pending bool
 	err                                                             error
+	projection                                                      []string
+	ambiguous                                                       bool
+}
+
+// NewQueryDetail opens the same full-log inspector from a SQL projection. It
+// hydrates only a unique durable record matching every supplied log column.
+func NewQueryDetail(env protocol.Env, row apigen.Log, session string, fields []string) tea.Model {
+	m := newDetail(env, row, session)
+	m.projection = append([]string(nil), fields...)
+	return m
+}
+
+func projectionMatches(a, b apigen.Log, fields []string) bool {
+	for _, field := range fields {
+		match := false
+		switch field {
+		case "timestamp_ns":
+			match = a.TimestampNs == b.TimestampNs
+		case "received_at":
+			match = a.ReceivedAt == b.ReceivedAt
+		case "service_name":
+			match = a.ServiceName == b.ServiceName
+		case "body":
+			match = a.Body == b.Body
+		case "severity":
+			match = a.Severity == b.Severity
+		case "trace_id":
+			match = a.TraceId == b.TraceId
+		case "span_id":
+			match = a.SpanId == b.SpanId
+		case "session_id":
+			match = a.SessionId == b.SessionId
+		case "attributes":
+			match = a.Attributes == b.Attributes
+		}
+		if !match {
+			return false
+		}
+	}
+	return len(fields) > 0
 }
 
 func newDetail(env protocol.Env, row apigen.Log, originSession string) *detail {
@@ -120,14 +160,18 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = fmt.Errorf("unexpected log response")
 			break
 		}
-		found := false
+		found, matches := false, 0
+		var match apigen.Log
 		for _, row := range data.Data {
-			if identity(row) == identity(m.row) {
-				m.row, found = row, true
-				break
+			if m.projection != nil && projectionMatches(row, m.row, m.projection) || m.projection == nil && identity(row) == identity(m.row) {
+				match, matches = row, matches+1
 			}
 		}
-		m.uncertain = !found && (m.row.TimestampNs <= 0 || len(data.Data) >= 1000 || (data.Meta != nil && data.Meta.Total != nil && *data.Meta.Total > len(data.Data)))
+		m.ambiguous = m.projection != nil && matches > 1
+		if matches > 0 && (m.projection == nil || matches == 1) {
+			m.row, found, m.projection = match, true, nil
+		}
+		m.uncertain = !found && (m.projection != nil || m.row.TimestampNs <= 0 || len(data.Data) >= 1000 || (data.Meta != nil && data.Meta.Total != nil && *data.Meta.Total > len(data.Data)))
 		m.missing = !found && !m.uncertain && !msg.Pending
 		m.content()
 	case protocol.Live:
@@ -175,6 +219,10 @@ func (m *detail) View() string {
 		state = "resyncing stored log…"
 	case m.missing:
 		state = "Log expired or removed · showing retained copy"
+	case m.ambiguous:
+		state = "Query projection matches multiple stored logs · retained fields"
+	case m.projection != nil && m.uncertain:
+		state = "Query projection · full record not uniquely available"
 	case m.uncertain:
 		state = "Retained copy · not found within bounded timestamp lookup"
 	}
