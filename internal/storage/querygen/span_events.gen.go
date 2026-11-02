@@ -172,7 +172,8 @@ type ISpanEventDo interface {
 	UnderlyingDB() *gorm.DB
 	schema.Tabler
 
-	ListBySpan(spanID string) (result []model.SpanEvent, err error)
+	ListBySpan(spanID string, sessionID string, traceID string, scopeSession bool) (result []model.SpanEvent, err error)
+	ListByTrace(traceID string, sessionID string) (result []model.SpanEvent, err error)
 }
 
 // ListBySpan
@@ -190,16 +191,42 @@ type ISpanEventDo interface {
 // WHERE
 //
 //	span_id = @spanID
+//	AND (NOT @scopeSession OR session_id = @sessionID)
+//	AND (@traceID = '' OR trace_id = @traceID)
 //
 // ORDER BY
 //
 //	time_ns ASC
-func (s spanEventDo) ListBySpan(spanID string) (result []model.SpanEvent, err error) {
+func (s spanEventDo) ListBySpan(spanID string, sessionID string, traceID string, scopeSession bool) (result []model.SpanEvent, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, spanID)
-	generateSQL.WriteString("SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes FROM span_events WHERE span_id = ? ORDER BY time_ns ASC ")
+	params = append(params, scopeSession)
+	params = append(params, sessionID)
+	params = append(params, traceID)
+	params = append(params, traceID)
+	generateSQL.WriteString("SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes FROM span_events WHERE span_id = ? AND (NOT ? OR session_id = ?) AND (? = '' OR trace_id = ?) ORDER BY time_ns ASC ")
+
+	var executeSQL *gorm.DB
+	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
+}
+
+// SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes
+// FROM @@table
+// WHERE trace_id = @traceID AND (@sessionID = ” OR session_id = @sessionID)
+// ORDER BY time_ns ASC
+func (s spanEventDo) ListByTrace(traceID string, sessionID string) (result []model.SpanEvent, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, traceID)
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	generateSQL.WriteString("SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes FROM span_events WHERE trace_id = ? AND (? = '' OR session_id = ?) ORDER BY time_ns ASC ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

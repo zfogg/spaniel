@@ -7,24 +7,28 @@ import (
 
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/tui"
+	"github.com/zfogg/spaniel/internal/watch/metadata"
 )
 
 func spanContent(s apigen.Span, width int) []string {
-	status := statusText(s.StatusCode) + " · " + clean(s.StatusMessage)
+	status := metadata.Field{Name: "Status", Value: statusText(s.StatusCode) + " · " + clean(s.StatusMessage)}
 	if s.StatusCode >= 2 {
-		status = errorStyle.Render(status)
+		status.Style = errorStyle
 	}
 	kinds := []string{"unspecified", "internal", "server", "client", "producer", "consumer"}
 	kind := fmt.Sprintf("%.0f", s.Kind)
 	if s.Kind >= 0 && s.Kind < float64(len(kinds)) {
 		kind = kinds[int(s.Kind)]
 	}
-	lines := []string{
-		tui.Title.Render(clean(s.ServiceName) + " / " + clean(s.Name)), status,
-		"Trace ID: " + clean(s.TraceId), "Span ID: " + clean(s.SpanId), "Parent ID: " + clean(fallback(s.ParentSpanId, "(root)")),
-		"Session: " + clean(s.SessionId) + " · " + clean(s.SessionLabel), "Kind: " + kind, "Duration: " + duration(s.DurationNs),
-		"Start: " + stamp(s.StartNs), "End: " + stamp(s.EndNs), "Received: " + stamp(s.ReceivedAt),
-	}
+	lines := metadata.Table([]metadata.Field{
+		{Name: "Service", Value: s.ServiceName}, {Name: "Operation", Value: s.Name}, status,
+		{Name: "Trace ID", Value: s.TraceId}, {Name: "Span ID", Value: s.SpanId},
+		{Name: "Parent ID", Value: fallback(s.ParentSpanId, "(root)")},
+		{Name: "Session", Value: s.SessionId + " · " + s.SessionLabel},
+		{Name: "Kind", Value: kind}, {Name: "Duration", Value: duration(s.DurationNs)},
+		{Name: "Start", Value: stamp(s.StartNs)}, {Name: "End", Value: stamp(s.EndNs)},
+		{Name: "Received", Value: stamp(s.ReceivedAt)},
+	}, width)
 	if _, _, ok := timing(s); !ok || s.EndNs == 0 {
 		lines = append(lines, "! Timing incomplete or invalid.")
 	}

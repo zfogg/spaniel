@@ -176,9 +176,9 @@ type ISpanLinkDo interface {
 	UnderlyingDB() *gorm.DB
 	schema.Tabler
 
-	ListBySpan(spanID string) (result []model.SpanLink, err error)
-	ListIncomingByTrace(traceID string) (result []model.SpanLink, err error)
-	ListByTrace(traceID string) (result []model.SpanLink, err error)
+	ListBySpan(spanID string, sessionID string, traceID string, scopeSession bool) (result []model.SpanLink, err error)
+	ListIncomingByTrace(traceID string, sessionID string) (result []model.SpanLink, err error)
+	ListByTrace(traceID string, sessionID string) (result []model.SpanLink, err error)
 }
 
 // ListBySpan
@@ -197,12 +197,18 @@ type ISpanLinkDo interface {
 // WHERE
 //
 //	span_id = @spanID
-func (s spanLinkDo) ListBySpan(spanID string) (result []model.SpanLink, err error) {
+//	AND (NOT @scopeSession OR session_id = @sessionID)
+//	AND (@traceID = '' OR trace_id = @traceID)
+func (s spanLinkDo) ListBySpan(spanID string, sessionID string, traceID string, scopeSession bool) (result []model.SpanLink, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, spanID)
-	generateSQL.WriteString("SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM span_links WHERE span_id = ? ")
+	params = append(params, scopeSession)
+	params = append(params, sessionID)
+	params = append(params, traceID)
+	params = append(params, traceID)
+	generateSQL.WriteString("SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM span_links WHERE span_id = ? AND (NOT ? OR session_id = ?) AND (? = '' OR trace_id = ?) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -227,12 +233,15 @@ func (s spanLinkDo) ListBySpan(spanID string) (result []model.SpanLink, err erro
 // WHERE
 //
 //	linked_trace_id = @traceID
-func (s spanLinkDo) ListIncomingByTrace(traceID string) (result []model.SpanLink, err error) {
+//	AND (@sessionID = '' OR session_id = @sessionID)
+func (s spanLinkDo) ListIncomingByTrace(traceID string, sessionID string) (result []model.SpanLink, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, traceID)
-	generateSQL.WriteString("SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM span_links WHERE linked_trace_id = ? ")
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	generateSQL.WriteString("SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM span_links WHERE linked_trace_id = ? AND (? = '' OR session_id = ?) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -257,12 +266,15 @@ func (s spanLinkDo) ListIncomingByTrace(traceID string) (result []model.SpanLink
 // WHERE
 //
 //	trace_id = @traceID
-func (s spanLinkDo) ListByTrace(traceID string) (result []model.SpanLink, err error) {
+//	AND (@sessionID = '' OR session_id = @sessionID)
+func (s spanLinkDo) ListByTrace(traceID string, sessionID string) (result []model.SpanLink, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, traceID)
-	generateSQL.WriteString("SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM span_links WHERE trace_id = ? ")
+	params = append(params, sessionID)
+	params = append(params, sessionID)
+	generateSQL.WriteString("SELECT span_id, trace_id, session_id, linked_trace_id, linked_span_id, trace_state, attributes::VARCHAR AS attributes FROM span_links WHERE trace_id = ? AND (? = '' OR session_id = ?) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

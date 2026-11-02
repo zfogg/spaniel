@@ -4,7 +4,7 @@ Foundation: [#125](https://github.com/zfogg/spaniel/issues/125), parent [#123](h
 
 ## File ownership and constructors
 
-Every constructor below is already wired in `internal/watch/app.go`. Replace the labeled foundation implementation inside your owned package; do not edit command registration, app composition, the shell, protocol, client, event contracts, generators, or dependency manifests from a feature branch. Request shared changes through the coordinator.
+Every constructor below is wired in `internal/watch/app.go`. Feature packages own their views; shared command registration, composition, shell, protocol, client, contracts and generators remain integration-owned. Request shared changes through the coordinator.
 
 | Issue | Owned files | Stable entry points |
 | --- | --- | --- |
@@ -76,18 +76,20 @@ Every method below takes `context.Context`, and all except `Preview` take a fina
 | --- | --- |
 | `Traces` | `[]apigen.TraceRow`; `/api/traces` |
 | `Trace(id)` | `[]apigen.Span`; `/api/traces/{id}` including span events and links |
-| `IncomingLinks(id)` | `[]apigen.Span`; `/api/traces/{id}/incoming-links` |
+| `IncomingLinks(id)` | `[]apigen.SpanLink`; `/api/traces/{id}/incoming-links` |
 | `Spans`, `SpanGroups` | `[]apigen.SpanRow`, `[]apigen.SpanGroup`; `/api/spans`. Use `Spans` for flat rows; use the canonical grouping/view parameters with `SpanGroups`. |
 | `Span(id)` | `apigen.Span`; `/api/spans/{id}` |
 | `Logs` | `[]apigen.Log`; `/api/logs` |
-| `Metrics`, `MetricSeries` | `[]apigen.MetricCatalogEntry`, `apigen.MetricSeries`; `/api/metrics`, `/api/metrics/series` |
+| `Metrics`, `MetricSeries`, `MetricCardinality` | `[]apigen.MetricCatalogEntry`, `apigen.MetricSeries`, `[]apigen.MetricCardinalityStream`; `/api/metrics`, `/api/metrics/series`, `/api/metrics/cardinality` |
 | `Lints`, `Issues` | `[]apigen.LintWarning`, `[]apigen.TraceIssue`; `/api/lint`, `/api/issues`. Both are required by #129. |
 | `Dashboards`, `Dashboard(id)` | `[]apigen.Dashboard`, `apigen.Dashboard`; variables/panels are included in hydrated definitions. |
 | `QueryCatalog` | `[]apigen.QueryCatalogEntry`; `/api/query-catalog` |
-| `Preview(id, apigen.PreviewDashboardQueryJSONBody)` | `apigen.QueryPreview`; `/api/dashboards/{id}/query-preview`. The request supports query SQL, display type, variables and bounds/session through the canonical dashboard variables. |
+| `Preview(id, apigen.PreviewDashboardQueryJSONBody)` | `apigen.QueryPreview`; `/api/dashboards/{id}/query-preview`. The request supports query SQL, display type, variables and optional `sessionId`. The server-owned `$session_id` uses that selected scope; omission follows active. Variable-map overrides cannot replace it. |
 | `Alerts`, `Alert(id)` | `apigen.AlertList`, `apigen.AlertRule`; definitions, hydrated instances, evaluator state. |
 | `AlertEvents(id)`, `AlertHistory` | `[]apigen.AlertEvent`; paginated rule/global history. Rule events preserve `Envelope.Silences`. |
 | `Sessions`, `ActiveSession` | `[]apigen.Session`, `apigen.ActiveSession`; `/api/sessions`, `/api/sessions/active` |
+
+Trace/span detail and incoming-link reads accept optional `sessionId`; omission preserves existing unscoped detail lookup. Events and links are attached by owning session/trace/span, including unscoped web calls. The shared client uses `json.Decoder.UseNumber` for dynamic SQL/metric attributes, preserving exact integers above 2^53 through normalization and typed tables. Canonical measurement doubles remain doubles. Alert/dashboard object reads set canonical `markSeen=false`, preserving read-only observation while existing browser callers retain their default explicit-access acknowledgement. Metric catalog/inspectors subscribe to the durable cardinality endpoint; its recording-scoped admission counts are independent of visible window samples.
 
 Use exact query parameter names from `api/openapi.json` or the generated `apigen.*Params` definitions; these remain the canonical HTTP contract. Examples: telemetry session scope is `sessionId`; metrics select `name`, `service`, `operation` and bounds. No private storage DTO or DuckDB connection belongs in a feature. Canonical OpenAPI timestamp fields use `integer/int64`; numeric measurements use `number/double`, avoiding the previous generated Go `float32` precision loss. Browser JavaScript retains its existing number representation.
 
@@ -157,3 +159,14 @@ node scripts/capture-watch.cjs bin/watch-captures .local/watch-capture-tools/nod
 ```
 
 Inspect all generated PNGs before attaching them to a PR. The capture script rasterizes the recorded production renderer through xterm, preserving styles and cursor/erase operations. The seeded smoke test records all seven tabs, the shared trace/span views, filter input and a forced disconnect. These HTTP fixtures verify footer integration; feature terminal tests additionally exercise actual DuckDB-backed API reads and ingestion.
+
+
+## Integrated commands and boundaries
+
+`spaniel trace <id|short-id> [--session ID]` requires a TTY and reuses the shared client, one-tab shell, `traces.NewDetails`, waterfall and span inspector. Exact-ID preflight preserves unscoped lookup when no session is supplied, then pins the selected recording for live repair. Prefix lookup retains its existing latest-500-trace bound; use a full ID for older traces. The obsolete command-local renderer is removed. `watch` pipe filters/output and the deprecated `tui` alias retain their existing behavior.
+
+Logs now send canonical `text` and `severity=error+` for server-wide literal substring/error filtering before COUNT/LIMIT/OFFSET. Service and exact severity bands intersect those filters. Text also matches attributes, IDs and service. The loaded page uses the same text semantics for live patches. An inspector revalidates at most 1000 records at its selected timestamp and distinguishes exhausted lookup uncertainty from confirmed removal. Byte-identical records without distinct durable fields remain indistinguishable on the wire.
+
+Traces/spans retain explicit loaded-page text/error/N+1 toggles and server service/paging filters. Lints retain the latest 2000 findings and resolve list services from two supported 1000-span pages; unknown services are unavailable, not guessed. Alert rule state/severity filters are explicitly page-local (25 rows), while search/history filters use the canonical server. Unsupported metric distributions/panels retain useful raw/table fallbacks. Trace, span and full-log identity/timing fields use aligned two-column tables; long metadata cells end with an ellipsis instead of wrapping. Arbitrary user SQL/results are preserved; telemetry/resource/log/metric-label and alert maps use wrapping typed tables. Intraday shared chart ticks show UTC clock times; multi-day windows retain dates.
+
+`make test-watch-api` runs focused canonical scope/filter/read-only race checks. `make test-watch-footer` runs focused shell/popup and seven-tab renderer checks. `make test-watch` includes a complete real-storage/API/ingestion/hub scenario covering every production tab, shared navigation and Back, pinned preview/attributes/admission, hidden repairs, reconnect with missed rows, external definitions/deletion and recording removal. Set `SPANIEL_INTEGRATION_CAPTURE_DIR` to an ignored directory to record that real renderer. The one-row popup smoke can additionally use `SPANIEL_WATCH_CAPTURE_DIR`; narrow captures record a physical resize boundary for faithful xterm replay.

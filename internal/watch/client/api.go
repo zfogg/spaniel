@@ -74,10 +74,14 @@ func (c *Client) Span(ctx context.Context, id string, q url.Values) (Envelope[ap
 	return get[apigen.Span](ctx, c, "/api/spans/"+url.PathEscape(id), q)
 }
 func (c *Client) Dashboard(ctx context.Context, id string, q url.Values) (Envelope[apigen.Dashboard], error) {
-	return get[apigen.Dashboard](ctx, c, "/api/dashboards/"+url.PathEscape(id), q)
+	query := Scope(q, "")
+	query.Set("markSeen", "false")
+	return get[apigen.Dashboard](ctx, c, "/api/dashboards/"+url.PathEscape(id), query)
 }
 func (c *Client) Alert(ctx context.Context, id string, q url.Values) (Envelope[apigen.AlertRule], error) {
-	return get[apigen.AlertRule](ctx, c, "/api/alerts/"+url.PathEscape(id), q)
+	query := Scope(q, "")
+	query.Set("markSeen", "false")
+	return get[apigen.AlertRule](ctx, c, "/api/alerts/"+url.PathEscape(id), query)
 }
 func (c *Client) AlertEvents(ctx context.Context, id string, q url.Values) (Envelope[[]apigen.AlertEvent], error) {
 	return get[[]apigen.AlertEvent](ctx, c, "/api/alerts/"+url.PathEscape(id)+"/events", q)
@@ -89,12 +93,16 @@ func (c *Client) Preview(ctx context.Context, id string, in apigen.PreviewDashbo
 	return out, err
 }
 
-func (c *Client) IncomingLinks(ctx context.Context, id string, q url.Values) (Envelope[[]apigen.Span], error) {
-	return get[[]apigen.Span](ctx, c, "/api/traces/"+url.PathEscape(id)+"/incoming-links", q)
+func (c *Client) IncomingLinks(ctx context.Context, id string, q url.Values) (Envelope[[]apigen.SpanLink], error) {
+	return get[[]apigen.SpanLink](ctx, c, "/api/traces/"+url.PathEscape(id)+"/incoming-links", q)
 }
 func (c *Client) SpanGroups(ctx context.Context, q url.Values) (Envelope[[]apigen.SpanGroup], error) {
 	return get[[]apigen.SpanGroup](ctx, c, "/api/spans", q)
 }
 func (c *Client) QueryCatalog(ctx context.Context, q url.Values) (Envelope[[]apigen.QueryCatalogEntry], error) {
 	return get[[]apigen.QueryCatalogEntry](ctx, c, "/api/query-catalog", q)
+}
+
+func (c *Client) MetricCardinality(ctx context.Context, q url.Values) (Envelope[[]apigen.MetricCardinalityStream], error) {
+	return get[[]apigen.MetricCardinalityStream](ctx, c, "/api/metrics/cardinality", q)
 }

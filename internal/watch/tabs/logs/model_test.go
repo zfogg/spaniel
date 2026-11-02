@@ -204,12 +204,16 @@ func TestFiltersDedupeAndInputCapture(t *testing.T) {
 	}
 	pressKey(m, "/")
 	pressKey(m, "declined")
-	pressKey(m, "enter") // Attributes participate in text search.
+	pressKey(m, "enter") // The server now searches attributes before pagination.
+	if !m.loading || len(m.rows) != 0 {
+		t.Fatal("global filter retained an unfiltered page")
+	}
+	snapshot(m, env.Owner, "list", row, other)
 	if len(m.visible()) != 2 {
 		t.Fatal("attribute search missed matches")
 	}
 	m.Update(event(wrong, false))
-	if len(m.rows) != 4 {
+	if len(m.rows) != 2 {
 		t.Fatal("wrong session live row inserted")
 	}
 	m.Update(protocol.SessionChanged{ID: "new"})
@@ -233,7 +237,7 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	d.Update(protocol.Connection{Connected: true})
 	d.Update(protocol.SessionChanged{ID: "session"})
 	d.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
-	for _, value := range []string{"first line", "second line", "cart.items", "Received at:", row.TraceId, row.SpanId} {
+	for _, value := range []string{"first line", "second line", "cart.items", "Received at │", row.TraceId, row.SpanId} {
 		if !strings.Contains(d.View(), value) {
 			t.Fatalf("full log missing %q: %s", value, d.View())
 		}

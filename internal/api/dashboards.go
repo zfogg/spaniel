@@ -159,9 +159,11 @@ func (r *Router) getDashboard(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 404, "dashboard not found")
 		return
 	}
-	if err := r.store.WithContext(req.Context()).MarkDefinitionSeen("dashboard", x.ID, x.SourceHash, x.UpdatedAt); err != nil {
-		respondErr(w, req, 500, err.Error())
-		return
+	if seen, err := strconv.ParseBool(req.URL.Query().Get("markSeen")); err != nil || seen {
+		if err := r.store.WithContext(req.Context()).MarkDefinitionSeen("dashboard", x.ID, x.SourceHash, x.UpdatedAt); err != nil {
+			respondErr(w, req, 500, err.Error())
+			return
+		}
 	}
 	respond(w, x, 1, 1)
 }
@@ -517,6 +519,7 @@ func dashboardHasVariable(dashboard *model.Dashboard, name string) bool {
 func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request) {
 	var in struct {
 		QuerySQL    string            `json:"query_sql" validate:"required,max=16000"`
+		SessionID   string            `json:"sessionId"`
 		Name        string            `json:"name" validate:"omitempty,max=200"`
 		DisplayType string            `json:"display_type" validate:"omitempty,oneof=bar pie gauge single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
 		Variables   map[string]string `json:"variables"`
@@ -552,7 +555,7 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 	// client override. Literal session IDs in existing SQL remain unchanged.
 	delete(values, "session_id")
 	if usesSessionParameter(in.QuerySQL) {
-		values["session_id"] = r.store.ActiveSessionID()
+		values["session_id"] = r.scopeSession(in.SessionID)
 	}
 	args := make([]any, 0, len(values))
 	for name, value := range values {

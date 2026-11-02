@@ -222,8 +222,8 @@ func TestDefinitionLifecycleStaleGuardsAndSession(t *testing.T) {
 	m.activeLoaded = true
 	m.queryPanels()
 	state := m.stateFor(d.Panels[0].Id)
-	if state.err == nil || !strings.Contains(state.err.Error(), "cannot scope") {
-		t.Fatal("wrong-session preview allowed")
+	if state.err != nil {
+		t.Fatal("canonical preview rejected selected session", state.err)
 	}
 	m.Update(protocol.SessionChanged{ID: "active"})
 	state = m.stateFor(d.Panels[0].Id)
@@ -366,7 +366,7 @@ func TestPinnedSessionTracksActiveFramesAndResync(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Update(protocol.Live{Event: event})
-	if m.session != "pinned" || m.activeID != "other" || m.stateFor("p2").err == nil {
+	if m.session != "pinned" || m.activeID != "other" || m.stateFor("p2").err != nil {
 		t.Fatal("pinned scope silently followed active session")
 	}
 	generation := m.generation

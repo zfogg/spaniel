@@ -25,6 +25,7 @@ const catalogLimit = 4096
 type catalog struct {
 	env                             protocol.Env
 	rows                            []apigen.MetricCatalogEntry
+	admission                       admission
 	selected, query, draft, session string
 	editing, loaded, capped         bool
 	err                             error
@@ -41,6 +42,7 @@ func New(env protocol.Env) tea.Model {
 			return api.Metrics(ctx, client.Scope(url.Values{}, session))
 		},
 	})
+	registerAdmission(env)
 	return m
 }
 func (m *catalog) Init() tea.Cmd      { return nil }
@@ -159,8 +161,12 @@ func (m *catalog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loaded = false
 			m.err = nil
 			m.capped = false
+			m.admission = admission{}
 		}
 	case protocol.Result:
+		if m.admission.accept(msg, m.env.Owner, m.session) {
+			break
+		}
 		if msg.Key != (client.Key{Owner: m.env.Owner, Name: "catalog"}) || msg.Session != m.session {
 			break
 		}
@@ -306,7 +312,7 @@ func (m *catalog) View() string {
 			break
 		}
 	}
-	capacity := max(1, (m.height-len(lines)-3)/2)
+	capacity := max(1, (m.height-len(lines)-3)/3)
 	if index >= capacity {
 		start = index - capacity + 1
 	}
@@ -323,7 +329,7 @@ func (m *catalog) View() string {
 		if identity(row) == m.selected {
 			line = tui.SelectedRow.Render(cut(line, m.width))
 		}
-		lines = append(lines, line, "  "+safe(row.Description))
+		lines = append(lines, line, "  "+safe(row.Description), "  "+m.admission.summary(row.ServiceName, row.Name))
 	}
 	if len(rows) > 0 {
 		lines = append(lines, fmt.Sprintf("%d/%d", index+1, len(rows)))

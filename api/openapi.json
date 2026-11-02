@@ -5699,6 +5699,16 @@
               "type": "string"
             },
             "description": "Selects the alert rule that owns the requested resource or action."
+          },
+          {
+            "in": "query",
+            "name": "markSeen",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted."
           }
         ],
         "responses": {
@@ -7946,6 +7956,16 @@
               "type": "string"
             },
             "description": "Selects the dashboard that owns the requested resource or action."
+          },
+          {
+            "in": "query",
+            "name": "markSeen",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted."
           }
         ],
         "responses": {
@@ -8822,6 +8842,10 @@
                     },
                     "type": "object",
                     "description": "Provides values for dashboard query variables while previewing the panel query."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "description": "Optional selected recording session for the server-owned $session_id built-in. Omit or leave empty to follow the server-active session. A variables.session_id override is ignored."
                   }
                 },
                 "required": [
@@ -9612,7 +9636,7 @@
             }
           },
           {
-            "description": "Filters results by severity level, such as error or warn.",
+            "description": "Exact severity band: trace, debug, info, warn, error or fatal; error+ matches ERROR and FATAL (severity >=17). Empty/all includes every severity.",
             "in": "query",
             "name": "severity",
             "required": false,
@@ -9679,6 +9703,15 @@
             },
             "style": "form",
             "explode": true
+          },
+          {
+            "in": "query",
+            "name": "text",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive literal substring across body, serialized attributes, service, trace ID and span ID, applied before count and pagination."
           }
         ],
         "responses": {
@@ -12218,6 +12251,15 @@
               "type": "string"
             },
             "description": "Selects the individual span to retrieve."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -12543,6 +12585,15 @@
               "type": "string"
             },
             "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -12625,6 +12676,15 @@
               "type": "string"
             },
             "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -12683,6 +12743,15 @@
               "type": "string"
             },
             "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -12695,14 +12764,13 @@
                     "value": {
                       "data": [
                         {
-                          "duration_ns": 1.5,
-                          "name": "POST /checkout",
-                          "parent_span_id": "example",
-                          "service_name": "checkout",
-                          "session_id": "session_2026-10-07_1200",
-                          "span_id": "19ab3f8e",
-                          "start_ns": 1.5,
-                          "trace_id": "6d8f4a9c2e1b7f30"
+                          "trace_id": "source-trace",
+                          "span_id": "source-span",
+                          "session_id": "session-demo",
+                          "linked_trace_id": "target-trace",
+                          "linked_span_id": "target-span",
+                          "trace_state": "vendor=demo",
+                          "attributes": "{\"link.type\":\"retry\"}"
                         }
                       ]
                     }
@@ -12712,7 +12780,7 @@
                   "properties": {
                     "data": {
                       "items": {
-                        "$ref": "#/components/schemas/Span"
+                        "$ref": "#/components/schemas/SpanLink"
                       },
                       "type": "array"
                     }

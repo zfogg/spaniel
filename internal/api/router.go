@@ -273,7 +273,7 @@ func (r *Router) listTraces(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 	traceID := chi.URLParam(req, "traceId")
-	spans, err := r.store.WithContext(req.Context()).GetTrace(traceID)
+	spans, err := r.store.WithContext(req.Context()).GetTrace(traceID, req.URL.Query().Get("sessionId"))
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -286,14 +286,16 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 		span.Links = []*storage.SpanLink{}
 	}
 	// Bulk-attach links so the waterfall can show the link badge without a
-	// per-span round-trip. Group by span_id into a map, then attach.
-	if links, err := r.store.WithContext(req.Context()).ListLinksByTrace(traceID); err == nil && len(links) > 0 {
-		bySpan := make(map[string][]*storage.SpanLink, len(links))
+	// per-span round-trip. Include the owning session when attaching metadata.
+	if links, err := r.store.WithContext(req.Context()).ListLinksByTrace(traceID, req.URL.Query().Get("sessionId")); err == nil && len(links) > 0 {
+		type owner struct{ session, span string }
+		bySpan := make(map[owner][]*storage.SpanLink, len(links))
 		for _, l := range links {
-			bySpan[l.SpanID] = append(bySpan[l.SpanID], l)
+			key := owner{l.SessionID, l.SpanID}
+			bySpan[key] = append(bySpan[key], l)
 		}
 		for _, s := range spans {
-			if sl := bySpan[s.SpanID]; sl != nil {
+			if sl := bySpan[owner{s.SessionID, s.SpanID}]; sl != nil {
 				s.Links = sl
 			} else {
 				s.Links = []*storage.SpanLink{}
@@ -302,6 +304,19 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 	} else {
 		for _, s := range spans {
 			s.Links = []*storage.SpanLink{}
+		}
+	}
+	if events, err := r.store.WithContext(req.Context()).ListEventsByTrace(traceID, req.URL.Query().Get("sessionId")); err == nil {
+		type owner struct{ session, span string }
+		bySpan := map[owner][]*storage.SpanEvent{}
+		for _, e := range events {
+			k := owner{e.SessionID, e.SpanID}
+			bySpan[k] = append(bySpan[k], e)
+		}
+		for _, span := range spans {
+			if found := bySpan[owner{span.SessionID, span.SpanID}]; found != nil {
+				span.Events = found
+			}
 		}
 	}
 	respond(w, spans, len(spans), 1)
@@ -372,7 +387,7 @@ func (r *Router) listSpans(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 	spanID := chi.URLParam(req, "spanId")
-	span, err := r.store.WithContext(req.Context()).GetSpan(spanID)
+	span, err := r.store.WithContext(req.Context()).GetSpan(spanID, req.URL.Query().Get("sessionId"))
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -386,11 +401,11 @@ func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 	// Always materialize the slice (even empty) so the JSON field is `[]`,
 	// never `null`.
 	span.Events = []*storage.SpanEvent{}
-	if events, err := r.store.WithContext(req.Context()).ListEventsBySpan(span.SpanID); err == nil && events != nil {
+	if events, err := r.store.WithContext(req.Context()).ListEventsBySpan(span.SpanID, span.SessionID, span.TraceID); err == nil && events != nil {
 		span.Events = events
 	}
 	span.Links = []*storage.SpanLink{}
-	if links, err := r.store.WithContext(req.Context()).ListLinksBySpan(span.SpanID); err == nil && links != nil {
+	if links, err := r.store.WithContext(req.Context()).ListLinksBySpan(span.SpanID, span.SessionID, span.TraceID); err == nil && links != nil {
 		span.Links = links
 	}
 	respond(w, span, 1, 1)
@@ -403,7 +418,7 @@ func (r *Router) getSpan(w http.ResponseWriter, req *http.Request) {
 // One resourceSpans block is emitted per distinct (service_name, resource) pair.
 func (r *Router) exportTrace(w http.ResponseWriter, req *http.Request) {
 	traceID := chi.URLParam(req, "traceId")
-	spans, err := r.store.WithContext(req.Context()).GetTrace(traceID)
+	spans, err := r.store.WithContext(req.Context()).GetTrace(traceID, req.URL.Query().Get("sessionId"))
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -503,7 +518,7 @@ func decodeSpanID(s string) pcommon.SpanID {
 
 func (r *Router) listIncomingLinks(w http.ResponseWriter, req *http.Request) {
 	traceID := chi.URLParam(req, "traceId")
-	links, err := r.store.WithContext(req.Context()).ListIncomingLinks(traceID)
+	links, err := r.store.WithContext(req.Context()).ListIncomingLinks(traceID, req.URL.Query().Get("sessionId"))
 	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
@@ -530,6 +545,7 @@ func (r *Router) listLogs(w http.ResponseWriter, req *http.Request) {
 	toNs, _ := strconv.ParseInt(q.Get("toNs"), 10, 64)
 
 	filter := storage.LogFilter{
+		Text:        q.Get("text"),
 		SessionID:   r.scopeSession(q.Get("sessionId")),
 		Service:     q.Get("service"),
 		Services:    q["services"],
@@ -572,6 +588,8 @@ func logSeverityBand(severity string) (minSeverity, maxSeverity int, ok bool) {
 		return 13, 16, true
 	case "error":
 		return 17, 20, true
+	case "error+":
+		return 17, 0, true
 	case "fatal":
 		return 21, 0, true
 	default:

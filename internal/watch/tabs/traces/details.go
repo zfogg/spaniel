@@ -13,6 +13,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
+	"github.com/zfogg/spaniel/internal/watch/metadata"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
 
@@ -175,9 +176,9 @@ func (m *traceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			delta = 1
 		case "pgup":
-			delta = -max(1, m.height-6)
+			delta = -max(1, m.height-12)
 		case "pgdown":
-			delta = max(1, m.height-6)
+			delta = max(1, m.height-12)
 		case "home", "g":
 			delta = -len(rows)
 		case "end", "G":
@@ -210,11 +211,16 @@ func (m *traceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *traceModel) View() string {
 	rows := m.rows()
 	start, end := traceWindow(rows)
-	title := fmt.Sprintf("Trace %s · %d spans · %s", clean(m.traceID), len(rows), duration(end-start))
+	title := "Trace waterfall"
 	if m.paused {
 		title = "PAUSED · " + title
 	}
 	lines := []string{tui.Title.Render(title), m.state.banner()}
+	lines = append(lines, metadata.Table([]metadata.Field{
+		{Name: "Trace ID", Value: m.traceID}, {Name: "Session", Value: m.state.session},
+		{Name: "Spans", Value: fmt.Sprint(len(rows))}, {Name: "Duration", Value: duration(end - start)},
+		{Name: "Start", Value: stamp(start)}, {Name: "End", Value: stamp(end)},
+	}, m.width)...)
 	if len(rows) == 0 {
 		text := "No spans in this trace/session. Data may have expired; waiting for telemetry…"
 		if m.state.loading {
@@ -229,7 +235,7 @@ func (m *traceModel) View() string {
 				cursor = i
 			}
 		}
-		a, b := rowWindow(len(rows), cursor, max(1, m.height-5))
+		a, b := rowWindow(len(rows), cursor, max(1, m.height-len(lines)-1))
 		for _, r := range rows[a:b] {
 			lines = append(lines, waterfallRow(r, spanKey(r.span) == m.selected, start, end, m.width))
 		}

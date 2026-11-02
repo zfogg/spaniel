@@ -3827,6 +3827,13 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted.
+                  in: query
+                  name: markSeen
+                  required: false
+                  schema:
+                    default: true
+                    type: boolean
             responses:
                 "200":
                     content:
@@ -5428,6 +5435,13 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted.
+                  in: query
+                  name: markSeen
+                  required: false
+                  schema:
+                    default: true
+                    type: boolean
             responses:
                 "200":
                     content:
@@ -5994,6 +6008,9 @@ paths:
                                     type: string
                                 query_sql:
                                     description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
+                                    type: string
+                                sessionId:
+                                    description: Optional selected recording session for the server-owned $session_id built-in. Omit or leave empty to follow the server-active session. A variables.session_id override is ignored.
                                     type: string
                                 variables:
                                     additionalProperties:
@@ -6675,7 +6692,7 @@ paths:
                   required: false
                   schema:
                     type: string
-                - description: Filters results by severity level, such as error or warn.
+                - description: 'Exact severity band: trace, debug, info, warn, error or fatal; error+ matches ERROR and FATAL (severity >=17). Empty/all includes every severity.'
                   in: query
                   name: severity
                   required: false
@@ -6722,6 +6739,12 @@ paths:
                         type: string
                     type: array
                   style: form
+                - description: Case-insensitive literal substring across body, serialized attributes, service, trace ID and span ID, applied before count and pagination.
+                  in: query
+                  name: text
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -8448,6 +8471,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -8720,6 +8749,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -8772,6 +8807,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -8808,6 +8849,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -8817,19 +8864,18 @@ paths:
                                     summary: Representative Spaniel response
                                     value:
                                         data:
-                                            - duration_ns: 1.5
-                                              name: POST /checkout
-                                              parent_span_id: example
-                                              service_name: checkout
-                                              session_id: session_2026-10-07_1200
-                                              span_id: 19ab3f8e
-                                              start_ns: 1.5
-                                              trace_id: 6d8f4a9c2e1b7f30
+                                            - attributes: '{"link.type":"retry"}'
+                                              linked_span_id: target-span
+                                              linked_trace_id: target-trace
+                                              session_id: session-demo
+                                              span_id: source-span
+                                              trace_id: source-trace
+                                              trace_state: vendor=demo
                             schema:
                                 properties:
                                     data:
                                         items:
-                                            $ref: '#/components/schemas/Span'
+                                            $ref: '#/components/schemas/SpanLink'
                                         type: array
                                 required:
                                     - data

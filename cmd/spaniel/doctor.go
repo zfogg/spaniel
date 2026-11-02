@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -490,4 +491,11 @@ func humanBytes(n int64) string {
 	}
 	suffix := "KMGTPE"[exp]
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), suffix)
+}
+
+func padRight(s string, n int) string {
+	if lipgloss.Width(s) >= n {
+		return s
+	}
+	return s + strings.Repeat(" ", n-lipgloss.Width(s))
 }

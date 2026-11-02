@@ -30,6 +30,7 @@ type detail struct {
 	env                                        protocol.Env
 	metric                                     apigen.MetricCatalogEntry
 	data                                       seriesData
+	admission                                  admission
 	key                                        client.Key
 	revision                                   int
 	session, selected, operation, query, draft string
@@ -43,6 +44,7 @@ type detail struct {
 func newDetail(env protocol.Env, row apigen.MetricCatalogEntry) *detail {
 	m := &detail{env: env, metric: row, session: env.Refresh.Session(), width: 100, height: 28, window: 2, now: time.Now(), operation: defaultOperation(row)}
 	m.register()
+	registerAdmission(env)
 	return m
 }
 func (m *detail) Init() tea.Cmd      { return nil }
@@ -160,12 +162,16 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.ID != m.session {
 			m.session = msg.ID
 			m.data = seriesData{}
+			m.admission = admission{}
 			m.selected = ""
 			m.loaded = false
 			m.err = nil
 			m.offset = 0
 		}
 	case protocol.Result:
+		if m.admission.accept(msg, m.env.Owner, m.session) {
+			break
+		}
 		if msg.Key != m.key || msg.Session != m.session {
 			break
 		}
@@ -347,7 +353,7 @@ func (m *detail) render() ([]string, []string) {
 	if query != "" {
 		header = append(header, "Label filter: "+safe(query))
 	}
-	body := []string{safe(m.metric.Description), "Session: " + safe(m.session) + " · UTC · " + timestamp(m.now.Add(-windows[m.window]).UnixNano()) + " → " + timestamp(m.now.UnixNano())}
+	body := []string{safe(m.metric.Description), m.admission.summary(m.metric.ServiceName, m.metric.Name), "Session: " + safe(m.session) + " · UTC · " + timestamp(m.now.Add(-windows[m.window]).UnixNano()) + " → " + timestamp(m.now.UnixNano())}
 	if m.data.Capped {
 		body = append(body, "Bounded view: first 256 series, latest 2048 samples per series; no aggregation.")
 	}

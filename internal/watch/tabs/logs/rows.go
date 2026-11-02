@@ -67,7 +67,7 @@ func matches(row apigen.Log, session, service, severity, text string, errorsOnly
 	if errorsOnly && row.Severity < 17 {
 		return false
 	}
-	return text == "" || strings.Contains(strings.ToLower(row.Body+"\n"+row.Attributes+"\n"+row.TraceId+"\n"+row.SpanId+"\n"+row.ServiceName), strings.ToLower(text))
+	return text == "" || strings.Contains(strings.ToLower(row.Body+" "+row.Attributes+" "+row.ServiceName+" "+row.TraceId+" "+row.SpanId), strings.ToLower(text))
 }
 func severityName(severity float64) string {
 	switch {

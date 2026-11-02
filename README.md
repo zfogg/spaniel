@@ -139,10 +139,21 @@ Not everything needs a browser. spaniel ships a full set of TUI commands for the
 
 ```bash
 spaniel tui              # all-in-one dashboard: spans + logs + issues, live
-spaniel watch            # live span/issue ticker (table on a TTY, line-stream in a pipe)
+spaniel watch            # live seven-tab dashboard on a TTY; span/issue line stream in a pipe
 spaniel logs tail        # follow logs with severity/service/trace filters
-spaniel trace <id>       # open an interactive waterfall for one trace
+spaniel trace <id>       # shared live waterfall/span inspector for one trace
 ```
+
+The interactive dashboard has traces, spans, metrics, logs, lints, dashboards and
+alerts. Tab/Shift-Tab switch views; Enter inspects a row and Escape returns. The
+single bottom shortcut row follows the focused tab, inspector or input. `? help`
+opens the complete shortcut popup; while editing text, use `F2 help` and type `?`
+normally. Popup arrows/page keys scroll and Escape closes it. Connection state
+stays in the heading. `watch --session ID` pins a recording; omission follows the
+active recording. Dashboards and alerts are read-only. `trace --session ID` uses
+the same live inspector. See [watch development](docs/watch-development.md) for
+filter/history bounds and integration validation.
+
 
 On a pipe these stream plain lines, so they compose with `grep`, `jq`, and friends.
 
@@ -476,9 +487,9 @@ spaniel record -- <cmd> [args...]    same, but save as a baseline and open the d
 **Terminal viewers**
 ```
 spaniel tui                          all-in-one live dashboard
-spaniel watch                        live span/issue ticker
+spaniel watch                        live seven-tab dashboard; pipe span/issue lines
 spaniel logs tail                    follow logs (--service / --trace / --severity filters)
-spaniel trace <id|short-id>          interactive waterfall for one trace
+spaniel trace <id|short-id>          shared live waterfall and span inspector
 ```
 
 **Maintenance**

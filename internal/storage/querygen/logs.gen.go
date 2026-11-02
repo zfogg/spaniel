@@ -184,8 +184,8 @@ type ILogDo interface {
 	UnderlyingDB() *gorm.DB
 	schema.Tabler
 
-	ListAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string, limit int, offset int) (result []model.Log, err error)
-	CountAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string) (result []model.CountValue, err error)
+	ListAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string, text string, limit int, offset int) (result []model.Log, err error)
+	CountAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string, text string) (result []model.CountValue, err error)
 	SearchByBody(sessionID string, pattern string, limit int) (result []model.SearchResult, err error)
 }
 
@@ -234,6 +234,7 @@ type ILogDo interface {
 //	  @toNs = 0
 //	  OR timestamp_ns <= @toNs
 //	)
+//	AND (@text = '' OR contains(lower(concat_ws(' ', body, attributes::VARCHAR, service_name, trace_id, span_id)), lower(@text)))
 //	AND NOT EXISTS (
 //	  SELECT
 //	    1
@@ -255,7 +256,7 @@ type ILogDo interface {
 //
 // LIMIT @limit
 // OFFSET @offset
-func (l logDo) ListAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string, limit int, offset int) (result []model.Log, err error) {
+func (l logDo) ListAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string, text string, limit int, offset int) (result []model.Log, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
@@ -280,11 +281,13 @@ func (l logDo) ListAttributeFiltered(sessionID string, service string, traceID s
 	params = append(params, fromNs)
 	params = append(params, toNs)
 	params = append(params, toNs)
+	params = append(params, text)
+	params = append(params, text)
 	params = append(params, attributeFilters)
 	params = append(params, attributeFilters)
 	params = append(params, limit)
 	params = append(params, offset)
-	generateSQL.WriteString("(? = '' OR session_id = ?) AND ( ? = '' OR service_name = ? ) AND ( ? = '' OR trace_id = ? ) AND ( ? = '' OR span_id = ? ) AND ( ? = 0 OR severity >= ? ) AND ( ? = 0 OR severity <= ? ) AND ( ? = 0 OR timestamp_ns >= ? ) AND ( ? = 0 OR timestamp_ns <= ? ) AND NOT EXISTS ( SELECT 1 FROM UNNEST(json_keys(?)) f(key) WHERE json_extract_string( logs.attributes, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) IS DISTINCT FROM json_extract_string( ?, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) ) ORDER BY timestamp_ns DESC LIMIT ? OFFSET ? ")
+	generateSQL.WriteString("(? = '' OR session_id = ?) AND ( ? = '' OR service_name = ? ) AND ( ? = '' OR trace_id = ? ) AND ( ? = '' OR span_id = ? ) AND ( ? = 0 OR severity >= ? ) AND ( ? = 0 OR severity <= ? ) AND ( ? = 0 OR timestamp_ns >= ? ) AND ( ? = 0 OR timestamp_ns <= ? ) AND (? = '' OR contains(lower(concat_ws(' ', body, attributes::VARCHAR, service_name, trace_id, span_id)), lower(?))) AND NOT EXISTS ( SELECT 1 FROM UNNEST(json_keys(?)) f(key) WHERE json_extract_string( logs.attributes, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) IS DISTINCT FROM json_extract_string( ?, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) ) ORDER BY timestamp_ns DESC LIMIT ? OFFSET ? ")
 
 	var executeSQL *gorm.DB
 	executeSQL = l.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
@@ -330,6 +333,7 @@ func (l logDo) ListAttributeFiltered(sessionID string, service string, traceID s
 //	  @toNs = 0
 //	  OR timestamp_ns <= @toNs
 //	)
+//	AND (@text = '' OR contains(lower(concat_ws(' ', body, attributes::VARCHAR, service_name, trace_id, span_id)), lower(@text)))
 //	AND NOT EXISTS (
 //	  SELECT
 //	    1
@@ -344,7 +348,7 @@ func (l logDo) ListAttributeFiltered(sessionID string, service string, traceID s
 //	    '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
 //	  )
 //	)
-func (l logDo) CountAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string) (result []model.CountValue, err error) {
+func (l logDo) CountAttributeFiltered(sessionID string, service string, traceID string, spanID string, minSeverity int, maxSeverity int, fromNs int64, toNs int64, services []string, attributeFilters string, text string) (result []model.CountValue, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
@@ -369,9 +373,11 @@ func (l logDo) CountAttributeFiltered(sessionID string, service string, traceID 
 	params = append(params, fromNs)
 	params = append(params, toNs)
 	params = append(params, toNs)
+	params = append(params, text)
+	params = append(params, text)
 	params = append(params, attributeFilters)
 	params = append(params, attributeFilters)
-	generateSQL.WriteString("(? = '' OR session_id = ?) AND ( ? = '' OR service_name = ? ) AND ( ? = '' OR trace_id = ? ) AND ( ? = '' OR span_id = ? ) AND ( ? = 0 OR severity >= ? ) AND ( ? = 0 OR severity <= ? ) AND ( ? = 0 OR timestamp_ns >= ? ) AND ( ? = 0 OR timestamp_ns <= ? ) AND NOT EXISTS ( SELECT 1 FROM UNNEST(json_keys(?)) f(key) WHERE json_extract_string( logs.attributes, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) IS DISTINCT FROM json_extract_string( ?, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) ) ")
+	generateSQL.WriteString("(? = '' OR session_id = ?) AND ( ? = '' OR service_name = ? ) AND ( ? = '' OR trace_id = ? ) AND ( ? = '' OR span_id = ? ) AND ( ? = 0 OR severity >= ? ) AND ( ? = 0 OR severity <= ? ) AND ( ? = 0 OR timestamp_ns >= ? ) AND ( ? = 0 OR timestamp_ns <= ? ) AND (? = '' OR contains(lower(concat_ws(' ', body, attributes::VARCHAR, service_name, trace_id, span_id)), lower(?))) AND NOT EXISTS ( SELECT 1 FROM UNNEST(json_keys(?)) f(key) WHERE json_extract_string( logs.attributes, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) IS DISTINCT FROM json_extract_string( ?, '/' || replace(replace(f.key, '~', '~0'), '/', '~1') ) ) ")
 
 	var executeSQL *gorm.DB
 	executeSQL = l.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

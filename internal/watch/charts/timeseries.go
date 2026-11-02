@@ -25,7 +25,11 @@ func NewTimeSeries(width, height int, from, to time.Time, minY, maxY float64) ts
 	if maxY <= minY {
 		maxY = minY + 1
 	}
-	return tslc.New(max(8, width), max(4, height), tslc.WithTimeRange(from, to), tslc.WithYRange(minY, maxY), tslc.WithAxesStyles(lipgloss.NewStyle().Foreground(lipgloss.Color("8")), lipgloss.NewStyle().Foreground(lipgloss.Color("7"))))
+	formatter := tslc.DateTimeLabelFormatter()
+	if to.Sub(from) <= 48*time.Hour {
+		formatter = tslc.HourTimeLabelFormatter()
+	}
+	return tslc.New(max(8, width), max(4, height), tslc.WithXLabelFormatter(formatter), tslc.WithTimeRange(from, to), tslc.WithYRange(minY, maxY), tslc.WithAxesStyles(lipgloss.NewStyle().Foreground(lipgloss.Color("8")), lipgloss.NewStyle().Foreground(lipgloss.Color("7"))))
 }
 
 // RenderTimeSeries sorts a private copy, replaces duplicate timestamps and

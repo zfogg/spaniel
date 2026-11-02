@@ -42,6 +42,11 @@ func (m *model) register() {
 	}
 	if m.severity != "" {
 		query.Set("severity", m.severity)
+	} else if m.env.Filters.ErrorsOnly {
+		query.Set("severity", "error+")
+	}
+	if m.text != "" {
+		query.Set("text", m.text)
 	}
 	m.loading, m.err = true, nil
 	m.env.Refresh.Register(client.Spec{
@@ -126,7 +131,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.reconcile()
 	case protocol.Live:
-		if row, ok := liveRow(msg.Event); ok && m.page == 1 && matches(row, m.session, m.service, m.severity, "", false) {
+		if row, ok := liveRow(msg.Event); ok && m.page == 1 && matches(row, m.session, m.service, m.severity, m.text, m.env.Filters.ErrorsOnly) {
 			m.rows = sortedUnique(append(m.rows, row), pageSize)
 			m.reconcile()
 		}
@@ -146,6 +151,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.resetPage()
 				} else {
 					m.text = strings.TrimSpace(m.input)
+					m.resetPage()
 				}
 				m.editing, m.input = "", ""
 				m.reconcile()
@@ -179,11 +185,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "end", "G":
 			i = len(rows) - 1
 		case "/":
-			m.editing, m.input = "text on loaded page", m.text
+			m.editing, m.input = "text", m.text
 		case "s":
 			m.editing, m.input = "service", m.service
 		case "v":
 			levels := []string{"", "trace", "debug", "info", "warn", "error", "fatal"}
+			if m.env.Filters.ErrorsOnly {
+				levels = []string{"", "error", "fatal"}
+			}
 			for n, level := range levels {
 				if level == m.severity {
 					m.severity = levels[(n+1)%len(levels)]
@@ -246,14 +255,14 @@ func (m *model) View() string {
 	}
 	filters := fmt.Sprintf("service=%s  severity=%s  page=%d  %d loaded / %d stored at snapshot", preview(service), severity, m.page, len(m.rows), m.total)
 	if m.env.Filters.ErrorsOnly {
-		filters += "  errors only (loaded page)"
+		filters += "  errors only (stored)"
 	}
 	lines = append(lines, tui.Muted.Render(filters))
 	if m.editing != "" {
 		lines = append(lines, tui.Accent.Render(m.editing+": "+clean(m.input)+"▏"))
 	}
 	if m.text != "" {
-		lines = append(lines, "Text on loaded page: "+clean(m.text))
+		lines = append(lines, "Text: "+clean(m.text))
 	}
 	if m.paused {
 		lines = append(lines, tui.Warn.Render("PAUSED · background log updates retained"))
@@ -269,7 +278,7 @@ func (m *model) View() string {
 	}
 	if len(rows) == 0 && !m.loading {
 		if m.loaded || len(m.rows) > 0 {
-			lines = append(lines, "No logs match on this page. Adjust filters or browse stored pages.")
+			lines = append(lines, "No stored logs match these filters.")
 		} else if m.err == nil {
 			lines = append(lines, "Waiting for stored logs…")
 		}

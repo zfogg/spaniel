@@ -165,7 +165,10 @@ func (d *DB) ListTracesInWindow(f TraceOverlayFilter) ([]*TraceOverlay, error) {
 	return out, nil
 }
 
-func (d *DB) GetTrace(traceID string) ([]*Span, error) {
-	return d.query.Span.Where(d.query.Span.TraceID.Eq(traceID)).
-		Order(d.query.Span.StartNs).Find()
+func (d *DB) GetTrace(traceID string, scope ...string) ([]*Span, error) {
+	q := d.query.Span.Where(d.query.Span.TraceID.Eq(traceID))
+	if session := optionalScope(scope, 0); session != "" {
+		q = q.Where(d.query.Span.SessionID.Eq(session))
+	}
+	return q.Order(d.query.Span.StartNs).Find()
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
+	"github.com/zfogg/spaniel/internal/watch/metadata"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
 
@@ -75,7 +76,15 @@ func (m *detail) content() {
 	if body == "" {
 		body = "(empty body)"
 	}
-	text := fmt.Sprintf("Service: %s\nSeverity: %s (%g)\nSession: %s\nTimestamp: %s\nReceived at: %s\nTrace ID: %s\nSpan ID: %s\n\nBody\n%s\n\nAttributes\n%s", clean(m.row.ServiceName), severityName(m.row.Severity), m.row.Severity, clean(m.row.SessionId), stamp(m.row.TimestampNs, true), stamp(m.row.ReceivedAt, true), trace, span, body, attrs)
+	info := metadata.Table([]metadata.Field{
+		{Name: "Service", Value: m.row.ServiceName},
+		{Name: "Severity", Value: fmt.Sprintf("%s (%g)", severityName(m.row.Severity), m.row.Severity)},
+		{Name: "Session", Value: m.row.SessionId},
+		{Name: "Timestamp", Value: stamp(m.row.TimestampNs, true)},
+		{Name: "Received at", Value: stamp(m.row.ReceivedAt, true)},
+		{Name: "Trace ID", Value: trace}, {Name: "Span ID", Value: span},
+	}, m.view.Width)
+	text := strings.Join(info, "\n") + "\n\nBody\n" + body + "\n\nAttributes\n" + attrs
 	offset := m.view.YOffset
 	m.view.SetContent(ansi.Hardwrap(text, max(1, m.view.Width), true))
 	m.view.SetYOffset(offset)

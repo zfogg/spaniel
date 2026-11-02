@@ -3157,7 +3157,10 @@ export interface operations {
   }
   getAlert: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted. */
+        markSeen?: boolean
+      }
       header?: never
       path: {
         /** @description Selects the alert rule that owns the requested resource or action. */
@@ -4324,7 +4327,10 @@ export interface operations {
   }
   getDashboard: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted. */
+        markSeen?: boolean
+      }
       header?: never
       path: {
         /** @description Selects the dashboard that owns the requested resource or action. */
@@ -4857,6 +4863,8 @@ export interface operations {
           variables?: {
             [key: string]: string
           }
+          /** @description Optional selected recording session for the server-owned $session_id built-in. Omit or leave empty to follow the server-active session. A variables.session_id override is ignored. */
+          sessionId?: string
         }
       }
     }
@@ -5230,7 +5238,7 @@ export interface operations {
         traceId?: string
         /** @description Restricts results to logs associated with one span. */
         spanId?: string
-        /** @description Filters results by severity level, such as error or warn. */
+        /** @description Exact severity band: trace, debug, info, warn, error or fatal; error+ matches ERROR and FATAL (severity >=17). Empty/all includes every severity. */
         severity?: string
         /** @description Restricts results to telemetry emitted by the named service. */
         service?: string
@@ -5244,6 +5252,8 @@ export interface operations {
         limit?: number
         /** @description Match any selected service before pagination; intersects with service if also provided. */
         services?: string[]
+        /** @description Case-insensitive literal substring across body, serialized attributes, service, trace ID and span ID, applied before count and pagination. */
+        text?: string
       }
       header?: never
       path?: never
@@ -6500,7 +6510,10 @@ export interface operations {
   }
   getSpan: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the individual span to retrieve. */
@@ -6651,7 +6664,10 @@ export interface operations {
   }
   getTrace: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
@@ -6694,7 +6710,10 @@ export interface operations {
   }
   exportTrace: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
@@ -6735,7 +6754,10 @@ export interface operations {
   }
   listIncomingLinks: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
@@ -6752,7 +6774,7 @@ export interface operations {
         }
         content: {
           'application/json': {
-            data: components['schemas']['Span'][]
+            data: components['schemas']['SpanLink'][]
           }
         }
       }

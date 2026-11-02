@@ -201,22 +201,22 @@ func (m *model) queryPanels() {
 		for k, v := range m.overrides {
 			values[k] = v
 		}
-		if strings.Contains(sql, "$session_id") {
+		if strings.Contains(sql, "$session_id") && m.session == "" {
 			if !m.activeLoaded {
 				continue
 			}
-			if m.session != "" && m.session != m.activeID {
-				state.err = fmt.Errorf("Query preview cannot scope $session_id to %q (server active session %q). Shared API session support is required", m.session, m.activeID)
-				continue
-			}
 			if m.activeID == "" {
-				state.err = fmt.Errorf("No active session for $session_id")
+				state.err = fmt.Errorf("No selected or active session for $session_id")
 				continue
 			}
 		}
 		body := apigen.PreviewDashboardQueryJSONBody{QuerySql: sql, DisplayType: &display, Variables: &values}
-		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: m.env.Owner, Name: name}, Resources: []liveevent.Resource{"dashboard-panel"}, Interval: 5 * time.Second, Fetch: func(ctx context.Context, api *client.Client, _ string) (any, error) {
-			return api.Preview(ctx, id, body)
+		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: m.env.Owner, Name: name}, Resources: []liveevent.Resource{"dashboard-panel"}, Interval: 5 * time.Second, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
+			scoped := body
+			if session != "" {
+				scoped.SessionId = &session
+			}
+			return api.Preview(ctx, id, scoped)
 		}})
 	}
 }

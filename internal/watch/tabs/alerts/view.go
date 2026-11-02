@@ -195,14 +195,18 @@ func (m *model) definition() []string {
 		return nil
 	}
 	r := m.rule
-	lines := []string{tone(ruleState(r)) + " · " + string(r.Severity) + " · id " + oneLine(r.Id),
-		"Name: " + clean(r.Name),
-		"Condition / threshold: " + clean(r.ConditionJson), "Query (version " + fmt.Sprint(r.QueryVersion) + "):", clean(r.QuerySql),
-		"Group by: " + clean(r.GroupByJson),
-		fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
-		"Last evaluation: " + stamp(r.LastEvaluatedAt) + " · duration " + duration(r.LastDurationNs),
-		"Last success: " + stamp(r.LastSuccessAt) + " · next: " + stamp(r.NextEvaluationAt),
-		fmt.Sprintf("Notifications: browser=%t · pushover=%t", r.BrowserEnabled, r.PushoverEnabled)}
+	lines := []string{tone(ruleState(r)) + " · " + string(r.Severity) + " · id " + oneLine(r.Id), "Name: " + clean(r.Name), "Condition / threshold:"}
+	lines = append(lines, m.attributeTable(r.ConditionJson)...)
+	lines = append(lines, "Query (version "+fmt.Sprint(r.QueryVersion)+"):", clean(r.QuerySql), "Group by:")
+	groups := r.GroupByJson
+	if groups == "" {
+		groups = "[]"
+	}
+	lines = append(lines, m.attributeTable(`{"group_by":`+groups+`}`)...)
+	lines = append(lines, fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
+		"Last evaluation: "+stamp(r.LastEvaluatedAt)+" · duration "+duration(r.LastDurationNs),
+		"Last success: "+stamp(r.LastSuccessAt)+" · next: "+stamp(r.NextEvaluationAt),
+		fmt.Sprintf("Notifications: browser=%t · pushover=%t", r.BrowserEnabled, r.PushoverEnabled))
 	if r.LastError != "" {
 		lines = append(lines, "Evaluation error: "+clean(r.LastError))
 	}
