@@ -23,18 +23,19 @@ type pane struct {
 	cancel context.CancelFunc
 }
 type Model struct {
-	env                   protocol.Env
-	tabs                  []protocol.Tab
-	models                []tea.Model
-	details               protocol.Details
-	stack                 []pane
-	saved                 map[protocol.TabID][]pane
-	active, width, height int
-	serial                uint64
-	updates               <-chan client.Update
-	status                client.Status
-	fixedSession          bool
-	helpPage, bodyHeight  int
+	env                    protocol.Env
+	tabs                   []protocol.Tab
+	models                 []tea.Model
+	details                protocol.Details
+	stack                  []pane
+	saved                  map[protocol.TabID][]pane
+	active, width, height  int
+	serial                 uint64
+	updates                <-chan client.Update
+	status                 client.Status
+	fixedSession           bool
+	helpOffset, bodyHeight int
+	helpOpen               bool
 }
 type streamClosed struct{}
 
@@ -178,7 +179,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	before := m.helpContext()
 	_, cmd := m.update(msg)
 	if before != m.helpContext() {
-		m.helpPage = 0
+		m.helpOffset = 0
 	}
 	// Help changes after input, snapshots and navigation as well as resize.
 	// Notify retained panes too, so their viewports never cover the footer.
@@ -242,12 +243,16 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case protocol.Back:
 		return m, m.back()
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyF1 {
-			m.helpPage++
-			return m, nil
-		}
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
+		}
+		if m.helpOpen {
+			return m, m.popupKey(msg)
+		}
+		if msg.Type == tea.KeyF2 || (msg.String() == "?" && !m.capturesKeys()) {
+			m.helpOpen = true
+			m.helpOffset = 0
+			return m, nil
 		}
 		if capture, ok := m.focused().(protocol.KeyCapture); ok && capture.CapturesKeys() {
 			return m, m.route(m.owner(), msg)
@@ -295,7 +300,7 @@ func (m *Model) View() string {
 	if width <= 0 {
 		width = 100
 	}
-	header := ansi.Truncate(tui.Ink.Bold(true).Render(m.title())+tui.Faint.Render("  │  ")+strings.Join(labels, "  "), width, "…")
+	header := ansi.Truncate(tui.Ink.Bold(true).Render(m.title())+tui.Faint.Render("  │  ")+m.connectionLabel()+tui.Faint.Render("  │  ")+strings.Join(labels, "  "), width, "…")
 	lines := []string{header}
 	height := m.contentHeight()
 	body := strings.Split(m.focused().View(), "\n")
@@ -305,6 +310,9 @@ func (m *Model) View() string {
 			line = body[i]
 		}
 		lines = append(lines, ansi.Truncate(line, width, "…"))
+	}
+	if len(lines) > 1 {
+		copy(lines[1:], m.overlayHelp(lines[1:]))
 	}
 	lines = append(lines, m.footer()...)
 	if m.height > 0 {

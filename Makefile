@@ -290,3 +290,19 @@ test-watch:
 	    go test -race -c -o "$$test_binary" "$$package"; \
 	    "$$test_binary" -test.count=1 -test.timeout=2m; \
 	  done
+
+# Canonical scope/filter contracts used by the integrated terminal. Stable
+# loopback-only race binaries keep focused API checks under the same toolchain.
+.PHONY: test-watch-api
+test-watch-api:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/watch-api.test$(EXE) ./internal/api
+	./$(BIN_DIR)/watch-api.test$(EXE) -test.run 'TestWatch|TestDashboardCurrentSessionParameter|TestListLogs_|TestGetSpan_|TestListIncomingLinks|TestGetTrace' -test.count=1 -test.timeout=5m
+
+.PHONY: test-watch-footer
+test-watch-footer:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/watch-shell.test$(EXE) ./internal/watch/shell
+	./$(BIN_DIR)/watch-shell.test$(EXE) -test.count=1 -test.timeout=2m
+	go test -race -c -o $(BIN_DIR)/watch-watch.test$(EXE) ./internal/watch
+	./$(BIN_DIR)/watch-watch.test$(EXE) -test.run 'TestSeededTerminalSmoke|TestTerminalOutput' -test.count=1 -test.timeout=2m

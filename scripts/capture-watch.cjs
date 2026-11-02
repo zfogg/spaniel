@@ -13,8 +13,14 @@ async function main() {
     const names = (await fs.readdir(directory)).filter(name => name.endsWith('.ansi')).map(name => name.slice(0, -5))
     for (const name of names) {
       const terminal = new Terminal({ cols: 120, rows: 30, allowProposedApi: true })
-      const recording = await fs.readFile(path.join(directory, `${name}.ansi`), 'utf8')
-      await new Promise((resolve) => terminal.write(recording, resolve))
+      const recording = await fs.readFile(path.join(directory, `${name}.ansi`))
+      let resize = null
+      try { resize = JSON.parse(await fs.readFile(path.join(directory, `${name}.resize.json`), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+      if (resize) {
+        await new Promise(resolve => terminal.write(recording.subarray(0, resize.offset).toString('utf8'), resolve))
+        terminal.resize(resize.cols, resize.rows)
+      }
+      await new Promise(resolve => terminal.write(recording.subarray(resize?.offset ?? 0).toString('utf8'), resolve))
       const lines = [], styledRows = []
       for (let row = 0; row < terminal.rows; row++) {
         const line = terminal.buffer.active.getLine(row)
@@ -37,11 +43,11 @@ async function main() {
         styledRows.push(runs)
       }
       const screen = lines.join('\n')
-      if (!screen.includes('spaniel - ') || !screen.includes('Ctrl+C quit')) {
+      if (!screen.includes('spaniel - ') || !['? help', 'F2 help', 'Esc/F2 close'].some(text => screen.includes(text))) {
         throw new Error(`${name} did not capture the actual watch screen`)
       }
       if (name === 'watch-reconnecting' && !screen.includes('reconnecting:')) throw new Error('missing real reconnect state')
-      const page = await browser.newPage({ viewport: { width: 1320, height: 720 }, deviceScaleFactor: 1 })
+      const page = await browser.newPage({ viewport: { width: Math.max(360, terminal.cols * 11), height: terminal.rows * 22 + 60 }, deviceScaleFactor: 1 })
       await page.setContent('<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#11151b;color:#d8dee9}pre{margin:20px;font:17px/22px "DejaVu Sans Mono",Consolas,monospace;white-space:pre}</style><pre id="terminal"></pre>')
       await page.locator('#terminal').evaluate((element, rows) => {
         for (const runs of rows) {

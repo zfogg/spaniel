@@ -60,33 +60,72 @@ func TestFocusedFooterAndRetainedInput(t *testing.T) {
 	}
 }
 
-func TestFooterGeometryAndHelpPaging(t *testing.T) {
-	m, _, _ := fixture(t)
+func TestOneRowFooterPopupGeometryAndInput(t *testing.T) {
+	m, models, _ := fixture(t)
 	m.status.Err = errors.New(strings.Repeat("long failure\n\x1b[31m", 100))
 	for _, size := range []tea.WindowSizeMsg{{Width: 120, Height: 30}, {Width: 30, Height: 12}, {Width: 8, Height: 6}, {Width: 1, Height: 1}} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			m.Update(size)
-			seen := ""
-			for page := 0; page < 50; page++ {
-				view := m.View()
-				lines := strings.Split(view, "\n")
-				if len(lines) > size.Height {
-					t.Fatalf("overflow: %d > %d", len(lines), size.Height)
-				}
-				for _, line := range lines {
-					if ansi.StringWidth(line) > size.Width {
-						t.Fatalf("width overflow: %q", line)
+			for _, popup := range []bool{false, true} {
+				m.helpOpen = popup
+				for range 4 {
+					lines := strings.Split(m.View(), "\n")
+					if len(lines) > size.Height || len(m.footer()) != 1 {
+						t.Fatal("one-row geometry overflow", len(lines), len(m.footer()))
 					}
+					for _, line := range lines {
+						if ansi.StringWidth(line) > size.Width {
+							t.Fatalf("width overflow %d: %q", size.Width, line)
+						}
+					}
+					if m.contentHeight() != max(0, size.Height-2) {
+						t.Fatal("wrong reserved geometry")
+					}
+					m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
 				}
-				seen += ansi.Strip(strings.Join(m.footer(), ""))
-				if m.bodyHeight != max(0, size.Height-1-len(m.footer())) {
-					t.Fatal("viewport did not reserve actual help height")
-				}
-				m.Update(tea.KeyMsg{Type: tea.KeyF1})
 			}
-			if size.Width >= 30 && (!strings.Contains(seen, "inspect traces") || !strings.Contains(seen, "quit")) {
-				t.Fatalf("undiscoverable help: %s", seen)
-			}
+			m.helpOpen = false
 		})
+	}
+	m.Update(tea.WindowSizeMsg{Width: 30, Height: 10})
+	if !strings.Contains(ansi.Strip(m.footer()[0]), "? help") {
+		t.Fatal("overflow popup is undiscoverable", m.footer())
+	}
+	before := len(models[0].keys)
+	m.Update(key("?"))
+	if !m.helpOpen || !strings.Contains(ansi.Strip(m.View()), "Keyboard help") {
+		t.Fatal("popup did not open")
+	}
+	m.Update(key("j"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	if m.helpOffset == 0 || len(models[0].keys) != before {
+		t.Fatal("popup scroll reached feature or did not move")
+	}
+	m.Update(key("esc"))
+	if m.helpOpen {
+		t.Fatal("popup did not close")
+	}
+	models[0].capture = true
+	m.Update(key("?"))
+	if m.helpOpen || models[0].keys[len(models[0].keys)-1] != "?" {
+		t.Fatal("literal question mark was captured by help")
+	}
+	if !strings.Contains(ansi.Strip(m.footer()[0]), "F2 help") {
+		t.Fatal("input help alternative missing", m.footer())
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyF2})
+	if !m.helpOpen {
+		t.Fatal("input help did not open")
+	}
+	if strings.Contains(ansi.Strip(strings.Join(m.helpRows(80), "\n")), "q quit") {
+		t.Fatal("inapplicable globals in input popup")
+	}
+	m.Update(key("esc"))
+	if !models[0].capture || m.helpOpen {
+		t.Fatal("closing help cancelled the field")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyF1})
+	if m.helpOpen {
+		t.Fatal("obsolete F1 paging remains")
 	}
 }
