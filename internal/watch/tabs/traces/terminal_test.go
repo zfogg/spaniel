@@ -20,11 +20,9 @@ import (
 	"github.com/zfogg/spaniel/internal/api"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/storage"
+	"github.com/zfogg/spaniel/internal/watch"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
-	"github.com/zfogg/spaniel/internal/watch/shell"
-	"github.com/zfogg/spaniel/internal/watch/tabs/spans"
-	"github.com/zfogg/spaniel/internal/watch/tabs/traces"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
@@ -118,14 +116,10 @@ func TestSeededTraceSpanTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updates, err := apiClient.Stream(ctx)
+	model, err := watch.New(ctx, apiClient, watch.Options{SessionID: session.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	refresh := client.NewRefreshes(ctx, apiClient)
-	refresh.SetSession(session.ID)
-	env := protocol.Env{Context: ctx, API: apiClient, Refresh: refresh}
-	model := shell.New(env, []protocol.Tab{{ID: protocol.Traces, Title: "traces", New: traces.New}, {ID: protocol.Spans, Title: "spans", New: spans.New}}, traces.NewDetails(), updates, true)
 	var output recording
 	p := tea.NewProgram(inspectedModel{model}, tea.WithInput(nil), tea.WithOutput(&output), tea.WithContext(ctx), tea.WithoutSignalHandler())
 	done := make(chan error, 1)
