@@ -32,18 +32,18 @@ func TestShortHelpTracksListSelectionPagingPauseAndInput(t *testing.T) {
 	if helpFor(m.ShortHelp(), "enter") != "full log" || helpFor(m.ShortHelp(), "]") != "next page" || helpFor(m.ShortHelp(), "[") != "" {
 		t.Fatal("list help ignores current data/page")
 	}
-	key(m, "p")
+	pressKey(m, "p")
 	if helpFor(m.ShortHelp(), "p") != "resume rows" {
 		t.Fatal("pause help did not change")
 	}
 	for _, input := range []string{"/", "s"} {
-		key(m, input)
+		pressKey(m, input)
 		if !strings.HasPrefix(helpFor(m.ShortHelp(), "enter"), "apply ") || helpFor(m.ShortHelp(), "esc") != "cancel" || helpFor(m.ShortHelp(), "ctrl+u") == "" || helpFor(m.ShortHelp(), "p") != "" {
 			t.Fatal("input mode help offers list actions")
 		}
-		key(m, "esc")
+		pressKey(m, "esc")
 	}
-	key(m, "]")
+	pressKey(m, "]")
 	if helpFor(m.ShortHelp(), "[") != "" {
 		t.Fatal("loading page offers navigation")
 	}

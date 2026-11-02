@@ -31,7 +31,7 @@ func testEnv(t *testing.T) protocol.Env {
 func logRow(body string, ns int64) apigen.Log {
 	return apigen.Log{Body: body, TimestampNs: ns, ReceivedAt: ns + 1, ServiceName: "checkout", SessionId: "session", Severity: 17, TraceId: "0123456789abcdef0123456789abcdef", SpanId: "0123456789abcdef", Attributes: `{"cart.items":3,"exception.message":"payment declined"}`}
 }
-func key(m tea.Model, value string) tea.Cmd {
+func pressKey(m tea.Model, value string) tea.Cmd {
 	typeOf := tea.KeyRunes
 	switch value {
 	case "enter":
@@ -65,7 +65,7 @@ func TestStoredLiveHiddenPauseSelectionAndBound(t *testing.T) {
 	}
 	one, two := logRow("first", 100), logRow("second", 200)
 	snapshot(m, env.Owner, "list", two, one, one)
-	key(m, "down")
+	pressKey(m, "down")
 	selected := m.selected
 	m.Update(protocol.Focus{Active: false}) // Hidden tabs still ingest live state.
 	m.Update(event(two, false))
@@ -73,13 +73,13 @@ func TestStoredLiveHiddenPauseSelectionAndBound(t *testing.T) {
 	if len(m.rows) != 3 || m.selected != selected {
 		t.Fatal("duplicate rows or selection moved")
 	}
-	key(m, "p")
+	pressKey(m, "p")
 	before := m.View()
 	m.Update(event(logRow("fourth", 400), false))
 	if strings.Contains(m.View(), "fourth") || !strings.Contains(before, "PAUSED") {
 		t.Fatal("pause changed presentation")
 	}
-	key(m, "p")
+	pressKey(m, "p")
 	if !strings.Contains(m.View(), "fourth") || m.selected != selected {
 		t.Fatal("resume lost data or selection")
 	}
@@ -142,7 +142,7 @@ func TestFiltersPagingImmutableFetchAndSupersededResults(t *testing.T) {
 	if !strings.Contains(m.View(), "initial API data") {
 		t.Fatal(m.View())
 	}
-	key(m, "]")
+	pressKey(m, "]")
 	work = env.Refresh.Due(time.Now())
 	if len(work) != 1 {
 		t.Fatal("page not registered")
@@ -153,10 +153,10 @@ func TestFiltersPagingImmutableFetchAndSupersededResults(t *testing.T) {
 		t.Fatal(result.Err)
 	}
 	q = <-queries
-	key(m, "s")
-	key(m, "ctrl+u")
+	pressKey(m, "s")
+	pressKey(m, "ctrl+u")
 	m.input = "payments"
-	key(m, "enter")
+	pressKey(m, "enter")
 	if q.Get("page") != "2" || q.Get("service") != "checkout" {
 		t.Fatal("worker read mutable UI state", q)
 	}
@@ -169,7 +169,7 @@ func TestFiltersPagingImmutableFetchAndSupersededResults(t *testing.T) {
 	if q.Get("page") != "1" || q.Get("service") != "payments" {
 		t.Fatal(q)
 	}
-	key(m, "v")
+	pressKey(m, "v")
 	work = env.Refresh.Due(time.Now())
 	work[0].Run()
 	q = <-queries
@@ -193,18 +193,18 @@ func TestFiltersDedupeAndInputCapture(t *testing.T) {
 	if len(m.visible()) != 2 {
 		t.Fatal("error/session filters not applied")
 	}
-	key(m, "/")
+	pressKey(m, "/")
 	if !m.CapturesKeys() {
 		t.Fatal("search does not capture shell keys")
 	}
-	key(m, "q")
-	key(m, "esc")
+	pressKey(m, "q")
+	pressKey(m, "esc")
 	if m.text != "" || m.CapturesKeys() {
 		t.Fatal("cancel did not release input")
 	}
-	key(m, "/")
-	key(m, "declined")
-	key(m, "enter") // Attributes participate in text search.
+	pressKey(m, "/")
+	pressKey(m, "declined")
+	pressKey(m, "enter") // Attributes participate in text search.
 	if len(m.visible()) != 2 {
 		t.Fatal("attribute search missed matches")
 	}
@@ -223,7 +223,7 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	m := New(env).(*model)
 	row := logRow("first line\nsecond line", 100)
 	snapshot(m, env.Owner, "list", row)
-	nav := key(m, "enter")().(protocol.ShowDetail)
+	nav := pressKey(m, "enter")().(protocol.ShowDetail)
 	if nav.Return.Selection != identity(row) {
 		t.Fatal("missing stable return context")
 	}
@@ -238,11 +238,11 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 			t.Fatalf("full log missing %q: %s", value, d.View())
 		}
 	}
-	trace := key(d, "enter")().(protocol.OpenTrace)
+	trace := pressKey(d, "enter")().(protocol.OpenTrace)
 	if trace.TraceID != row.TraceId || trace.SpanID != row.SpanId || trace.Return.Selection != identity(row) {
 		t.Fatal(trace)
 	}
-	span := key(d, "s")().(protocol.OpenSpan)
+	span := pressKey(d, "s")().(protocol.OpenSpan)
 	if span.SpanID != row.SpanId {
 		t.Fatal(span)
 	}
@@ -263,11 +263,11 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	uncorrelated := row
 	uncorrelated.TraceId, uncorrelated.SpanId = "", ""
 	d = newDetail(de, uncorrelated, de.Refresh.Session())
-	if key(d, "enter") != nil || !strings.Contains(d.View(), "No trace/span correlation") {
+	if pressKey(d, "enter") != nil || !strings.Contains(d.View(), "No trace/span correlation") {
 		t.Fatal(d.View())
 	}
 	d.Update(protocol.SessionChanged{ID: "other"})
-	if d.row.Body != "" || key(d, "s") != nil || !strings.Contains(d.View(), "Session changed") {
+	if d.row.Body != "" || pressKey(d, "s") != nil || !strings.Contains(d.View(), "Session changed") {
 		t.Fatal("old session detail retained data")
 	}
 }
@@ -303,7 +303,7 @@ func TestErrorRemovalLookupLimitAndResize(t *testing.T) {
 		}
 	}
 	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	key(d, "end")
+	pressKey(d, "end")
 	if d.view.YOffset == 0 {
 		t.Fatal("long body cannot scroll")
 	}
@@ -319,14 +319,14 @@ func TestQueuedInspectorCannotReopenPreviousSession(t *testing.T) {
 			m := New(env).(*model)
 			row := logRow("private previous session", 100)
 			snapshot(m, env.Owner, "list", row)
-			queued := key(m, "enter")().(protocol.ShowDetail)
+			queued := pressKey(m, "enter")().(protocol.ShowDetail)
 			env.Refresh.SetSession(next)
 			env.Owner = "detail:late"
 			d := queued.New(env).(*detail)
 			d.Update(protocol.Connection{Connected: true})
 			d.Update(protocol.SessionChanged{ID: next})
 			snapshot(d, env.Owner, "log", row)
-			if !d.changedSession || d.row.Body != "" || strings.Contains(d.View(), row.Body) || key(d, "enter") != nil {
+			if !d.changedSession || d.row.Body != "" || strings.Contains(d.View(), row.Body) || pressKey(d, "enter") != nil {
 				t.Fatal("queued navigation reopened previous-session data")
 			}
 		})
