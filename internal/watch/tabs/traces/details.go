@@ -215,7 +215,7 @@ func (m *traceModel) View() string {
 	if m.paused {
 		title = "PAUSED · " + title
 	}
-	lines := []string{tui.Title.Render(title), m.state.banner()}
+	lines := m.state.appendBanner([]string{tui.Title.Render(title)})
 	lines = append(lines, metadata.Table([]metadata.Field{
 		{Name: "Trace ID", Value: m.traceID}, {Name: "Session", Value: m.state.session},
 		{Name: "Spans", Value: fmt.Sprint(len(rows))}, {Name: "Duration", Value: duration(end - start)},
@@ -374,13 +374,13 @@ func (m *spanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			m.offset++
 		case "pgdown", " ":
-			m.offset += max(1, m.height-4)
+			m.offset += max(1, m.contentHeight()-1)
 		case "pgup":
-			m.offset = max(0, m.offset-max(1, m.height-4))
+			m.offset = max(0, m.offset-max(1, m.contentHeight()-1))
 		case "home", "g":
 			m.offset = 0
 		case "end", "G":
-			m.offset = max(0, len(m.content())-max(1, m.height-3))
+			m.offset = max(0, len(m.content())-m.contentHeight())
 		case "r":
 			m.register()
 		case "t":
@@ -390,7 +390,7 @@ func (m *spanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	m.offset = min(m.offset, max(0, len(m.content())-max(1, m.height-3)))
+	m.offset = min(m.offset, max(0, len(m.content())-m.contentHeight()))
 	return m, nil
 }
 func (m *spanModel) content() []string {
@@ -401,7 +401,8 @@ func (m *spanModel) content() []string {
 		return []string{"Span missing, unavailable in this session, or expired. The originating view is retained."}
 	}
 	lines := spanContent(*m.span, m.width, m.env.Now())
-	lines = append(lines, "", tui.Title.Render("Associated logs · latest 100"), m.logState.banner())
+	lines = append(lines, "", tui.Title.Render("Associated logs · latest 100"))
+	lines = m.logState.appendBanner(lines)
 	if len(m.logs) == 0 {
 		if m.logState.loading {
 			lines = append(lines, "Loading associated logs…")
@@ -423,11 +424,15 @@ func (m *spanModel) content() []string {
 	}
 	return wrapped
 }
+func (m *spanModel) header() []string {
+	return m.state.appendBanner([]string{tui.Title.Render("Span " + clean(m.spanID))})
+}
+func (m *spanModel) contentHeight() int { return max(1, m.height-len(m.header())) }
 func (m *spanModel) View() string {
-	lines := []string{tui.Title.Render("Span " + clean(m.spanID)), m.state.banner()}
+	lines := m.header()
 	content := m.content()
-	start := min(m.offset, max(0, len(content)-max(1, m.height-3)))
-	end := min(len(content), start+max(1, m.height-3))
+	start := min(m.offset, max(0, len(content)-m.contentHeight()))
+	end := min(len(content), start+m.contentHeight())
 	lines = append(lines, content[start:end]...)
 	return screen(lines, m.width, m.height)
 }

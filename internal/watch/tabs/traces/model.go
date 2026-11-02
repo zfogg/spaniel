@@ -341,7 +341,7 @@ func (m *listModel) View() string {
 	if m.total >= 0 {
 		count += fmt.Sprintf(" · %d at snapshot", m.total)
 	}
-	lines := []string{tui.Title.Render(fmt.Sprintf("%s · page %d · %s", kind, m.page, count)), m.state.banner()}
+	lines := m.state.appendBanner([]string{tui.Title.Render(fmt.Sprintf("%s · page %d · %s", kind, m.page, count))})
 	filters := fmt.Sprintf("service: %s · errors: %t · N+1: %t · text: %s", fallback(m.service, "all"), m.errors, m.n1, fallback(m.text, "none"))
 	if m.paused {
 		filters = "PAUSED · " + filters

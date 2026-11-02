@@ -71,10 +71,18 @@ func (s viewState) banner() string {
 		parts = append(parts, "STALE · disconnected; reconnecting")
 	} else if s.pending {
 		parts = append(parts, "Syncing durable changes…")
-	} else if !s.loading && s.err == "" {
-		parts = append(parts, "LIVE")
+	}
+	if len(parts) == 0 {
+		return ""
 	}
 	return tui.Muted.Render(strings.Join(parts, " · "))
+}
+
+func (s viewState) appendBanner(lines []string) []string {
+	if banner := s.banner(); banner != "" {
+		return append(lines, banner)
+	}
+	return lines
 }
 
 func eventSpan(e liveevent.Message) (apigen.Span, bool) {
