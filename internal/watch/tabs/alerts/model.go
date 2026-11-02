@@ -132,6 +132,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case protocol.ReturnContext:
 		if msg.Tab == protocol.Alerts && m.id == "" {
 			m.selected = msg.Selection
+			m.reconcile()
 		}
 	case protocol.Live:
 		for _, resource := range liveevent.Changes(msg.Event) {
@@ -344,10 +345,10 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 			return m.navigate()
 		}
 		if m.section == "instances" && m.instance != "" {
-			m.section, m.offset = "instance", 0
+			return m.inspect("instance")
 		}
 		if m.section == "history" && m.event != "" {
-			m.section, m.offset = "event", 0
+			return m.inspect("event")
 		}
 	case "t":
 		if m.id != "" {
@@ -358,6 +359,33 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	m.reconcile()
 	return nil
+}
+
+// Full inspections are real shell panes. Escape therefore pops one view and
+// restores the parent model's independent selection, filters and page. Each
+// pane owns its subscriptions and continues receiving results while hidden.
+func (m *model) inspect(section string) tea.Cmd {
+	id, instance, event, page := m.id, m.instance, m.event, m.page
+	group, search, state := m.group, m.search, m.state
+	hsearch, hstate, hseverity := m.hsearch, m.hstate, m.hseverity
+	selection := instance
+	if section == "event" {
+		selection = event
+	}
+	return func() tea.Msg {
+		return protocol.ShowDetail{
+			New: func(env protocol.Env) tea.Model {
+				n := newModel(env, id)
+				n.section, n.instance, n.event, n.page = section, instance, event, page
+				n.group, n.search, n.state = group, search, state
+				n.hsearch, n.hstate, n.hseverity = hsearch, hstate, hseverity
+				n.registerRule()
+				n.registerHistory()
+				return n
+			},
+			Return: protocol.ReturnContext{Tab: protocol.Alerts, Selection: selection},
+		}
+	}
 }
 func cycle(values []string, value string) string {
 	for i, v := range values {

@@ -2,6 +2,7 @@ package alerts
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,8 +12,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
+	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
+	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 	"github.com/zfogg/spaniel/internal/watch/shell"
 )
@@ -98,14 +102,30 @@ func TestAlertsTerminalRuntime(t *testing.T) {
 	key('i')
 	wait("842.7")
 	capture("watch-alert-instances")
+	p.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	wait("State: firing")
+	capture("watch-alert-instance-detail")
+	p.Send(tea.KeyMsg{Type: tea.KeyEsc})
 	key('h')
 	wait("Latency exceeded 500ms")
 	capture("watch-alert-history")
+	p.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	wait("Event: e3")
+	capture("watch-alert-event-detail")
+	p.Send(tea.KeyMsg{Type: tea.KeyEsc})
 	key('i')
 	key('l')
 	wait(spanID)
 	capture("watch-alert-links")
 	// Keep a retained detail and its results live while a different tab is open.
+	f.mu.Lock()
+	initialDetailReads := 0
+	for _, request := range f.requests {
+		if request.Path == "/api/alerts/latency" {
+			initialDetailReads++
+		}
+	}
+	f.mu.Unlock()
 	p.Send(tea.KeyMsg{Type: tea.KeyTab})
 	wait("Other tab for background")
 	f.mu.Lock()
@@ -125,7 +145,7 @@ func TestAlertsTerminalRuntime(t *testing.T) {
 			}
 		}
 		f.mu.Unlock()
-		if n >= 2 {
+		if n > initialDetailReads {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -133,6 +153,7 @@ func TestAlertsTerminalRuntime(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	time.Sleep(100 * time.Millisecond)
 	p.Send(tea.KeyMsg{Type: tea.KeyShiftTab})
 	key('i')
 	wait("Recovered checkout")
@@ -148,4 +169,88 @@ func TestAlertsTerminalRuntime(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("runtime failed to quit")
 	}
+}
+
+// Exercise nested inspection through the real shell, whose global Escape and
+// Backspace handling must restore one pane rather than leave the rule browser.
+func TestShellInspectionBackPreservesRuleContext(t *testing.T) {
+	f, env := newFixture(t)
+	f.mu.Lock()
+	f.events = nil
+	for i := 0; i < 32; i++ {
+		f.events = append(f.events, apigen.AlertEvent{Id: fmt.Sprintf("event-%02d", i), RuleId: "latency", Kind: "firing", State: "firing", Detail: "history detail", GroupKey: "checkout"})
+	}
+	f.mu.Unlock()
+	app := shell.New(env, []protocol.Tab{{ID: protocol.Alerts, Title: "alerts", New: New}}, nil, nil, true)
+	var dispatch func(tea.Msg)
+	dispatch = func(msg tea.Msg) {
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, cmd := range batch {
+				if cmd != nil {
+					dispatch(cmd())
+				}
+			}
+			return
+		}
+		if msg == nil {
+			return
+		}
+		_, cmd := app.Update(msg)
+		if cmd != nil {
+			dispatch(cmd())
+		}
+	}
+	connected := client.Update{Status: &client.Status{Connected: true}}
+	dispatch(tea.WindowSizeMsg{Width: 120, Height: 30})
+	dispatch(connected)
+	key := func(key string) {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+		switch key {
+		case "enter":
+			msg.Type = tea.KeyEnter
+		case "esc":
+			msg.Type = tea.KeyEsc
+		case "backspace":
+			msg.Type = tea.KeyBackspace
+		case "down":
+			msg.Type = tea.KeyDown
+		}
+		dispatch(msg)
+		dispatch(connected)
+	}
+	check := func(parts ...string) {
+		t.Helper()
+		view := ansi.Strip(app.View())
+		for _, part := range parts {
+			if !strings.Contains(view, part) {
+				t.Fatalf("missing %q:\n%s", part, view)
+			}
+		}
+	}
+	key("enter")
+	key("i")
+	key("down")
+	key("/")
+	key("payments")
+	key("enter")
+	check("Viewing: instances", "search payments", "> resolved / 121.4  payments")
+	key("enter")
+	check("Viewing: instance", "Group: payments")
+	key("esc")
+	check("Viewing: instances", "search payments", "> resolved / 121.4  payments")
+	key("h")
+	key("s")
+	key("s")
+	key("]")
+	key("down")
+	check("Viewing: history", "API page 2/2", "state firing")
+	key("enter")
+	check("Viewing: event", "Event: event-26")
+	key("backspace")
+	check("Viewing: history", "API page 2/2", "state firing")
+	key("enter")
+	check("Event: event-26")
+	key("esc")
+	key("esc")
+	check("Alert rules", "> firing / critical  Checkout latency")
 }

@@ -270,6 +270,7 @@ func TestHiddenLifecycleTransitionsDefinitionsAndRemoval(t *testing.T) {
 		f.mu.Lock()
 		f.rules[0].Instances[0].State = state
 		f.rules[0].Name = "External " + state
+		f.events = append([]apigen.AlertEvent{{Id: "transition-" + state, RuleId: "latency", GroupKey: "checkout", Kind: state, State: state}}, f.events...)
 		f.rules[0].Instances[0].Value = new(float64)
 		*f.rules[0].Instances[0].Value = 17
 		f.mu.Unlock()
@@ -277,6 +278,9 @@ func TestHiddenLifecycleTransitionsDefinitionsAndRemoval(t *testing.T) {
 		drain(t, env, m, d)
 		if ruleState(m.rules[0]) != state || ruleState(d.rule) != state || d.rule.Name != "External "+state {
 			t.Fatalf("hidden %s update lost", state)
+		}
+		if len(d.events) == 0 || d.events[0].State != state {
+			t.Fatalf("hidden %s history update lost", state)
 		}
 	}
 	f.mu.Lock()
@@ -286,6 +290,10 @@ func TestHiddenLifecycleTransitionsDefinitionsAndRemoval(t *testing.T) {
 	invalidate(env, m)
 	drain(t, env, m, d)
 	assertContains(t, m, "No alert rules")
+	m.Update(protocol.ReturnContext{Tab: protocol.Alerts, Selection: "latency"})
+	if m.selected != "" || press(m, "enter") != nil {
+		t.Fatal("Back restored a deleted row")
+	}
 	assertContains(t, d, "Rule deleted or unavailable")
 	if !d.deleted() {
 		t.Fatal("deleted rule not detected")
@@ -521,9 +529,12 @@ func TestPagingClampAndAcknowledgment(t *testing.T) {
 	d := newDetail(de, "latency").(*model)
 	drain(t, env, d)
 	press(d, "i")
-	press(d, "enter")
-	d.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	assertContains(t, d, "State: acknowledged / condition: firing", "Investigating checkout", "Scheduled maintenance")
+	show := press(d, "enter")().(protocol.ShowDetail)
+	de.Owner = "detail:2"
+	inspection := show.New(de).(*model)
+	drain(t, env, inspection)
+	inspection.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	assertContains(t, inspection, "State: acknowledged / condition: firing", "Investigating checkout", "Scheduled maintenance")
 	r.Enabled = false
 	if ruleState(r) != "disabled" {
 		t.Fatal("disabled rule masquerades as firing")
