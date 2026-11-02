@@ -497,7 +497,7 @@ func TestPrimaryLayoutAndSecondaryInspection(t *testing.T) {
 	}
 	pressKey(m, "i")
 	inspection := ansi.Strip(m.View())
-	if !m.inspect || !strings.Contains(inspection, "SELECT timestamp_ns") || !strings.Contains(inspection, "Query result") || !strings.Contains(inspection, "2026-11-02") || strings.Contains(inspection, "1793631000123456789") {
+	if !m.inspect || !strings.Contains(inspection, "SELECT timestamp_ns") || !strings.Contains(inspection, "Query result") || !strings.Contains(inspection, "1793631000123456789") || !strings.Contains(inspection, "1793631060123456789") || strings.Contains(inspection, " ago") {
 		t.Fatal(inspection)
 	}
 	if !strings.Contains(inlineHelp(m.ShortHelp()), "visualization") {
