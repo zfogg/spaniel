@@ -78,7 +78,7 @@ func TestSeededTraceSpanTerminal(t *testing.T) {
 	const dbID = "b000000000000002"
 	const start int64 = 1793631000000000000
 	seed := func(id, parent, service, name string, offset, dur int64, status int) *storage.Span {
-		s := &storage.Span{SessionID: session.ID, SessionLabel: session.Label, TraceID: traceID, SpanID: id, ParentSpanID: parent, ServiceName: service, Name: name, Kind: 3, StartNs: start + offset, EndNs: start + offset + dur, DurationNs: dur, StatusCode: status, Attributes: `{"db.system.name":"postgresql","db.query.text":"SELECT id FROM orders WHERE customer_id = $1"}`, Resource: `{"service.version":"1.4.2","deployment.environment.name":"demo"}`, ReceivedAt: start + offset}
+		s := &storage.Span{SessionID: session.ID, SessionLabel: session.Label, TraceID: traceID, SpanID: id, ParentSpanID: parent, ServiceName: service, Name: name, Kind: 3, StartNs: start + offset, EndNs: start + offset + dur, DurationNs: dur, StatusCode: status, Attributes: `{"db.system.name":"postgresql","db.query.text":"SELECT id FROM orders WHERE customer_id = $1","db.response.returned_rows":9007199254740993,"retryable":true,"retry":{"attempt":2,"delays_ms":[25,50]}}`, Resource: `{"service.version":"1.4.2","deployment.environment.name":"demo","deployment.revision":18446744073709551615}`, ReceivedAt: start + offset}
 		if status == 2 {
 			s.StatusMessage = "query deadline exceeded"
 		}
@@ -198,6 +198,9 @@ func TestSeededTraceSpanTerminal(t *testing.T) {
 	p.Send(enter)
 	wait("query deadline exceeded")
 	capture("span-inspector")
+	p.Send(tea.KeyMsg{Type: tea.KeyPgDown})
+	wait("Resource · key/value table")
+	capture("span-resource-table")
 	p.Send(tea.KeyMsg{Type: tea.KeyEnd})
 	wait("query exceeded the 150ms budget")
 	capture("span-logs")
@@ -225,6 +228,14 @@ func TestSeededTraceSpanTerminal(t *testing.T) {
 	p.Send(tea.KeyMsg{Type: tea.KeyTab})
 	wait("individual spans")
 	capture("spans-list")
+	p.Send(enter)
+	wait("query deadline exceeded")
+	capture("spans-tab-inspector")
+	p.Send(tea.KeyMsg{Type: tea.KeyPgDown})
+	wait("Resource · key/value table")
+	capture("spans-tab-resource-table")
+	p.Send(esc)
+	wait("individual spans")
 	// The retained waterfall keeps receiving its owner results and live rows.
 	hidden := seed("f000000000000006", rootID, "worker", "hidden detail update", 230_000_000, 1_000_000, 1)
 	rowData, _ = json.Marshal(hidden)

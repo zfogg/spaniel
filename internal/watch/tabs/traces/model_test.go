@@ -29,7 +29,7 @@ func testEnv(owner string) protocol.Env {
 	r.SetSession("seed")
 	return protocol.Env{Context: ctx, Refresh: r, Owner: owner}
 }
-func key(s string) tea.KeyMsg {
+func press(s string) tea.KeyMsg {
 	switch s {
 	case "enter":
 		return tea.KeyMsg{Type: tea.KeyEnter}
@@ -64,9 +64,9 @@ func TestListsSelectionFiltersPagingPauseAndLiveRows(t *testing.T) {
 			} else {
 				m.Update(result(m.env.Owner, "list", 1, client.Envelope[[]apigen.TraceRow]{Data: []apigen.TraceRow{{SessionId: "seed", TraceId: "a", Name: "a", StartNs: 1000}, {SessionId: "seed", TraceId: "b", Name: "b", StartNs: 1100, StatusCode: 2, HasN1: true}}}))
 			}
-			m.Update(key("down"))
+			m.Update(press("down"))
 			selected := m.selected
-			m.Update(key("p"))
+			m.Update(press("p"))
 			if spans {
 				c := sampleSpan("c", "", 1200)
 				m.Update(spanEvent(c))
@@ -80,15 +80,15 @@ func TestListsSelectionFiltersPagingPauseAndLiveRows(t *testing.T) {
 			if len(m.visible()) != 2 || len(m.rows) != 3 || m.selected != selected {
 				t.Fatal("pause lost presentation, deduplication or selection")
 			}
-			m.Update(key("p"))
+			m.Update(press("p"))
 			if len(m.visible()) != 3 || m.selected != selected {
 				t.Fatal("unpause did not reconcile stable selection")
 			}
-			m.Update(key("e"))
+			m.Update(press("e"))
 			if len(m.visible()) != 1 || m.visible()[0].status != 2 {
 				t.Fatal("error filter did not operate on status")
 			}
-			_, cmd := m.Update(key("enter"))
+			_, cmd := m.Update(press("enter"))
 			if cmd == nil {
 				t.Fatal("no selected-row navigation")
 			}
@@ -101,23 +101,23 @@ func TestListsSelectionFiltersPagingPauseAndLiveRows(t *testing.T) {
 					t.Fatal("trace tab did not open waterfall")
 				}
 			}
-			m.Update(key("/"))
-			m.Update(key("q"))
+			m.Update(press("/"))
+			m.Update(press("q"))
 			if !m.CapturesKeys() {
 				t.Fatal("filter must capture global keys")
 			}
-			m.Update(key("esc"))
+			m.Update(press("esc"))
 			if m.text != "" {
 				t.Fatal("cancel applied filter")
 			}
-			m.Update(key("/"))
-			m.Update(key("b"))
-			m.Update(key("enter"))
+			m.Update(press("/"))
+			m.Update(press("b"))
+			m.Update(press("enter"))
 			if len(m.visible()) != 1 {
 				t.Fatal("text search lost matching row")
 			}
 			m.total = 201
-			m.Update(key("]"))
+			m.Update(press("]"))
 			if m.page != 2 || len(m.rows) != 0 {
 				t.Fatal("page did not replace bounded snapshot")
 			}
@@ -151,14 +151,14 @@ func TestTraceSpanRoundTripAndLateParentSelection(t *testing.T) {
 	if len(m.rows()) != 3 || m.rows()[2].depth != 1 || m.selected != "seed/child" {
 		t.Fatal("hidden late-span update moved selection")
 	}
-	_, cmd := m.Update(key("enter"))
+	_, cmd := m.Update(press("enter"))
 	target, ok := cmd().(protocol.OpenSpan)
 	if !ok || target.SpanID != "child" || target.Return.Selection != "seed/child" {
 		t.Fatal("trace to inspector lost return context")
 	}
 	inspector := NewDetails().Span(testEnv("detail:2"), target).(*spanModel)
 	inspector.Update(result(inspector.env.Owner, "span", 2, client.Envelope[apigen.Span]{Data: child}))
-	_, cmd = inspector.Update(key("t"))
+	_, cmd = inspector.Update(press("t"))
 	trace, ok := cmd().(protocol.OpenTrace)
 	if !ok || trace.TraceID != "trace" || trace.SpanID != "child" {
 		t.Fatal("inspector to containing trace lost selected span")
@@ -187,7 +187,7 @@ func TestInspectorCompleteDataRelatedLogsAndErrors(t *testing.T) {
 	l := apigen.Log{SessionId: "seed", TraceId: "trace", SpanId: "child", Body: "query failed", TimestampNs: s.StartNs, ReceivedAt: 1}
 	m.Update(result(m.env.Owner, "logs", 2, client.Envelope[[]apigen.Log]{Data: []apigen.Log{l, l, {SessionId: "seed", TraceId: "other", SpanId: "child", Body: "wrong trace"}}}))
 	content := ansi.Strip(strings.Join(m.content(), "\n"))
-	for _, text := range []string{"database timeout", "Trace ID: trace", "Span ID: child", "Parent ID: parent", "http.route", "service.version", "exception.message", "linked-trace", "linked-span", "vendor=state", "1793631000000000000", "query failed"} {
+	for _, text := range []string{"database timeout", "Trace ID: trace", "Span ID: child", "Parent ID: parent", "http.route", "service.version", "exception.message", "linked-trace", "linked-span", "vendor=state", "2026-11-02 14:50:00.000 UTC", "query failed"} {
 		if !strings.Contains(content, text) {
 			t.Fatalf("inspector omitted %q", text)
 		}
@@ -270,7 +270,7 @@ func TestTimingHierarchyAndNarrowScreens(t *testing.T) {
 	for _, model := range []tea.Model{m, i, list} {
 		for _, size := range []tea.WindowSizeMsg{{Width: 0, Height: 0}, {Width: 1, Height: 1}, {Width: 12, Height: 8}, {Width: 80, Height: 12}, {Width: 120, Height: 30}} {
 			model.Update(size)
-			model.Update(key("end"))
+			model.Update(press("end"))
 			view := model.View()
 			if size.Height == 0 && view != "" {
 				t.Fatal("zero-height view")
@@ -341,9 +341,9 @@ func TestRequestReplacementCapturesImmutableScopedQuery(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("initial request did not start")
 	}
-	m.Update(key("s"))
+	m.Update(press("s"))
 	m.draft = "new-service"
-	m.Update(key("enter"))
+	m.Update(press("enter"))
 	oldResult := <-finished
 	if env.Refresh.Complete(oldResult, time.Now()) {
 		t.Fatal("replaced request was still authoritative")
@@ -403,7 +403,7 @@ func TestLongTraceScrollKeepsLastSpanVisible(t *testing.T) {
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 12})
 	m.selectExisting()
-	m.Update(key("end"))
+	m.Update(press("end"))
 	if m.selected != "seed/operation-2999" || !strings.Contains(m.View(), "operation-2999") {
 		t.Fatal("long trace did not scroll to selection")
 	}
@@ -416,7 +416,7 @@ func TestLiveSpanPreservesDerivedFilterAndRejectsMalformedMetadata(t *testing.T)
 	tag := "n+1"
 	row.Tag = &tag
 	m.Update(result("spans", "list", 1, client.Envelope[[]apigen.SpanRow]{Data: []apigen.SpanRow{row}}))
-	m.Update(key("n"))
+	m.Update(press("n"))
 	selected := m.selected
 	m.Update(spanEvent(s))
 	if len(m.visible()) != 1 || m.selected != selected {

@@ -2,7 +2,6 @@ package traces
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 	"unicode"
@@ -66,7 +65,7 @@ func (s viewState) banner() string {
 		parts = append(parts, "Loading stored data…")
 	}
 	if s.err != "" {
-		parts = append(parts, "STALE · Error: "+clean(s.err)+" · r retry")
+		parts = append(parts, "STALE · Error: "+clean(s.err))
 	}
 	if !s.connection.Connected {
 		parts = append(parts, "STALE · disconnected; reconnecting")
@@ -160,7 +159,16 @@ func duration(ns int64) string {
 	if ns < 0 {
 		return "invalid"
 	}
-	return time.Duration(ns).String()
+	if ns == 0 {
+		return "0s"
+	}
+	if ns < 1000 {
+		return "<1µs"
+	}
+	if ns < int64(time.Millisecond) {
+		return time.Duration(ns).Round(time.Microsecond).String()
+	}
+	return time.Duration(ns).Round(time.Millisecond).String()
 }
 func statusText(code float64) string {
 	if code >= 2 {
@@ -173,9 +181,9 @@ func statusText(code float64) string {
 }
 func stamp(ns int64) string {
 	if ns <= 0 {
-		return fmt.Sprintf("%d (missing/invalid)", ns)
+		return "(missing or invalid)"
 	}
-	return fmt.Sprintf("%s (%d ns)", time.Unix(0, ns).UTC().Format(time.RFC3339Nano), ns)
+	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000 MST")
 }
 func rowWindow(n, cursor, height int) (int, int) {
 	height = max(1, height)

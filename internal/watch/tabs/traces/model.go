@@ -348,11 +348,11 @@ func (m *listModel) View() string {
 	}
 	lines = append(lines, clean(filters))
 	if m.input != "" {
-		lines = append(lines, tui.Accent.Render(m.input+"> "+m.draft+"▏  (Enter apply · Esc cancel)"))
+		lines = append(lines, tui.Accent.Render(m.input+"> "+m.draft+"▏"))
 	}
 	lines = append(lines, tui.Muted.Render("   STATUS DURATION    SERVICE / OPERATION                         ID"))
 	if len(rows) == 0 {
-		message := "No matching rows on this page. / text · e errors · n N+1 · [ ] pages"
+		message := "No matching rows on this page. Adjust filters or choose another page."
 		if m.state.loading {
 			message = "Loading stored " + kind + "…"
 		} else if len(m.rows) == 0 {
@@ -396,7 +396,11 @@ func (m *listModel) View() string {
 			lines = append(lines, line)
 		}
 	}
-	lines = append(lines, tui.Muted.Render("↑↓ select · Enter open · [ ] page · / text (page) · s service · e errors (page) · n N+1 (page) · p pause · r reload"))
+	help := "↑↓ select · Enter open · [ ] page · / text (page) · s service · e errors (page) · n N+1 (page) · p pause · r reload"
+	if m.input != "" {
+		help = "Enter apply " + m.input + " filter · Esc cancel · Backspace erase"
+	}
+	lines = append(lines, tui.Muted.Render(help))
 	return screen(lines, m.width, m.height)
 }
 

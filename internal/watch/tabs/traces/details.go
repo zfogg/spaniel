@@ -87,7 +87,6 @@ func (m *traceModel) selectExisting() {
 		if m.pendingSpan != "" && r.span.SpanId == m.pendingSpan {
 			m.selected = spanKey(r.span)
 			m.pendingSpan = ""
-			m.liveLimit, m.truncated = liveSpanWindow, false
 			return
 		}
 	}
@@ -120,6 +119,7 @@ func (m *traceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.frozen = nil
 			m.selected = ""
 			m.pendingSpan = ""
+			m.liveLimit, m.truncated = liveSpanWindow, false
 		}
 	case protocol.ReturnContext:
 		if v.Selection != "" {
@@ -235,7 +235,7 @@ func (m *traceModel) View() string {
 		}
 		footer := fmt.Sprintf("%d–%d / %d · missing parents marked ? · incomplete timing marked !", a+1, b, len(rows))
 		if m.truncated {
-			footer = "Live window full · r reload complete trace · " + footer
+			footer = "Live window full · complete trace available on reload · " + footer
 		}
 		lines = append(lines, tui.Muted.Render(footer))
 	}
@@ -392,9 +392,9 @@ func (m *spanModel) content() []string {
 		if m.state.loading {
 			return []string{"Loading span…"}
 		}
-		return []string{"Span missing, unavailable in this session, or expired. Esc returns to the originating view."}
+		return []string{"Span missing, unavailable in this session, or expired. The originating view is retained."}
 	}
-	lines := spanContent(*m.span)
+	lines := spanContent(*m.span, m.width)
 	lines = append(lines, "", tui.Title.Render("Associated logs · latest 100"), m.logState.banner())
 	if len(m.logs) == 0 {
 		if m.logState.loading {
@@ -409,7 +409,7 @@ func (m *spanModel) content() []string {
 			text = errorStyle.Render(text)
 		}
 		lines = append(lines, text)
-		lines = append(lines, jsonLines("Log attributes", l.Attributes)...)
+		lines = append(lines, attributeLines("Log attributes", l.Attributes, m.width)...)
 	}
 	var wrapped []string
 	for _, line := range lines {

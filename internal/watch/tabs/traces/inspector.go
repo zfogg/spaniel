@@ -1,17 +1,15 @@
 package traces
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/tui"
 )
 
-func spanContent(s apigen.Span) []string {
+func spanContent(s apigen.Span, width int) []string {
 	status := statusText(s.StatusCode) + " · " + clean(s.StatusMessage)
 	if s.StatusCode >= 2 {
 		status = errorStyle.Render(status)
@@ -28,10 +26,10 @@ func spanContent(s apigen.Span) []string {
 		"Start: " + stamp(s.StartNs), "End: " + stamp(s.EndNs), "Received: " + stamp(s.ReceivedAt),
 	}
 	if _, _, ok := timing(s); !ok || s.EndNs == 0 {
-		lines = append(lines, "! Timing incomplete or invalid; raw timestamps shown above.")
+		lines = append(lines, "! Timing incomplete or invalid.")
 	}
-	lines = append(lines, jsonLines("Attributes", s.Attributes)...)
-	lines = append(lines, jsonLines("Resource", s.Resource)...)
+	lines = append(lines, attributeLines("Attributes", s.Attributes, width)...)
+	lines = append(lines, attributeLines("Resource", s.Resource, width)...)
 	lines = append(lines, "", tui.Title.Render("Events"))
 	events := append(s.Events[:0:0], s.Events...)
 	sort.SliceStable(events, func(i, j int) bool { return events[i].TimeNs < events[j].TimeNs })
@@ -46,7 +44,7 @@ func spanContent(s apigen.Span) []string {
 		}
 		seen[key] = true
 		lines = append(lines, stamp(e.TimeNs)+" · "+clean(e.Name))
-		lines = append(lines, jsonLines("Event attributes", e.Attributes)...)
+		lines = append(lines, attributeLines("Event attributes", e.Attributes, width)...)
 	}
 	if len(seen) == 0 {
 		lines = append(lines, "No events available.")
@@ -63,25 +61,10 @@ func spanContent(s apigen.Span) []string {
 		}
 		seen[key] = true
 		lines = append(lines, "Trace: "+clean(l.LinkedTraceId), "Span: "+clean(l.LinkedSpanId), "Trace state: "+clean(l.TraceState))
-		lines = append(lines, jsonLines("Link attributes", l.Attributes)...)
+		lines = append(lines, attributeLines("Link attributes", l.Attributes, width)...)
 	}
 	if len(seen) == 0 {
 		lines = append(lines, "No links available.")
-	}
-	return lines
-}
-func jsonLines(title, raw string) []string {
-	lines := []string{"", tui.Title.Render(title)}
-	if raw == "" || raw == "{}" {
-		return append(lines, "(none)")
-	}
-	var formatted bytes.Buffer
-	if json.Indent(&formatted, []byte(raw), "", "  ") == nil {
-		for _, line := range strings.Split(formatted.String(), "\n") {
-			lines = append(lines, clean(line))
-		}
-	} else {
-		lines = append(lines, clean(raw)+" (raw; invalid JSON)")
 	}
 	return lines
 }
