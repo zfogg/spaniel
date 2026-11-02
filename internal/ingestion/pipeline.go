@@ -17,6 +17,7 @@ import (
 
 	"github.com/zfogg/spaniel/internal/goroutine"
 	"github.com/zfogg/spaniel/internal/ingestion/linter"
+	"github.com/zfogg/spaniel/internal/querydiagnostics"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
@@ -310,7 +311,7 @@ func (p *Pipeline) ingestTraces(ctx context.Context, traces ptrace.Traces) error
 					EndNs:         int64(span.EndTimestamp()),
 					StatusCode:    int(span.Status().Code()),
 					StatusMessage: span.Status().Message(),
-					Attributes:    mapToJSON(span.Attributes()),
+					Attributes:    spanAttributesJSON(span.Attributes()),
 					Resource:      resourceJSON,
 					SessionID:     sessionID,
 					SessionLabel:  sessionLabel,
@@ -852,6 +853,13 @@ func mapToJSON(m pcommon.Map) string {
 		raw[k] = v.AsRaw()
 		return true
 	})
+	b, _ := json.Marshal(raw)
+	return string(b)
+}
+
+func spanAttributesJSON(m pcommon.Map) string {
+	raw := m.AsRaw()
+	querydiagnostics.Normalize(raw)
 	b, _ := json.Marshal(raw)
 	return string(b)
 }

@@ -2,7 +2,12 @@
 
 .DEFAULT_GOAL := dev
 
-.PHONY: lint-go
+.PHONY: test-security lint-go
+test-security:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/security.test$(EXE) ./internal/security
+	./$(BIN_DIR)/security.test$(EXE) -test.count=1 -test.timeout=3m
+
 lint-go:
 	go vet ./...
 
@@ -65,8 +70,8 @@ run: build-server
 
 verify-generated:
 	$(MAKE) generate
-	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/liveevent.ts frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
-	test -z "$$(git ls-files --others --exclude-standard -- api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
+	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/liveevent.ts frontend/src/generated/openapi.ts internal/storage/querygen internal/security/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
+	test -z "$$(git ls-files --others --exclude-standard -- api/openapi.yaml frontend/src/generated/liveevent.ts frontend/src/generated/openapi.ts internal/storage/querygen internal/security/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
 
 .PHONY: test-linter
 test-linter:
@@ -210,6 +215,17 @@ test-ingestion:
 	mkdir -p $(BIN_DIR)
 	go test -c -o $(BIN_DIR)/ingestion.test$(EXE) ./internal/ingestion
 	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestChildStartingBeforeParent|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration' -test.v
+
+.PHONY: test-query-diagnostics
+# Optional bounded real-DuckDB probe export: SPANIEL_DIAGNOSTICS_PROBE_ENDPOINT
+# is a local OTLP gRPC endpoint. No deliberately malformed SQL runs in servers.
+test-query-diagnostics:
+	@set -e; \
+	  mkdir -p $(BIN_DIR); \
+	  for package in querydiagnostics ingestion storage api mcp; do \
+	    go test -c -o $(BIN_DIR)/diagnostics-$$package.test$(EXE) ./internal/$$package; \
+	    ./$(BIN_DIR)/diagnostics-$$package.test$(EXE) -test.run 'TestNormalize|TestQueryDiagnostics' -test.count=1 -test.timeout=3m -test.v; \
+	  done
 
 .PHONY: test-query-name-race
 test-query-name-race:

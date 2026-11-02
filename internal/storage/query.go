@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zfogg/gotel/go/sqltrace"
+	gotelsql "github.com/zfogg/gotel/go/tracers/sql"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -42,9 +42,9 @@ func (d *DB) querySQLArgs(ctx context.Context, query string, args []any, maxRows
 	// Internal callers such as catalog discovery can opt out through
 	// WithoutTracing. Explicit WithQueryName contexts win; otherwise the stable
 	// ReadOnlyQuery fallback is used for user-authored dashboard and alert SQL.
-	rs, err := sqltrace.QueryContext(ctx, d.SQL(), sqltrace.SpanConfig{
+	rs, err := gotelsql.QueryContext(ctx, d.SQL(), gotelsql.SpanConfig{
 		Tracer: otel.Tracer("spaniel/storage"), Namer: storageNamer, Name: "ReadOnlyQuery",
-		Dialect: sqltrace.DialectDuckDB, System: "duckdb", Namespace: "spaniel",
+		Dialect: gotelsql.DialectDuckDB, System: "duckdb", Namespace: "spaniel",
 		Kind: trace.SpanKindInternal, Observe: storageObserver,
 	}, query, args...)
 	if err != nil {

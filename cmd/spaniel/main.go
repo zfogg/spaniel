@@ -44,6 +44,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/mcp"
 	"github.com/zfogg/spaniel/internal/receiver"
+	"github.com/zfogg/spaniel/internal/security"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
@@ -232,6 +233,7 @@ func main() {
 	root.Flags().StringVar(&tlsCert, "tls-cert", "", "TLS certificate file (PEM)")
 	root.Flags().StringVar(&tlsKey, "tls-key", "", "TLS key file (PEM)")
 	root.Flags().String("public-url", "", "Public UI URL; its hostname is advertised for OTLP (env: SPANIEL_PUBLIC_URL)")
+	bindSecurityFlags(root, v)
 	root.Flags().StringVar(&bearerToken, "bearer-token", "", "Require this bearer token on all requests (env: SPANIEL_BEARER_TOKEN)")
 	root.Flags().IntVar(&sampleRate, "sample-rate", 0, "Max uninteresting spans/sec to store (0 = unlimited)")
 	root.Flags().StringVar(&sampleAlwaysKeep, "sample-always-keep", "error,n_plus_one,slow", "Signals that bypass the rate limit: error,n_plus_one,slow,none")
@@ -385,6 +387,7 @@ Examples:
 	root.AddCommand(runSubcommand())
 	root.AddCommand(recordSubcommand())
 	root.AddCommand(mcpSubcommand())
+	root.AddCommand(tokenSubcommand())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -393,6 +396,7 @@ Examples:
 
 // runConfig holds all resolved runtime parameters.
 type runConfig struct {
+	ConfigPath            string
 	Port                  int
 	Dev                   bool
 	DBPath                string
@@ -439,7 +443,19 @@ type runConfig struct {
 // resolveConfig merges viper config with any explicitly-set CLI flags.
 // CLI flags win if they were actually changed from their zero-value sentinel.
 func resolveConfig(v *viper.Viper, cmd *cobra.Command, port int, dev bool, dbPath string, noBrowser bool, retentionDays, maxSessions, maxDBSizeMB int, forwardURLs []string, tlsCert, tlsKey, bearerToken string) runConfig {
+	for _, key := range []string{"api_token_security", "encryption_password"} {
+		source := "config"
+		if value, ok := os.LookupEnv("SPANIEL_" + strings.ToUpper(key)); ok && value != "" {
+			source = "environment"
+		}
+		if f := cmd.Flags().Lookup(strings.ReplaceAll(key, "_", "-")); f != nil && f.Changed {
+			source = "flag"
+		}
+		v.Set(key+"_source", source)
+	}
+
 	cfg := runConfig{
+		ConfigPath:            globalConfigPath(),
 		Port:                  v.GetInt("port"),
 		Dev:                   dev,
 		DBPath:                expandHome(v.GetString("db_path")),
@@ -603,6 +619,13 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("create data dir: %w", err)
 	}
 
+	securitySvc, err := openSecurity(cfg)
+	if err != nil {
+		return fmt.Errorf("security setup: %w", err)
+	}
+	defer securitySvc.Close()
+	selfToken := security.RandomSecret()
+	securitySvc.SetInternalToken(selfToken)
 	// otelState holds the currently-active OTel shutdown function under a mutex
 	// so it can be hot-swapped when self_monitor is toggled at runtime.
 	var otelMu sync.Mutex
@@ -622,6 +645,7 @@ func run(cfg runConfig) error {
 			Version:     version,
 			DBPath:      cfg.DBPath,
 			Insecure:    cfg.SelfTelemetryInsecure,
+			BearerToken: selfToken,
 		})
 		if err != nil {
 			return err
@@ -778,9 +802,7 @@ func run(cfg runConfig) error {
 	if tlsCfg != nil {
 		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
 	}
-	if cfg.BearerToken != "" {
-		grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(receiver.UnaryBearerInterceptor(cfg.BearerToken)))
-	}
+	grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(securitySvc.UnaryInterceptor()))
 
 	grpcRcv := receiver.NewGRPCReceiver(pipeline, grpcOpts...)
 	// otlpLs tracks the currently-bound OTLP listeners so the settings
@@ -856,9 +878,7 @@ func run(cfg runConfig) error {
 	var otlpHandler http.Handler = otelhttp.NewHandler(telemetry.HTTP.RouteMiddleware(nil)(otlpMux), "spaniel.otlp",
 		otelhttp.WithSpanNameFormatter(telemetry.HTTP.ServerSpanName),
 	)
-	if cfg.BearerToken != "" {
-		otlpHandler = receiver.BearerMiddleware(cfg.BearerToken)(otlpHandler)
-	}
+	otlpHandler = securitySvc.HTTP(otlpHandler, false)
 
 	httpLS := &otlpLs{}
 	startOTLPHTTP := func(port int) error {
@@ -912,6 +932,7 @@ func run(cfg runConfig) error {
 	var mcpHandler *mcp.Handler
 	if cfg.MCPEnabled {
 		mcpHandler = mcp.NewHandler(store, mcp.Options{
+			Security:       securitySvc,
 			Version:        version,
 			AllowWrites:    cfg.MCPAllowWrites,
 			AllowSQLWrites: cfg.MCPAllowWritesSQL,
@@ -934,18 +955,21 @@ func run(cfg runConfig) error {
 	}
 	defer extended.Close()
 	settingsSvc := &api.SettingsService{
-		ApplyExtended:   func() error { return extended.apply(cfg.Viper, pipeline, fwd) },
-		IngestionStatus: pipeline.IngestionStatus,
-		Viper:           cfg.Viper,
-		ConfigPath:      globalConfigPath(),
-		Version:         version,
-		StartedAt:       time.Now(),
-		OTLPGRPCPort:    cfg.OTLPGRPCPort,
-		OTLPHTTPPort:    cfg.OTLPHTTPPort,
-		TLSEnabled:      tlsCfg != nil,
-		BearerTokenSet:  cfg.BearerToken != "",
-		MCPEnabled:      cfg.MCPEnabled,
-		MCPAllowWrites:  cfg.MCPAllowWrites,
+		Security:               securitySvc,
+		SecurityEnabledSource:  securitySource(cfg.Viper, "api_token_security"),
+		SecurityPasswordSource: securitySource(cfg.Viper, "encryption_password"),
+		ApplyExtended:          func() error { return extended.apply(cfg.Viper, pipeline, fwd) },
+		IngestionStatus:        pipeline.IngestionStatus,
+		Viper:                  cfg.Viper,
+		ConfigPath:             cfg.ConfigPath,
+		Version:                version,
+		StartedAt:              time.Now(),
+		OTLPGRPCPort:           cfg.OTLPGRPCPort,
+		OTLPHTTPPort:           cfg.OTLPHTTPPort,
+		TLSEnabled:             tlsCfg != nil,
+		BearerTokenSet:         securitySvc.Enabled(),
+		MCPEnabled:             cfg.MCPEnabled,
+		MCPAllowWrites:         cfg.MCPAllowWrites,
 		LiveGRPCPort: func() int {
 			grpcLS.mu.Lock()
 			defer grpcLS.mu.Unlock()
@@ -1044,9 +1068,7 @@ func run(cfg runConfig) error {
 	mainMux.Handle("/", uiHandler)
 
 	var mainHandler http.Handler = mainMux
-	if cfg.BearerToken != "" {
-		mainHandler = receiver.APIBearerMiddleware(cfg.BearerToken)(mainHandler)
-	}
+	mainHandler = securitySvc.HTTP(mainHandler, true)
 
 	startSpan.End()
 	_ = startCtx
@@ -1232,7 +1254,7 @@ func printBanner(cfg runConfig) {
 	if cfg.TLSCert != "" {
 		fmt.Printf("  TLS       →  enabled (%s)\n", cfg.TLSCert)
 	}
-	if cfg.BearerToken != "" {
+	if cfg.Viper.GetBool("api_token_security") {
 		fmt.Printf("  Auth      →  bearer token required\n")
 	}
 	if cfg.MCPEnabled {

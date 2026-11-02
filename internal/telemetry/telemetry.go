@@ -31,6 +31,7 @@ const (
 
 // Config controls Spaniel's own OTLP self-telemetry.
 type Config struct {
+	BearerToken string
 	Endpoint    string // OTLP gRPC target, such as localhost:4317.
 	ServiceName string
 	Version     string
@@ -55,8 +56,12 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 	if cfg.DBPath != "" {
 		attrs = append(attrs, attribute.String("db.namespace", cfg.DBPath))
 	}
-	traceOpts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.Endpoint), otlptracegrpc.WithHeaders(map[string]string{SelfTelemetryHeader: selfTelemetryValue})}
-	metricOpts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint), otlpmetricgrpc.WithHeaders(map[string]string{SelfTelemetryHeader: selfTelemetryValue})}
+	headers := map[string]string{SelfTelemetryHeader: selfTelemetryValue}
+	if cfg.BearerToken != "" {
+		headers["authorization"] = "Bearer " + cfg.BearerToken
+	}
+	traceOpts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.Endpoint), otlptracegrpc.WithHeaders(headers)}
+	metricOpts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint), otlpmetricgrpc.WithHeaders(headers)}
 	if cfg.Insecure {
 		traceOpts = append(traceOpts, otlptracegrpc.WithInsecure())
 		metricOpts = append(metricOpts, otlpmetricgrpc.WithInsecure())
@@ -77,7 +82,7 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 		TraceOptions:  []sdktrace.TracerProviderOption{sdktrace.WithSpanProcessor(serviceOwnerProcessor{})},
 		MetricReader:  sdkmetric.NewPeriodicReader(serviceMetricExporter{metricExporter}, sdkmetric.WithInterval(10*time.Second)),
 		Endpoint:      cfg.Endpoint, Protocol: otelhost.ProtocolGRPC, Insecure: cfg.Insecure,
-		Headers:    map[string]string{SelfTelemetryHeader: selfTelemetryValue},
+		Headers:    headers,
 		Attributes: attrs, MetricInterval: 10 * time.Second,
 		ResourceOptions: []resource.Option{resource.WithFromEnv()},
 		MetricOptions: []sdkmetric.Option{

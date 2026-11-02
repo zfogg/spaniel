@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/auth'
 import type {
   CreateDashboardInput,
   PatchDashboardInput,
@@ -27,12 +28,12 @@ export const dashboards = {
       }),
     ),
   config: async (id: string) => {
-    const response = await fetch(`/api/dashboards/${id}/config`)
+    const response = await authenticatedFetch(`/api/dashboards/${id}/config`)
     if (!response.ok) throw new Error(await response.text())
     return response.text()
   },
   importConfig: async (yaml: string) => {
-    const response = await fetch('/api/dashboards/import', {
+    const response = await authenticatedFetch('/api/dashboards/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/yaml' },
       body: yaml,

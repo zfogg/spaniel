@@ -1883,6 +1883,10 @@
         "properties": {
           "error": {
             "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable error code; authentication failures use token_required, token_invalid, token_expired, or token_revoked."
           }
         },
         "required": [
@@ -4858,6 +4862,112 @@
           "checked_at_ns"
         ],
         "type": "object"
+      },
+      "APIToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expired",
+              "revoked"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "expires_at",
+          "status"
+        ]
+      },
+      "CreateTokenInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "no_expiry": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CreatedToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/APIToken"
+          },
+          "secret": {
+            "type": "string",
+            "description": "Secret returned once only. Store securely; never returned by list."
+          }
+        },
+        "required": [
+          "token",
+          "secret"
+        ]
+      },
+      "SecurityStatus": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "encryption_password_set": {
+            "type": "boolean"
+          },
+          "enabled_source": {
+            "type": "string"
+          },
+          "password_source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "encryption_password_set",
+          "enabled_source",
+          "password_source"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Named Spaniel API token. Browser UI may use its linked HttpOnly session cookie."
       }
     }
   },
@@ -4920,14 +5030,14 @@
                       "data": {
                         "items": [
                           {
-                            "annotations_json": "…",
-                            "condition_json": "…",
-                            "enabled": "…",
-                            "group_by_json": "…",
-                            "id": "…",
-                            "name": "…",
-                            "query_sql": "…",
-                            "query_version": "…"
+                            "annotations_json": "\u00e2\u20ac\u00a6",
+                            "condition_json": "\u00e2\u20ac\u00a6",
+                            "enabled": "\u00e2\u20ac\u00a6",
+                            "group_by_json": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "summary": {
@@ -4970,6 +5080,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Alerts",
@@ -5117,6 +5244,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "create Alert",
@@ -5278,6 +5422,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Alert History",
@@ -5374,6 +5535,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "import Alert Config",
@@ -5489,9 +5667,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "…",
-                            "reason": "…",
-                            "status": "…"
+                            "destination": "\u00e2\u20ac\u00a6",
+                            "reason": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "query_version": 1.5,
@@ -5530,6 +5708,23 @@
               }
             },
             "description": "The request was invalid."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "preview Alert Draft",
@@ -5601,6 +5796,23 @@
               }
             },
             "description": "This optional capability is not configured."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "reload Alert Definitions",
@@ -5681,6 +5893,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "delete Alert",
@@ -5756,6 +5985,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Alert",
@@ -5934,6 +6180,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "patch Alert",
@@ -6006,6 +6269,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "acknowledge Alert",
@@ -6065,6 +6345,23 @@
               }
             },
             "description": "The file-managed alert was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "acknowledge an ID written to alert YAML",
@@ -6117,6 +6414,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "export Alert Config",
@@ -6196,6 +6510,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "duplicate Alert",
@@ -6311,6 +6642,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Alert Events",
@@ -6401,6 +6749,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "acknowledge Alert Instance",
@@ -6487,6 +6852,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "unacknowledge Alert Instance",
@@ -6542,9 +6924,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "…",
-                            "reason": "…",
-                            "status": "…"
+                            "destination": "\u00e2\u20ac\u00a6",
+                            "reason": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "query_version": 1.5,
@@ -6603,6 +6985,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "preview Alert",
@@ -6674,6 +7073,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Alert Silences",
@@ -6780,6 +7196,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "create Alert Silence",
@@ -6849,6 +7282,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "delete Alert Silence",
@@ -6965,6 +7415,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "patch Alert Silence",
@@ -7070,6 +7537,23 @@
               }
             },
             "description": "Spaniel could not deliver the Pushover test notification."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "test Alert Notification",
@@ -7114,14 +7598,14 @@
                         },
                         "services": [
                           {
-                            "coverage_pct": "…",
-                            "dark_routes": "…",
-                            "name": "…",
-                            "observed_operations": "…",
-                            "observed_routes": "…",
-                            "source": "…",
-                            "spec": "…",
-                            "total_routes": "…"
+                            "coverage_pct": "\u00e2\u20ac\u00a6",
+                            "dark_routes": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "observed_operations": "\u00e2\u20ac\u00a6",
+                            "observed_routes": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6",
+                            "spec": "\u00e2\u20ac\u00a6",
+                            "total_routes": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -7152,6 +7636,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Coverage",
@@ -7189,6 +7690,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Coverage Specs",
@@ -7234,6 +7752,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "create Coverage Spec",
@@ -7281,6 +7816,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "delete Coverage Spec",
@@ -7326,6 +7878,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Coverage Spec",
@@ -7381,6 +7950,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "replace Coverage Spec",
@@ -7452,6 +8038,23 @@
               }
             },
             "description": "This optional capability is not configured."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "Reload dashboard YAML definitions",
@@ -7478,11 +8081,11 @@
                           "id": "session_2026-10-07_1200",
                           "name": "POST /checkout",
                           "panels": [
-                            "…"
+                            "\u00e2\u20ac\u00a6"
                           ],
                           "updated_at": 1.5,
                           "variables": [
-                            "…"
+                            "\u00e2\u20ac\u00a6"
                           ]
                         }
                       ]
@@ -7516,6 +8119,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Dashboards",
@@ -7603,25 +8223,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -7662,6 +8282,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "create Dashboard",
@@ -7708,25 +8345,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -7767,6 +8404,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "import Dashboard Config",
@@ -7858,6 +8512,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "reorder Dashboards",
@@ -7938,6 +8609,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "delete Dashboard",
@@ -7983,25 +8671,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -8032,6 +8720,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Dashboard",
@@ -8130,25 +8835,25 @@
                         "name": "POST /checkout",
                         "panels": [
                           {
-                            "dashboard_id": "…",
-                            "display_type": "…",
-                            "id": "…",
-                            "layout_json": "…",
-                            "query_sql": "…",
-                            "query_version": "…",
-                            "settings_json": "…",
-                            "title": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "display_type": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "layout_json": "\u00e2\u20ac\u00a6",
+                            "query_sql": "\u00e2\u20ac\u00a6",
+                            "query_version": "\u00e2\u20ac\u00a6",
+                            "settings_json": "\u00e2\u20ac\u00a6",
+                            "title": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "updated_at": 1.5,
                         "variables": [
                           {
-                            "dashboard_id": "…",
-                            "default_value": "…",
-                            "kind": "…",
-                            "name": "…",
-                            "options_json": "…",
-                            "source": "…"
+                            "dashboard_id": "\u00e2\u20ac\u00a6",
+                            "default_value": "\u00e2\u20ac\u00a6",
+                            "kind": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "options_json": "\u00e2\u20ac\u00a6",
+                            "source": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -8199,6 +8904,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "patch Dashboard",
@@ -8258,6 +8980,23 @@
               }
             },
             "description": "The file-managed dashboard was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "acknowledge an ID written to dashboard YAML",
@@ -8310,6 +9049,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "export Dashboard Config",
@@ -8449,6 +9205,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "create Dashboard Panel",
@@ -8538,6 +9311,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "delete Dashboard Panel",
@@ -8684,6 +9474,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "patch Dashboard Panel",
@@ -8796,6 +9603,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "move Dashboard Panel",
@@ -8878,9 +9702,9 @@
                         "display_type": "example",
                         "notification_preview": [
                           {
-                            "destination": "…",
-                            "reason": "…",
-                            "status": "…"
+                            "destination": "\u00e2\u20ac\u00a6",
+                            "reason": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "query_version": 1.5,
@@ -8929,6 +9753,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "preview Dashboard Query",
@@ -9062,6 +9903,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "create Dashboard Variable",
@@ -9151,6 +10009,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "delete Dashboard Variable",
@@ -9178,10 +10053,10 @@
                         "version": "example",
                         "views": [
                           {
-                            "columns": "…",
-                            "name": "…",
-                            "purpose": "…",
-                            "samples": "…"
+                            "columns": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "purpose": "\u00e2\u20ac\u00a6",
+                            "samples": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -9212,6 +10087,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Database Schema",
@@ -9261,14 +10153,14 @@
                         },
                         "baseline_spans": [
                           {
-                            "duration_ns": "…",
-                            "name": "…",
-                            "parent_span_id": "…",
-                            "service_name": "…",
-                            "session_id": "…",
-                            "span_id": "…",
-                            "start_ns": "…",
-                            "trace_id": "…"
+                            "duration_ns": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "parent_span_id": "\u00e2\u20ac\u00a6",
+                            "service_name": "\u00e2\u20ac\u00a6",
+                            "session_id": "\u00e2\u20ac\u00a6",
+                            "span_id": "\u00e2\u20ac\u00a6",
+                            "start_ns": "\u00e2\u20ac\u00a6",
+                            "trace_id": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "compare": {
@@ -9280,25 +10172,25 @@
                         },
                         "compare_spans": [
                           {
-                            "duration_ns": "…",
-                            "name": "…",
-                            "parent_span_id": "…",
-                            "service_name": "…",
-                            "session_id": "…",
-                            "span_id": "…",
-                            "start_ns": "…",
-                            "trace_id": "…"
+                            "duration_ns": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "parent_span_id": "\u00e2\u20ac\u00a6",
+                            "service_name": "\u00e2\u20ac\u00a6",
+                            "session_id": "\u00e2\u20ac\u00a6",
+                            "span_id": "\u00e2\u20ac\u00a6",
+                            "start_ns": "\u00e2\u20ac\u00a6",
+                            "trace_id": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "spans": [
                           {
-                            "baseline_duration_ns": "…",
-                            "compare_duration_ns": "…",
-                            "delta_pct": "…",
-                            "depth": "…",
-                            "name": "…",
-                            "service_name": "…",
-                            "status": "…"
+                            "baseline_duration_ns": "\u00e2\u20ac\u00a6",
+                            "compare_duration_ns": "\u00e2\u20ac\u00a6",
+                            "delta_pct": "\u00e2\u20ac\u00a6",
+                            "depth": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "service_name": "\u00e2\u20ac\u00a6",
+                            "status": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "summary": {
@@ -9356,6 +10248,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Diff",
@@ -9405,6 +10314,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Forwarders",
@@ -9449,7 +10375,8 @@
         "summary": "get Health",
         "tags": [
           "Administration"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/issues": {
@@ -9525,6 +10452,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Issues",
@@ -9596,6 +10540,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Lint",
@@ -9782,6 +10743,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Logs",
@@ -9854,6 +10832,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Metrics",
@@ -9922,6 +10917,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Metric Cardinality",
@@ -10026,26 +11038,26 @@
                         "name": "POST /checkout",
                         "points": [
                           {
-                            "bounds": "…",
-                            "buckets": "…",
-                            "count": "…",
-                            "exemplars": "…",
-                            "exp_negative_counts": "…",
-                            "exp_negative_offset": "…",
-                            "timestamp_ns": "…",
-                            "value": "…"
+                            "bounds": "\u00e2\u20ac\u00a6",
+                            "buckets": "\u00e2\u20ac\u00a6",
+                            "count": "\u00e2\u20ac\u00a6",
+                            "exemplars": "\u00e2\u20ac\u00a6",
+                            "exp_negative_counts": "\u00e2\u20ac\u00a6",
+                            "exp_negative_offset": "\u00e2\u20ac\u00a6",
+                            "timestamp_ns": "\u00e2\u20ac\u00a6",
+                            "value": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "service_name": "checkout",
                         "traces": [
                           {
-                            "duration_ns": "…",
-                            "end_ns": "…",
-                            "op": "…",
-                            "service": "…",
-                            "start_ns": "…",
-                            "status_code": "…",
-                            "trace_id": "…"
+                            "duration_ns": "\u00e2\u20ac\u00a6",
+                            "end_ns": "\u00e2\u20ac\u00a6",
+                            "op": "\u00e2\u20ac\u00a6",
+                            "service": "\u00e2\u20ac\u00a6",
+                            "start_ns": "\u00e2\u20ac\u00a6",
+                            "status_code": "\u00e2\u20ac\u00a6",
+                            "trace_id": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "type": "example",
@@ -10088,6 +11100,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Metric Series",
@@ -10186,6 +11215,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Notifications",
@@ -10246,6 +11292,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "acknowledge Notification",
@@ -10306,6 +11369,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "read Notification",
@@ -10327,6 +11407,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Open A P I Spec",
@@ -10355,6 +11452,23 @@
                 "schema": {
                   "example": "inline; filename=\"openapi.yaml\"",
                   "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10446,6 +11560,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Query Catalog",
@@ -10534,6 +11665,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "search Telemetry",
@@ -10567,20 +11715,20 @@
                       "data": {
                         "edges": [
                           {
-                            "avg_duration_ns": "…",
-                            "call_count": "…",
-                            "error_count": "…",
-                            "from": "…",
-                            "to": "…"
+                            "avg_duration_ns": "\u00e2\u20ac\u00a6",
+                            "call_count": "\u00e2\u20ac\u00a6",
+                            "error_count": "\u00e2\u20ac\u00a6",
+                            "from": "\u00e2\u20ac\u00a6",
+                            "to": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "nodes": [
                           {
-                            "error_count": "…",
-                            "id": "…",
-                            "p95_ns": "…",
-                            "span_count": "…",
-                            "top_operations": "…"
+                            "error_count": "\u00e2\u20ac\u00a6",
+                            "id": "\u00e2\u20ac\u00a6",
+                            "p95_ns": "\u00e2\u20ac\u00a6",
+                            "span_count": "\u00e2\u20ac\u00a6",
+                            "top_operations": "\u00e2\u20ac\u00a6"
                           }
                         ]
                       }
@@ -10611,6 +11759,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Service Map",
@@ -10663,6 +11828,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Services",
@@ -10748,6 +11930,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Sessions",
@@ -10818,6 +12017,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "create Session",
@@ -10858,6 +12074,23 @@
               }
             },
             "description": "Successful response"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Active Session",
@@ -10949,6 +12182,23 @@
               }
             },
             "description": "The request was invalid."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "import Session",
@@ -11019,6 +12269,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "delete Session",
@@ -11094,6 +12361,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Session",
@@ -11189,6 +12473,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "patch Session",
@@ -11278,6 +12579,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "activate Session",
@@ -11357,6 +12675,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "set Session Baseline",
@@ -11415,6 +12750,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "export Session Baseline",
@@ -11471,6 +12823,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Settings",
@@ -11524,7 +12893,7 @@
                   },
                   "db_path": {
                     "type": "string",
-                    "description": "Sets the path of Spaniel’s DuckDB telemetry database."
+                    "description": "Sets the path of Spaniel\u00e2\u20ac\u2122s DuckDB telemetry database."
                   },
                   "forward": {
                     "items": {
@@ -11571,7 +12940,7 @@
                   },
                   "self_monitor": {
                     "type": "boolean",
-                    "description": "Enables Spaniel’s own telemetry instrumentation."
+                    "description": "Enables Spaniel\u00e2\u20ac\u2122s own telemetry instrumentation."
                   },
                   "source_burst": {
                     "type": "integer",
@@ -11744,6 +13113,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "put Settings",
@@ -11811,6 +13197,23 @@
               }
             },
             "description": "The requested Spaniel resource was not found."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "check Updates",
@@ -11874,6 +13277,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "compact Storage",
@@ -11923,6 +13343,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "drop All Data",
@@ -11998,6 +13435,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "prune Storage",
@@ -12068,6 +13522,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Sources",
@@ -12231,6 +13702,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Spans",
@@ -12317,6 +13805,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Span",
@@ -12384,6 +13889,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Stats",
@@ -12407,13 +13929,13 @@
                         "last_checkpoint_at": 1.5,
                         "main_bytes": 1.5,
                         "sessions": [
-                          "…"
+                          "\u00e2\u20ac\u00a6"
                         ],
                         "tables": [
                           {
-                            "approx_bytes": "…",
-                            "name": "…",
-                            "row_count": "…"
+                            "approx_bytes": "\u00e2\u20ac\u00a6",
+                            "name": "\u00e2\u20ac\u00a6",
+                            "row_count": "\u00e2\u20ac\u00a6"
                           }
                         ],
                         "wal_bytes": 1.5
@@ -12445,6 +13967,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Storage Breakdown",
@@ -12565,6 +14104,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Traces",
@@ -12656,6 +14212,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "get Trace",
@@ -12723,6 +14296,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "export Trace",
@@ -12803,6 +14393,23 @@
               }
             },
             "description": "Spaniel could not complete the request."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "summary": "list Incoming Links",
@@ -12874,6 +14481,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -12934,6 +14558,23 @@
           },
           "500": {
             "description": "Installation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13026,8 +14667,766 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
+      }
+    },
+    "/api/security": {
+      "get": {
+        "operationId": "getSecurity",
+        "tags": [
+          "Security"
+        ],
+        "summary": "getSecurity",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SecurityStatus"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Representative security response",
+                    "value": {
+                      "data": {
+                        "enabled": true,
+                        "encryption_password_set": true,
+                        "enabled_source": "config",
+                        "password_source": "config"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSecurity",
+        "tags": [
+          "Security"
+        ],
+        "summary": "putSecurity",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SecurityStatus"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Representative security response",
+                    "value": {
+                      "data": {
+                        "enabled": true,
+                        "encryption_password_set": true,
+                        "enabled_source": "config",
+                        "password_source": "config"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "encryption_password": {
+                    "type": "string",
+                    "format": "password",
+                    "writeOnly": true,
+                    "minLength": 16,
+                    "maxLength": 1024
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/security/tokens": {
+      "get": {
+        "operationId": "listTokens",
+        "tags": [
+          "Security"
+        ],
+        "summary": "listTokens",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/APIToken"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Representative security response",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "example-id",
+                          "name": "backend",
+                          "prefix": "spn_example-id",
+                          "created_at": "2026-11-02T12:00:00Z",
+                          "expires_at": "2027-11-02T12:00:00Z",
+                          "status": "active"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createToken",
+        "tags": [
+          "Security"
+        ],
+        "summary": "createToken",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CreatedToken"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Representative security response",
+                    "value": {
+                      "data": {
+                        "token": {
+                          "id": "example-id",
+                          "name": "backend",
+                          "prefix": "spn_example-id",
+                          "created_at": "2026-11-02T12:00:00Z",
+                          "expires_at": "2027-11-02T12:00:00Z",
+                          "status": "active"
+                        },
+                        "secret": "spn_example-id_example-only-not-a-real-token"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/security/tokens/{tokenId}": {
+      "delete": {
+        "operationId": "deleteToken",
+        "tags": [
+          "Security"
+        ],
+        "summary": "deleteToken",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "ok"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Representative security response",
+                    "value": {
+                      "data": {
+                        "ok": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/security/session": {
+      "get": {
+        "operationId": "getSecuritySession",
+        "tags": [
+          "Security"
+        ],
+        "summary": "getSecuritySession",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "authenticated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "authenticated"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                },
+                "examples": {
+                  "example": {
+                    "summary": "Representative security response",
+                    "value": {
+                      "data": {
+                        "enabled": true,
+                        "authenticated": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "operationId": "createSecuritySession",
+        "tags": [
+          "Security"
+        ],
+        "summary": "createSecuritySession",
+        "responses": {
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Browser session updated. HttpOnly cookie is set or cleared."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "format": "password",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "operationId": "deleteSecuritySession",
+        "tags": [
+          "Security"
+        ],
+        "summary": "deleteSecuritySession",
+        "responses": {
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Setting override or security invariant prevents this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Security service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Browser session updated. HttpOnly cookie is set or cleared."
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
       }
     }
   },
@@ -13061,6 +15460,15 @@
     {
       "description": "Settings, storage, coverage, schema, and source metadata.",
       "name": "Administration"
+    },
+    {
+      "name": "Security",
+      "description": "Named API tokens, encryption and browser authentication."
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
     }
   ]
 }

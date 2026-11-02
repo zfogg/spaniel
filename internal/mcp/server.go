@@ -16,19 +16,21 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/zfogg/gotel/go/mcptrace"
+	gotelmcp "github.com/zfogg/gotel/go/tracers/mcp"
 	"github.com/zfogg/spaniel/internal/telemetry"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/zfogg/spaniel/internal/coverage"
 	"github.com/zfogg/spaniel/internal/forwarder"
+	"github.com/zfogg/spaniel/internal/security"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
 )
 
 // Options configures the MCP server.
 type Options struct {
+	Security *security.Service
 	// Version is the spaniel build version, reported in the MCP handshake and by
 	// get_server_info.
 	Version string
@@ -142,7 +144,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 		tools = append(tools, key.(string))
 		return true
 	})
-	middleware, err := mcptrace.New(mcptrace.Options{
+	middleware, err := gotelmcp.New(gotelmcp.Options{
 		Prefix: "spaniel", Tools: tools, Context: telemetry.WithMCPService,
 	})
 	if err != nil {
@@ -167,6 +169,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 // tools are added by registerWriteTools only when AllowWrites is set. Tool
 // groups are split across files in this package; this is the single entry point.
 func (h *handler) registerTools(s *mcpsdk.Server) {
+	h.registerTokenTools(s)
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "get_server_info",
 		Description: "Get Spaniel server version, the OpenAPI specification URL, write permissions (writes_enabled for dedicated mutation tools; sql_writes_enabled for query_sql), and a summary of stored telemetry (span/trace/log/session counts, DB size, the active session). Call this first to confirm the connection, permissions, and available data.",
