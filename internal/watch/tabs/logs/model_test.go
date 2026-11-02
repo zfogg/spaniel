@@ -92,12 +92,12 @@ func TestStoredLiveHiddenPauseSelectionAndBound(t *testing.T) {
 	// An authoritative reconnect snapshot repairs gaps and removals, without
 	// preserving rows that storage no longer contains.
 	m.Update(protocol.Connection{Connected: false})
-	if !strings.Contains(m.View(), "STALE") {
-		t.Fatal(m.View())
+	if m.connected || len(m.rows) != pageSize {
+		t.Fatal("disconnect lost retained rows")
 	}
 	m.Update(protocol.Connection{Connected: true, Resync: true})
 	snapshot(m, env.Owner, "list", one, one)
-	if len(m.rows) != 1 || strings.Contains(m.View(), "resyncing") {
+	if len(m.rows) != 1 || strings.Contains(strings.ToLower(m.View()), "resyncing") {
 		t.Fatal("snapshot did not repair cache")
 	}
 }

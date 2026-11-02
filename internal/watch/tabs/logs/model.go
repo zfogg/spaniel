@@ -233,19 +233,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 func (m *model) View() string {
 	rows := m.visible()
-	state := "live"
-	if !m.connected {
-		state = "STALE · disconnected; reconnect will resync"
-	}
-	if m.connected && m.err != nil {
-		state = "STALE · API read failed"
-	} else if m.pending && m.connected {
-		state = "resyncing stored logs"
-	}
-	if m.paused {
-		state += " · PAUSED (updates retained)"
-	}
-	lines := []string{tui.Title.Render("Logs") + tui.Muted.Render("  ·  "+state)}
+	// The shell owns the tab heading and connection status. Keep data context
+	// separate from the temporary inline legend for the contextual-footer move.
+	var lines []string
 	service, severity := m.service, m.severity
 	if service == "" {
 		service = "all"
@@ -265,6 +255,12 @@ func (m *model) View() string {
 	}
 	if m.text != "" {
 		lines = append(lines, "Text on loaded page: "+clean(m.text))
+	}
+	if m.paused {
+		lines = append(lines, tui.Warn.Render("PAUSED · background log updates retained"))
+	}
+	if m.pending && m.connected && !m.loading {
+		lines = append(lines, "Resyncing stored logs…")
 	}
 	if m.err != nil {
 		lines = append(lines, tui.Danger.Render("Logs API: "+preview(m.err.Error())+" · retrying automatically; retained rows are stale"))
