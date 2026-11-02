@@ -537,6 +537,13 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	wait("1 active series / 2000 limit")
 	wait("37 {order}")
 	capture("metric-hidden-repair")
+	program.Send(tea.KeyMsg{Type: tea.KeyEnd})
+	scopeView := wait("Scope attributes")
+	if !strings.Contains(scopeView, "9007199254740993") || strings.Contains(scopeView, "9007199254740992") {
+		t.Fatal("resync rounded scope build attribute", scopeView)
+	}
+	capture("metric-hidden-scope-exact")
+	program.Send(tea.KeyMsg{Type: tea.KeyHome})
 	send("back")
 	send("tab")
 	wait("Missed log after reconnect")

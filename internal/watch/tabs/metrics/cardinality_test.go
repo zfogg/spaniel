@@ -6,15 +6,97 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	canonicalapi "github.com/zfogg/spaniel/internal/api"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/ingestion"
 	"github.com/zfogg/spaniel/internal/liveevent"
+	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/ws"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 )
+
+func TestRealIngestionCanonicalHTTPPreservesExactLabelsAndCachedScope(t *testing.T) {
+	db, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	session, err := db.CreateSession("exact scope", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetActiveSession(session.ID, session.Label)
+	hub := ws.NewHub()
+	pipeline := ingestion.NewPipeline(db, hub)
+	defer pipeline.Close(context.Background())
+	md := pmetric.NewMetrics()
+	resource := md.ResourceMetrics().AppendEmpty()
+	resource.Resource().Attributes().PutStr("service.name", "api")
+	scope := resource.ScopeMetrics().AppendEmpty()
+	scope.Scope().SetName("exact-sdk")
+	scope.Scope().Attributes().PutInt("build", 9007199254740993)
+	scope.Scope().Attributes().PutEmptyMap("nested").PutEmptySlice("ids").AppendEmpty().SetInt(9223372036854775807)
+	metric := scope.Metrics().AppendEmpty()
+	metric.SetName("exact.metric")
+	points := metric.SetEmptyGauge().DataPoints()
+	for i := 0; i < 2; i++ {
+		point := points.AppendEmpty()
+		point.SetTimestamp(pcommon.Timestamp(1793631000000000001 + int64(i)))
+		point.SetDoubleValue(42.5)
+		point.Attributes().PutInt("revision", 9007199254740995)
+	}
+	if err := pipeline.IngestMetrics(context.Background(), md); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := db.GetMetricChartSeries(storage.MetricSeriesFilter{Name: "exact.metric", Service: "api", SessionID: session.ID})
+	if err != nil || len(stored) != 2 || !strings.Contains(stored[0].ScopeAttributes, "9007199254740993") || !strings.Contains(stored[0].SeriesAttributes, "9007199254740995") {
+		t.Fatal("storage lost exact OTLP values", stored, err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewUnstartedServer(canonicalapi.NewRouter(db, hub, nil))
+	server.Listener.Close()
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+	api, err := client.New(server.URL, client.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for refresh := 0; refresh < 2; refresh++ {
+		response, err := api.MetricSeries(context.Background(), url.Values{"name": {"exact.metric"}, "sessionId": {session.ID}, "attributes[revision]": {"9007199254740995"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := normalize(response.Data)
+		if err != nil || len(data.Series) != 1 {
+			t.Fatal("canonical exact dimension filter failed", response, err)
+		}
+		series := data.Series[0]
+		if series.Attributes["revision"] != json.Number("9007199254740995") || len(series.Points) != 2 {
+			t.Fatal("canonical labels rounded", series)
+		}
+		for _, point := range series.Points {
+			if point.Value != 42.5 || point.ScopeAttributes["build"] != json.Number("9007199254740993") || point.ScopeAttributes["nested"].(map[string]any)["ids"].([]any)[0] != json.Number("9223372036854775807") {
+				t.Fatal("canonical cached scope rounded", point)
+			}
+			view := strings.Join(attributeTable("Scope attributes", point.ScopeAttributes, 120), "\n")
+			if !strings.Contains(view, "9007199254740993") || strings.Contains(view, "9007199254740992") {
+				t.Fatal("rendered canonical scope rounded", view)
+			}
+		}
+	}
+}
 
 func TestHTTPNormalizationKeepsExactLabelsAndScopeAttributes(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
