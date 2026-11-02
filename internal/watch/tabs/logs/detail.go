@@ -161,6 +161,12 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		found, matches := false, 0
+		// A projection does not contain durable identity. One match in a full
+		// or truncated lookup page cannot establish uniqueness beyond that page.
+		complete := len(data.Data) < 1000
+		if data.Meta != nil && data.Meta.Total != nil {
+			complete = complete && *data.Meta.Total == len(data.Data)
+		}
 		var match apigen.Log
 		for _, row := range data.Data {
 			if m.projection != nil && projectionMatches(row, m.row, m.projection) || m.projection == nil && identity(row) == identity(m.row) {
@@ -168,7 +174,7 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.ambiguous = m.projection != nil && matches > 1
-		if matches > 0 && (m.projection == nil || matches == 1) {
+		if matches > 0 && (m.projection == nil || matches == 1 && complete) {
 			m.row, found, m.projection = match, true, nil
 		}
 		m.uncertain = !found && (m.projection != nil || m.row.TimestampNs <= 0 || len(data.Data) >= 1000 || (data.Meta != nil && data.Meta.Total != nil && *data.Meta.Total > len(data.Data)))

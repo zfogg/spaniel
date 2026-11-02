@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"

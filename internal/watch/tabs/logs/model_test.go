@@ -304,6 +304,26 @@ func TestProjectedLogHydratesOnlyUniqueDurableMatch(t *testing.T) {
 	if notFound.row.ReceivedAt != 0 || !notFound.uncertain || notFound.missing {
 		t.Fatal("projection crossed correlation or reported confirmed expiry")
 	}
+	for _, limitSized := range []bool{false, true} {
+		bounded := NewQueryDetail(env, projected, "session", fields).(*detail)
+		rows := []apigen.Log{stored}
+		var meta *apigen.Meta
+		if limitSized {
+			for i := 1; i < 1000; i++ {
+				unrelated := stored
+				unrelated.Body = "different"
+				unrelated.ReceivedAt += int64(i)
+				rows = append(rows, unrelated)
+			}
+		} else {
+			total := 2
+			meta = &apigen.Meta{Total: &total}
+		}
+		bounded.Update(protocol.Result{Key: client.Key{Owner: env.Owner, Name: "log"}, Data: client.Envelope[[]apigen.Log]{Data: rows, Meta: meta}})
+		if bounded.row.ReceivedAt != 0 || bounded.row.Attributes != "" || bounded.projection == nil || !bounded.uncertain || bounded.missing {
+			t.Fatal("incomplete lookup claimed a unique identity", limitSized, bounded.row)
+		}
+	}
 }
 
 func TestErrorRemovalLookupLimitAndResize(t *testing.T) {
