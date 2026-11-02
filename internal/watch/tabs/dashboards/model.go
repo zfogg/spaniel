@@ -536,7 +536,10 @@ func (m *model) View() string {
 	// SQL and all result cells wrap before scrolling, including narrow terminals.
 	wrapped := wrapLines(body, m.width)
 	available := max(1, m.height-len(lines))
-	offset := min(m.scroll, max(0, len(wrapped)-available))
+	// Keep the retained offset at the visible boundary so repeated Down at the
+	// end does not require equally many Up presses before content moves again.
+	m.scroll = min(m.scroll, max(0, len(wrapped)-available))
+	offset := m.scroll
 	lines = append(lines, wrapped[offset:min(len(wrapped), offset+available)]...)
 	return screen(lines, m.width, m.height)
 }

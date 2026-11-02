@@ -265,6 +265,11 @@ func TestVariablesEnumLiveClockAndNarrowResize(t *testing.T) {
 	if !m.live {
 		t.Fatal("live mode not selected")
 	}
+	m.scroll = 100000
+	m.View()
+	if m.scroll == 100000 {
+		t.Fatal("scroll did not clamp at the end of panel content")
+	}
 	for _, size := range []tea.WindowSizeMsg{{Width: 22, Height: 12}, {Width: 120, Height: 35}, {Width: 1, Height: 1}} {
 		m.Update(size)
 		view := m.View()
