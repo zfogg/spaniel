@@ -105,7 +105,8 @@ func TestAttributeValuesRemainFullyScrollableAfterNarrowResize(t *testing.T) {
 					t.Fatal("table overflowed terminal")
 				}
 			}
-			flat := strings.ReplaceAll(strings.ReplaceAll(view, "\n", ""), " ", "")
+			// A value can continue across a column boundary between frames.
+			flat := strings.NewReplacer("\n", "", " ", "", "│", "").Replace(view)
 			if strings.Contains(flat, "TAIL") {
 				foundTail = true
 			}
