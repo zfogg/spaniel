@@ -50,7 +50,7 @@ func pumpStream(p *tea.Program, ch <-chan streamEvent, errCh <-chan error) {
 	}
 }
 
-// watchModel is the Bubble Tea model for `spaniel watch`. The rows table
+// watchModel is the Bubble Tea model for `spaniel tui`. The rows table
 // holds spans + issues interleaved by arrival time; the user can pause
 // the feed, filter by substring, or hit Enter on a row to print the
 // trace id for follow-up (`spaniel trace <id>`).
@@ -58,15 +58,15 @@ type watchModel struct {
 	apiBase string
 	filter  spanFilter
 
-	table       table.Model
-	input       textinput.Model
-	filtering   bool
-	substr      string
-	paused      bool
-	connected   bool
-	streamErr   error
-	width       int
-	height      int
+	table     table.Model
+	input     textinput.Model
+	filtering bool
+	substr    string
+	paused    bool
+	connected bool
+	streamErr error
+	width     int
+	height    int
 
 	// counters in the header
 	spansSeen  int
@@ -310,7 +310,7 @@ func (m watchModel) View() string {
 		pills = append(pills, tui.Danger.Render("disconnected"))
 	}
 
-	header := tui.HeaderBar("spaniel watch", pills, m.widthOr80())
+	header := tui.HeaderBar("spaniel tui", pills, m.widthOr80())
 	body := m.table.View()
 	if m.filtering {
 		body = m.input.View() + "\n" + body

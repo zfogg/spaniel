@@ -11,15 +11,14 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type panelState struct {
@@ -44,6 +43,7 @@ type model struct {
 	draft, inputError               string
 	overrides                       map[string]string
 	panels                          map[string]*panelState
+	rowSelections                   map[string]string
 	generation                      uint64
 	listSequence, activeSequence    uint64
 }
@@ -109,8 +109,15 @@ func (m *model) ShortHelp() []key.Binding {
 		if m.live {
 			mode = "saved SQL/window"
 		}
+		scrollDescription := "scroll"
+		if rows, selected := m.telemetry(); len(rows) > 0 {
+			scrollDescription = "select result row"
+			if action := rows[selected].action(); action != "" {
+				help = append(help, binding([]string{"enter"}, "Enter", action))
+			}
+		}
 		help = append(help,
-			binding([]string{"up", "down", "k", "j", "pgup", "pgdown", "home"}, "↑/↓ PgUp/PgDn", "scroll"),
+			binding([]string{"up", "down", "k", "j", "pgup", "pgdown", "home", "end"}, "↑/↓ PgUp/PgDn", scrollDescription),
 			binding([]string{"t"}, "t", mode),
 		)
 		inspection := "SQL/data"
@@ -187,6 +194,15 @@ func (m *model) queryPanels() {
 	if d == nil {
 		return
 	}
+	validPanels := make(map[string]bool, len(d.Panels))
+	for _, panel := range d.Panels {
+		validPanels[panel.Id] = true
+	}
+	for id := range m.rowSelections {
+		if !validPanels[id] {
+			delete(m.rowSelections, id)
+		}
+	}
 	for _, p := range d.Panels {
 		name := fmt.Sprintf("panel:%d:%s", m.generation, p.Id)
 		state := &panelState{}
@@ -201,22 +217,22 @@ func (m *model) queryPanels() {
 		for k, v := range m.overrides {
 			values[k] = v
 		}
-		if strings.Contains(sql, "$session_id") {
+		if strings.Contains(sql, "$session_id") && m.session == "" {
 			if !m.activeLoaded {
 				continue
 			}
-			if m.session != "" && m.session != m.activeID {
-				state.err = fmt.Errorf("Query preview cannot scope $session_id to %q (server active session %q). Shared API session support is required", m.session, m.activeID)
-				continue
-			}
 			if m.activeID == "" {
-				state.err = fmt.Errorf("No active session for $session_id")
+				state.err = fmt.Errorf("No selected or active session for $session_id")
 				continue
 			}
 		}
 		body := apigen.PreviewDashboardQueryJSONBody{QuerySql: sql, DisplayType: &display, Variables: &values}
-		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: m.env.Owner, Name: name}, Resources: []liveevent.Resource{"dashboard-panel"}, Interval: 5 * time.Second, Fetch: func(ctx context.Context, api *client.Client, _ string) (any, error) {
-			return api.Preview(ctx, id, body)
+		m.env.Refresh.Register(client.Spec{Key: client.Key{Owner: m.env.Owner, Name: name}, Resources: []liveevent.Resource{"dashboard-panel"}, Interval: 5 * time.Second, Fetch: func(ctx context.Context, api *client.Client, session string) (any, error) {
+			scoped := body
+			if session != "" {
+				scoped.SessionId = &session
+			}
+			return api.Preview(ctx, id, scoped)
 		}})
 	}
 }
@@ -251,6 +267,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case protocol.SessionChanged:
 		if m.session != v.ID {
 			m.session = v.ID
+			m.rowSelections = nil
 			m.scroll = 0
 			m.queryPanels()
 		}
@@ -425,6 +442,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if d == nil {
 			return m, nil
 		}
+		if handled, cmd := m.telemetryKey(v.String()); handled {
+			return m, cmd
+		}
 		switch v.String() {
 		case "left", "h", "right", "l":
 			i := m.panelIndex()
@@ -540,11 +560,4 @@ func (m *model) stateFor(id string) *panelState {
 }
 
 // Telemetry/definitions are untrusted terminal text; preserve no control codes.
-func safe(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func safe(s string) string { return terminal.SingleLine(s) }

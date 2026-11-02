@@ -3,10 +3,12 @@ package metrics
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
@@ -358,8 +360,9 @@ func histogramInterval(points []sample, index int, temporality string) (float64,
 	}
 	return count, sum, buckets, true
 }
-func sampleDescription(p sample, typ string, width int) []string {
-	lines := []string{fmt.Sprintf("timestamp %s · start %s · flags %d", timestamp(p.Timestamp), timestamp(p.Start), p.Flags)}
+func sampleDescription(p sample, typ string, width int, now ...time.Time) []string {
+	reference := terminal.BatchTime(now...)
+	lines := []string{fmt.Sprintf("timestamp %s · start %s · flags %d", timestamp(p.Timestamp, reference), timestamp(p.Start, reference), p.Flags)}
 	if typ == "gauge" || typ == "sum" || typ == "counter" {
 		lines = append(lines, "raw value "+number(p.Value))
 	} else {

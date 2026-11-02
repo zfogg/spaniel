@@ -26,7 +26,7 @@ func (m *model) ShortHelp() []key.Binding {
 		)
 	}
 	help = append(help,
-		binding([]string{"/"}, "/", "text on loaded page"),
+		binding([]string{"/"}, "/", "text filter"),
 		binding([]string{"s"}, "s", "service filter"),
 		binding([]string{"v"}, "v", "cycle severity"),
 	)

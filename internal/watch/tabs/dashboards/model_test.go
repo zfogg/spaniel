@@ -18,6 +18,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 func definition(t *testing.T, raw string) apigen.Dashboard {
@@ -222,8 +223,8 @@ func TestDefinitionLifecycleStaleGuardsAndSession(t *testing.T) {
 	m.activeLoaded = true
 	m.queryPanels()
 	state := m.stateFor(d.Panels[0].Id)
-	if state.err == nil || !strings.Contains(state.err.Error(), "cannot scope") {
-		t.Fatal("wrong-session preview allowed")
+	if state.err != nil {
+		t.Fatal("canonical preview rejected selected session", state.err)
 	}
 	m.Update(protocol.SessionChanged{ID: "active"})
 	state = m.stateFor(d.Panels[0].Id)
@@ -299,7 +300,7 @@ func TestPanelSemantics(t *testing.T) {
 		if !strings.Contains(view, "ms") {
 			t.Fatal(view)
 		}
-		if kind == "heatmap" && !strings.Contains(view, "unsupported") {
+		if kind == "deploy_correlation" && !strings.Contains(view, "unsupported") {
 			t.Fatal(view)
 		}
 		if kind == "time_series" && (!strings.Contains(view, "Series: api") || strings.Contains(view, "timestamp_ns=")) {
@@ -366,7 +367,7 @@ func TestPinnedSessionTracksActiveFramesAndResync(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Update(protocol.Live{Event: event})
-	if m.session != "pinned" || m.activeID != "other" || m.stateFor("p2").err == nil {
+	if m.session != "pinned" || m.activeID != "other" || m.stateFor("p2").err != nil {
 		t.Fatal("pinned scope silently followed active session")
 	}
 	generation := m.generation
@@ -478,6 +479,16 @@ func TestSampleTimestampPresentationPreservesQueryValues(t *testing.T) {
 	}
 }
 
+func TestSQLTableGlyphModesPreservePayload(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", mode)
+		lines := layoutTable([]string{"value", "count"}, [][]string{{"user │ | • * data", "9007199254740993"}}, 100)
+		if !strings.Contains(lines[1], terminal.ColumnSeparator()) || !strings.Contains(lines[2], terminal.Glyphs().Cross) || !strings.Contains(strings.Join(lines[3:], "\n"), "user │ | • * data") {
+			t.Fatal(mode, lines)
+		}
+	}
+}
+
 func TestPrimaryLayoutAndSecondaryInspection(t *testing.T) {
 	env, _ := envFor(t, http.NotFoundHandler())
 	m := newModel(env, "demo")
@@ -497,7 +508,7 @@ func TestPrimaryLayoutAndSecondaryInspection(t *testing.T) {
 	}
 	pressKey(m, "i")
 	inspection := ansi.Strip(m.View())
-	if !m.inspect || !strings.Contains(inspection, "SELECT timestamp_ns") || !strings.Contains(inspection, "Query result") || !strings.Contains(inspection, "2026-11-02") || strings.Contains(inspection, "1793631000123456789") {
+	if !m.inspect || !strings.Contains(inspection, "SELECT timestamp_ns") || !strings.Contains(inspection, "Query result") || !strings.Contains(inspection, "1793631000123456789") || !strings.Contains(inspection, "1793631060123456789") || strings.Contains(inspection, " ago") {
 		t.Fatal(inspection)
 	}
 	if !strings.Contains(inlineHelp(m.ShortHelp()), "visualization") {
@@ -529,6 +540,7 @@ func TestPrimaryLayoutAndSecondaryInspection(t *testing.T) {
 }
 
 func TestResponsiveSQLTableRetainsValuesAndTypes(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	exact := json.Number("9007199254740993")
 	long := "start-" + strings.Repeat("wide-value-", 12) + "-end"
 	data := apigen.QueryPreview{Columns: []string{"name", "amount", "optional", "payload"}, Rows: []map[string]any{{"name": long, "amount": exact, "optional": nil, "payload": map[string]any{"flag": true, "items": []any{"x", exact}}}}}

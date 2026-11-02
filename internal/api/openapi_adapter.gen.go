@@ -47,7 +47,9 @@ func (r *Router) ListAlertHistory(w http.ResponseWriter, req *http.Request, _ ap
 	r.listAlertHistory(w, req)
 }
 
-func (r *Router) GetAlert(w http.ResponseWriter, req *http.Request, id string) { r.getAlert(w, req) }
+func (r *Router) GetAlert(w http.ResponseWriter, req *http.Request, id string, _ apigen.GetAlertParams) {
+	r.getAlert(w, req)
+}
 
 func (r *Router) ExportAlertConfig(w http.ResponseWriter, req *http.Request, id string) {
 	r.exportAlertConfig(w, req)
@@ -75,7 +77,7 @@ func (r *Router) GetCoverageSpec(w http.ResponseWriter, req *http.Request, id st
 
 func (r *Router) ListDashboards(w http.ResponseWriter, req *http.Request) { r.listDashboards(w, req) }
 
-func (r *Router) GetDashboard(w http.ResponseWriter, req *http.Request, id string) {
+func (r *Router) GetDashboard(w http.ResponseWriter, req *http.Request, id string, _ apigen.GetDashboardParams) {
 	r.getDashboard(w, req)
 }
 
@@ -167,7 +169,9 @@ func (r *Router) ListSpans(w http.ResponseWriter, req *http.Request, _ apigen.Li
 	r.listSpans(w, req)
 }
 
-func (r *Router) GetSpan(w http.ResponseWriter, req *http.Request, spanId string) { r.getSpan(w, req) }
+func (r *Router) GetSpan(w http.ResponseWriter, req *http.Request, spanId string, _ apigen.GetSpanParams) {
+	r.getSpan(w, req)
+}
 
 func (r *Router) GetStats(w http.ResponseWriter, req *http.Request, _ apigen.GetStatsParams) {
 	r.getStats(w, req)
@@ -181,15 +185,15 @@ func (r *Router) ListTraces(w http.ResponseWriter, req *http.Request, _ apigen.L
 	r.listTraces(w, req)
 }
 
-func (r *Router) GetTrace(w http.ResponseWriter, req *http.Request, traceId string) {
+func (r *Router) GetTrace(w http.ResponseWriter, req *http.Request, traceId string, _ apigen.GetTraceParams) {
 	r.getTrace(w, req)
 }
 
-func (r *Router) ExportTrace(w http.ResponseWriter, req *http.Request, traceId string) {
+func (r *Router) ExportTrace(w http.ResponseWriter, req *http.Request, traceId string, _ apigen.ExportTraceParams) {
 	r.exportTrace(w, req)
 }
 
-func (r *Router) ListIncomingLinks(w http.ResponseWriter, req *http.Request, traceId string) {
+func (r *Router) ListIncomingLinks(w http.ResponseWriter, req *http.Request, traceId string, _ apigen.ListIncomingLinksParams) {
 	r.listIncomingLinks(w, req)
 }
 

@@ -7,13 +7,8 @@ import (
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
 
-// tui is a deprecated compatibility entry point with the same flags/behavior.
-func tuiSubcommand() *cobra.Command {
-	cmd := watchSubcommand()
-	cmd.Use = "tui"
-	cmd.Deprecated = "use spaniel watch"
-	return cmd
-}
+// Register the sole public entry point for the complete terminal dashboard.
+func registerTUICommand(root *cobra.Command) { root.AddCommand(tuiSubcommand()) }
 func muxTUI(ctx context.Context, apiBase string) error {
 	return muxTUIWithFilter(ctx, apiBase, spanFilter{}, "")
 }

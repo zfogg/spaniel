@@ -13,6 +13,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
+	"github.com/zfogg/spaniel/internal/watch/metadata"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
 
@@ -175,9 +176,9 @@ func (m *traceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			delta = 1
 		case "pgup":
-			delta = -max(1, m.height-6)
+			delta = -max(1, m.height-12)
 		case "pgdown":
-			delta = max(1, m.height-6)
+			delta = max(1, m.height-12)
 		case "home", "g":
 			delta = -len(rows)
 		case "end", "G":
@@ -210,11 +211,16 @@ func (m *traceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *traceModel) View() string {
 	rows := m.rows()
 	start, end := traceWindow(rows)
-	title := fmt.Sprintf("Trace %s · %d spans · %s", clean(m.traceID), len(rows), duration(end-start))
+	title := "Trace waterfall"
 	if m.paused {
 		title = "PAUSED · " + title
 	}
-	lines := []string{tui.Title.Render(title), m.state.banner(), tui.Muted.Render("↑↓ / PgUp PgDn scroll · Enter inspect span · p pause · r reload · Esc Back")}
+	lines := m.state.appendBanner([]string{tui.Title.Render(title)})
+	lines = append(lines, metadata.Table([]metadata.Field{
+		{Name: "Trace ID", Value: m.traceID}, {Name: "Session", Value: m.state.session},
+		{Name: "Spans", Value: fmt.Sprint(len(rows))}, {Name: "Duration", Value: duration(end - start)},
+		{Name: "Start", Value: stamp(start, m.env.Now())}, {Name: "End", Value: stamp(end, m.env.Now())},
+	}, m.width)...)
 	if len(rows) == 0 {
 		text := "No spans in this trace/session. Data may have expired; waiting for telemetry…"
 		if m.state.loading {
@@ -229,7 +235,7 @@ func (m *traceModel) View() string {
 				cursor = i
 			}
 		}
-		a, b := rowWindow(len(rows), cursor, max(1, m.height-5))
+		a, b := rowWindow(len(rows), cursor, max(1, m.height-len(lines)-1))
 		for _, r := range rows[a:b] {
 			lines = append(lines, waterfallRow(r, spanKey(r.span) == m.selected, start, end, m.width))
 		}
@@ -368,13 +374,13 @@ func (m *spanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			m.offset++
 		case "pgdown", " ":
-			m.offset += max(1, m.height-4)
+			m.offset += max(1, m.contentHeight()-1)
 		case "pgup":
-			m.offset = max(0, m.offset-max(1, m.height-4))
+			m.offset = max(0, m.offset-max(1, m.contentHeight()-1))
 		case "home", "g":
 			m.offset = 0
 		case "end", "G":
-			m.offset = max(0, len(m.content())-max(1, m.height-3))
+			m.offset = max(0, len(m.content())-m.contentHeight())
 		case "r":
 			m.register()
 		case "t":
@@ -384,7 +390,7 @@ func (m *spanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	m.offset = min(m.offset, max(0, len(m.content())-max(1, m.height-3)))
+	m.offset = min(m.offset, max(0, len(m.content())-m.contentHeight()))
 	return m, nil
 }
 func (m *spanModel) content() []string {
@@ -394,8 +400,9 @@ func (m *spanModel) content() []string {
 		}
 		return []string{"Span missing, unavailable in this session, or expired. The originating view is retained."}
 	}
-	lines := spanContent(*m.span, m.width)
-	lines = append(lines, "", tui.Title.Render("Associated logs · latest 100"), m.logState.banner())
+	lines := spanContent(*m.span, m.width, m.env.Now())
+	lines = append(lines, "", tui.Title.Render("Associated logs · latest 100"))
+	lines = m.logState.appendBanner(lines)
 	if len(m.logs) == 0 {
 		if m.logState.loading {
 			lines = append(lines, "Loading associated logs…")
@@ -404,7 +411,7 @@ func (m *spanModel) content() []string {
 		}
 	}
 	for _, l := range m.logs {
-		text := stamp(l.TimestampNs) + " · " + clean(l.ServiceName) + fmt.Sprintf(" · severity %.0f", l.Severity) + " · " + clean(l.Body)
+		text := stamp(l.TimestampNs, m.env.Now()) + " · " + clean(l.ServiceName) + fmt.Sprintf(" · severity %.0f", l.Severity) + " · " + clean(l.Body)
 		if l.Severity >= 17 {
 			text = errorStyle.Render(text)
 		}
@@ -417,11 +424,15 @@ func (m *spanModel) content() []string {
 	}
 	return wrapped
 }
+func (m *spanModel) header() []string {
+	return m.state.appendBanner([]string{tui.Title.Render("Span " + clean(m.spanID))})
+}
+func (m *spanModel) contentHeight() int { return max(1, m.height-len(m.header())) }
 func (m *spanModel) View() string {
-	lines := []string{tui.Title.Render("Span " + clean(m.spanID)), m.state.banner(), tui.Muted.Render("↑↓ / PgUp PgDn scroll · t containing trace · r reload · Esc Back")}
+	lines := m.header()
 	content := m.content()
-	start := min(m.offset, max(0, len(content)-max(1, m.height-3)))
-	end := min(len(content), start+max(1, m.height-3))
+	start := min(m.offset, max(0, len(content)-m.contentHeight()))
+	end := min(len(content), start+m.contentHeight())
 	lines = append(lines, content[start:end]...)
 	return screen(lines, m.width, m.height)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/watch/client"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 // All data is sanitized before styles are applied. Styles originate here, never
@@ -89,23 +90,10 @@ func (m *model) notices() []uiLine {
 	}
 	return lines
 }
-func (m *model) footer() []string {
-	help := inlineHelp(m.ShortHelp())
-	if help == "" {
-		return nil
-	}
-	// Temporary local help sits next to the shared bottom help area. #132 will
-	// move these bindings into the shell's focused footer and remove this block.
-	lines := []uiLine{compact(strings.Repeat("─", max(1, m.width)), ruleStyle), ui(help, mutedStyle)}
-	out := wrapUI(lines, m.width)
-	limit := max(0, min(5, m.height/3))
-	return out[:min(len(out), limit)]
-}
 func (m *model) compose(top, body []uiLine, selectedEnd int) string {
 	header := wrapUI(top, m.width)
-	footer := m.footer()
-	header = header[:min(len(header), max(0, m.height-len(footer)-1))]
-	available := max(1, m.height-len(header)-len(footer))
+	header = header[:min(len(header), max(0, m.height-1))]
+	available := max(1, m.height-len(header))
 	content := wrapUI(body, m.width)
 	if available < 4 {
 		for len(content) > 0 && strings.TrimSpace(ansi.Strip(content[0])) == "" {
@@ -121,10 +109,9 @@ func (m *model) compose(top, body []uiLine, selectedEnd int) string {
 	}
 	end := min(len(content), offset+available)
 	rows := append(header, content[offset:end]...)
-	for len(rows) < m.height-len(footer) {
+	for len(rows) < m.height {
 		rows = append(rows, "")
 	}
-	rows = append(rows, footer...)
 	return strings.Join(rows[:min(len(rows), max(1, m.height))], "\n")
 }
 func (m *model) View() string {
@@ -225,21 +212,33 @@ func (m *model) View() string {
 	}
 	if state.loaded {
 		if m.inspect {
-			for _, line := range renderTable(state.result, string(p.DisplayType) == "time_series", m.width) {
+			for _, line := range renderTable(state.result, false, m.width) {
 				body = append(body, plain(line))
 			}
 		} else {
+			if telemetryKind(string(p.DisplayType)) {
+				for _, warning := range state.result.Warnings {
+					body = append(body, ui("Warning: "+warning, warningStyle))
+				}
+				if state.result.Truncated != nil && *state.result.Truncated {
+					body = append(body, ui("Truncated: first 128 result rows; refine query/window.", warningStyle))
+				}
+				rows, selected := m.telemetry()
+				return m.telemetryView(top, body, rows, selected)
+			}
 			if string(p.DisplayType) == "single_value" {
 				body = append(body, plain(""), plain(""))
 			}
-			chartHeight := max(4, m.height-len(top)-len(m.footer())-3)
-			rendered := renderPanel(string(p.DisplayType), p.SettingsJson, state.result, m.width, chartHeight, m.live)
+			chartHeight := max(4, m.height-len(top)-3)
+			rendered := renderPanel(string(p.DisplayType), p.SettingsJson, state.result, m.width, chartHeight, m.live, m.env.Now())
 			for i, line := range rendered {
 				if strings.HasPrefix(line, "Unit: ") {
 					continue
 				} // Unit is beside panel status.
 				style := lipgloss.NewStyle()
 				switch string(p.DisplayType) {
+				case "bar", "pie", "entity_list", "gauge", "heatmap":
+					style = chartStyle
 				case "single_value":
 					style = valueStyle
 				case "time_series":
@@ -254,7 +253,7 @@ func (m *model) View() string {
 						style = captionStyle
 					}
 				}
-				if strings.HasPrefix(line, "Warning:") || strings.HasPrefix(line, "Truncated:") || strings.Contains(line, "null/invalid") || strings.Contains(line, "unsupported in the terminal") {
+				if strings.HasPrefix(line, "Warning:") || strings.HasPrefix(line, "Truncated:") || strings.HasPrefix(line, "Invalid ") || strings.HasPrefix(line, "Out of range:") || strings.Contains(line, "null/invalid") || strings.Contains(line, "unsupported in the terminal") {
 					style = warningStyle
 				}
 				if strings.HasPrefix(line, "No ") {
@@ -295,7 +294,7 @@ func (m *model) listView(top []uiLine) string {
 		if d.SourceFile != "" {
 			source = "File"
 		}
-		updated := time.Unix(0, d.UpdatedAt).Local().Format("Jan 02 15:04 MST")
+		updated := terminal.Timestamp(d.UpdatedAt, "Jan 02 15:04 MST", time.Local, m.env.Now())
 		body = append(body, ui(fmt.Sprintf("  %s   ·   %d panels   ·   %d variables   ·   %s", source, len(d.Panels), len(d.Variables), updated), mutedStyle))
 		if selected {
 			if d.Description != "" {

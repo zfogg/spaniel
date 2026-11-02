@@ -34,6 +34,7 @@ type Env struct {
 	Refresh *client.Refreshes
 	Owner   string
 	Filters Filters
+	Time    *Clock
 }
 type Factory func(Env) tea.Model
 

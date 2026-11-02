@@ -163,11 +163,13 @@ func TestSelfTelemetryDoesNotScheduleCatalogRefetch(t *testing.T) {
 	m := New(env).(*catalog)
 	now := time.Now()
 	work := env.Refresh.Due(now)
-	if len(work) != 1 {
-		t.Fatal("missing initial request")
+	if len(work) != 2 {
+		t.Fatal("catalog and admission requests missing")
 	}
-	if !env.Refresh.Complete(work[0].Result, now) {
-		t.Fatal("initial completion rejected")
+	for _, job := range work {
+		if !env.Refresh.Complete(job.Result, now) {
+			t.Fatal("initial completion rejected")
+		}
 	}
 	event := streamRow(&liveevent.MetricRowPayload{Name: "self.calls", ServiceName: "spaniel", Type: "sum", TimestampNs: now.UnixNano(), SessionID: "seed"}, true)
 	env.Refresh.Observe(event.Event)
@@ -186,6 +188,10 @@ func TestHTTPQueryWindowSupersessionAndIdleRefresh(t *testing.T) {
 	}
 	queries := make(chan *http.Request, 4)
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/metrics/cardinality" {
+			w.Write([]byte(`{"data":[]}`))
+			return
+		}
 		queries <- r.Clone(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"data":{"name":"cpu","service_name":"api","type":"gauge","unit":"%","series":[],"points":[],"traces":[]}}`))
@@ -201,10 +207,19 @@ func TestHTTPQueryWindowSupersessionAndIdleRefresh(t *testing.T) {
 	env.Refresh.SetSession("seed")
 	m := newDetail(env, apigen.MetricCatalogEntry{Name: "cpu", ServiceName: "api", Type: "gauge"})
 	work := env.Refresh.Due(time.Now())
-	if len(work) != 1 {
-		t.Fatal("initial series request missing")
+	if len(work) != 2 {
+		t.Fatal("series/admission requests missing")
 	}
-	result := work[0].Run()
+	var result protocol.Result
+	for _, job := range work {
+		response := job.Run()
+		if job.Key == m.key {
+			result = response
+		} else {
+			env.Refresh.Complete(response, time.Now())
+			m.Update(response)
+		}
+	}
 	if result.Err != nil {
 		t.Fatal(result.Err)
 	}
@@ -242,10 +257,16 @@ func TestShellRoutesHiddenCatalogAndRetainedDetail(t *testing.T) {
 	model := shell.New(env, []protocol.Tab{{ID: protocol.Metrics, Title: "metrics", New: func(e protocol.Env) tea.Model { cat = New(e).(*catalog); return cat }}, {ID: protocol.Logs, Title: "logs", New: func(protocol.Env) tea.Model { return parked{} }}}, nil, nil, true)
 	model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	work := env.Refresh.Due(time.Now())
-	r := work[0].Result
-	r.Data = client.Envelope[[]apigen.MetricCatalogEntry]{Data: []apigen.MetricCatalogEntry{{Name: "cpu", Type: "gauge", ServiceName: "api"}}}
 	model.Update(tea.KeyMsg{Type: tea.KeyTab})
-	model.Update(r)
+	for _, job := range work {
+		result := job.Result
+		if result.Key.Name == "catalog" {
+			result.Data = client.Envelope[[]apigen.MetricCatalogEntry]{Data: []apigen.MetricCatalogEntry{{Name: "cpu", Type: "gauge", ServiceName: "api"}}}
+		} else {
+			result.Data = client.Envelope[[]apigen.MetricCardinalityStream]{}
+		}
+		model.Update(result)
+	}
 	if !cat.loaded {
 		t.Fatal("hidden owner result lost")
 	}
@@ -258,12 +279,18 @@ func TestShellRoutesHiddenCatalogAndRetainedDetail(t *testing.T) {
 	model.Update(show)
 	model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	jobs := env.Refresh.Due(time.Now())
-	if len(jobs) != 1 {
+	if len(jobs) != 2 {
 		t.Fatalf("detail registrations = %d", len(jobs))
 	}
-	r = jobs[0].Result
-	r.Data = seriesSnapshot{To: time.Now(), Data: seriesData{Type: "gauge", Series: []labeledSeries{{Key: "one", Attributes: map[string]any{}, Points: []sample{{Timestamp: time.Now().UnixNano(), Value: 8}}}}}}
-	model.Update(r)
+	for _, job := range jobs {
+		result := job.Result
+		if result.Key == inspector.key {
+			result.Data = seriesSnapshot{To: time.Now(), Data: seriesData{Type: "gauge", Series: []labeledSeries{{Key: "one", Attributes: map[string]any{}, Points: []sample{{Timestamp: time.Now().UnixNano(), Value: 8}}}}}}
+		} else {
+			result.Data = client.Envelope[[]apigen.MetricCardinalityStream]{}
+		}
+		model.Update(result)
+	}
 	if !inspector.loaded {
 		t.Fatal("hidden retained detail result lost")
 	}

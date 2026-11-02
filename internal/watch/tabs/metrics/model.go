@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +17,7 @@ import (
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 const catalogLimit = 4096
@@ -25,6 +25,7 @@ const catalogLimit = 4096
 type catalog struct {
 	env                             protocol.Env
 	rows                            []apigen.MetricCatalogEntry
+	admission                       admission
 	selected, query, draft, session string
 	editing, loaded, capped         bool
 	err                             error
@@ -41,13 +42,13 @@ func New(env protocol.Env) tea.Model {
 			return api.Metrics(ctx, client.Scope(url.Values{}, session))
 		},
 	})
+	registerAdmission(env)
 	return m
 }
 func (m *catalog) Init() tea.Cmd      { return nil }
 func (m *catalog) CapturesKeys() bool { return m.editing }
 
-// ShortHelp is consumed structurally by the integration footer. Inline legends
-// remain until that shared shell change can move all feature help together.
+// ShortHelp describes the focused catalog or search for the shared footer.
 func (m *catalog) ShortHelp() []key.Binding {
 	if m.editing {
 		return inputHelp("search", m.draft)
@@ -160,8 +161,12 @@ func (m *catalog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loaded = false
 			m.err = nil
 			m.capped = false
+			m.admission = admission{}
 		}
 	case protocol.Result:
+		if m.admission.accept(msg, m.env.Owner, m.session) {
+			break
+		}
 		if msg.Key != (client.Key{Owner: m.env.Owner, Name: "catalog"}) || msg.Session != m.session {
 			break
 		}
@@ -285,7 +290,7 @@ func (m *catalog) View() string {
 	if m.editing {
 		query = m.draft + "▏"
 	}
-	lines := []string{tui.Title.Render("Metric catalog"), tui.Muted.Render("/ search · service=api type=sum unit=ms · ↑↓ select · Enter inspect"), "Search: " + safe(query)}
+	lines := []string{tui.Title.Render("Metric catalog"), tui.Muted.Render("Search terms: service=api type=sum unit=ms"), "Search: " + safe(query)}
 	if m.env.Filters.Service != "" {
 		lines = append(lines, "Service scope: "+safe(m.env.Filters.Service))
 	}
@@ -307,7 +312,7 @@ func (m *catalog) View() string {
 			break
 		}
 	}
-	capacity := max(1, (m.height-len(lines)-3)/2)
+	capacity := max(1, (m.height-len(lines)-3)/3)
 	if index >= capacity {
 		start = index - capacity + 1
 	}
@@ -324,22 +329,15 @@ func (m *catalog) View() string {
 		if identity(row) == m.selected {
 			line = tui.SelectedRow.Render(cut(line, m.width))
 		}
-		lines = append(lines, line, "  "+safe(row.Description))
+		lines = append(lines, line, "  "+safe(row.Description), "  "+m.admission.summary(row.ServiceName, row.Name))
 	}
 	if len(rows) > 0 {
 		lines = append(lines, fmt.Sprintf("%d/%d", index+1, len(rows)))
-		lines = append(lines, tui.Muted.Render("Enter: labeled series, dimensions, chart and raw samples"))
 	}
 	return fit(lines, m.width, m.height)
 }
-func safe(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, s)
-}
+func safe(s string) string { return terminal.SingleLine(s) }
+
 func cut(s string, width int) string { return ansi.Truncate(s, max(1, width), "…") }
 func fit(lines []string, width, height int) string {
 	if len(lines) > height {
@@ -362,9 +360,9 @@ func state(loaded bool, err error, connection protocol.Connection) string {
 	}
 	return ""
 }
-func timestamp(ns int64) string {
+func timestamp(ns int64, now ...time.Time) string {
 	if ns == 0 {
 		return "—"
 	}
-	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000Z")
+	return terminal.Timestamp(ns, "2006-01-02 15:04:05.000 MST", time.UTC, terminal.BatchTime(now...))
 }

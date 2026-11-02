@@ -46,8 +46,8 @@ func (d *DB) InsertSpanEvents(events []*SpanEvent) error {
 }
 
 // ListEventsBySpan returns the events attached to a single span, in time order.
-func (d *DB) ListEventsBySpan(spanID string) ([]*SpanEvent, error) {
-	rows, err := d.query.SpanEvent.ListBySpan(spanID)
+func (d *DB) ListEventsBySpan(spanID string, scope ...string) ([]*SpanEvent, error) {
+	rows, err := d.query.SpanEvent.ListBySpan(spanID, optionalScope(scope, 0), optionalScope(scope, 1), len(scope) > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -68,26 +68,26 @@ func (d *DB) InsertSpanLinks(links []*SpanLink) error {
 }
 
 // ListLinksBySpan returns the outbound links emitted by a single span.
-func (d *DB) ListLinksBySpan(spanID string) ([]*SpanLink, error) {
+func (d *DB) ListLinksBySpan(spanID string, scope ...string) ([]*SpanLink, error) {
 	q := d.namedQuery("ListLinksBySpan")
-	rows, err := q.SpanLink.ListBySpan(spanID)
+	rows, err := q.SpanLink.ListBySpan(spanID, optionalScope(scope, 0), optionalScope(scope, 1), len(scope) > 0)
 	return spanLinkPointers(rows, err)
 }
 
 // ListIncomingLinks returns every link in the store whose target is the
 // given trace ID — the "who links into this trace?" reverse lookup.
-func (d *DB) ListIncomingLinks(linkedTraceID string) ([]*SpanLink, error) {
+func (d *DB) ListIncomingLinks(linkedTraceID string, scope ...string) ([]*SpanLink, error) {
 	q := d.namedQuery("ListIncomingLinks")
-	rows, err := q.SpanLink.ListIncomingByTrace(linkedTraceID)
+	rows, err := q.SpanLink.ListIncomingByTrace(linkedTraceID, optionalScope(scope, 0))
 	return spanLinkPointers(rows, err)
 }
 
 // ListLinksByTrace returns all span_links whose trace_id matches — used to
 // bulk-attach links to spans when serving GET /api/traces/:id so the
 // waterfall can show the link badge without a per-span round-trip.
-func (d *DB) ListLinksByTrace(traceID string) ([]*SpanLink, error) {
+func (d *DB) ListLinksByTrace(traceID string, scope ...string) ([]*SpanLink, error) {
 	q := d.namedQuery("ListLinksByTrace")
-	rows, err := q.SpanLink.ListByTrace(traceID)
+	rows, err := q.SpanLink.ListByTrace(traceID, optionalScope(scope, 0))
 	return spanLinkPointers(rows, err)
 }
 
@@ -102,8 +102,12 @@ func spanLinkPointers(rows []model.SpanLink, err error) ([]*SpanLink, error) {
 	return out, nil
 }
 
-func (d *DB) GetSpan(spanID string) (*Span, error) {
-	spans, err := d.query.Span.Where(d.query.Span.SpanID.Eq(spanID)).Limit(1).Find()
+func (d *DB) GetSpan(spanID string, scope ...string) (*Span, error) {
+	q := d.query.Span.Where(d.query.Span.SpanID.Eq(spanID))
+	if session := optionalScope(scope, 0); session != "" {
+		q = q.Where(d.query.Span.SessionID.Eq(session))
+	}
+	spans, err := q.Limit(1).Find()
 	if err != nil {
 		return nil, err
 	}
@@ -267,4 +271,24 @@ func (d *DB) DeleteSpansNamed(name string) (int, error) {
 func (d *DB) GetSpansBySession(sessionID string) ([]*Span, error) {
 	return d.query.Span.Where(d.query.Span.SessionID.Eq(sessionID)).
 		Order(d.query.Span.StartNs).Find()
+}
+
+// optionalScope keeps existing internal unscoped callers source compatible.
+func optionalScope(scope []string, index int) string {
+	if index < len(scope) {
+		return scope[index]
+	}
+	return ""
+}
+
+func (d *DB) ListEventsByTrace(traceID string, scope ...string) ([]*SpanEvent, error) {
+	rows, err := d.query.SpanEvent.ListByTrace(traceID, optionalScope(scope, 0))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*SpanEvent, len(rows))
+	for i := range rows {
+		out[i] = &rows[i]
+	}
+	return out, nil
 }

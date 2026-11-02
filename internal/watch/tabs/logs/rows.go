@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 // The wire contract has no row ID. All durable fields, including received_at,
@@ -67,7 +67,7 @@ func matches(row apigen.Log, session, service, severity, text string, errorsOnly
 	if errorsOnly && row.Severity < 17 {
 		return false
 	}
-	return text == "" || strings.Contains(strings.ToLower(row.Body+"\n"+row.Attributes+"\n"+row.TraceId+"\n"+row.SpanId+"\n"+row.ServiceName), strings.ToLower(text))
+	return text == "" || strings.Contains(strings.ToLower(row.Body+" "+row.Attributes+" "+row.ServiceName+" "+row.TraceId+" "+row.SpanId), strings.ToLower(text))
 }
 func severityName(severity float64) string {
 	switch {
@@ -90,20 +90,8 @@ func severityName(severity float64) string {
 
 // Telemetry is untrusted terminal text: remove escape sequences and controls,
 // preserving line breaks for the inspector. No body/attribute truncation there.
-func clean(s string) string {
-	return strings.Map(func(r rune) rune {
-		if r == '\n' {
-			return r
-		}
-		if r == '\t' {
-			return ' '
-		}
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func clean(s string) string { return terminal.Multiline(s) }
+
 func preview(s string) string { return strings.Join(strings.Fields(clean(s)), " ") }
 func cell(s string, width int) string {
 	return ansi.Truncate(s, width, "…") + strings.Repeat(" ", max(0, width-ansi.StringWidth(s)))
@@ -115,12 +103,12 @@ func fit(lines []string, width, height int) string {
 	}
 	return strings.Join(lines, "\n")
 }
-func stamp(ns int64, full bool) string {
+func stamp(ns int64, full bool, now ...time.Time) string {
 	if ns == 0 {
 		return "unknown"
 	}
 	if full {
-		return time.Unix(0, ns).Format("2006-01-02 15:04:05.000 -07:00")
+		return terminal.Timestamp(ns, "2006-01-02 15:04:05.000 MST", time.Local, terminal.BatchTime(now...))
 	}
-	return time.Unix(0, ns).Format("15:04:05.000")
+	return terminal.Timestamp(ns, "15:04:05.000", time.Local, terminal.BatchTime(now...))
 }

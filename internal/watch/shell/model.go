@@ -6,12 +6,13 @@ import (
 	"context"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"strings"
 	"time"
 )
@@ -23,27 +24,33 @@ type pane struct {
 	cancel context.CancelFunc
 }
 type Model struct {
-	env                   protocol.Env
-	tabs                  []protocol.Tab
-	models                []tea.Model
-	details               protocol.Details
-	stack                 []pane
-	saved                 map[protocol.TabID][]pane
-	active, width, height int
-	serial                uint64
-	updates               <-chan client.Update
-	status                client.Status
-	fixedSession          bool
+	env                    protocol.Env
+	tabs                   []protocol.Tab
+	models                 []tea.Model
+	details                protocol.Details
+	stack                  []pane
+	saved                  map[protocol.TabID][]pane
+	active, width, height  int
+	serial                 uint64
+	updates                <-chan client.Update
+	status                 client.Status
+	fixedSession           bool
+	helpOffset, bodyHeight int
+	helpOpen               bool
 }
 type streamClosed struct{}
 
 func New(env protocol.Env, tabs []protocol.Tab, details protocol.Details, updates <-chan client.Update, fixedSession bool) *Model {
+	if env.Time == nil {
+		env.Time = protocol.NewClock(time.Now())
+	}
 	m := &Model{env: env, tabs: tabs, details: details, updates: updates, fixedSession: fixedSession, saved: map[protocol.TabID][]pane{}}
 	for _, tab := range tabs {
 		e := env
 		e.Owner = string(tab.ID)
 		m.models = append(m.models, tab.New(e))
 	}
+	m.bodyHeight = m.contentHeight()
 	return m
 }
 func wait(ch <-chan client.Update) tea.Cmd {
@@ -155,7 +162,7 @@ func (m *Model) open(factory protocol.Factory, back protocol.ReturnContext) tea.
 		m.route(oldOwner, protocol.Focus{Active: false}),
 		m.route(env.Owner, protocol.Connection(m.status)),
 		m.route(env.Owner, protocol.SessionChanged{ID: m.env.Refresh.Session()}),
-		m.route(env.Owner, tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-2)}),
+		m.route(env.Owner, tea.WindowSizeMsg{Width: m.width, Height: m.contentHeight()}),
 	}
 	commands = append(commands, m.stack[len(m.stack)-1].model.Init(), m.route(env.Owner, protocol.Focus{Active: true}), m.flush(time.Now()))
 	return tea.Batch(commands...)
@@ -173,12 +180,28 @@ func (m *Model) back() tea.Cmd {
 	return tea.Batch(m.route(m.owner(), protocol.Focus{Active: true}), m.route(m.owner(), last.back))
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	before := m.helpContext()
+	_, cmd := m.update(msg)
+	if before != m.helpContext() {
+		m.helpOffset = 0
+	}
+	// Help changes after input, snapshots and navigation as well as resize.
+	// Notify retained panes too, so their viewports never cover the footer.
+	height := m.contentHeight()
+	if height != m.bodyHeight {
+		m.bodyHeight = height
+		cmd = tea.Batch(cmd, m.broadcast(tea.WindowSizeMsg{Width: m.width, Height: height}))
+	}
+	return m, cmd
+}
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case protocol.Owned:
 		return m, m.route(msg.Owner, msg.Message)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		return m, m.broadcast(tea.WindowSizeMsg{Width: msg.Width, Height: max(0, msg.Height-2)})
+		m.bodyHeight = m.contentHeight()
+		return m, m.broadcast(tea.WindowSizeMsg{Width: msg.Width, Height: m.bodyHeight})
 	case client.Update:
 		cmds := []tea.Cmd{wait(m.updates)}
 		if msg.Status != nil {
@@ -227,6 +250,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+		if m.helpOpen {
+			return m, m.popupKey(msg)
+		}
+		if msg.Type == tea.KeyF2 || (msg.String() == "?" && !m.capturesKeys()) {
+			m.helpOpen = true
+			m.helpOffset = 0
+			return m, nil
+		}
 		if capture, ok := m.focused().(protocol.KeyCapture); ok && capture.CapturesKeys() {
 			return m, m.route(m.owner(), msg)
 		}
@@ -262,6 +293,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, m.broadcast(msg)
 }
 func (m *Model) View() string {
+	if m.env.Time != nil {
+		m.env.Time.Set(time.Now())
+	}
 	labels := make([]string, len(m.tabs))
 	for i, t := range m.tabs {
 		labels[i] = tui.Muted.Render(t.Title)
@@ -269,25 +303,28 @@ func (m *Model) View() string {
 			labels[i] = tui.Title.Underline(true).Render("[" + t.Title + "]")
 		}
 	}
-	state := tui.Warn.Bold(true).Render("◌ connecting")
-	if m.status.Connected {
-		state = tui.Ok.Bold(true).Render("● live")
-	} else if m.status.Err != nil {
-		state = tui.Warn.Bold(true).Render("● reconnecting") + tui.Muted.Render(": "+m.status.Err.Error())
-	}
 	width := m.width
 	if width <= 0 {
 		width = 100
 	}
-	height := max(0, m.height-2)
-	body := m.focused().View()
+	separator := tui.Faint.Render("  " + terminal.Glyphs().Pipe + "  ")
+	header := ansi.Truncate(tui.Ink.Bold(true).Render(m.title())+separator+m.connectionLabel()+separator+strings.Join(labels, "  "), width, "…")
+	lines := []string{header}
+	height := m.contentHeight()
+	body := strings.Split(m.focused().View(), "\n")
+	for i := 0; i < height; i++ {
+		line := ""
+		if i < len(body) {
+			line = body[i]
+		}
+		lines = append(lines, ansi.Truncate(line, width, "…"))
+	}
+	if len(lines) > 1 {
+		copy(lines[1:], m.overlayHelp(lines[1:]))
+	}
+	lines = append(lines, m.footer()...)
 	if m.height > 0 {
-		body = lipgloss.NewStyle().Width(width).MaxWidth(width).Height(height).MaxHeight(height).Render(body)
+		lines = lines[:min(len(lines), m.height)]
 	}
-	header := lipgloss.NewStyle().MaxWidth(width).Render(tui.Ink.Bold(true).Render(m.title()) + tui.Faint.Render("  │  ") + strings.Join(labels, "  "))
-	shortcut := func(k, description string) string {
-		return tui.Accent.Bold(true).Underline(true).Render(k) + tui.Muted.Render(" "+description)
-	}
-	footer := lipgloss.NewStyle().MaxWidth(width).Render(strings.Join([]string{shortcut("Tab/Shift-Tab", "tabs"), shortcut("Esc", "back"), shortcut("q", "quit")}, tui.Faint.Render("  ·  ")) + tui.Faint.Render("  │  ") + state)
-	return header + "\n" + body + "\n" + footer
+	return strings.Join(lines, "\n")
 }

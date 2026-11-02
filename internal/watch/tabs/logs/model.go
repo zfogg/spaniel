@@ -7,13 +7,16 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 const pageSize = 100
@@ -42,6 +45,11 @@ func (m *model) register() {
 	}
 	if m.severity != "" {
 		query.Set("severity", m.severity)
+	} else if m.env.Filters.ErrorsOnly {
+		query.Set("severity", "error+")
+	}
+	if m.text != "" {
+		query.Set("text", m.text)
 	}
 	m.loading, m.err = true, nil
 	m.env.Refresh.Register(client.Spec{
@@ -126,7 +134,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.reconcile()
 	case protocol.Live:
-		if row, ok := liveRow(msg.Event); ok && m.page == 1 && matches(row, m.session, m.service, m.severity, "", false) {
+		if row, ok := liveRow(msg.Event); ok && m.page == 1 && matches(row, m.session, m.service, m.severity, m.text, m.env.Filters.ErrorsOnly) {
 			m.rows = sortedUnique(append(m.rows, row), pageSize)
 			m.reconcile()
 		}
@@ -146,6 +154,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.resetPage()
 				} else {
 					m.text = strings.TrimSpace(m.input)
+					m.resetPage()
 				}
 				m.editing, m.input = "", ""
 				m.reconcile()
@@ -179,11 +188,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "end", "G":
 			i = len(rows) - 1
 		case "/":
-			m.editing, m.input = "text on loaded page", m.text
+			m.editing, m.input = "text", m.text
 		case "s":
 			m.editing, m.input = "service", m.service
 		case "v":
 			levels := []string{"", "trace", "debug", "info", "warn", "error", "fatal"}
+			if m.env.Filters.ErrorsOnly {
+				levels = []string{"", "error", "fatal"}
+			}
 			for n, level := range levels {
 				if level == m.severity {
 					m.severity = levels[(n+1)%len(levels)]
@@ -235,7 +247,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) View() string {
 	rows := m.visible()
 	// The shell owns the tab heading and connection status. Keep data context
-	// separate from the temporary inline legend for the contextual-footer move.
+	// separate from keyboard help in the shell footer.
 	var lines []string
 	service, severity := m.service, m.severity
 	if service == "" {
@@ -246,17 +258,14 @@ func (m *model) View() string {
 	}
 	filters := fmt.Sprintf("service=%s  severity=%s  page=%d  %d loaded / %d stored at snapshot", preview(service), severity, m.page, len(m.rows), m.total)
 	if m.env.Filters.ErrorsOnly {
-		filters += "  errors only (loaded page)"
+		filters += "  errors only (stored)"
 	}
 	lines = append(lines, tui.Muted.Render(filters))
 	if m.editing != "" {
 		lines = append(lines, tui.Accent.Render(m.editing+": "+clean(m.input)+"▏"))
-		lines = append(lines, tui.Muted.Render("Enter apply · Esc cancel · Ctrl+U clear input"))
-	} else {
-		lines = append(lines, tui.Muted.Render("↑↓ select · Enter full log · / text (page) · s service · v severity · [ ] pages · p pause"))
 	}
 	if m.text != "" {
-		lines = append(lines, "Text on loaded page: "+clean(m.text))
+		lines = append(lines, "Text: "+clean(m.text))
 	}
 	if m.paused {
 		lines = append(lines, tui.Warn.Render("PAUSED · background log updates retained"))
@@ -272,33 +281,58 @@ func (m *model) View() string {
 	}
 	if len(rows) == 0 && !m.loading {
 		if m.loaded || len(m.rows) > 0 {
-			lines = append(lines, "No logs match on this page. Adjust filters or browse stored pages.")
+			lines = append(lines, "No stored logs match these filters.")
 		} else if m.err == nil {
 			lines = append(lines, "Waiting for stored logs…")
 		}
 	}
 	if len(rows) > 0 {
-		lines = append(lines, tui.Faint.Render("  TIME (local)  LEVEL  SERVICE          BODY / CORRELATION"))
+		lines = append(lines, tui.Faint.Render(RenderHeader(m.width)))
 		i := m.selection(rows)
 		capacity := max(1, m.height-len(lines))
 		start := max(0, i-capacity+1)
 		for n := start; n < min(len(rows), start+capacity); n++ {
-			prefix := "  "
-			if n == i {
-				prefix = "› "
-			}
-			row := rows[n]
-			correlation := "t:— s:—"
-			if row.TraceId != "" || row.SpanId != "" {
-				correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
-			}
-			level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
-			line := prefix + stamp(row.TimestampNs, false) + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, m.width-64)) + "  " + correlation
-			if m.width < 70 {
-				line = prefix + level + " " + cell(preview(row.ServiceName), 10) + " " + preview(row.Body)
-			}
-			lines = append(lines, line)
+			lines = append(lines, RenderRow(rows[n], n == i, m.width, m.env.Now()))
 		}
 	}
 	return fit(lines, m.width, m.height)
+}
+
+func logTimeWidth(width int) int {
+	if width < 70 {
+		return max(1, min(22, width/2))
+	}
+	return min(26, max(12, width/4))
+}
+
+// RenderHeader uses the same age-aware column widths as logs and dashboard rows.
+func RenderHeader(width int) string {
+	timeWidth := logTimeWidth(width)
+	header := "  " + cell("TIME (local)", timeWidth) + "  " + cell("LEVEL", 5) + "  " + cell("SERVICE", 16) + " " + cell("BODY", max(1, width-timeWidth-52)) + "  CORRELATION"
+	if width < 70 {
+		header = "  " + cell("TIME (local)", timeWidth) + " " + cell("LEVEL", 5) + " BODY"
+	}
+	return ansi.Truncate(header, max(1, width), "…")
+}
+
+// RenderRow shares the log list columns, severity and correlation display with dashboard panels.
+func RenderRow(row apigen.Log, selected bool, width int, now ...time.Time) string {
+	reference := terminal.BatchTime(now...)
+	prefix := "  "
+	if selected {
+		prefix = "› "
+	}
+	correlation := "t:— s:—"
+	if row.TraceId != "" || row.SpanId != "" {
+		correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
+	}
+	level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
+	timeWidth := logTimeWidth(width)
+	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), timeWidth)
+	timeText += strings.Repeat(" ", max(0, timeWidth-ansi.StringWidth(timeText)))
+	line := prefix + timeText + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, width-timeWidth-52)) + "  " + correlation
+	if width < 70 {
+		line = prefix + timeText + " " + level + " " + preview(row.Body)
+	}
+	return ansi.Truncate(line, max(1, width), "…")
 }

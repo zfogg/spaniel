@@ -14,6 +14,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
+	"github.com/zfogg/spaniel/internal/watch/metadata"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
 
@@ -25,6 +26,46 @@ type detail struct {
 	width, height                                                   int
 	connected, loading, missing, uncertain, changedSession, pending bool
 	err                                                             error
+	projection                                                      []string
+	ambiguous                                                       bool
+}
+
+// NewQueryDetail opens the same full-log inspector from a SQL projection. It
+// hydrates only a unique durable record matching every supplied log column.
+func NewQueryDetail(env protocol.Env, row apigen.Log, session string, fields []string) tea.Model {
+	m := newDetail(env, row, session)
+	m.projection = append([]string(nil), fields...)
+	return m
+}
+
+func projectionMatches(a, b apigen.Log, fields []string) bool {
+	for _, field := range fields {
+		match := false
+		switch field {
+		case "timestamp_ns":
+			match = a.TimestampNs == b.TimestampNs
+		case "received_at":
+			match = a.ReceivedAt == b.ReceivedAt
+		case "service_name":
+			match = a.ServiceName == b.ServiceName
+		case "body":
+			match = a.Body == b.Body
+		case "severity":
+			match = a.Severity == b.Severity
+		case "trace_id":
+			match = a.TraceId == b.TraceId
+		case "span_id":
+			match = a.SpanId == b.SpanId
+		case "session_id":
+			match = a.SessionId == b.SessionId
+		case "attributes":
+			match = a.Attributes == b.Attributes
+		}
+		if !match {
+			return false
+		}
+	}
+	return len(fields) > 0
 }
 
 func newDetail(env protocol.Env, row apigen.Log, originSession string) *detail {
@@ -75,7 +116,15 @@ func (m *detail) content() {
 	if body == "" {
 		body = "(empty body)"
 	}
-	text := fmt.Sprintf("Service: %s\nSeverity: %s (%g)\nSession: %s\nTimestamp: %s\nReceived at: %s\nTrace ID: %s\nSpan ID: %s\n\nBody\n%s\n\nAttributes\n%s", clean(m.row.ServiceName), severityName(m.row.Severity), m.row.Severity, clean(m.row.SessionId), stamp(m.row.TimestampNs, true), stamp(m.row.ReceivedAt, true), trace, span, body, attrs)
+	info := metadata.Table([]metadata.Field{
+		{Name: "Service", Value: m.row.ServiceName},
+		{Name: "Severity", Value: fmt.Sprintf("%s (%g)", severityName(m.row.Severity), m.row.Severity)},
+		{Name: "Session", Value: m.row.SessionId},
+		{Name: "Timestamp", Value: stamp(m.row.TimestampNs, true, m.env.Now())},
+		{Name: "Received at", Value: stamp(m.row.ReceivedAt, true, m.env.Now())},
+		{Name: "Trace ID", Value: trace}, {Name: "Span ID", Value: span},
+	}, m.view.Width)
+	text := strings.Join(info, "\n") + "\n\nBody\n" + body + "\n\nAttributes\n" + attrs
 	offset := m.view.YOffset
 	m.view.SetContent(ansi.Hardwrap(text, max(1, m.view.Width), true))
 	m.view.SetYOffset(offset)
@@ -84,7 +133,7 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = max(1, msg.Width), max(1, msg.Height)
-		m.view.Width, m.view.Height = m.width, max(1, m.height-4)
+		m.view.Width, m.view.Height = m.width, max(1, m.height-2)
 		m.content()
 	case protocol.Connection:
 		m.connected = msg.Connected
@@ -111,14 +160,24 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = fmt.Errorf("unexpected log response")
 			break
 		}
-		found := false
+		found, matches := false, 0
+		// A projection does not contain durable identity. One match in a full
+		// or truncated lookup page cannot establish uniqueness beyond that page.
+		complete := len(data.Data) < 1000
+		if data.Meta != nil && data.Meta.Total != nil {
+			complete = complete && *data.Meta.Total == len(data.Data)
+		}
+		var match apigen.Log
 		for _, row := range data.Data {
-			if identity(row) == identity(m.row) {
-				m.row, found = row, true
-				break
+			if m.projection != nil && projectionMatches(row, m.row, m.projection) || m.projection == nil && identity(row) == identity(m.row) {
+				match, matches = row, matches+1
 			}
 		}
-		m.uncertain = !found && (m.row.TimestampNs <= 0 || len(data.Data) >= 1000 || (data.Meta != nil && data.Meta.Total != nil && *data.Meta.Total > len(data.Data)))
+		m.ambiguous = m.projection != nil && matches > 1
+		if matches > 0 && (m.projection == nil || matches == 1 && complete) {
+			m.row, found, m.projection = match, true, nil
+		}
+		m.uncertain = !found && (m.projection != nil || m.row.TimestampNs <= 0 || len(data.Data) >= 1000 || (data.Meta != nil && data.Meta.Total != nil && *data.Meta.Total > len(data.Data)))
 		m.missing = !found && !m.uncertain && !msg.Pending
 		m.content()
 	case protocol.Live:
@@ -154,6 +213,7 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m *detail) View() string {
+	m.content()
 	state := "stored log"
 	switch {
 	case m.changedSession:
@@ -166,21 +226,17 @@ func (m *detail) View() string {
 		state = "resyncing stored log…"
 	case m.missing:
 		state = "Log expired or removed · showing retained copy"
+	case m.ambiguous:
+		state = "Query projection matches multiple stored logs · retained fields"
+	case m.projection != nil && m.uncertain:
+		state = "Query projection · full record not uniquely available"
 	case m.uncertain:
 		state = "Retained copy · not found within bounded timestamp lookup"
 	}
-	navigation := "No trace/span correlation on this log."
-	if !m.changedSession && m.row.TraceId != "" {
-		navigation = "Enter/t trace (selects correlated span)"
+	lines := []string{tui.Title.Render("Full log") + tui.Muted.Render("  ·  "+state)}
+	if m.row.TraceId == "" && m.row.SpanId == "" {
+		lines = append(lines, "No trace/span correlation on this log.")
 	}
-	if !m.changedSession && m.row.SpanId != "" {
-		if m.row.TraceId == "" {
-			navigation = "Enter/s span · no containing trace ID"
-		} else {
-			navigation += " · s span"
-		}
-	}
-	lines := []string{tui.Title.Render("Full log") + tui.Muted.Render("  ·  "+state), tui.Accent.Render(navigation), tui.Muted.Render("↑↓/PgUp/PgDn scroll · Esc back · expired correlation: Esc restores this log")}
 	lines = append(lines, strings.Split(m.view.View(), "\n")...)
 	lines = append(lines, tui.Faint.Render(fmt.Sprintf("%d%%", int(m.view.ScrollPercent()*100))))
 	return fit(lines, m.width, m.height)

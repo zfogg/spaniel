@@ -23,6 +23,10 @@ type Options struct {
 }
 
 func New(ctx context.Context, api *client.Client, options Options) (*shell.Model, error) {
+	return newApp(ctx, api, options, allTabs())
+}
+
+func newApp(ctx context.Context, api *client.Client, options Options, tabs []protocol.Tab) (*shell.Model, error) {
 	updates, err := api.Stream(ctx)
 	if err != nil {
 		return nil, err
@@ -35,7 +39,11 @@ func New(ctx context.Context, api *client.Client, options Options) (*shell.Model
 		}})
 	}
 	env := protocol.Env{Context: ctx, API: api, Refresh: refresh, Filters: options.Filters}
-	tabs := []protocol.Tab{
+	return shell.New(env, tabs, traces.NewDetails(), updates, options.SessionID != ""), nil
+}
+
+func allTabs() []protocol.Tab {
+	return []protocol.Tab{
 		{ID: protocol.Traces, Title: "traces", New: traces.New},
 		{ID: protocol.Spans, Title: "spans", New: spans.New},
 		{ID: protocol.Metrics, Title: "metrics", New: metrics.New},
@@ -44,7 +52,36 @@ func New(ctx context.Context, api *client.Client, options Options) (*shell.Model
 		{ID: protocol.Dashboards, Title: "dashboards", New: dashboards.New},
 		{ID: protocol.Alerts, Title: "alerts", New: alerts.New},
 	}
-	return shell.New(env, tabs, traces.NewDetails(), updates, options.SessionID != ""), nil
+}
+
+// RunTrace starts the same shell/detail factories with one traces tab. Prefix
+// resolution is a command concern; rendering and live repairs stay shared.
+func RunTrace(ctx context.Context, api *client.Client, traceID, session string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	model, err := newTraceApp(ctx, api, traceID, session)
+	if err != nil {
+		return err
+	}
+	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx)).Run()
+	return err
+}
+
+func newTraceApp(ctx context.Context, api *client.Client, traceID, session string) (tea.Model, error) {
+	model, err := newApp(ctx, api, Options{SessionID: session}, allTabs()[:1])
+	if err != nil {
+		return nil, err
+	}
+	return traceStartup{Model: model, traceID: traceID}, nil
+}
+
+type traceStartup struct {
+	*shell.Model
+	traceID string
+}
+
+func (m traceStartup) Init() tea.Cmd {
+	return tea.Batch(m.Model.Init(), func() tea.Msg { return protocol.OpenTrace{TraceID: m.traceID} })
 }
 func Run(ctx context.Context, base string, options Options) error {
 	ctx, cancel := context.WithCancel(ctx)

@@ -6,31 +6,17 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 var heading = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("111"))
 
-func clean(s string) string {
-	// Never let server strings introduce terminal controls, OSC hyperlinks or
-	// bidirectional display overrides. Newlines are preserved for wrapped detail.
-	return strings.Map(func(r rune) rune {
-		if r == '\n' {
-			return r
-		}
-		if r == '\t' {
-			return ' '
-		}
-		if unicode.IsControl(r) || unicode.In(r, unicode.Cf) {
-			return -1
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func clean(s string) string { return terminal.Multiline(s) }
+
 func oneLine(s string) string { return strings.Join(strings.Fields(clean(s)), " ") }
 func label(s string) string {
 	if s == "" {
@@ -38,11 +24,11 @@ func label(s string) string {
 	}
 	return s
 }
-func stamp(ns int64) string {
+func stamp(ns int64, now ...time.Time) string {
 	if ns == 0 {
 		return "never"
 	}
-	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05Z")
+	return terminal.Timestamp(ns, "2006-01-02 15:04:05 MST", time.UTC, terminal.BatchTime(now...))
 }
 func tone(state string) string {
 	color := "245"
@@ -90,9 +76,9 @@ func (m *model) View() string {
 		}
 		body = m.ruleLines(ruleIDs(m.visibleRules()))
 	} else {
-		head = append(head, "d definition · i instances · h history · l links", "Viewing: "+m.section)
+		head = append(head, "Viewing: "+m.section)
 		if m.deleted() {
-			head = append(head, "Rule deleted or unavailable (404) · retained definition is stale · Escape returns")
+			head = append(head, "Rule deleted or unavailable (404) · retained definition is stale")
 		} else if status := m.status("rule"); status != "" {
 			head = append(head, status)
 		}
@@ -124,18 +110,14 @@ func (m *model) View() string {
 		head = append(head, m.notice)
 	}
 	if m.editing {
-		head = append(head, "Search> "+oneLine(string(m.draft))+"_  Enter apply · Esc cancel · Ctrl+U clear")
-	}
-	help := "↑↓ select · Enter details · / search · s state · v severity · [ ] API page · c clear"
-	if m.id != "" {
-		help = "↑↓ / PgUp PgDn · Enter inspect · / search · s state · v severity · [ ] history page · g group · t telemetry · c clear · Esc Back"
+		head = append(head, "Search> "+oneLine(string(m.draft))+"_")
 	}
 	// Clip every rendered line, including statuses/help, to the current viewport.
 	// This also works at one-column/one-row sizes without negative dimensions.
 	if m.height < 10 && len(head) > 1 {
 		head = head[:1]
 	}
-	available := max(0, m.height-len(head)-1)
+	available := max(0, m.height-len(head))
 	if len(head) >= m.height {
 		head = head[:max(0, m.height-1)]
 	}
@@ -146,7 +128,6 @@ func (m *model) View() string {
 	for len(lines) < m.height-1 {
 		lines = append(lines, "")
 	}
-	lines = append(lines, help)
 	for i, line := range lines {
 		lines[i] = ansi.Truncate(line, m.width, "…")
 	}
@@ -200,14 +181,18 @@ func (m *model) definition() []string {
 		return nil
 	}
 	r := m.rule
-	lines := []string{tone(ruleState(r)) + " · " + string(r.Severity) + " · id " + oneLine(r.Id),
-		"Name: " + clean(r.Name),
-		"Condition / threshold: " + clean(r.ConditionJson), "Query (version " + fmt.Sprint(r.QueryVersion) + "):", clean(r.QuerySql),
-		"Group by: " + clean(r.GroupByJson),
-		fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
-		"Last evaluation: " + stamp(r.LastEvaluatedAt) + " · duration " + duration(r.LastDurationNs),
-		"Last success: " + stamp(r.LastSuccessAt) + " · next: " + stamp(r.NextEvaluationAt),
-		fmt.Sprintf("Notifications: browser=%t · pushover=%t", r.BrowserEnabled, r.PushoverEnabled)}
+	lines := []string{tone(ruleState(r)) + " · " + string(r.Severity) + " · id " + oneLine(r.Id), "Name: " + clean(r.Name), "Condition / threshold:"}
+	lines = append(lines, m.attributeTable(r.ConditionJson)...)
+	lines = append(lines, "Query (version "+fmt.Sprint(r.QueryVersion)+"):", clean(r.QuerySql), "Group by:")
+	groups := r.GroupByJson
+	if groups == "" {
+		groups = "[]"
+	}
+	lines = append(lines, m.attributeTable(`{"group_by":`+groups+`}`)...)
+	lines = append(lines, fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
+		"Last evaluation: "+m.stamp(r.LastEvaluatedAt)+" · duration "+duration(r.LastDurationNs),
+		"Last success: "+m.stamp(r.LastSuccessAt)+" · next: "+m.stamp(r.NextEvaluationAt),
+		fmt.Sprintf("Notifications: browser=%t · pushover=%t", r.BrowserEnabled, r.PushoverEnabled))
 	if r.LastError != "" {
 		lines = append(lines, "Evaluation error: "+clean(r.LastError))
 	}
@@ -215,7 +200,7 @@ func (m *model) definition() []string {
 		lines = append(lines, fmt.Sprintf("Source: %s · modified=%t · updated=%t", clean(r.SourceFile), r.SourceFileModified, r.Updated != nil && *r.Updated))
 	}
 	if r.InstanceDiscoverySql != "" {
-		lines = append(lines, "Instance discovery: "+clean(r.InstanceDiscoverySql), fmt.Sprintf("Every %s · stale after %s · last run %s", duration(r.InstanceDiscoveryIntervalNs), duration(r.InstanceDiscoveryStaleAfterNs), stamp(r.InstanceDiscoveryLastRunAt)))
+		lines = append(lines, "Instance discovery: "+clean(r.InstanceDiscoverySql), fmt.Sprintf("Every %s · stale after %s · last run %s", duration(r.InstanceDiscoveryIntervalNs), duration(r.InstanceDiscoveryStaleAfterNs), m.stamp(r.InstanceDiscoveryLastRunAt)))
 	}
 	lines = append(lines, "Annotations:")
 	lines = append(lines, m.attributeTable(r.AnnotationsJson)...)
@@ -232,7 +217,7 @@ func (m *model) silenceLines() []string {
 	}
 	lines = append(lines, fmt.Sprintf("Silences: %d server records (read-only)", len(m.silences)))
 	for _, s := range m.silences {
-		lines = append(lines, fmt.Sprintf("  group %s · %s → %s · %s", oneLine(label(s.GroupKey)), stamp(s.StartsAt), stamp(s.EndsAt), oneLine(s.Comment)))
+		lines = append(lines, fmt.Sprintf("  group %s · %s → %s · %s", oneLine(label(s.GroupKey)), m.stamp(s.StartsAt), m.stamp(s.EndsAt), oneLine(s.Comment)))
 	}
 	return lines
 }
@@ -262,7 +247,7 @@ func (m *model) instanceLines() []string {
 			case "GROUP":
 				cells = append(cells, r.GroupKey)
 			case "LAST EVAL (UTC)":
-				cells = append(cells, stamp(r.LastEvaluatedAt))
+				cells = append(cells, m.stamp(r.LastEvaluatedAt))
 			}
 		}
 		rows = append(rows, cells)
@@ -272,7 +257,6 @@ func (m *model) instanceLines() []string {
 		lines = append(lines, "No current instances match.")
 	}
 	lines = m.selectedWindow(lines, m.instance, ids, 1)
-	lines = append(lines, "Enter inspects full labels, evaluation and acknowledgment context.")
 	return append(lines, m.silenceLines()...)
 }
 func (m *model) instanceDetail() []string {
@@ -286,22 +270,22 @@ func (m *model) instanceDetail() []string {
 		}
 		lines := []string{"Group: " + clean(r.GroupKey), "State: " + instanceState(r) + " / condition: " + r.State + " / value: " + value(r.Value), "Labels:"}
 		lines = append(lines, m.attributeTable(r.LabelsJson)...)
-		lines = append(lines, "Last evaluated: "+stamp(r.LastEvaluatedAt))
+		lines = append(lines, "Last evaluated: "+m.stamp(r.LastEvaluatedAt))
 
 		if r.FirstPendingAt != nil {
-			lines = append(lines, "Pending since: "+stamp(*r.FirstPendingAt))
+			lines = append(lines, "Pending since: "+m.stamp(*r.FirstPendingAt))
 		}
 		if r.FiredAt != nil {
-			lines = append(lines, "Fired: "+stamp(*r.FiredAt))
+			lines = append(lines, "Fired: "+m.stamp(*r.FiredAt))
 		}
 		if r.ResolvedAt != nil {
-			lines = append(lines, "Resolved: "+stamp(*r.ResolvedAt))
+			lines = append(lines, "Resolved: "+m.stamp(*r.ResolvedAt))
 		}
 		if r.LastError != "" {
 			lines = append(lines, "Error: "+clean(r.LastError))
 		}
 		if r.AcknowledgedAt != nil {
-			lines = append(lines, "Acknowledgment: "+stamp(*r.AcknowledgedAt)+" / "+clean(r.AcknowledgementNote))
+			lines = append(lines, "Acknowledgment: "+m.stamp(*r.AcknowledgedAt)+" / "+clean(r.AcknowledgementNote))
 		}
 		return append(lines, m.silenceLines()...)
 	}
@@ -313,7 +297,7 @@ func (m *model) eventDetail() []string {
 	}
 	for _, r := range m.events {
 		if r.Id == m.event {
-			return []string{"Event: " + r.Id, "Kind: " + r.Kind + " / state: " + r.State + " / value: " + value(r.Value), "Group: " + r.GroupKey, "Time: " + stamp(r.CreatedAt), r.Detail}
+			return []string{"Event: " + r.Id, "Kind: " + r.Kind + " / state: " + r.State + " / value: " + value(r.Value), "Group: " + r.GroupKey, "Time: " + m.stamp(r.CreatedAt), r.Detail}
 		}
 	}
 	return []string{"This event is no longer on the current history page. Press h for history."}
@@ -341,10 +325,7 @@ func (m *model) historyLines() []string {
 		for _, column := range columns {
 			switch column.title {
 			case "TIME (UTC)", "UTC TIME":
-				text := stamp(r.CreatedAt)
-				if column.width == 8 && r.CreatedAt != 0 {
-					text = time.Unix(0, r.CreatedAt).UTC().Format("15:04:05")
-				}
+				text := m.stamp(r.CreatedAt)
 				cells = append(cells, text)
 			case "KIND":
 				cells = append(cells, r.Kind)
@@ -381,3 +362,5 @@ func sortedKeys(v map[string]string) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+func (m *model) stamp(ns int64) string { return stamp(ns, m.env.Now()) }

@@ -30,6 +30,7 @@ type detail struct {
 	env                                        protocol.Env
 	metric                                     apigen.MetricCatalogEntry
 	data                                       seriesData
+	admission                                  admission
 	key                                        client.Key
 	revision                                   int
 	session, selected, operation, query, draft string
@@ -43,6 +44,7 @@ type detail struct {
 func newDetail(env protocol.Env, row apigen.MetricCatalogEntry) *detail {
 	m := &detail{env: env, metric: row, session: env.Refresh.Session(), width: 100, height: 28, window: 2, now: time.Now(), operation: defaultOperation(row)}
 	m.register()
+	registerAdmission(env)
 	return m
 }
 func (m *detail) Init() tea.Cmd      { return nil }
@@ -160,12 +162,16 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.ID != m.session {
 			m.session = msg.ID
 			m.data = seriesData{}
+			m.admission = admission{}
 			m.selected = ""
 			m.loaded = false
 			m.err = nil
 			m.offset = 0
 		}
 	case protocol.Result:
+		if m.admission.accept(msg, m.env.Owner, m.session) {
+			break
+		}
 		if msg.Key != m.key || msg.Session != m.session {
 			break
 		}
@@ -319,6 +325,7 @@ func (m *detail) kind() string {
 	return m.metric.Type
 }
 func (m *detail) render() ([]string, []string) {
+	reference := m.env.Now()
 	unit := m.data.Unit
 	if unit == "" {
 		unit = m.metric.Unit
@@ -333,7 +340,7 @@ func (m *detail) render() ([]string, []string) {
 	if temporality == "" && m.metric.AggregationTemporality != nil {
 		temporality = *m.metric.AggregationTemporality
 	}
-	header := []string{tui.Title.Render(safe(m.metric.Name)) + " · " + safe(m.metric.ServiceName), fmt.Sprintf("%s · %s · %s · view %s · window %s", safe(m.kind()), safe(temporality), safe(unit), m.operation, windows[m.window]), tui.Muted.Render("←→ series · / labels · o operation · w window · a overlay · ↑↓/PgDn scroll")}
+	header := []string{tui.Title.Render(safe(m.metric.Name)) + " · " + safe(m.metric.ServiceName), fmt.Sprintf("%s · %s · %s · view %s · window %s", safe(m.kind()), safe(temporality), safe(unit), m.operation, windows[m.window])}
 	if m.data.Monotonic != nil {
 		header[1] += fmt.Sprintf(" · monotonic %t", *m.data.Monotonic)
 	}
@@ -347,7 +354,7 @@ func (m *detail) render() ([]string, []string) {
 	if query != "" {
 		header = append(header, "Label filter: "+safe(query))
 	}
-	body := []string{safe(m.metric.Description), "Session: " + safe(m.session) + " · UTC · " + timestamp(m.now.Add(-windows[m.window]).UnixNano()) + " → " + timestamp(m.now.UnixNano())}
+	body := []string{safe(m.metric.Description), m.admission.summary(m.metric.ServiceName, m.metric.Name), "Session: " + safe(m.session), "From: " + timestamp(m.now.Add(-windows[m.window]).UnixNano(), reference), "To: " + timestamp(m.now.UnixNano(), reference)}
 	if m.data.Capped {
 		body = append(body, "Bounded view: first 256 series, latest 2048 samples per series; no aggregation.")
 	}
@@ -405,7 +412,7 @@ func (m *detail) render() ([]string, []string) {
 				}
 			}
 			if m.width >= 40 && m.height >= 15 {
-				body = append(body, strings.Split(charts.RenderTimeSeries(m.width-2, min(10, max(4, m.height/3)), m.now.Add(-windows[m.window]), m.now, sets), "\n")...)
+				body = append(body, strings.Split(charts.RenderTimeSeries(m.width-2, min(10, max(4, m.height/3)), m.now.Add(-windows[m.window]), m.now, sets, reference), "\n")...)
 			} else {
 				body = append(body, "Chart hidden at this terminal size; sample table remains available.")
 			}
@@ -427,7 +434,7 @@ func (m *detail) render() ([]string, []string) {
 			if m.kind() == "gauge" || m.kind() == "sum" || m.kind() == "counter" || m.kind() == "histogram" {
 				body = append(body, fmt.Sprintf("%s = %s %s", m.operation, display, safe(unit)))
 			}
-			body = append(body, sampleDescription(p, m.kind(), m.width)...)
+			body = append(body, sampleDescription(p, m.kind(), m.width, reference)...)
 			if m.operation == "rate" {
 				body = append(body, "Raw fields use the original unit: "+safe(m.metric.Unit))
 			}
@@ -459,6 +466,5 @@ func (m *detail) View() string {
 	offset := min(m.offset, max(0, len(wrapped)-available))
 	header = append(header, wrapped[offset:min(len(wrapped), offset+available)]...)
 	header = append(header, fmt.Sprintf("Scroll %d/%d", offset+1, max(1, len(wrapped)-available+1)))
-	header = append(header, tui.Muted.Render("Esc returns to catalog"))
 	return fit(header, m.width, m.height)
 }

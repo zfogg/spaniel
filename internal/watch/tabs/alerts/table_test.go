@@ -3,12 +3,16 @@ package alerts
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	attributeview "github.com/zfogg/spaniel/internal/watch/attributes"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	_, env := newFixture(t)
 	m := New(env).(*model)
 	drain(t, env, m)
@@ -50,7 +54,7 @@ func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
 			}
 		}
 	}
-	if got := stamp(1793640000123456789); got != "2026-11-02 17:20:00Z" {
+	if got := stamp(1793640000123456789, time.Unix(0, 1793640000123456789).Add(2*time.Minute)); got != "2026-11-02 17:20:00 UTC "+terminal.Glyphs().Bullet+" 2m ago" {
 		t.Fatal(got)
 	}
 	if got := duration(1234567); got != "1.23ms" {
@@ -58,22 +62,33 @@ func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
 	}
 }
 
+func TestAlertTableGlyphModesKeepPayload(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", mode)
+		m := &model{width: 80}
+		lines := m.table([]tableColumn{{title: "STATE", width: 10}, {title: "GROUP"}}, [][]string{{"firing", "user │ | • * data"}}, nil, "")
+		if !strings.Contains(lines[0], terminal.ColumnSeparator()) || !strings.Contains(lines[1], "user │ | • * data") {
+			t.Fatal(mode, lines)
+		}
+	}
+}
+
 func TestAttributeTablesPreserveTypesPrecisionAndFullValues(t *testing.T) {
 	raw := `{"service.name":"checkout","number":9007199254740993,"flag":true,"nested":{"items":["first",9223372036854775807,null]},"empty":[]}`
-	rows, err := attributeRows(raw)
+	rows, err := attributeview.Parse(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := map[string]attributeRow{}
+	found := map[string]attributeview.Row{}
 	for _, row := range rows {
-		found[row.key] = row
+		found[row.Key] = row
 	}
-	for key, want := range map[string]attributeRow{
-		"number":             {"number", "number", "9007199254740993"},
-		`nested["items"][1]`: {`nested["items"][1]`, "number", "9223372036854775807"},
-		"flag":               {"flag", "boolean", "true"},
-		`nested["items"][2]`: {`nested["items"][2]`, "null", "null"},
-		"empty":              {"empty", "array", "(empty)"},
+	for key, want := range map[string]attributeview.Row{
+		"number":             {Key: "number", Type: "number", Value: "9007199254740993"},
+		`nested["items"][1]`: {Key: `nested["items"][1]`, Type: "number", Value: "9223372036854775807"},
+		"flag":               {Key: "flag", Type: "boolean", Value: "true"},
+		`nested["items"][2]`: {Key: `nested["items"][2]`, Type: "null", Value: "null"},
+		"empty":              {Key: "empty", Type: "array", Value: "0 items"},
 	} {
 		if found[key] != want {
 			t.Fatalf("attribute %s: %#v", key, found[key])

@@ -169,6 +169,7 @@ func main() {
 
 	root := &cobra.Command{
 		Use:          "spaniel",
+		Args:         cobra.NoArgs,
 		Version:      version,
 		Short:        "Local OpenTelemetry collector and viewer",
 		SilenceUsage: true,
@@ -378,8 +379,7 @@ Examples:
 	root.AddCommand(doctorSubcommand(v))
 	root.AddCommand(traceSubcommand())
 	root.AddCommand(logsSubcommand())
-	root.AddCommand(watchSubcommand())
-	root.AddCommand(tuiSubcommand())
+	registerTUICommand(root)
 	root.AddCommand(compactSubcommand())
 	root.AddCommand(seedSubcommand(v))
 	root.AddCommand(runSubcommand())

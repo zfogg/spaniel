@@ -138,11 +138,25 @@ See which of your HTTP routes have ever been traced. Point spaniel at an OpenAPI
 Not everything needs a browser. spaniel ships a full set of TUI commands for the keyboard-first:
 
 ```bash
-spaniel tui              # all-in-one dashboard: spans + logs + issues, live
-spaniel watch            # live span/issue ticker (table on a TTY, line-stream in a pipe)
+spaniel tui              # live seven-tab dashboard on a TTY; span/issue line stream in a pipe
 spaniel logs tail        # follow logs with severity/service/trace filters
-spaniel trace <id>       # open an interactive waterfall for one trace
+spaniel trace <id>       # shared live waterfall/span inspector for one trace
 ```
+
+The interactive dashboard has traces, spans, metrics, logs, lints, dashboards and
+alerts. Tab/Shift-Tab switch views; Enter inspects a row and Escape returns. The
+single bottom shortcut row follows the focused tab, inspector or input. `? help`
+opens the complete shortcut popup; while editing text, use `F2 help` and type `?`
+normally. Popup arrows/page keys scroll and Escape closes it. Connection state
+stays in the heading. Trace, span and full-log metadata use aligned tables with
+ellipses for long fields; timestamps include relative ages (` • 2m ago` or ` • in 2m`).
+Attribute tables preserve complete scrollable values.
+`tui --session ID` pins a recording; omission follows the
+active recording. Dashboards and alerts are read-only. Dashboard panels include
+heatmaps, signed bars, gauges, proportional pie bars, and linked telemetry lists. `trace --session ID` uses
+the same live inspector. See [TUI development](docs/watch-development.md) for
+filter/history bounds and integration validation.
+
 
 On a pipe these stream plain lines, so they compose with `grep`, `jq`, and friends.
 
@@ -475,10 +489,9 @@ spaniel record -- <cmd> [args...]    same, but save as a baseline and open the d
 
 **Terminal viewers**
 ```
-spaniel tui                          all-in-one live dashboard
-spaniel watch                        live span/issue ticker
+spaniel tui                         live seven-tab dashboard; pipe span/issue lines
 spaniel logs tail                    follow logs (--service / --trace / --severity filters)
-spaniel trace <id|short-id>          interactive waterfall for one trace
+spaniel trace <id|short-id>          shared live waterfall and span inspector
 ```
 
 **Maintenance**
@@ -557,7 +570,7 @@ spaniel is specifically built for the **local development loop**, not production
 - [x] Baseline import from OTLP / Jaeger JSON (`spaniel import`)
 - [x] Instrumentation coverage (`--routes-file`)
 - [x] CI regression detection (`spaniel ci`)
-- [x] Terminal UI (`spaniel tui` / `watch` / `logs tail`)
+- [x] Terminal UI (`spaniel tui` / `trace` / `logs tail`)
 - [ ] Live import from a running Tempo / Jaeger backend
 - [ ] More detectors (connection-pool exhaustion, retry storms)
 - [ ] Cloud baseline sync (team feature)

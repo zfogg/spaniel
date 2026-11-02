@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/watch/charts"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
 	"sort"
 	"strconv"
@@ -15,13 +16,20 @@ import (
 )
 
 type settings struct {
-	Unit       string  `json:"unit"`
-	TimeWindow float64 `json:"time_window_seconds"`
+	Unit       string            `json:"unit"`
+	TimeWindow float64           `json:"time_window_seconds"`
+	Min        any               `json:"min"`
+	Max        any               `json:"max"`
+	Thresholds []any             `json:"thresholds"`
+	Columns    map[string]string `json:"columns"`
 }
 
-func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, live bool) []string {
+func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, live bool, now ...time.Time) []string {
+	reference := terminal.BatchTime(now...)
 	var config settings
-	_ = json.Unmarshal([]byte(raw), &config)
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.UseNumber()
+	configErr := decoder.Decode(&config)
 	lines := []string{}
 	if config.Unit != "" {
 		lines = append(lines, "Unit: "+config.Unit)
@@ -36,6 +44,18 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 		return append(lines, "No telemetry matches this query.")
 	}
 	switch kind {
+	case "bar", "pie", "entity_list", "gauge", "heatmap":
+		if configErr != nil && strings.TrimSpace(raw) != "" {
+			return append(lines, "Invalid panel settings: "+configErr.Error())
+		}
+		switch kind {
+		case "gauge":
+			lines = append(lines, renderGauge(config, data.Rows, width)...)
+		case "heatmap":
+			lines = append(lines, renderHeatmap(data, width, reference)...)
+		default:
+			lines = append(lines, renderCategories(kind, config, data.Rows, width)...)
+		}
 	case "single_value":
 		for _, row := range data.Rows {
 			label := ""
@@ -63,7 +83,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 				config.TimeWindow = 900
 			}
 			if config.TimeWindow > 0 {
-				to = time.Now()
+				to = reference
 				from = to.Add(-time.Duration(config.TimeWindow * float64(time.Second)))
 				for i := range series {
 					points := series[i].Points[:0]
@@ -79,11 +99,11 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			for _, s := range series {
 				labels = append(labels, s.Name)
 			}
-			lines = append(lines, "Series: "+strings.Join(labels, " | "), displayTime(from)+" → "+displayTime(to))
-			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series), "\n")...)
+			lines = append(lines, "Series: "+strings.Join(labels, terminal.ColumnSeparator()), "From: "+displayTime(from, reference), "To: "+displayTime(to, reference))
+			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series, reference), "\n")...)
 		}
 		if fallback {
-			lines = append(lines, renderTable(data, true, width)...)
+			lines = append(lines, renderTableAt(data, true, reference, width)...)
 		}
 	default:
 		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", kind))
@@ -91,9 +111,14 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 	}
 	return lines
 }
-func displayTime(t time.Time) string { return t.Local().Format("2006-01-02 15:04:05.000 MST") }
+func displayTime(t time.Time, now ...time.Time) string {
+	return terminal.Timestamp(t.UnixNano(), "2006-01-02 15:04:05.000 MST", time.Local, terminal.BatchTime(now...))
+}
 
 func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []string {
+	return renderTableAt(data, sampleTimes, time.Now(), widths...)
+}
+func renderTableAt(data apigen.QueryPreview, sampleTimes bool, reference time.Time, widths ...int) []string {
 	columns := append([]string(nil), data.Columns...)
 	if len(columns) == 0 {
 		seen := map[string]bool{}
@@ -116,9 +141,9 @@ func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []st
 			// timestamps. Arbitrary table/fallback SQL columns retain their values.
 			if sampleTimes {
 				switch name {
-				case "timestamp_ns", "time_ns", "timestamp", "start_ns":
+				case "timestamp_ns", "time_ns", "timestamp", "time", "start_ns":
 					if sampleTime, ok := timestamp(map[string]any{name: row[name]}); ok {
-						value = displayTime(sampleTime)
+						value = displayTime(sampleTime, reference)
 					}
 				}
 			}
@@ -129,7 +154,7 @@ func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []st
 	if len(widths) > 0 {
 		return layoutTable(columns, rows, widths[0])
 	}
-	lines := []string{fmt.Sprintf("%d rows · columns: %s", len(rows), strings.Join(columns, " | "))}
+	lines := []string{fmt.Sprintf("%d rows · columns: %s", len(rows), strings.Join(columns, terminal.ColumnSeparator()))}
 	for i, row := range rows {
 		values := []string{}
 		for j, value := range row {
@@ -143,6 +168,7 @@ func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []st
 // Result cells wrap instead of truncating. Wide terminals get aligned columns;
 // narrow terminals get labeled records, preserving every SQL column and value.
 func layoutTable(columns []string, rows [][]string, width int) []string {
+	glyphs := terminal.Glyphs()
 	lines := []string{fmt.Sprintf("%d rows", len(rows))}
 	if len(columns) == 0 {
 		return lines
@@ -181,15 +207,15 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 				}
 				parts[i] = text + strings.Repeat(" ", max(0, columnWidths[i]-ansi.StringWidth(text)))
 			}
-			lines = append(lines, strings.Join(parts, " │ "))
+			lines = append(lines, strings.Join(parts, " "+glyphs.Pipe+" "))
 		}
 	}
 	appendRow(columns)
 	separators := make([]string, len(columns))
 	for i, size := range columnWidths {
-		separators[i] = strings.Repeat("─", size)
+		separators[i] = strings.Repeat(glyphs.Rule, size)
 	}
-	lines = append(lines, strings.Join(separators, "─┼─"))
+	lines = append(lines, strings.Join(separators, glyphs.Rule+glyphs.Cross+glyphs.Rule))
 	for _, row := range rows {
 		appendRow(row)
 	}
@@ -230,14 +256,14 @@ func number(v any) (float64, bool) {
 		if strings.TrimSpace(x) == "" {
 			return 0, false
 		}
-		n, err = strconv.ParseFloat(x, 64)
+		n, err = strconv.ParseFloat(strings.TrimSpace(x), 64)
 	default:
 		return 0, false
 	}
 	return n, err == nil && !math.IsNaN(n) && !math.IsInf(n, 0)
 }
 func timestamp(row map[string]any) (time.Time, bool) {
-	for _, key := range []string{"timestamp_ns", "time_ns", "timestamp", "start_ns"} {
+	for _, key := range []string{"timestamp_ns", "time_ns", "timestamp", "time", "start_ns"} {
 		v, exists := row[key]
 		if !exists || v == nil {
 			continue
@@ -254,7 +280,7 @@ func timestamp(row map[string]any) (time.Time, bool) {
 				return t, true
 			}
 			if integer, err := strconv.ParseInt(s, 10, 64); err == nil {
-				if key != "timestamp" || integer > 1e14 || integer < -1e14 {
+				if key != "timestamp" && key != "time" || integer > 1e14 || integer < -1e14 {
 					return time.Unix(0, integer), true
 				}
 				return time.UnixMilli(integer), true
@@ -264,7 +290,7 @@ func timestamp(row map[string]any) (time.Time, bool) {
 		if !ok {
 			return time.Time{}, false
 		}
-		if key != "timestamp" || math.Abs(n) > 1e14 {
+		if key != "timestamp" && key != "time" || math.Abs(n) > 1e14 {
 			if n >= float64(math.MaxInt64) || n < float64(math.MinInt64) {
 				return time.Time{}, false
 			}

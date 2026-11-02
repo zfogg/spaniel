@@ -113,7 +113,9 @@ func (c *Client) read(ctx context.Context, method, path string, query url.Values
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return &HTTPError{resp.StatusCode, strings.TrimSpace(string(b))}
 	}
-	return json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(out)
+	decoder := json.NewDecoder(io.LimitReader(resp.Body, 32<<20))
+	decoder.UseNumber()
+	return decoder.Decode(out)
 }
 
 // Stream may be called once at a time. Cancellation closes the connection and

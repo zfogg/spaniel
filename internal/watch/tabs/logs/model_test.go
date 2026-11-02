@@ -204,12 +204,16 @@ func TestFiltersDedupeAndInputCapture(t *testing.T) {
 	}
 	pressKey(m, "/")
 	pressKey(m, "declined")
-	pressKey(m, "enter") // Attributes participate in text search.
+	pressKey(m, "enter") // The server now searches attributes before pagination.
+	if !m.loading || len(m.rows) != 0 {
+		t.Fatal("global filter retained an unfiltered page")
+	}
+	snapshot(m, env.Owner, "list", row, other)
 	if len(m.visible()) != 2 {
 		t.Fatal("attribute search missed matches")
 	}
 	m.Update(event(wrong, false))
-	if len(m.rows) != 4 {
+	if len(m.rows) != 2 {
 		t.Fatal("wrong session live row inserted")
 	}
 	m.Update(protocol.SessionChanged{ID: "new"})
@@ -219,6 +223,7 @@ func TestFiltersDedupeAndInputCapture(t *testing.T) {
 }
 
 func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	env := testEnv(t)
 	m := New(env).(*model)
 	row := logRow("first line\nsecond line", 100)
@@ -233,7 +238,7 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	d.Update(protocol.Connection{Connected: true})
 	d.Update(protocol.SessionChanged{ID: "session"})
 	d.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
-	for _, value := range []string{"first line", "second line", "cart.items", "Received at:", row.TraceId, row.SpanId} {
+	for _, value := range []string{"first line", "second line", "cart.items", "Received at │", row.TraceId, row.SpanId} {
 		if !strings.Contains(d.View(), value) {
 			t.Fatalf("full log missing %q: %s", value, d.View())
 		}
@@ -269,6 +274,56 @@ func TestFullLogNavigationMissingCorrelationAndExpiry(t *testing.T) {
 	d.Update(protocol.SessionChanged{ID: "other"})
 	if d.row.Body != "" || pressKey(d, "s") != nil || !strings.Contains(d.View(), "Session changed") {
 		t.Fatal("old session detail retained data")
+	}
+}
+
+func TestProjectedLogHydratesOnlyUniqueDurableMatch(t *testing.T) {
+	env := testEnv(t)
+	stored := logRow("query result", 1793631000000000001)
+	projected := stored
+	projected.Attributes, projected.ReceivedAt = "", 0
+	fields := []string{"timestamp_ns", "body", "service_name", "trace_id", "span_id", "severity"}
+	inspector := NewQueryDetail(env, projected, "session", fields).(*detail)
+	snapshot(inspector, env.Owner, "log", stored)
+	if inspector.row.ReceivedAt != stored.ReceivedAt || inspector.row.Attributes != stored.Attributes || inspector.projection != nil {
+		t.Fatal("unique projection did not hydrate full log")
+	}
+	other := stored
+	other.ReceivedAt++
+	ambiguous := NewQueryDetail(env, projected, "session", fields).(*detail)
+	snapshot(ambiguous, env.Owner, "log", stored, other)
+	if !ambiguous.ambiguous || ambiguous.row.ReceivedAt != 0 || ambiguous.missing {
+		t.Fatal("ambiguous projection picked a fake identity")
+	}
+	if !strings.Contains(ambiguous.View(), "multiple stored logs") {
+		t.Fatal(ambiguous.View())
+	}
+	wrong := stored
+	wrong.SpanId = "unrelated"
+	notFound := NewQueryDetail(env, projected, "session", fields).(*detail)
+	snapshot(notFound, env.Owner, "log", wrong)
+	if notFound.row.ReceivedAt != 0 || !notFound.uncertain || notFound.missing {
+		t.Fatal("projection crossed correlation or reported confirmed expiry")
+	}
+	for _, limitSized := range []bool{false, true} {
+		bounded := NewQueryDetail(env, projected, "session", fields).(*detail)
+		rows := []apigen.Log{stored}
+		var meta *apigen.Meta
+		if limitSized {
+			for i := 1; i < 1000; i++ {
+				unrelated := stored
+				unrelated.Body = "different"
+				unrelated.ReceivedAt += int64(i)
+				rows = append(rows, unrelated)
+			}
+		} else {
+			total := 2
+			meta = &apigen.Meta{Total: &total}
+		}
+		bounded.Update(protocol.Result{Key: client.Key{Owner: env.Owner, Name: "log"}, Data: client.Envelope[[]apigen.Log]{Data: rows, Meta: meta}})
+		if bounded.row.ReceivedAt != 0 || bounded.row.Attributes != "" || bounded.projection == nil || !bounded.uncertain || bounded.missing {
+			t.Fatal("incomplete lookup claimed a unique identity", limitSized, bounded.row)
+		}
 	}
 }
 

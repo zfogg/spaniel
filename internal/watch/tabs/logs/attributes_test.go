@@ -7,12 +7,13 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
 
 func TestAttributeTablePreservesTypesExactNumbersAndNestedValues(t *testing.T) {
 	raw := `{"large":18446744073709551615,"precise":1.234567890123456789,"flag":true,"text":"true","nothing":null,"nested":{"child":"value"},"array":[7,"entry",{}],"empty":[]}`
 	table := attributeTable(raw, 120)
-	for _, expected := range []string{"KEY", "TYPE", "VALUE", "18446744073709551615", "1.234567890123456789", "boolean", "string", "null", `nested["child"]`, "object", "array[0]", "array[1]", "array[2]", "0 keys", "0 items"} {
+	for _, expected := range []string{"KEY", "TYPE", "VALUE", "18446744073709551615", "1.234567890123456789", "boolean", "string", "null", `nested["child"]`, "object", "array[0]", "array[1]", "array[2]", "0 fields", "0 items"} {
 		if !strings.Contains(table, expected) {
 			t.Fatalf("attributes table lost %q: %s", expected, table)
 		}
@@ -46,12 +47,14 @@ func TestAttributeTableWrapsFullValuesAndHandlesMalformedData(t *testing.T) {
 }
 
 func TestTimestampPresentationUsesMillisecondsAndKeepsInternalPrecision(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	ns := time.Date(2026, 11, 2, 17, 30, 0, 123456789, time.UTC).UnixNano()
-	full := stamp(ns, true)
-	if !strings.Contains(full, ".123 ") || strings.Contains(full, "123456789") || !strings.Contains(full[len(full)-6:], ":") {
+	reference := time.Unix(0, ns).Add(2 * time.Minute)
+	full := stamp(ns, true, reference)
+	if !strings.Contains(full, ".123 ") || strings.Contains(full, "123456789") || !strings.HasSuffix(full, " • 2m ago") {
 		t.Fatal("timestamp is not a readable millisecond date/time with timezone", full)
 	}
-	if !strings.HasSuffix(stamp(ns, false), ".123") {
+	if !strings.HasSuffix(stamp(ns, false, reference), ".123 • 2m ago") {
 		t.Fatal("list timestamp precision")
 	}
 	row := logRow("body", ns)
@@ -63,5 +66,42 @@ func TestTimestampPresentationUsesMillisecondsAndKeepsInternalPrecision(t *testi
 	d := newDetail(testEnv(t), row, "session")
 	if strings.Contains(d.View(), "Timestamp ns:") || strings.Contains(d.View(), "Received at ns:") || strings.Contains(d.View(), ".123456789") {
 		t.Fatal("inspector exposes raw nanosecond timestamps", d.View())
+	}
+}
+
+func TestFullLogAgesFollowSharedRenderClock(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
+	now := time.Date(2026, 11, 2, 21, 5, 0, 0, time.UTC)
+	env := testEnv(t)
+	env.Time = protocol.NewClock(now)
+	row := logRow("clocked log", now.Add(-2*time.Minute).UnixNano())
+	detail := newDetail(env, row, "session")
+	if !strings.Contains(detail.View(), " • 2m ago") {
+		t.Fatal(detail.View())
+	}
+	env.Time.Set(now.Add(time.Minute))
+	if !strings.Contains(detail.View(), " • 3m ago") || row.TimestampNs != now.Add(-2*time.Minute).UnixNano() {
+		t.Fatal("age did not repaint or changed durable time", detail.View())
+	}
+}
+
+func TestLogHeadersAlignWithAgeAwareRows(t *testing.T) {
+	now := time.Date(2026, 11, 2, 21, 5, 0, 0, time.UTC)
+	row := logRow("body", now.Add(-2*time.Minute).UnixNano())
+	row.ServiceName = "service-marker"
+	row.Severity = 17
+	for _, width := range []int{40, 60, 80, 120} {
+		header := RenderHeader(width)
+		line := ansi.Strip(RenderRow(row, false, width, now))
+		pairs := map[string]string{"LEVEL": "ERROR", "BODY": "body"}
+		if width >= 70 {
+			pairs["SERVICE"] = "service-marker"
+		}
+		for heading, value := range pairs {
+			headingAt, valueAt := strings.Index(header, heading), strings.Index(line, value)
+			if headingAt < 0 || valueAt < 0 || ansi.StringWidth(header[:headingAt]) != ansi.StringWidth(line[:valueAt]) {
+				t.Fatalf("width %d: %s misaligned:\n%s\n%s", width, heading, header, line)
+			}
+		}
 	}
 }

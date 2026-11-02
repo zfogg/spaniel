@@ -7,6 +7,7 @@ import (
 
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/tui"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type flatSpan struct {
@@ -153,7 +154,8 @@ func waterfallRow(row flatSpan, selected bool, start, end int64, width int) stri
 	if width >= 62 {
 		labelWidth := max(16, min(52, width/2))
 		barWidth := max(1, width-labelWidth-24)
-		line = prefix + pad(label, labelWidth) + " " + pad(duration(s.DurationNs), 10) + " " + pad(status, 5) + " |" + waterfallBar(s, start, end, barWidth) + "|"
+		edge := terminal.Glyphs().Pipe
+		line = prefix + pad(label, labelWidth) + " " + pad(duration(s.DurationNs), 10) + " " + pad(status, 5) + " " + edge + waterfallBar(s, start, end, barWidth) + edge
 	}
 	line = clip(line, width)
 	if s.StatusCode >= 2 {

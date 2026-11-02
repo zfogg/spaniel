@@ -175,6 +175,7 @@ func TestTraceSpanRoundTripAndLateParentSelection(t *testing.T) {
 }
 
 func TestInspectorCompleteDataRelatedLogsAndErrors(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	m := NewDetails().Span(testEnv("detail:1"), protocol.OpenSpan{TraceID: "trace", SpanID: "child"}).(*spanModel)
 	s := sampleSpan("child", "parent", 1793631000000000000)
 	s.StatusCode = 2
@@ -187,7 +188,7 @@ func TestInspectorCompleteDataRelatedLogsAndErrors(t *testing.T) {
 	l := apigen.Log{SessionId: "seed", TraceId: "trace", SpanId: "child", Body: "query failed", TimestampNs: s.StartNs, ReceivedAt: 1}
 	m.Update(result(m.env.Owner, "logs", 2, client.Envelope[[]apigen.Log]{Data: []apigen.Log{l, l, {SessionId: "seed", TraceId: "other", SpanId: "child", Body: "wrong trace"}}}))
 	content := ansi.Strip(strings.Join(m.content(), "\n"))
-	for _, text := range []string{"database timeout", "Trace ID: trace", "Span ID: child", "Parent ID: parent", "http.route", "service.version", "exception.message", "linked-trace", "linked-span", "vendor=state", "2026-11-02 14:50:00.000 UTC", "query failed"} {
+	for _, text := range []string{"database timeout", "Trace ID  │ trace", "Span ID   │ child", "Parent ID │ parent", "http.route", "service.version", "exception.message", "linked-trace", "linked-span", "vendor=state", "2026-11-02 14:50:00.000 UTC", "query failed"} {
 		if !strings.Contains(content, text) {
 			t.Fatalf("inspector omitted %q", text)
 		}

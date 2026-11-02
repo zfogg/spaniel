@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -12,6 +11,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef6b73"))
@@ -71,10 +71,18 @@ func (s viewState) banner() string {
 		parts = append(parts, "STALE · disconnected; reconnecting")
 	} else if s.pending {
 		parts = append(parts, "Syncing durable changes…")
-	} else if !s.loading && s.err == "" {
-		parts = append(parts, "LIVE")
+	}
+	if len(parts) == 0 {
+		return ""
 	}
 	return tui.Muted.Render(strings.Join(parts, " · "))
+}
+
+func (s viewState) appendBanner(lines []string) []string {
+	if banner := s.banner(); banner != "" {
+		return append(lines, banner)
+	}
+	return lines
 }
 
 func eventSpan(e liveevent.Message) (apigen.Span, bool) {
@@ -129,14 +137,8 @@ func convert[T any](v any) T               { out, _ := decodeRow[T](v); return o
 func spanRow(s apigen.Span) apigen.SpanRow { return convert[apigen.SpanRow](s) }
 
 // Telemetry is untrusted terminal text, including stored attributes and IDs.
-func clean(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func clean(s string) string { return terminal.SingleLine(s) }
+
 func clip(s string, w int) string { return ansi.Truncate(s, max(0, w), "…") }
 func pad(s string, w int) string {
 	s = clip(s, w)
@@ -179,11 +181,11 @@ func statusText(code float64) string {
 	}
 	return "UNSET"
 }
-func stamp(ns int64) string {
+func stamp(ns int64, now ...time.Time) string {
 	if ns <= 0 {
 		return "(missing or invalid)"
 	}
-	return time.Unix(0, ns).UTC().Format("2006-01-02 15:04:05.000 MST")
+	return terminal.Timestamp(ns, "2006-01-02 15:04:05.000 MST", time.UTC, terminal.BatchTime(now...))
 }
 func rowWindow(n, cursor, height int) (int, int) {
 	height = max(1, height)

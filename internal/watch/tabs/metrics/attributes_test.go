@@ -11,6 +11,7 @@ import (
 )
 
 func TestAttributeTablePreservesTypesNumbersContainersAndWrappedValues(t *testing.T) {
+	t.Setenv("SPANIEL_ASCII", "0")
 	var attrs map[string]any
 	if err := jsonDecode(`{"count":9007199254740993,"decimal":1.234567890123456789,"enabled":true,"missing":null,"deployment":{"region":"us-east","replicas":3},"tags":["api",false,7]}`, &attrs); err != nil {
 		t.Fatal(err)
@@ -36,8 +37,8 @@ func TestAttributeTablePreservesTypesNumbersContainersAndWrappedValues(t *testin
 			if ansi.StringWidth(line) > width {
 				t.Fatalf("attribute width %d overflow %q", width, line)
 			}
-			if width >= 24 {
-				columns := strings.SplitN(line, " | ", 3)
+			if width >= 40 {
+				columns := strings.SplitN(line, " │ ", 3)
 				if len(columns) == 3 {
 					pieces = append(pieces, columns[2])
 				}

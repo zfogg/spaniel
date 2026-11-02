@@ -133,7 +133,13 @@ func TestQueueOverflowAndStaleConnection(t *testing.T) {
 				}
 				conn.Read(ctx)
 			}))
-			c, _ := New(srv.URL, Options{Queue: 1, StaleAfter: 30 * time.Millisecond, MinBackoff: time.Second})
+			staleAfter := 30 * time.Millisecond
+			if overflow {
+				// Exercise queue overflow independently of a scheduler-sensitive
+				// 30ms read timeout while the fixture fills the queue.
+				staleAfter = time.Second
+			}
+			c, _ := New(srv.URL, Options{Queue: 1, StaleAfter: staleAfter, MinBackoff: time.Second})
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			ch, _ := c.Stream(ctx)
