@@ -68,7 +68,7 @@ func snapshot(m *model, d ...apigen.Dashboard) {
 	d = clone
 	m.Update(protocol.Result{Key: client.Key{Owner: m.env.Owner, Name: "list"}, Sequence: m.listSequence + 1, Data: client.Envelope[[]apigen.Dashboard]{Data: d}})
 }
-func key(m *model, k string) {
+func pressKey(m *model, k string) {
 	typ := tea.KeyRunes
 	var runes []rune
 	switch k {
@@ -123,14 +123,14 @@ func TestDiscoveryNavigationAndReadOnlyRequests(t *testing.T) {
 	detail.Update(protocol.Connection{Connected: true})
 	deliver(detail, r, now)
 	deliver(detail, r, now)
-	if detail.panelID != "p1" || !strings.Contains(detail.View(), "value: api requests") {
+	if detail.panelID != "p1" || !strings.Contains(detail.View(), "api requests") {
 		t.Fatal(detail.View())
 	}
 	// A hidden detail continues receiving results; Focus never disables subscriptions.
 	detail.Update(protocol.Focus{Active: false})
-	key(detail, "e")
+	pressKey(detail, "e")
 	detail.draft = "api'; DROP TABLE spans; --"
-	key(detail, "enter")
+	pressKey(detail, "enter")
 	deliver(detail, r, now)
 	for _, body := range bodies {
 		if body.QuerySql != "SELECT $service AS value" {
@@ -169,9 +169,9 @@ func TestDefinitionLifecycleStaleGuardsAndSession(t *testing.T) {
 		oldName = name
 		break
 	}
-	key(m, "e")
+	pressKey(m, "e")
 	m.draft = "worker"
-	key(m, "enter")
+	pressKey(m, "enter")
 	if m.generation <= oldGeneration {
 		t.Fatal("variable switch did not supersede workers")
 	}
@@ -247,18 +247,18 @@ func TestVariablesEnumLiveClockAndNarrowResize(t *testing.T) {
 	d.Variables[0].Kind = "enum"
 	d.Variables[0].OptionsJson = `["api","worker"]`
 	snapshot(m, d)
-	key(m, "e")
+	pressKey(m, "e")
 	m.draft = "injection"
-	key(m, "enter")
+	pressKey(m, "enter")
 	if !m.CapturesKeys() || m.inputError == "" {
 		t.Fatal("invalid enum accepted")
 	}
 	m.draft = "worker"
-	key(m, "enter")
+	pressKey(m, "enter")
 	if m.CapturesKeys() || m.overrides["service"] != "worker" {
 		t.Fatal("enum choice failed")
 	}
-	key(m, "r")
+	pressKey(m, "r")
 	if len(m.overrides) != 0 {
 		t.Fatal("defaults did not reset")
 	}
@@ -266,7 +266,7 @@ func TestVariablesEnumLiveClockAndNarrowResize(t *testing.T) {
 	if panelSQL(sql, false) != sql || panelSQL(sql, true) != "SELECT epoch_ns(current_timestamp) AS value" {
 		t.Fatal(panelSQL(sql, true))
 	}
-	key(m, "t")
+	pressKey(m, "t")
 	if !m.live {
 		t.Fatal("live mode not selected")
 	}
@@ -302,7 +302,7 @@ func TestPanelSemantics(t *testing.T) {
 		if kind == "heatmap" && !strings.Contains(view, "unsupported") {
 			t.Fatal(view)
 		}
-		if kind == "time_series" && (!strings.Contains(view, "Series: api") || !strings.Contains(view, "NULL")) {
+		if kind == "time_series" && (!strings.Contains(view, "Series: api") || strings.Contains(view, "timestamp_ns=")) {
 			t.Fatal(view)
 		}
 	}
@@ -339,11 +339,11 @@ func TestLiveDefinitionStatusAndPartialError(t *testing.T) {
 	}
 	name := fmt.Sprintf("panel:%d:%s", m.generation, m.panelID)
 	m.Update(protocol.Result{Key: client.Key{Owner: env.Owner, Name: name}, Sequence: 10, Pending: true, Data: client.Envelope[apigen.QueryPreview]{Data: apigen.QueryPreview{Columns: []string{"value"}, Rows: []map[string]any{{"value": 42.0}}}}})
-	if view := m.View(); !strings.Contains(view, "pending repair") || !strings.Contains(view, "value: 42") {
+	if view := m.View(); !strings.Contains(view, "pending repair") || !strings.Contains(view, "42 requests") {
 		t.Fatal(view)
 	}
 	m.Update(protocol.Result{Key: client.Key{Owner: env.Owner, Name: name}, Sequence: 11, Err: errors.New("SQL/type validation failed")})
-	if view := m.View(); !strings.Contains(view, "Query error:") || !strings.Contains(view, "STALE · last successful result") || !strings.Contains(view, "value: 42") {
+	if view := m.View(); !strings.Contains(view, "Query error:") || !strings.Contains(view, "STALE · last successful result") || !strings.Contains(view, "42 requests") {
 		t.Fatal(view)
 	}
 	m.Update(protocol.Result{Key: client.Key{Owner: env.Owner, Name: "list"}, Sequence: m.listSequence + 1, Err: errors.New("definitions unavailable")})
@@ -400,7 +400,7 @@ func TestShortHelpFollowsFocusedViewAndInputState(t *testing.T) {
 	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "←/→ panel") || !strings.Contains(help, "scroll") || !strings.Contains(help, "live 15m window") || !strings.Contains(help, "edit $service") || strings.Contains(help, "restore defaults") {
 		t.Fatal(help)
 	}
-	key(detail, "e")
+	pressKey(detail, "e")
 	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "Enter apply value") || !strings.Contains(help, "Esc cancel input") || !strings.Contains(help, "Ctrl+U clear") || strings.Contains(help, "panel") || strings.Contains(help, "window") {
 		t.Fatal(help)
 	}
@@ -413,22 +413,22 @@ func TestShortHelpFollowsFocusedViewAndInputState(t *testing.T) {
 	if help := inlineHelp(detail.ShortHelp()); strings.Contains(help, "clear") || strings.Contains(help, "delete") {
 		t.Fatal(help)
 	}
-	key(detail, "q")
+	pressKey(detail, "q")
 	if detail.draft != "q" || !detail.CapturesKeys() {
 		t.Fatal("input stopped capturing global shortcut text")
 	}
-	key(detail, "esc")
-	key(detail, "e")
+	pressKey(detail, "esc")
+	pressKey(detail, "e")
 	detail.draft = "worker"
-	key(detail, "enter")
+	pressKey(detail, "enter")
 	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "restore defaults") || strings.Contains(help, "cancel input") {
 		t.Fatal(help)
 	}
-	key(detail, "t")
+	pressKey(detail, "t")
 	if help := inlineHelp(detail.ShortHelp()); !strings.Contains(help, "saved SQL/window") || strings.Contains(help, "live 15m window") {
 		t.Fatal(help)
 	}
-	key(detail, "r")
+	pressKey(detail, "r")
 	if strings.Contains(inlineHelp(detail.ShortHelp()), "restore defaults") {
 		t.Fatal("unchanged defaults still advertise reset")
 	}
@@ -475,5 +475,104 @@ func TestSampleTimestampPresentationPreservesQueryValues(t *testing.T) {
 		if !ok || stamp.UnixNano() != 1793631000123456789 {
 			t.Fatal("timestamp alias lost integer precision", stamp)
 		}
+	}
+}
+
+func TestPrimaryLayoutAndSecondaryInspection(t *testing.T) {
+	env, _ := envFor(t, http.NotFoundHandler())
+	m := newModel(env, "demo")
+	d := definition(t, example)
+	d.Panels[1].DisplayType = "time_series"
+	d.Panels[1].QuerySql = "SELECT timestamp_ns, value FROM telemetry_metrics"
+	d.Panels[1].SettingsJson = `{"unit":"ms"}`
+	snapshot(m, d)
+	m.Update(protocol.Connection{Connected: true})
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	name := fmt.Sprintf("panel:%d:%s", m.generation, m.panelID)
+	data := apigen.QueryPreview{Columns: []string{"timestamp_ns", "value"}, Rows: []map[string]any{{"timestamp_ns": "1793631000123456789", "value": 2.5}, {"timestamp_ns": "1793631060123456789", "value": 3.5}}}
+	m.Update(protocol.Result{Key: client.Key{Owner: env.Owner, Name: name}, Sequence: 1, Data: client.Envelope[apigen.QueryPreview]{Data: data}})
+	primary := ansi.Strip(m.View())
+	if !strings.Contains(primary, "Requests") || !strings.Contains(primary, "Series: value") || strings.Contains(primary, "SELECT") || strings.Contains(primary, "timestamp_ns") {
+		t.Fatal(primary)
+	}
+	pressKey(m, "i")
+	inspection := ansi.Strip(m.View())
+	if !m.inspect || !strings.Contains(inspection, "SELECT timestamp_ns") || !strings.Contains(inspection, "Query result") || !strings.Contains(inspection, "2026-11-02") || strings.Contains(inspection, "1793631000123456789") {
+		t.Fatal(inspection)
+	}
+	if !strings.Contains(inlineHelp(m.ShortHelp()), "visualization") {
+		t.Fatal("inspection help did not change")
+	}
+	selected := m.panelID
+	pressKey(m, "i")
+	if m.inspect || m.panelID != selected || m.scroll != 0 {
+		t.Fatal("inspection lost panel context")
+	}
+	pressKey(m, "e")
+	input := ansi.Strip(m.View())
+	if !strings.Contains(input, "Set $service") || strings.Contains(input, "SELECT") || strings.Contains(input, "Series:") {
+		t.Fatal(input)
+	}
+	pressKey(m, "esc")
+	for _, size := range []tea.WindowSizeMsg{{Width: 60, Height: 28}, {Width: 30, Height: 14}, {Width: 120, Height: 36}, {Width: 1, Height: 1}} {
+		m.Update(size)
+		screen := m.View()
+		if len(strings.Split(screen, "\n")) > size.Height {
+			t.Fatal("height overflow")
+		}
+		for _, line := range strings.Split(screen, "\n") {
+			if ansi.StringWidth(line) > size.Width {
+				t.Fatal("width overflow", line)
+			}
+		}
+	}
+}
+
+func TestResponsiveSQLTableRetainsValuesAndTypes(t *testing.T) {
+	exact := json.Number("9007199254740993")
+	long := "start-" + strings.Repeat("wide-value-", 12) + "-end"
+	data := apigen.QueryPreview{Columns: []string{"name", "amount", "optional", "payload"}, Rows: []map[string]any{{"name": long, "amount": exact, "optional": nil, "payload": map[string]any{"flag": true, "items": []any{"x", exact}}}}}
+	wide := strings.Join(renderTable(data, false, 120), "\n")
+	if !strings.Contains(wide, " │ ") || !strings.Contains(wide, "9007199254740993") || !strings.Contains(wide, "NULL") || !strings.Contains(wide, "-end") || strings.Contains(wide, "…") {
+		t.Fatal(wide)
+	}
+	narrow := strings.Join(renderTable(data, false, 40), "\n")
+	if !strings.Contains(narrow, "ROW 1") || !strings.Contains(narrow, "name: "+long) || !strings.Contains(narrow, `"flag":true`) || !strings.Contains(narrow, "9007199254740993") {
+		t.Fatal(narrow)
+	}
+	if data.Rows[0]["amount"] != exact || data.Rows[0]["name"] != long {
+		t.Fatal("layout mutated SQL results")
+	}
+}
+
+func TestListKeepsSelectedDashboardVisibleOnNarrowScreens(t *testing.T) {
+	env, _ := envFor(t, http.NotFoundHandler())
+	m := New(env).(*model)
+	var rows []apigen.Dashboard
+	for i := 0; i < 30; i++ {
+		d := definition(t, example)
+		d.Id = fmt.Sprint(i)
+		d.Name = fmt.Sprintf("Dashboard %02d", i)
+		rows = append(rows, d)
+	}
+	snapshot(m, rows...)
+	m.selected = "25"
+	m.Update(protocol.Connection{Connected: true})
+	m.Update(tea.WindowSizeMsg{Width: 40, Height: 14})
+	if screen := ansi.Strip(m.View()); !strings.Contains(screen, "› Dashboard 25") {
+		t.Fatal(screen)
+	}
+}
+
+func TestStyledLayoutSanitizesRemoteTerminalControls(t *testing.T) {
+	env, _ := envFor(t, http.NotFoundHandler())
+	m := New(env).(*model)
+	d := definition(t, example)
+	d.Name = "Visible title\x1b[2J"
+	d.Description = "Description\x1b]8;;https://invalid.example\x07link\x1b]8;;\x07"
+	snapshot(m, d)
+	view := m.View()
+	if strings.Contains(view, "\x1b[2J") || strings.Contains(view, "\x1b]8;") || !strings.Contains(ansi.Strip(view), "Visible title") {
+		t.Fatal("remote control codes leaked into styled layout", view)
 	}
 }

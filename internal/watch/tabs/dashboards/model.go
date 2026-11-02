@@ -35,6 +35,7 @@ type model struct {
 	rows                            []apigen.Dashboard
 	selected, detailID, panelID     string
 	loaded, removed, live, editing  bool
+	inspect                         bool
 	err                             error
 	connection                      protocol.Connection
 	session, activeID               string
@@ -78,6 +79,7 @@ func (m *model) ShortHelp() []key.Binding {
 		help := []key.Binding{
 			binding([]string{"enter"}, "Enter", "apply value"),
 			binding([]string{"esc"}, "Esc", "cancel input"),
+			binding([]string{"up", "down", "pgup", "pgdown"}, "↑/↓", "scroll input"),
 		}
 		if m.draft != "" {
 			help = append(help, binding([]string{"backspace", "ctrl+h"}, "⌫", "delete"), binding([]string{"ctrl+u"}, "Ctrl+U", "clear"))
@@ -111,6 +113,11 @@ func (m *model) ShortHelp() []key.Binding {
 			binding([]string{"up", "down", "k", "j", "pgup", "pgdown", "home"}, "↑/↓ PgUp/PgDn", "scroll"),
 			binding([]string{"t"}, "t", mode),
 		)
+		inspection := "SQL/data"
+		if m.inspect {
+			inspection = "visualization"
+		}
+		help = append(help, binding([]string{"i"}, "i", inspection))
 	}
 	if len(d.Variables) > 0 {
 		if len(d.Variables) > 1 {
@@ -249,7 +256,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case protocol.ReturnContext:
 		if v.Tab == protocol.Dashboards {
-			m.selected = v.Selection
+			for _, row := range m.rows {
+				if row.Id == v.Selection {
+					m.selected = v.Selection
+					break
+				}
+			}
 		}
 	case protocol.Result:
 		if v.Key.Owner != m.env.Owner {
@@ -447,6 +459,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.draft = value
 				}
 				m.editing = true
+				m.scroll = 0
 				m.inputError = ""
 			}
 		case "r":
@@ -457,6 +470,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.live = !m.live
 			m.scroll = 0
 			m.queryPanels()
+		case "i":
+			if len(d.Panels) > 0 {
+				m.inspect = !m.inspect
+				m.scroll = 0
+			}
 		}
 	}
 	return m, nil
@@ -500,6 +518,14 @@ func (m *model) edit(key tea.KeyMsg) tea.Cmd {
 		}
 	case "ctrl+u":
 		m.draft = ""
+	case "up":
+		m.scroll = max(0, m.scroll-1)
+	case "down":
+		m.scroll++
+	case "pgup":
+		m.scroll = max(0, m.scroll-max(1, m.height/2))
+	case "pgdown":
+		m.scroll += max(1, m.height/2)
 	default:
 		if key.Type == tea.KeyRunes && len(m.draft) < 16000 {
 			m.draft += string(key.Runes)
@@ -511,140 +537,6 @@ func (m *model) edit(key tea.KeyMsg) tea.Cmd {
 }
 func (m *model) stateFor(id string) *panelState {
 	return m.panels[fmt.Sprintf("panel:%d:%s", m.generation, id)]
-}
-func (m *model) View() string {
-	var lines []string
-	if m.definitionStatus != "" {
-		lines = append(lines, m.definitionStatus)
-	}
-	if m.definitionPending {
-		lines = append(lines, "STALE · definition changes pending repair")
-	}
-	if !m.connection.Connected {
-		lines = append(lines, "STALE · disconnected/reconnecting; retained results")
-	}
-	if m.err != nil {
-		lines = append(lines, "Definition error (retained data): "+m.err.Error())
-	}
-	if !m.loaded {
-		lines = append(lines, "Loading dashboards…")
-		return screen(lines, m.width, m.height)
-	}
-	if m.detailID == "" {
-		lines = append(lines, fmt.Sprintf("%d dashboards · read-only", len(m.rows)))
-		if help := inlineHelp(m.ShortHelp()); help != "" {
-			lines = append(lines, help)
-		}
-		if len(m.rows) == 0 {
-			lines = append(lines, "No saved or file-managed dashboards.")
-		}
-		start := max(0, m.selectedIndex()-max(1, m.height-5)/2)
-		for _, d := range m.rows[start:] {
-			mark := "  "
-			if d.Id == m.selected {
-				mark = "› "
-			}
-			source := "saved"
-			if d.SourceFile != "" {
-				source = "file: " + d.SourceFile
-			}
-			lines = append(lines, fmt.Sprintf("%s%s · %d panels · %d variables · %s", mark, d.Name, len(d.Panels), len(d.Variables), source), "  "+d.Description+" · updated "+time.Unix(0, d.UpdatedAt).Format(time.RFC3339))
-		}
-		return screen(lines, m.width, m.height)
-	}
-	if m.removed {
-		lines = append(lines, "Dashboard removed externally.", "Esc returns to dashboards.")
-		return screen(lines, m.width, m.height)
-	}
-	d := m.dashboard()
-	if d == nil {
-		return screen(append(lines, "Loading definition…"), m.width, m.height)
-	}
-	mode := "saved SQL/window"
-	if m.live {
-		mode = "live SQL clock · 15m chart window"
-	}
-	lines = append(lines, d.Name+" · read-only · "+mode)
-	if help := inlineHelp(m.ShortHelp()); help != "" {
-		lines = append(lines, help)
-	}
-	lines = append(lines, "Scope: "+m.session+" · $session_id is server active: "+m.activeID)
-	if len(d.Variables) > 0 {
-		x := d.Variables[m.variable]
-		value := x.DefaultValue
-		if o, ok := m.overrides[x.Name]; ok {
-			value = o
-		}
-		lines = append(lines, fmt.Sprintf("$%s (%s) = %s · default %s · options %s", x.Name, x.Kind, value, x.DefaultValue, x.OptionsJson))
-		if m.editing {
-			lines = append(lines, "Value: "+m.draft+"█")
-		}
-	}
-	if m.inputError != "" {
-		lines = append(lines, m.inputError)
-	}
-	if len(d.Panels) == 0 {
-		return screen(append(lines, "No panels in this dashboard."), m.width, m.height)
-	}
-	index := m.panelIndex()
-	p := d.Panels[index]
-	titles := []string{}
-	for i, p := range d.Panels {
-		label := p.Title
-		s := m.stateFor(p.Id)
-		if s == nil || !s.loaded {
-			label += " [loading]"
-		}
-		if s != nil && s.err != nil {
-			label = p.Title + " [error]"
-		}
-		if i == index {
-			label = "[" + label + "]"
-		}
-		titles = append(titles, label)
-	}
-	lines = append(lines, fmt.Sprintf("Panel %d/%d · %s", index+1, len(d.Panels), strings.Join(titles, " | ")))
-	body := []string{p.Title + " · type: " + string(p.DisplayType), "SQL: " + panelSQL(p.QuerySql, m.live)}
-	s := m.stateFor(p.Id)
-	if s == nil || (!s.loaded && s.err == nil) {
-		body = append(body, "Loading query results…")
-	} else {
-		if s.err != nil {
-			body = append(body, "Query error: "+s.err.Error())
-			if s.loaded {
-				body = append(body, "STALE · last successful result:")
-			}
-		}
-		if s.pending {
-			body = append(body, "STALE · durable changes pending repair")
-		}
-		if s.loaded {
-			body = append(body, renderPanel(string(p.DisplayType), p.SettingsJson, s.result, m.width, max(4, m.height-len(lines)-5), m.live)...)
-		}
-	}
-	for i := range lines {
-		lines[i] = ansi.Truncate(safe(lines[i]), m.width, "…")
-	}
-	// SQL and all result cells wrap before scrolling, including narrow terminals.
-	wrapped := wrapLines(body, m.width)
-	available := max(1, m.height-len(lines))
-	// Keep the retained offset at the visible boundary so repeated Down at the
-	// end does not require equally many Up presses before content moves again.
-	m.scroll = min(m.scroll, max(0, len(wrapped)-available))
-	offset := m.scroll
-	lines = append(lines, wrapped[offset:min(len(wrapped), offset+available)]...)
-	return screen(lines, m.width, m.height)
-}
-func wrapLines(lines []string, width int) []string {
-	var out []string
-	for _, line := range lines {
-		out = append(out, strings.Split(ansi.Hardwrap(safe(line), max(1, width), true), "\n")...)
-	}
-	return out
-}
-func screen(lines []string, width, height int) string {
-	out := wrapLines(lines, width)
-	return strings.Join(out[:min(len(out), max(1, height))], "\n")
 }
 
 // Telemetry/definitions are untrusted terminal text; preserve no control codes.

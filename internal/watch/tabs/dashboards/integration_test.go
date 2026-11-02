@@ -15,6 +15,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/zfogg/spaniel/internal/api"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/storage"
@@ -38,6 +40,12 @@ func (o *terminalOutput) text() string { o.mu.Lock(); defer o.mu.Unlock(); retur
 // The real app exercises the owner lifecycle, shared live stream, generated
 // client contracts, safe query API and ntcharts renderer against stored spans.
 func TestDashboardTerminalRealAPI(t *testing.T) {
+	if os.Getenv("SPANIEL_DASHBOARD_CAPTURE_DIR") != "" {
+		profile, dark := lipgloss.ColorProfile(), lipgloss.HasDarkBackground()
+		lipgloss.SetColorProfile(termenv.TrueColor)
+		lipgloss.SetHasDarkBackground(true)
+		t.Cleanup(func() { lipgloss.SetColorProfile(profile); lipgloss.SetHasDarkBackground(dark) })
+	}
 	store, err := storage.Open(":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -132,16 +140,17 @@ func TestDashboardTerminalRealAPI(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		p.Send(tea.KeyMsg{Type: tea.KeyTab})
 	}
-	wait := func(needle string) {
+	waitFrom := func(needle string, offset int) {
 		t.Helper()
 		deadline := time.Now().Add(12 * time.Second)
-		for !strings.Contains(output.text(), needle) {
+		for !strings.Contains(output.text()[offset:], needle) {
 			if time.Now().After(deadline) {
 				t.Fatalf("terminal missing %q: %s", needle, output.text())
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
 	}
+	wait := func(needle string) { t.Helper(); waitFrom(needle, 0) }
 	capture := func(name string) {
 		t.Helper()
 		dir := os.Getenv("SPANIEL_DASHBOARD_CAPTURE_DIR")
@@ -162,8 +171,16 @@ func TestDashboardTerminalRealAPI(t *testing.T) {
 	p.Send(tea.KeyMsg{Type: tea.KeyEnter})
 	wait("Series: checkout-api")
 	capture("dashboard-series")
+	send("i")
+	wait("Query result")
+	capture("dashboard-inspection")
+	send("i")
+	send("e")
+	wait("Set $service")
+	capture("dashboard-variable")
+	p.Send(tea.KeyMsg{Type: tea.KeyEsc})
 	send("l")
-	wait("value: 12 requests")
+	wait("12 requests")
 	capture("dashboard-stat")
 	// Leave the retained detail hidden, add durable data and return to its result.
 	p.Send(tea.KeyMsg{Type: tea.KeyTab})
@@ -171,9 +188,9 @@ func TestDashboardTerminalRealAPI(t *testing.T) {
 	hub.Broadcast(liveevent.NewResourcesChangedEvent([]liveevent.Resource{"dashboard-panel"}, "seeded late data", session.ID))
 	time.Sleep(150 * time.Millisecond)
 	p.Send(tea.KeyMsg{Type: tea.KeyShiftTab})
-	wait("value: 13 requests")
+	wait("13 requests")
 	send("l")
-	wait("optional=NULL")
+	wait("NULL")
 	capture("dashboard-table")
 	send("l")
 	wait("unsupported in the terminal")
@@ -206,7 +223,19 @@ func TestDashboardTerminalRealAPI(t *testing.T) {
 	if updated, err := store.DefinitionUpdated("dashboard", dashboard.ID, dashboard.SourceHash, dashboard.UpdatedAt); err != nil || !updated {
 		t.Fatal("read-only UI acknowledged definition", updated, err)
 	}
-	p.Send(tea.WindowSizeMsg{Width: 40, Height: 20})
+	// Record the physical resize boundary for faithful xterm replay. Replaying
+	// all prior 120-column frames at the narrow size would fabricate a screen.
+	selectionOffset := len(output.text())
+	send("h")
+	send("h")
+	waitFrom("NULL", selectionOffset)
+	if dir := os.Getenv("SPANIEL_DASHBOARD_CAPTURE_DIR"); dir != "" {
+		metadata := fmt.Sprintf(`{"offset":%d,"cols":60,"rows":28}`, len(output.text()))
+		if err := os.WriteFile(filepath.Join(dir, "dashboard-narrow.resize.json"), []byte(metadata), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p.Send(tea.WindowSizeMsg{Width: 60, Height: 28})
 	capture("dashboard-narrow")
 	if err := store.DeleteDashboard(dashboard.ID); err != nil {
 		t.Fatal(err)

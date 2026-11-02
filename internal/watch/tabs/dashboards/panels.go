@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 type settings struct {
@@ -36,23 +38,26 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 	switch kind {
 	case "single_value":
 		for _, row := range data.Rows {
-			label := "value"
+			label := ""
 			if group, ok := row["group_value"]; ok {
-				label = cell(group)
+				label = cell(group) + " · "
 			}
-			lines = append(lines, label+": "+cell(row["value"])+" "+config.Unit)
+			lines = append(lines, strings.TrimSpace(label+cell(row["value"])+" "+config.Unit))
 		}
 	case "table":
-		lines = append(lines, renderTable(data, false)...)
+		lines = append(lines, renderTable(data, false, width)...)
 	case "time_series":
 		series, from, to, skipped := timeSeries(data.Rows)
 		if skipped > 0 {
-			lines = append(lines, fmt.Sprintf("%d null/invalid time or value rows omitted from chart (available in data below).", skipped))
+			lines = append(lines, fmt.Sprintf("%d null/invalid time or value rows omitted; query data preserved.", skipped))
 		}
+		fallback := false
 		if len(series) == 0 {
 			lines = append(lines, "No plottable timestamp/value pairs.")
+			fallback = true
 		} else if width < 32 {
 			lines = append(lines, "Terminal too narrow for time-series chart; data follows.")
+			fallback = true
 		} else {
 			if live {
 				config.TimeWindow = 900
@@ -75,19 +80,20 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 				labels = append(labels, s.Name)
 			}
 			lines = append(lines, "Series: "+strings.Join(labels, " | "), displayTime(from)+" → "+displayTime(to))
-			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, min(12, max(4, height-4)), from, to, series), "\n")...)
+			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series), "\n")...)
 		}
-		lines = append(lines, "Query data · sample timestamps in local time:")
-		lines = append(lines, renderTable(data, true)...)
+		if fallback {
+			lines = append(lines, renderTable(data, true, width)...)
+		}
 	default:
 		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", kind))
-		lines = append(lines, renderTable(data, false)...)
+		lines = append(lines, renderTable(data, false, width)...)
 	}
 	return lines
 }
 func displayTime(t time.Time) string { return t.Local().Format("2006-01-02 15:04:05.000 MST") }
 
-func renderTable(data apigen.QueryPreview, sampleTimes bool) []string {
+func renderTable(data apigen.QueryPreview, sampleTimes bool, widths ...int) []string {
 	columns := append([]string(nil), data.Columns...)
 	if len(columns) == 0 {
 		seen := map[string]bool{}
@@ -101,8 +107,8 @@ func renderTable(data apigen.QueryPreview, sampleTimes bool) []string {
 		}
 		sort.Strings(columns)
 	}
-	lines := []string{fmt.Sprintf("%d rows · columns: %s", len(data.Rows), strings.Join(columns, " | "))}
-	for i, row := range data.Rows {
+	rows := make([][]string, 0, len(data.Rows))
+	for _, row := range data.Rows {
 		values := []string{}
 		for _, name := range columns {
 			value := cell(row[name])
@@ -116,9 +122,76 @@ func renderTable(data apigen.QueryPreview, sampleTimes bool) []string {
 					}
 				}
 			}
-			values = append(values, name+"="+value)
+			values = append(values, value)
+		}
+		rows = append(rows, values)
+	}
+	if len(widths) > 0 {
+		return layoutTable(columns, rows, widths[0])
+	}
+	lines := []string{fmt.Sprintf("%d rows · columns: %s", len(rows), strings.Join(columns, " | "))}
+	for i, row := range rows {
+		values := []string{}
+		for j, value := range row {
+			values = append(values, columns[j]+"="+value)
 		}
 		lines = append(lines, fmt.Sprintf("%d. %s", i+1, strings.Join(values, " · ")))
+	}
+	return lines
+}
+
+// Result cells wrap instead of truncating. Wide terminals get aligned columns;
+// narrow terminals get labeled records, preserving every SQL column and value.
+func layoutTable(columns []string, rows [][]string, width int) []string {
+	lines := []string{fmt.Sprintf("%d rows", len(rows))}
+	if len(columns) == 0 {
+		return lines
+	}
+	if width < 72 || len(columns) > 6 {
+		for i, row := range rows {
+			lines = append(lines, fmt.Sprintf("ROW %d", i+1))
+			for j, value := range row {
+				lines = append(lines, columns[j]+": "+value)
+			}
+			lines = append(lines, "")
+		}
+		return lines
+	}
+	columnWidths := make([]int, len(columns))
+	capWidth := max(1, (width-3*(len(columns)-1))/len(columns))
+	for i, name := range columns {
+		columnWidths[i] = min(capWidth, max(1, ansi.StringWidth(safe(name))))
+		for _, row := range rows {
+			columnWidths[i] = max(columnWidths[i], min(capWidth, ansi.StringWidth(safe(row[i]))))
+		}
+	}
+	appendRow := func(row []string) {
+		cells := make([][]string, len(row))
+		height := 1
+		for i, value := range row {
+			cells[i] = strings.Split(ansi.Hardwrap(safe(value), columnWidths[i], true), "\n")
+			height = max(height, len(cells[i]))
+		}
+		for line := 0; line < height; line++ {
+			parts := make([]string, len(row))
+			for i := range row {
+				text := ""
+				if line < len(cells[i]) {
+					text = cells[i][line]
+				}
+				parts[i] = text + strings.Repeat(" ", max(0, columnWidths[i]-ansi.StringWidth(text)))
+			}
+			lines = append(lines, strings.Join(parts, " │ "))
+		}
+	}
+	appendRow(columns)
+	separators := make([]string, len(columns))
+	for i, size := range columnWidths {
+		separators[i] = strings.Repeat("─", size)
+	}
+	lines = append(lines, strings.Join(separators, "─┼─"))
+	for _, row := range rows {
+		appendRow(row)
 	}
 	return lines
 }
