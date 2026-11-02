@@ -114,11 +114,12 @@ forward_sample: 1.0
 # tls_cert: /path/to/cert.pem
 # tls_key:  /path/to/key.pem
 
-# Bearer token: require this secret on all inbound OTLP and API requests.
-# The browser UI is seeded automatically via /api/health?token=<value> on
-# first visit. Settings can save this secret to config and the running process
-# environment; authentication changes take effect after restart.
-# bearer_token: ""
+# Named API tokens protect the API, MCP, WebSockets and OTLP ingestion.
+# Create a token in Settings -> Security before enabling protection.
+# Flags / environment override config. Set false and restart to recover access.
+# api_token_security: false
+# encryption_password: "" # generated on first start; keep this file private
+# bearer_token: "" # deprecated: migrated to an encrypted named token
 
 # Tail-based sampling: max uninteresting spans/sec accepted (0 = unlimited)
 # sample_rate: 0
@@ -280,6 +281,11 @@ func bindRootFlags(v *viper.Viper, cmd *cobra.Command) {
 // configShow prints the effective config as YAML.
 func configShow(v *viper.Viper) {
 	all := v.AllSettings()
+	for _, key := range []string{"encryption_password", "bearer_token", "forward_bearer_token"} {
+		if _, ok := all[key]; ok {
+			all[key] = "[redacted]"
+		}
+	}
 	b, _ := yaml.Marshal(all)
 	fmt.Printf("# effective config (source: %s)\n", v.ConfigFileUsed())
 	fmt.Print(string(b))
@@ -323,7 +329,11 @@ func configSubcommand(v *viper.Viper) *cobra.Command {
 			if err := configSetKey(args[0], args[1]); err != nil {
 				return err
 			}
-			fmt.Printf("set %s = %s  (in %s)\n", args[0], args[1], globalConfigPath())
+			value := args[1]
+			if args[0] == "encryption_password" || args[0] == "bearer_token" || args[0] == "forward_bearer_token" {
+				value = "[redacted]"
+			}
+			fmt.Printf("set %s = %s  (in %s)\n", args[0], value, globalConfigPath())
 			return nil
 		},
 	}

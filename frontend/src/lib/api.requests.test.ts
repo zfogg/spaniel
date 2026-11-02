@@ -104,7 +104,7 @@ describe('endpoint request and response compatibility', () => {
     },
   )
 
-  it('retains JSON error messages and bearer-cookie seeding', async () => {
+  it('retains JSON error messages and authenticated session creation', async () => {
     fetchMock.mockResolvedValueOnce(json({ error: 'Query is read-only' }, 400))
     await expect(
       api.dashboards.preview('board', { query_sql: 'DELETE FROM spans' }),
@@ -113,8 +113,10 @@ describe('endpoint request and response compatibility', () => {
     await expect(api.health.get()).rejects.toThrow('503 Unavailable')
     fetchMock.mockResolvedValueOnce(json({ data: { status: 'ok' } }))
     await api.health.seed('test-token')
-    expect(fetchMock).toHaveBeenLastCalledWith('/api/health', {
-      headers: { Authorization: 'Bearer test-token' },
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/security/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'test-token' }),
     })
   })
 })

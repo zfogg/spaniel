@@ -1,5 +1,14 @@
 .PHONY: dev build build-server run test test-coverage test-extensive test-storage test-ingestion test-mcp-e2e test-telemetry generate verify-generated setup
 
+.PHONY: test-security lint-go
+test-security:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/security.test$(EXE) ./internal/security
+	./$(BIN_DIR)/security.test$(EXE) -test.count=1 -test.timeout=3m
+
+lint-go:
+	go vet ./...
+
 # Use MSYS2 Bash when available; otherwise use Bash from PATH. Scoop's sh.exe
 # shim may select a broken Zsh process on Windows.
 ifeq ($(OS),Windows_NT)
@@ -59,8 +68,8 @@ run: build-server
 
 verify-generated:
 	$(MAKE) generate
-	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
-	test -z "$$(git ls-files --others --exclude-standard -- api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
+	git diff --exit-code -- api/openapi.json api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/security/querygen internal/api/apigen internal/api/openapi_adapter.gen.go
+	test -z "$$(git ls-files --others --exclude-standard -- api/openapi.yaml frontend/src/generated/openapi.ts internal/storage/querygen internal/security/querygen internal/api/apigen internal/api/openapi_adapter.gen.go)"
 
 .PHONY: test-linter
 test-linter:

@@ -33,6 +33,14 @@ func (r *Router) DeleteDashboardVariable(w http.ResponseWriter, req *http.Reques
 	r.deleteVariable(w, req)
 }
 
+func (r *Router) DeleteSecuritySession(w http.ResponseWriter, req *http.Request) {
+	r.deleteSecuritySession(w, req)
+}
+
+func (r *Router) DeleteToken(w http.ResponseWriter, req *http.Request, tokenId string) {
+	r.deleteToken(w, req)
+}
+
 func (r *Router) DeleteSession(w http.ResponseWriter, req *http.Request, sessionId string) {
 	r.deleteSession(w, req)
 }
@@ -134,6 +142,14 @@ func (r *Router) ListQueryCatalog(w http.ResponseWriter, req *http.Request, _ ap
 func (r *Router) SearchTelemetry(w http.ResponseWriter, req *http.Request, _ apigen.SearchTelemetryParams) {
 	r.search(w, req)
 }
+
+func (r *Router) GetSecurity(w http.ResponseWriter, req *http.Request) { r.getSecurity(w, req) }
+
+func (r *Router) GetSecuritySession(w http.ResponseWriter, req *http.Request) {
+	r.getSecuritySession(w, req)
+}
+
+func (r *Router) ListTokens(w http.ResponseWriter, req *http.Request) { r.listTokens(w, req) }
 
 func (r *Router) GetServiceMap(w http.ResponseWriter, req *http.Request, _ apigen.GetServiceMapParams) {
 	r.getServiceMap(w, req)
@@ -305,6 +321,12 @@ func (r *Router) ReadNotification(w http.ResponseWriter, req *http.Request, id s
 	r.readNotification(w, req)
 }
 
+func (r *Router) CreateSecuritySession(w http.ResponseWriter, req *http.Request) {
+	r.createSecuritySession(w, req)
+}
+
+func (r *Router) CreateToken(w http.ResponseWriter, req *http.Request) { r.createToken(w, req) }
+
 func (r *Router) CreateSession(w http.ResponseWriter, req *http.Request) { r.createSession(w, req) }
 
 func (r *Router) ImportSession(w http.ResponseWriter, req *http.Request, _ apigen.ImportSessionParams) {
@@ -338,5 +360,7 @@ func (r *Router) FormatSQL(w http.ResponseWriter, req *http.Request) { r.formatS
 func (r *Router) ReplaceCoverageSpec(w http.ResponseWriter, req *http.Request, id string) {
 	r.replaceCoverageSpec(w, req)
 }
+
+func (r *Router) PutSecurity(w http.ResponseWriter, req *http.Request) { r.putSecurity(w, req) }
 
 func (r *Router) PutSettings(w http.ResponseWriter, req *http.Request) { r.putSettings(w, req) }

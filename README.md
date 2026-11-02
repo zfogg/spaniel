@@ -181,10 +181,81 @@ Data retention defaults to 7 days and 500 MB; old sessions are pruned automatica
 
 A few things for the paranoid and the high-volume:
 
-- **Local-only by default**, but you can require a bearer token (`--bearer-token`, or `SPANIEL_BEARER_TOKEN`) and serve over TLS (`--tls-cert` / `--tls-key`) if you expose it on a network.
+- **Local-only by default**, but you can require named API tokens (`--api-token-security`, or `SPANIEL_API_TOKEN_SECURITY`) and serve over TLS (`--tls-cert` / `--tls-key`) if you expose it on a network.
 - **Back-pressure built in** — optional per-source rate limiting (`--source-rps`) and sampling (`--sample-rate`) keep a chatty service from filling your disk, while always keeping errors, N+1s, and slow traces.
 
 ---
+
+## API token security
+
+Open **Settings → Security** (`/settings/security`) to create named API tokens,
+set their expiry, revoke them, and enable protection. Tokens default to one calendar
+year; **No expiry** removes that limit. Copy each secret when it is created: list
+operations never reveal it again. All tokens grant full access.
+
+Protection covers the HTTP API, WebSockets, MCP (including SQL), OTLP/HTTP and
+OTLP/gRPC, browser telemetry ingestion, and debug endpoints. Static UI assets,
+minimal health information and the browser authentication exchange remain public.
+The browser prompts for a token and retries rejected requests once after sign-in;
+it uses an HttpOnly session cookie rather than storing the API token in a URL or
+browser storage. Revoking or expiring a token invalidates its sessions and streams.
+
+The private `security.duckdb` lives next to the telemetry database, is never attached
+to user SQL, and survives telemetry deletion/reset. Token secrets use
+XChaCha20-Poly1305 authenticated encryption with a random data key. Argon2id
+(64 MiB, three iterations, four lanes, random 16-byte salt) derives the wrapping
+key from the encryption password. Password rotation preserves existing tokens.
+The generated password is stored in `~/.spaniel/config.yaml`; keep that file private
+and back it up with the security database. Possession of both permits decryption.
+
+| Configuration | Flag | Environment |
+| --- | --- | --- |
+| `api_token_security` | `--api-token-security` | `SPANIEL_API_TOKEN_SECURITY` |
+| `encryption_password` | `--encryption-password` | `SPANIEL_ENCRYPTION_PASSWORD` |
+
+Explicit flags override environment variables, which override configuration.
+Settings shows overrides and does not silently change them. Passwords are
+write-only in the UI/API and redacted from `spaniel config show`.
+Legacy `bearer_token` values are migrated to a named encrypted token at startup;
+use named tokens for new integrations.
+
+Send `Authorization: Bearer <token>` on API/MCP requests. For standard OTLP
+exporters, set `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer%20<token>`.
+The API returns HTTP **401** and a `WWW-Authenticate: Bearer` challenge for missing,
+invalid, expired and revoked credentials. JSON codes are `token_required`,
+`token_invalid`, `token_expired` and `token_revoked`. gRPC exports return
+`Unauthenticated` with the corresponding reason.
+
+```sh
+spaniel token create --name backend
+spaniel token create --name collector --expires-at 2027-11-02T12:00:00Z
+spaniel token create --name automation --no-expiry
+spaniel token list --json
+spaniel token delete TOKEN_ID
+```
+
+CLI commands target a running server via `--api URL` and read an existing token
+from `SPANIEL_BEARER_TOKEN` (or `--bearer-token-env NAME`). MCP exposes
+`list_tokens`; `create_token` and `delete_token` require `mcp_allow_writes`.
+SQL write permission does not grant access to the private security database.
+
+**Locked out:** restart with `--api-token-security=false`, or set
+`SPANIEL_API_TOKEN_SECURITY=false`. Alternatively edit `api_token_security: false`
+in the settings file and restart, removing higher-priority overrides as needed.
+Create and copy a replacement token, authenticate with it, and re-enable security.
+Disabling protection preserves tokens. An incorrect encryption password fails
+closed: restore the correct password rather than silently resetting the store.
+
+For an isolated Beanaries qualification run, build `spaniel:issue-133` and run
+`python scripts/beanaries-security.py --beanaries ~/src/beanaries`. The helper
+creates separate Docker networks/volumes, loopback ports, and private generated
+Compose/credential files under `.local/beanaries-security`. Native OTLP producers
+receive distinct credentials; a Docker log bridge exports infrastructure logs
+with each service's own token. It reports container health separately from
+authentication success and fails if the full stack was not created. Keycloak
+uses `KC_TRACING_HEADER_AUTHORIZATION`; Temporal uses standard OTLP trace headers.
+Inspect startup diagnostics and exercise the services before treating the stack
+as qualified. Preserve unrelated running stacks and never commit generated secrets.
 
 ## MCP server
 

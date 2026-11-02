@@ -275,7 +275,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// Connection lifetime is governed by this context, independent of the HTTP
 	// request (which coder/websocket detaches after Accept).
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(r.Context())
 	c := &client{
 		conn:   conn,
 		send:   make(chan []byte, clientSendBuffer),

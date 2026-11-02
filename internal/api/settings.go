@@ -15,23 +15,27 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/zfogg/spaniel/internal/security"
 )
 
 // SettingsService is everything the settings endpoints need that isn't
 // already on the Router (storage, hub, etc.). main.go builds one of these
 // after viper has been bootstrapped and hands it to Router.SetSettingsService.
 type SettingsService struct {
-	mu             sync.Mutex // serialize config snapshots, mutations, and atomic file saves
-	Viper          *viper.Viper
-	ConfigPath     string // path to the file Save() will write
-	Version        string
-	StartedAt      time.Time
-	OTLPGRPCPort   int
-	OTLPHTTPPort   int
-	TLSEnabled     bool
-	BearerTokenSet bool
-	MCPEnabled     bool
-	MCPAllowWrites bool
+	Security               *security.Service
+	SecurityEnabledSource  string
+	SecurityPasswordSource string
+	mu                     sync.Mutex // serialize config snapshots, mutations, and atomic file saves
+	Viper                  *viper.Viper
+	ConfigPath             string // path to the file Save() will write
+	Version                string
+	StartedAt              time.Time
+	OTLPGRPCPort           int
+	OTLPHTTPPort           int
+	TLSEnabled             bool
+	BearerTokenSet         bool
+	MCPEnabled             bool
+	MCPAllowWrites         bool
 
 	// PersistActiveSession records the session that should be resumed when
 	// advance_session_on_start is disabled. nil keeps activation in-memory.
@@ -236,6 +240,10 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 400, "invalid JSON: "+err.Error())
 		return
 	}
+	if body.BearerToken != nil && r.settings.Security != nil {
+		respondErr(w, req, 400, "Use /api/security/tokens to create named tokens; shared bearer-token settings are deprecated.")
+		return
+	}
 	if err := validateExtended(&body); err != nil {
 		respondErr(w, req, 400, err.Error())
 		return
@@ -250,6 +258,9 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 	if err := applyErr; err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
+	}
+	if body.PublicURL != nil && r.settings.Security != nil {
+		r.settings.Security.SetPublicURL(*body.PublicURL)
 	}
 	if body.AdvanceSessionOnStart != nil && !*body.AdvanceSessionOnStart && r.settings.PersistActiveSession != nil {
 		if err := r.settings.PersistActiveSession(r.store.ActiveSessionID()); err != nil {
@@ -279,6 +290,10 @@ func (r *Router) buildSettings(ctx context.Context) SettingsResponse {
 	v := s.Viper
 	delivery := currentAlertDelivery()
 
+	bearerTokenSet := s.BearerTokenSet
+	if s.Security != nil {
+		bearerTokenSet = s.Security.Enabled()
+	}
 	resp := SettingsResponse{
 		OtlpHttpUrl:                 v.GetString("otlp_http_url"),
 		OtlpGrpcUrl:                 v.GetString("otlp_grpc_url"),
@@ -324,7 +339,7 @@ func (r *Router) buildSettings(ctx context.Context) SettingsResponse {
 		SourceRPS:                v.GetFloat64("source_rps"),
 		SourceBurst:              v.GetInt("source_burst"),
 		TLSEnabled:               s.TLSEnabled,
-		BearerTokenSet:           s.BearerTokenSet,
+		BearerTokenSet:           bearerTokenSet,
 		SelfMonitor:              v.GetBool("self_monitor"),
 		MCPEnabled:               s.MCPEnabled,
 		MCPAllowWrites:           s.MCPAllowWrites,
@@ -643,6 +658,20 @@ func (s *SettingsService) Save() error {
 	}
 	out.Set("public_url", s.Viper.GetString("public_url"))
 	out.Set("bearer_token", s.Viper.GetString("bearer_token"))
+	out.Set("api_token_security", s.Viper.GetBool("api_token_security"))
+	out.Set("encryption_password", s.Viper.GetString("encryption_password"))
+	if s.SecurityPasswordSource != "" && s.SecurityPasswordSource != "config" {
+		file := viper.New()
+		file.SetConfigFile(s.ConfigPath)
+		_ = file.ReadInConfig()
+		out.Set("encryption_password", file.GetString("encryption_password"))
+	}
+	if s.SecurityEnabledSource != "" && s.SecurityEnabledSource != "config" {
+		file := viper.New()
+		file.SetConfigFile(s.ConfigPath)
+		_ = file.ReadInConfig()
+		out.Set("api_token_security", file.GetBool("api_token_security"))
+	}
 	for _, k := range []string{"port", "db_path", "alerts_dir", "retention_days", "max_sessions", "max_db_size_mb", "auto_prune", "advance_session_on_start", "active_session_id", "otlp_grpc_port", "otlp_http_port", "no_browser", "forward", "bind_address_v4", "bind_address_v6", "forward_sample", "source_rps", "source_burst", "self_monitor", "mcp_enabled", "mcp_allow_writes", "alerts.browser_enabled", "alerts.pushover_enabled", "alerts.browser_template", "alerts.pushover_template"} {
 		out.Set(k, s.Viper.Get(k))
 	}

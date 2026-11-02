@@ -6,6 +6,45 @@ on:
   pull_request:
 
 jobs:
+  security-live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-go@v5
+        with: { go-version: stable }
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - run: make build
+      - name: Exercise live authentication and capture screenshots
+        env:
+          SPANIEL_OTLP_GRPC_PORT: '18317'
+          SPANIEL_OTLP_HTTP_PORT: '18318'
+          SPANIEL_SELF_MONITOR: 'false'
+          SPANIEL_E2E_BASE_URL: http://127.0.0.1:18280
+          SPANIEL_E2E_SECURITY: '1'
+        run: |
+          mkdir -p .local
+          make run ARGS='--port 18280 --db-path .local/telemetry.duckdb --no-browser' >.local/security-server.log 2>&1 &
+          server=$!
+          trap 'kill "$server" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18280/api/health >/dev/null; then break; fi
+            sleep 1
+          done
+          cd frontend
+          pnpm exec playwright test e2e/security-live.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-ui-screenshots
+          path: frontend/test-results/**/screenshots/*.png
+          retention-days: 30
   go:
     runs-on: ubuntu-latest
     steps:

@@ -13,6 +13,35 @@ components:
                         $ref: '#/components/schemas/Error'
             description: The requested Spaniel resource was not found.
     schemas:
+        APIToken:
+            properties:
+                created_at:
+                    format: date-time
+                    type: string
+                expires_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                id:
+                    type: string
+                name:
+                    type: string
+                prefix:
+                    type: string
+                status:
+                    enum:
+                        - active
+                        - expired
+                        - revoked
+                    type: string
+            required:
+                - id
+                - name
+                - prefix
+                - created_at
+                - expires_at
+                - status
+            type: object
         ActiveSession:
             properties:
                 id:
@@ -664,6 +693,32 @@ components:
                 - name
                 - service_name
             type: object
+        CreateTokenInput:
+            properties:
+                expires_at:
+                    format: date-time
+                    type: string
+                name:
+                    maxLength: 128
+                    minLength: 1
+                    type: string
+                no_expiry:
+                    default: false
+                    type: boolean
+            required:
+                - name
+            type: object
+        CreatedToken:
+            properties:
+                secret:
+                    description: Secret returned once only. Store securely; never returned by list.
+                    type: string
+                token:
+                    $ref: '#/components/schemas/APIToken'
+            required:
+                - token
+                - secret
+            type: object
         Dashboard:
             $schema: https://json-schema.org/draft/2020-12/schema
             additionalProperties: false
@@ -1285,6 +1340,9 @@ components:
             type: object
         Error:
             properties:
+                code:
+                    description: Stable machine-readable error code; authentication failures use token_required, token_invalid, token_expired, or token_revoked.
+                    type: string
                 error:
                     type: string
             required:
@@ -2027,6 +2085,22 @@ components:
                 - title
                 - subtitle
                 - session_id
+            type: object
+        SecurityStatus:
+            properties:
+                enabled:
+                    type: boolean
+                enabled_source:
+                    type: string
+                encryption_password_set:
+                    type: boolean
+                password_source:
+                    type: string
+            required:
+                - enabled
+                - encryption_password_set
+                - enabled_source
+                - password_source
             type: object
         ServiceCoverage:
             $schema: https://json-schema.org/draft/2020-12/schema
@@ -3258,6 +3332,11 @@ components:
                 - release_notes_url
                 - checked_at_ns
             type: object
+    securitySchemes:
+        BearerAuth:
+            description: Named Spaniel API token. Browser UI may use its linked HttpOnly session cookie.
+            scheme: bearer
+            type: http
 info:
     description: Spaniel's local HTTP API powers the web app's views of traces, logs, metrics, lints, coverage, sessions, alerts, dashboards, and storage. It is also a documented integration surface for scripts and custom tools that query or automate a local Spaniel instance. Use this specification to generate a client or call endpoints directly; most JSON operations return the Envelope wrapper, while exports and explicitly documented exceptions return their own representation.
     title: Spaniel API
@@ -3302,14 +3381,14 @@ paths:
                                     value:
                                         data:
                                             items:
-                                                - annotations_json: …
-                                                  condition_json: …
-                                                  enabled: …
-                                                  group_by_json: …
-                                                  id: …
-                                                  name: …
-                                                  query_sql: …
-                                                  query_version: …
+                                                - annotations_json: â€¦
+                                                  condition_json: â€¦
+                                                  enabled: â€¦
+                                                  group_by_json: â€¦
+                                                  id: â€¦
+                                                  name: â€¦
+                                                  query_sql: â€¦
+                                                  query_version: â€¦
                                             summary:
                                                 instance_counts: {}
                                                 rule_counts: {}
@@ -3327,6 +3406,16 @@ paths:
                                     - meta
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -3430,6 +3519,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -3467,6 +3566,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -3522,6 +3631,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -3632,6 +3751,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -3689,6 +3818,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -3725,6 +3864,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -3751,6 +3900,16 @@ paths:
                             schema:
                                 type: string
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -3809,6 +3968,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -3885,6 +4054,16 @@ paths:
                                     - silences
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -3944,6 +4123,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -4000,6 +4189,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -4045,9 +4244,9 @@ paths:
                                                 value: 1.5
                                             display_type: example
                                             notification_preview:
-                                                - destination: …
-                                                  reason: …
-                                                  status: …
+                                                - destination: â€¦
+                                                  reason: â€¦
+                                                  status: â€¦
                                             query_version: 1.5
                                             rows:
                                                 - {}
@@ -4068,6 +4267,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -4119,6 +4328,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -4189,6 +4408,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -4232,6 +4461,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -4309,6 +4548,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -4369,6 +4618,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The notification destination must be browser or pushover.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -4481,6 +4740,16 @@ paths:
                                     - meta
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -4537,6 +4806,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "409":
                     content:
                         application/json:
@@ -4634,9 +4913,9 @@ paths:
                                                 value: 1.5
                                             display_type: example
                                             notification_preview:
-                                                - destination: …
-                                                  reason: …
-                                                  status: …
+                                                - destination: â€¦
+                                                  reason: â€¦
+                                                  status: â€¦
                                             query_version: 1.5
                                             rows:
                                                 - {}
@@ -4657,6 +4936,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: preview Alert Draft
             tags:
                 - Alerts
@@ -4695,6 +4984,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "501":
                     content:
                         application/json:
@@ -4733,14 +5032,14 @@ paths:
                                                 generic_route_spans: 1.5
                                                 missing_route_spans: 1.5
                                             services:
-                                                - coverage_pct: …
-                                                  dark_routes: …
-                                                  name: …
-                                                  observed_operations: …
-                                                  observed_routes: …
-                                                  source: …
-                                                  spec: …
-                                                  total_routes: …
+                                                - coverage_pct: â€¦
+                                                  dark_routes: â€¦
+                                                  name: â€¦
+                                                  observed_operations: â€¦
+                                                  observed_routes: â€¦
+                                                  source: â€¦
+                                                  spec: â€¦
+                                                  total_routes: â€¦
                             schema:
                                 properties:
                                     data:
@@ -4749,6 +5048,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -4778,6 +5087,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: list Coverage Specs
             tags:
                 - Administration
@@ -4806,6 +5125,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: create Coverage Spec
             tags:
                 - Administration
@@ -4835,6 +5164,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: delete Coverage Spec
             tags:
                 - Administration
@@ -4863,6 +5202,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: get Coverage Spec
             tags:
                 - Administration
@@ -4897,6 +5246,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: replace Coverage Spec
             tags:
                 - Administration
@@ -4917,10 +5276,10 @@ paths:
                                               id: session_2026-10-07_1200
                                               name: POST /checkout
                                               panels:
-                                                - …
+                                                - â€¦
                                               updated_at: 1.5
                                               variables:
-                                                - …
+                                                - â€¦
                             schema:
                                 properties:
                                     data:
@@ -4931,6 +5290,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -5001,22 +5370,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: …
-                                                  display_type: …
-                                                  id: …
-                                                  layout_json: …
-                                                  query_sql: …
-                                                  query_version: …
-                                                  settings_json: …
-                                                  title: …
+                                                - dashboard_id: â€¦
+                                                  display_type: â€¦
+                                                  id: â€¦
+                                                  layout_json: â€¦
+                                                  query_sql: â€¦
+                                                  query_version: â€¦
+                                                  settings_json: â€¦
+                                                  title: â€¦
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: …
-                                                  default_value: …
-                                                  kind: …
-                                                  name: …
-                                                  options_json: …
-                                                  source: …
+                                                - dashboard_id: â€¦
+                                                  default_value: â€¦
+                                                  kind: â€¦
+                                                  name: â€¦
+                                                  options_json: â€¦
+                                                  source: â€¦
                             schema:
                                 properties:
                                     data:
@@ -5031,6 +5400,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -5068,6 +5447,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5112,22 +5501,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: …
-                                                  display_type: …
-                                                  id: …
-                                                  layout_json: …
-                                                  query_sql: …
-                                                  query_version: …
-                                                  settings_json: …
-                                                  title: …
+                                                - dashboard_id: â€¦
+                                                  display_type: â€¦
+                                                  id: â€¦
+                                                  layout_json: â€¦
+                                                  query_sql: â€¦
+                                                  query_version: â€¦
+                                                  settings_json: â€¦
+                                                  title: â€¦
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: …
-                                                  default_value: …
-                                                  kind: …
-                                                  name: …
-                                                  options_json: …
-                                                  source: …
+                                                - dashboard_id: â€¦
+                                                  default_value: â€¦
+                                                  kind: â€¦
+                                                  name: â€¦
+                                                  options_json: â€¦
+                                                  source: â€¦
                             schema:
                                 properties:
                                     data:
@@ -5136,6 +5525,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5213,22 +5612,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: …
-                                                  display_type: …
-                                                  id: …
-                                                  layout_json: …
-                                                  query_sql: …
-                                                  query_version: …
-                                                  settings_json: …
-                                                  title: …
+                                                - dashboard_id: â€¦
+                                                  display_type: â€¦
+                                                  id: â€¦
+                                                  layout_json: â€¦
+                                                  query_sql: â€¦
+                                                  query_version: â€¦
+                                                  settings_json: â€¦
+                                                  title: â€¦
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: …
-                                                  default_value: …
-                                                  kind: …
-                                                  name: …
-                                                  options_json: …
-                                                  source: …
+                                                - dashboard_id: â€¦
+                                                  default_value: â€¦
+                                                  kind: â€¦
+                                                  name: â€¦
+                                                  options_json: â€¦
+                                                  source: â€¦
                             schema:
                                 properties:
                                     data:
@@ -5237,6 +5636,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5285,6 +5694,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5311,6 +5730,16 @@ paths:
                             schema:
                                 type: string
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5397,6 +5826,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5452,6 +5891,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5549,6 +5998,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5619,6 +6078,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5692,9 +6161,9 @@ paths:
                                                 value: 1.5
                                             display_type: example
                                             notification_preview:
-                                                - destination: …
-                                                  reason: …
-                                                  status: …
+                                                - destination: â€¦
+                                                  reason: â€¦
+                                                  status: â€¦
                                             query_version: 1.5
                                             rows:
                                                 - {}
@@ -5715,6 +6184,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5790,6 +6269,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5845,6 +6334,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -5896,22 +6395,22 @@ paths:
                                             id: session_2026-10-07_1200
                                             name: POST /checkout
                                             panels:
-                                                - dashboard_id: …
-                                                  display_type: …
-                                                  id: …
-                                                  layout_json: …
-                                                  query_sql: …
-                                                  query_version: …
-                                                  settings_json: …
-                                                  title: …
+                                                - dashboard_id: â€¦
+                                                  display_type: â€¦
+                                                  id: â€¦
+                                                  layout_json: â€¦
+                                                  query_sql: â€¦
+                                                  query_version: â€¦
+                                                  settings_json: â€¦
+                                                  title: â€¦
                                             updated_at: 1.5
                                             variables:
-                                                - dashboard_id: …
-                                                  default_value: …
-                                                  kind: …
-                                                  name: …
-                                                  options_json: …
-                                                  source: …
+                                                - dashboard_id: â€¦
+                                                  default_value: â€¦
+                                                  kind: â€¦
+                                                  name: â€¦
+                                                  options_json: â€¦
+                                                  source: â€¦
                             schema:
                                 properties:
                                     data:
@@ -5926,6 +6425,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -5970,6 +6479,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "501":
                     content:
                         application/json:
@@ -6020,6 +6539,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "409":
                     content:
                         application/json:
@@ -6052,10 +6581,10 @@ paths:
                                                 - example
                                             version: example
                                             views:
-                                                - columns: …
-                                                  name: …
-                                                  purpose: …
-                                                  samples: …
+                                                - columns: â€¦
+                                                  name: â€¦
+                                                  purpose: â€¦
+                                                  samples: â€¦
                             schema:
                                 properties:
                                     data:
@@ -6064,6 +6593,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6105,14 +6644,14 @@ paths:
                                                 span_count: 1.5
                                                 total_duration_ns: 1.5
                                             baseline_spans:
-                                                - duration_ns: …
-                                                  name: …
-                                                  parent_span_id: …
-                                                  service_name: …
-                                                  session_id: …
-                                                  span_id: …
-                                                  start_ns: …
-                                                  trace_id: …
+                                                - duration_ns: â€¦
+                                                  name: â€¦
+                                                  parent_span_id: â€¦
+                                                  service_name: â€¦
+                                                  session_id: â€¦
+                                                  span_id: â€¦
+                                                  start_ns: â€¦
+                                                  trace_id: â€¦
                                             compare:
                                                 db_calls: 1.5
                                                 label: checkout regression
@@ -6120,22 +6659,22 @@ paths:
                                                 span_count: 1.5
                                                 total_duration_ns: 1.5
                                             compare_spans:
-                                                - duration_ns: …
-                                                  name: …
-                                                  parent_span_id: …
-                                                  service_name: …
-                                                  session_id: …
-                                                  span_id: …
-                                                  start_ns: …
-                                                  trace_id: …
+                                                - duration_ns: â€¦
+                                                  name: â€¦
+                                                  parent_span_id: â€¦
+                                                  service_name: â€¦
+                                                  session_id: â€¦
+                                                  span_id: â€¦
+                                                  start_ns: â€¦
+                                                  trace_id: â€¦
                                             spans:
-                                                - baseline_duration_ns: …
-                                                  compare_duration_ns: …
-                                                  delta_pct: …
-                                                  depth: …
-                                                  name: …
-                                                  service_name: …
-                                                  status: …
+                                                - baseline_duration_ns: â€¦
+                                                  compare_duration_ns: â€¦
+                                                  delta_pct: â€¦
+                                                  depth: â€¦
+                                                  name: â€¦
+                                                  service_name: â€¦
+                                                  status: â€¦
                                             summary:
                                                 db_call_delta: 1.5
                                                 duration_delta_ns: 1.5
@@ -6156,6 +6695,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -6199,6 +6748,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: list Forwarders
             tags:
                 - Administration
@@ -6223,6 +6782,7 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+            security: []
             summary: get Health
             tags:
                 - Administration
@@ -6269,6 +6829,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6314,6 +6884,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6431,6 +7011,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6477,6 +7067,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6519,6 +7119,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6597,23 +7207,23 @@ paths:
                                             description: example
                                             name: POST /checkout
                                             points:
-                                                - bounds: …
-                                                  buckets: …
-                                                  count: …
-                                                  exemplars: …
-                                                  exp_negative_counts: …
-                                                  exp_negative_offset: …
-                                                  timestamp_ns: …
-                                                  value: …
+                                                - bounds: â€¦
+                                                  buckets: â€¦
+                                                  count: â€¦
+                                                  exemplars: â€¦
+                                                  exp_negative_counts: â€¦
+                                                  exp_negative_offset: â€¦
+                                                  timestamp_ns: â€¦
+                                                  value: â€¦
                                             service_name: checkout
                                             traces:
-                                                - duration_ns: …
-                                                  end_ns: …
-                                                  op: …
-                                                  service: …
-                                                  start_ns: …
-                                                  status_code: …
-                                                  trace_id: …
+                                                - duration_ns: â€¦
+                                                  end_ns: â€¦
+                                                  op: â€¦
+                                                  service: â€¦
+                                                  start_ns: â€¦
+                                                  status_code: â€¦
+                                                  trace_id: â€¦
                                             type: example
                                             unit: example
                             schema:
@@ -6630,6 +7240,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6694,6 +7314,16 @@ paths:
                                     - meta
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6731,6 +7361,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6768,6 +7408,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6787,6 +7437,16 @@ paths:
                             schema:
                                 type: string
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: get Open A P I Spec
             tags:
                 - Administration
@@ -6806,6 +7466,16 @@ paths:
                             description: Marks the response as inline so browsers display the YAML rather than downloading it.
                             schema:
                                 example: inline; filename="openapi.yaml"
+                                type: string
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
                                 type: string
             summary: view OpenAPI YAML specification
             tags:
@@ -6856,6 +7526,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6912,6 +7592,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -6921,6 +7611,466 @@ paths:
             summary: search Telemetry
             tags:
                 - Traces
+    /api/security:
+        get:
+            operationId: getSecurity
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative security response
+                                    value:
+                                        data:
+                                            enabled: true
+                                            enabled_source: config
+                                            encryption_password_set: true
+                                            password_source: config
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/SecurityStatus'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            summary: getSecurity
+            tags:
+                - Security
+        put:
+            operationId: putSecurity
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                enabled:
+                                    type: boolean
+                                encryption_password:
+                                    format: password
+                                    maxLength: 1024
+                                    minLength: 16
+                                    type: string
+                                    writeOnly: true
+                            required: []
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative security response
+                                    value:
+                                        data:
+                                            enabled: true
+                                            enabled_source: config
+                                            encryption_password_set: true
+                                            password_source: config
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/SecurityStatus'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            summary: putSecurity
+            tags:
+                - Security
+    /api/security/session:
+        delete:
+            operationId: deleteSecuritySession
+            responses:
+                "204":
+                    description: Browser session updated. HttpOnly cookie is set or cleared.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            security: []
+            summary: deleteSecuritySession
+            tags:
+                - Security
+        get:
+            operationId: getSecuritySession
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative security response
+                                    value:
+                                        data:
+                                            authenticated: true
+                                            enabled: true
+                            schema:
+                                properties:
+                                    data:
+                                        properties:
+                                            authenticated:
+                                                type: boolean
+                                            enabled:
+                                                type: boolean
+                                        required:
+                                            - enabled
+                                            - authenticated
+                                        type: object
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            security: []
+            summary: getSecuritySession
+            tags:
+                - Security
+        post:
+            operationId: createSecuritySession
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                token:
+                                    format: password
+                                    type: string
+                                    writeOnly: true
+                            required:
+                                - token
+                            type: object
+                required: true
+            responses:
+                "204":
+                    description: Browser session updated. HttpOnly cookie is set or cleared.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            security: []
+            summary: createSecuritySession
+            tags:
+                - Security
+    /api/security/tokens:
+        get:
+            operationId: listTokens
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative security response
+                                    value:
+                                        data:
+                                            - created_at: "2026-11-02T12:00:00Z"
+                                              expires_at: "2027-11-02T12:00:00Z"
+                                              id: example-id
+                                              name: backend
+                                              prefix: spn_example-id
+                                              status: active
+                            schema:
+                                properties:
+                                    data:
+                                        items:
+                                            $ref: '#/components/schemas/APIToken'
+                                        type: array
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            summary: listTokens
+            tags:
+                - Security
+        post:
+            operationId: createToken
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateTokenInput'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative security response
+                                    value:
+                                        data:
+                                            secret: spn_example-id_example-only-not-a-real-token
+                                            token:
+                                                created_at: "2026-11-02T12:00:00Z"
+                                                expires_at: "2027-11-02T12:00:00Z"
+                                                id: example-id
+                                                name: backend
+                                                prefix: spn_example-id
+                                                status: active
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/CreatedToken'
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            summary: createToken
+            tags:
+                - Security
+    /api/security/tokens/{tokenId}:
+        delete:
+            operationId: deleteToken
+            parameters:
+                - in: path
+                  name: tokenId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                example:
+                                    summary: Representative security response
+                                    value:
+                                        data:
+                                            ok: true
+                            schema:
+                                properties:
+                                    data:
+                                        properties:
+                                            ok:
+                                                type: boolean
+                                        required:
+                                            - ok
+                                        type: object
+                                required:
+                                    - data
+                                type: object
+                    description: Successful response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Setting override or security invariant prevents this operation
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Security service unavailable
+            summary: deleteToken
+            tags:
+                - Security
     /api/service-map:
         get:
             operationId: getServiceMap
@@ -6941,17 +8091,17 @@ paths:
                                     value:
                                         data:
                                             edges:
-                                                - avg_duration_ns: …
-                                                  call_count: …
-                                                  error_count: …
-                                                  from: …
-                                                  to: …
+                                                - avg_duration_ns: â€¦
+                                                  call_count: â€¦
+                                                  error_count: â€¦
+                                                  from: â€¦
+                                                  to: â€¦
                                             nodes:
-                                                - error_count: …
-                                                  id: …
-                                                  p95_ns: …
-                                                  span_count: …
-                                                  top_operations: …
+                                                - error_count: â€¦
+                                                  id: â€¦
+                                                  p95_ns: â€¦
+                                                  span_count: â€¦
+                                                  top_operations: â€¦
                             schema:
                                 properties:
                                     data:
@@ -6960,6 +8110,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7008,6 +8168,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7047,6 +8217,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7093,6 +8273,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7136,6 +8326,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7179,6 +8379,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7241,6 +8451,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7299,6 +8519,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7354,6 +8584,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7384,6 +8624,16 @@ paths:
                             schema:
                                 type: string
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7421,6 +8671,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: get Active Session
             tags:
                 - Sessions
@@ -7481,6 +8741,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: import Session
             tags:
                 - Sessions
@@ -7512,6 +8782,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7561,7 +8841,7 @@ paths:
                                     description: Sets the IPv6 address on which Spaniel listens for HTTP traffic.
                                     type: string
                                 db_path:
-                                    description: Sets the path of Spaniel’s DuckDB telemetry database.
+                                    description: Sets the path of Spanielâ€™s DuckDB telemetry database.
                                     type: string
                                 default_time_range:
                                     type: string
@@ -7651,7 +8931,7 @@ paths:
                                     description: Sets how long telemetry is retained before age-based pruning.
                                     type: integer
                                 self_monitor:
-                                    description: Enables Spaniel’s own telemetry instrumentation.
+                                    description: Enables Spanielâ€™s own telemetry instrumentation.
                                     type: boolean
                                 source_burst:
                                     description: Sets the maximum short-term telemetry burst accepted from a source.
@@ -7696,6 +8976,16 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Error'
                     description: The request was invalid.
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7746,6 +9036,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7786,6 +9086,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7816,6 +9126,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7858,6 +9178,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -7907,6 +9237,16 @@ paths:
                                     - data
                                 type: object
                     description: Installation complete
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7950,6 +9290,16 @@ paths:
                                     - data
                                 type: object
                     description: Installation complete
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -7994,6 +9344,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -8099,6 +9459,16 @@ paths:
                                     - meta
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -8143,6 +9513,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -8216,6 +9596,16 @@ paths:
                     description: Formatted SQL
                 "400":
                     $ref: '#/components/responses/BadRequest'
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
             summary: Format SQL layout without executing it; preserve comments and bind placeholders
             tags:
                 - SQL
@@ -8254,6 +9644,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -8278,11 +9678,11 @@ paths:
                                             last_checkpoint_at: 1.5
                                             main_bytes: 1.5
                                             sessions:
-                                                - …
+                                                - â€¦
                                             tables:
-                                                - approx_bytes: …
-                                                  name: …
-                                                  row_count: …
+                                                - approx_bytes: â€¦
+                                                  name: â€¦
+                                                  row_count: â€¦
                                             wal_bytes: 1.5
                             schema:
                                 properties:
@@ -8292,6 +9692,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -8371,6 +9781,16 @@ paths:
                                     - meta
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -8417,6 +9837,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -8453,6 +9883,16 @@ paths:
                             schema:
                                 type: string
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "404":
                     content:
                         application/json:
@@ -8505,6 +9945,16 @@ paths:
                                     - data
                                 type: object
                     description: Successful response
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
                 "500":
                     content:
                         application/json:
@@ -8514,6 +9964,8 @@ paths:
             summary: list Incoming Links
             tags:
                 - Traces
+security:
+    - BearerAuth: []
 servers:
     - description: Current Spaniel instance
       url: /
@@ -8530,3 +9982,5 @@ tags:
       name: Alerts
     - description: Settings, storage, coverage, schema, and source metadata.
       name: Administration
+    - description: Named API tokens, encryption and browser authentication.
+      name: Security

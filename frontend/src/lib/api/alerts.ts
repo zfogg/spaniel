@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/auth'
 import type {
   ListAlertsQuery,
   CreateAlertInput,
@@ -65,12 +66,12 @@ export const alerts = {
   previewDraft: (body: PreviewAlertDraftInput) =>
     unwrap(openapiClient.POST('/api/alerts/preview', { body })),
   config: async (id: string) => {
-    const r = await fetch(`/api/alerts/${id}/config`)
+    const r = await authenticatedFetch(`/api/alerts/${id}/config`)
     if (!r.ok) throw new Error(await r.text())
     return r.text()
   },
   importConfig: async (yaml: string) => {
-    const r = await fetch('/api/alerts/import', {
+    const r = await authenticatedFetch('/api/alerts/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/yaml' },
       body: yaml,
