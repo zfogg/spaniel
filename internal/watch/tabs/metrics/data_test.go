@@ -128,7 +128,7 @@ func TestBoundDeduplicatesSortsExpiresAndCaps(t *testing.T) {
 
 func TestTimestampPresentationUsesReadableUTCMilliseconds(t *testing.T) {
 	const precise int64 = 1793631000123456789
-	if got := timestamp(precise); got != "2026-11-02 15:30:00.123Z" {
+	if got := timestamp(precise); got != "2026-11-02 14:50:00.123Z" {
 		t.Fatalf("timestamp presentation = %q", got)
 	}
 	if timestamp(0) != "—" {
