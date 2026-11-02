@@ -213,7 +213,7 @@ func TestFiltersDedupeAndInputCapture(t *testing.T) {
 		t.Fatal("wrong session live row inserted")
 	}
 	m.Update(protocol.SessionChanged{ID: "new"})
-	if len(m.rows) != 0 || m.selected != "" {
+	if len(m.rows) != 0 || m.selected != "" || m.total != 0 {
 		t.Fatal("session transition retained old rows")
 	}
 }

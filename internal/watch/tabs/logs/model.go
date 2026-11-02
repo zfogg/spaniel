@@ -86,6 +86,7 @@ func (m *model) reconcile() {
 }
 func (m *model) resetPage() {
 	m.page = 1
+	m.total = 0
 	m.rows, m.frozen = nil, nil
 	m.loaded, m.paused, m.selected = false, false, ""
 	m.register()
