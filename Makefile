@@ -316,3 +316,10 @@ test-watch-footer:
 	./$(BIN_DIR)/watch-shell.test$(EXE) -test.count=1 -test.timeout=2m
 	go test -race -c -o $(BIN_DIR)/watch-watch.test$(EXE) ./internal/watch
 	./$(BIN_DIR)/watch-watch.test$(EXE) -test.run 'TestSeededTerminalSmoke|TestTerminalOutput' -test.count=1 -test.timeout=2m
+
+# Real production navigation/captures without repeating unrelated package suites.
+.PHONY: test-watch-integration
+test-watch-integration:
+	mkdir -p $(BIN_DIR)
+	go test -race -c -o $(BIN_DIR)/watch-watch.test$(EXE) ./internal/watch
+	./$(BIN_DIR)/watch-watch.test$(EXE) -test.run '^TestAllSevenRealAPINavigationRepairAndContextualFooter$$' -test.count=1 -test.timeout=2m
