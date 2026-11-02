@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 
 	keys "github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type contextualHelp interface{ ShortHelp() []keys.Binding }
@@ -48,14 +48,8 @@ func (m *Model) helpContext() string {
 	}
 	return s
 }
-func singleLine(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func singleLine(s string) string { return terminal.SingleLine(s) }
+
 func shortcut(k, description string) string {
 	return tui.Accent.Bold(true).Underline(true).Render(k) + tui.Muted.Render(" "+description)
 }

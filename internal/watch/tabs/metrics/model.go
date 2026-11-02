@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +17,7 @@ import (
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 const catalogLimit = 4096
@@ -336,14 +336,8 @@ func (m *catalog) View() string {
 	}
 	return fit(lines, m.width, m.height)
 }
-func safe(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, s)
-}
+func safe(s string) string { return terminal.SingleLine(s) }
+
 func cut(s string, width int) string { return ansi.Truncate(s, max(1, width), "…") }
 func fit(lines []string, width, height int) string {
 	if len(lines) > height {

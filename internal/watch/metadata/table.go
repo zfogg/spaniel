@@ -3,11 +3,11 @@ package metadata
 
 import (
 	"strings"
-	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/tui"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type Field struct {
@@ -24,12 +24,7 @@ func Table(fields []Field, width int) []string {
 	}
 	keyWidth = min(keyWidth, max(1, width/3))
 	cell := func(value string, size int) string {
-		value = strings.Map(func(r rune) rune {
-			if unicode.IsControl(r) || r == '\u2028' || r == '\u2029' {
-				return ' '
-			}
-			return r
-		}, ansi.Strip(value))
+		value = terminal.SingleLine(value)
 		value = ansi.Truncate(value, size, "…")
 		return value + strings.Repeat(" ", max(0, size-ansi.StringWidth(value)))
 	}

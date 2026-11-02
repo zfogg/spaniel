@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,6 +16,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 const rowLimit = 2000
@@ -526,14 +526,8 @@ func (m *model) navigate(key string) tea.Cmd {
 }
 
 // Terminal control bytes in telemetry must never become terminal commands.
-func clean(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, s)
-}
+func clean(s string) string { return terminal.SingleLine(s) }
+
 func created(ns int64) string {
 	if ns == 0 {
 		return "unknown"

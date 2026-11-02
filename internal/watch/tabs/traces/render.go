@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -12,6 +11,7 @@ import (
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef6b73"))
@@ -129,14 +129,8 @@ func convert[T any](v any) T               { out, _ := decodeRow[T](v); return o
 func spanRow(s apigen.Span) apigen.SpanRow { return convert[apigen.SpanRow](s) }
 
 // Telemetry is untrusted terminal text, including stored attributes and IDs.
-func clean(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func clean(s string) string { return terminal.SingleLine(s) }
+
 func clip(s string, w int) string { return ansi.Truncate(s, max(0, w), "…") }
 func pad(s string, w int) string {
 	s = clip(s, w)

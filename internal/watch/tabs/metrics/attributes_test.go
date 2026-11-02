@@ -36,8 +36,8 @@ func TestAttributeTablePreservesTypesNumbersContainersAndWrappedValues(t *testin
 			if ansi.StringWidth(line) > width {
 				t.Fatalf("attribute width %d overflow %q", width, line)
 			}
-			if width >= 24 {
-				columns := strings.SplitN(line, " | ", 3)
+			if width >= 40 {
+				columns := strings.SplitN(line, " │ ", 3)
 				if len(columns) == 3 {
 					pieces = append(pieces, columns[2])
 				}

@@ -22,6 +22,11 @@ func NewTimeSeries(width, height int, from, to time.Time, minY, maxY float64) ts
 	if !to.After(from) {
 		to = from.Add(time.Second)
 	}
+	// ntcharts stores axis bounds in whole Unix seconds. A subsecond window
+	// otherwise collapses and leaves its default current-time viewport intact.
+	if to.Unix() <= from.Unix() {
+		to = time.Unix(from.Unix()+1, 0)
+	}
 	if maxY <= minY {
 		maxY = minY + 1
 	}

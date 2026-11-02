@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	attributeview "github.com/zfogg/spaniel/internal/watch/attributes"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 )
@@ -16,26 +17,26 @@ import (
 const attributeFixture = `{"big":900719925474099312345,"decimal":1.234567890123456789,"enabled":true,"empty":"","nothing":null,"text":"001","nested":{"region":"east","attempt":2},"tags":["retry",false,{"code":504}]}`
 
 func TestAttributeTablesPreserveScalarTypesAndNestedValues(t *testing.T) {
-	rows, err := parseAttributes(attributeFixture)
+	rows, err := attributeview.Parse(attributeFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
-	byKey := map[string]attributeRow{}
+	byKey := map[string]attributeview.Row{}
 	for _, row := range rows {
-		byKey[strings.TrimSpace(row.key)] = row
+		byKey[strings.TrimSpace(row.Key)] = row
 	}
-	for k, want := range map[string]attributeRow{
-		"big": {kind: "number", value: "900719925474099312345"}, "decimal": {kind: "number", value: "1.234567890123456789"},
-		"enabled": {kind: "boolean", value: "true"}, "empty": {kind: "string", value: "(empty string)"}, "nothing": {kind: "null", value: "null"}, "text": {kind: "string", value: "001"},
-		"nested": {kind: "object", value: "2 fields"}, "↳ region": {kind: "string", value: "east"}, "tags": {kind: "array", value: "3 items"}, "↳ code": {kind: "number", value: "504"},
+	for k, want := range map[string]attributeview.Row{
+		"big": {Type: "number", Value: "900719925474099312345"}, "decimal": {Type: "number", Value: "1.234567890123456789"},
+		"enabled": {Type: "boolean", Value: "true"}, "empty": {Type: "string", Value: "(empty string)"}, "nothing": {Type: "null", Value: "null"}, "text": {Type: "string", Value: "001"},
+		"nested": {Type: "object", Value: "2 fields"}, `nested["region"]`: {Type: "string", Value: "east"}, "tags": {Type: "array", Value: "3 items"}, `tags[2]["code"]`: {Type: "number", Value: "504"},
 	} {
 		got, ok := byKey[k]
-		if !ok || got.kind != want.kind || got.value != want.value {
+		if !ok || got.Type != want.Type || got.Value != want.Value {
 			t.Fatalf("%s: %#v, want %#v", k, got, want)
 		}
 	}
 	view := ansi.Strip(strings.Join(attributeLines("Attributes", attributeFixture, 120), "\n"))
-	for _, want := range []string{"key/value table", "KEY", "TYPE", "VALUE", "900719925474099312345", "1.234567890123456789", "boolean", "[0]", "↳ region"} {
+	for _, want := range []string{"key/value table", "KEY", "TYPE", "VALUE", "900719925474099312345", "1.234567890123456789", "boolean", "[0]", `nested["region"]`} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("table omitted %q:\n%s", want, view)
 		}
@@ -48,7 +49,7 @@ func TestAttributeTablesPreserveScalarTypesAndNestedValues(t *testing.T) {
 			t.Fatal("invalid JSON not explicit")
 		}
 	}
-	if _, err := parseAttributes(`{}`); err != nil {
+	if _, err := attributeview.Parse(`{}`); err != nil {
 		t.Fatal(err)
 	}
 }

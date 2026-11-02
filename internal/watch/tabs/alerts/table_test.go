@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	attributeview "github.com/zfogg/spaniel/internal/watch/attributes"
 )
 
 func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
@@ -60,20 +61,20 @@ func TestRuleInstanceAndHistoryTablesAlignAndResize(t *testing.T) {
 
 func TestAttributeTablesPreserveTypesPrecisionAndFullValues(t *testing.T) {
 	raw := `{"service.name":"checkout","number":9007199254740993,"flag":true,"nested":{"items":["first",9223372036854775807,null]},"empty":[]}`
-	rows, err := attributeRows(raw)
+	rows, err := attributeview.Parse(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := map[string]attributeRow{}
+	found := map[string]attributeview.Row{}
 	for _, row := range rows {
-		found[row.key] = row
+		found[row.Key] = row
 	}
-	for key, want := range map[string]attributeRow{
+	for key, want := range map[string]attributeview.Row{
 		"number":             {"number", "number", "9007199254740993"},
 		`nested["items"][1]`: {`nested["items"][1]`, "number", "9223372036854775807"},
 		"flag":               {"flag", "boolean", "true"},
 		`nested["items"][2]`: {`nested["items"][2]`, "null", "null"},
-		"empty":              {"empty", "array", "(empty)"},
+		"empty":              {"empty", "array", "0 items"},
 	} {
 		if found[key] != want {
 			t.Fatalf("attribute %s: %#v", key, found[key])

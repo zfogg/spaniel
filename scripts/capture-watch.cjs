@@ -16,11 +16,14 @@ async function main() {
       const recording = await fs.readFile(path.join(directory, `${name}.ansi`))
       let resize = null
       try { resize = JSON.parse(await fs.readFile(path.join(directory, `${name}.resize.json`), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
-      if (resize) {
-        await new Promise(resolve => terminal.write(recording.subarray(0, resize.offset).toString('utf8'), resolve))
-        terminal.resize(resize.cols, resize.rows)
+      let offset = 0
+      for (const event of resize ? (resize.events ?? [resize]) : []) {
+        if (event.offset < offset || event.offset > recording.length) throw new Error(`${name} has an invalid resize boundary`)
+        await new Promise(resolve => terminal.write(recording.subarray(offset, event.offset).toString('utf8'), resolve))
+        terminal.resize(event.cols, event.rows)
+        offset = event.offset
       }
-      await new Promise(resolve => terminal.write(recording.subarray(resize?.offset ?? 0).toString('utf8'), resolve))
+      await new Promise(resolve => terminal.write(recording.subarray(offset).toString('utf8'), resolve))
       const lines = [], styledRows = []
       for (let row = 0; row < terminal.rows; row++) {
         const line = terminal.buffer.active.getLine(row)
@@ -43,6 +46,7 @@ async function main() {
         styledRows.push(runs)
       }
       const screen = lines.join('\n')
+      await fs.writeFile(path.join(directory, `${name}.txt`), screen)
       if (!screen.includes('spaniel - ') || !['? help', 'F2 help', 'Esc/F2 close'].some(text => screen.includes(text))) {
         throw new Error(`${name} did not capture the actual watch screen`)
       }

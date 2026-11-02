@@ -249,6 +249,17 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 			program.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)})
 		}
 	}
+	type terminalResize struct {
+		Offset int `json:"offset"`
+		Cols   int `json:"cols"`
+		Rows   int `json:"rows"`
+	}
+	var resizes []terminalResize
+	resize := func(width, height int) {
+		resizes = append(resizes, terminalResize{len(output.text()), width, height})
+		program.Send(tea.WindowSizeMsg{Width: width, Height: height})
+		program.Send(tea.ClearScreen())
+	}
 	capture := func(name string) {
 		t.Helper()
 		if captureDir == "" {
@@ -263,6 +274,15 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 		}
 		if err := os.WriteFile(filepath.Join(captureDir, "integration-"+name+".ansi"), []byte(output.text()), 0644); err != nil {
 			t.Fatal(err)
+		}
+		if len(resizes) > 0 {
+			data, err := json.Marshal(map[string]any{"events": resizes})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(captureDir, "integration-"+name+".resize.json"), data, 0644); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	footer := func(view, action string) {
@@ -303,14 +323,7 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	footer(view, "containing trace")
 	capture("spans-inspector")
 	// Metadata stays a compact table when a physical resize clips long IDs.
-	if captureDir != "" {
-		data, _ := json.Marshal(map[string]int{"offset": len(output.text()), "cols": 40, "rows": 30})
-		if err := os.WriteFile(filepath.Join(captureDir, "integration-span-metadata-narrow.resize.json"), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	program.Send(tea.WindowSizeMsg{Width: 40, Height: 30})
-	program.Send(tea.ClearScreen())
+	resize(40, 30)
 	narrow := snapshot()
 	if !strings.Contains(narrow, "Trace ID  │ "+traceID[:27]+"…") {
 		t.Fatal("long metadata did not use a one-row ellipsis", narrow)
@@ -321,8 +334,7 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 		}
 	}
 	capture("span-metadata-narrow")
-	program.Send(tea.WindowSizeMsg{Width: 120, Height: 30})
-	program.Send(tea.ClearScreen())
+	resize(120, 30)
 	send("t")
 	wait("Waterfall")
 	send("back")
@@ -333,6 +345,7 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	wait("checkout.queue.depth")
 	send("enter")
 	wait("1 active series / 2000 limit")
+	wait("Series labels")
 	capture("metric-series")
 	send("/")
 	footer(wait("apply label filter"), "cancel label filter")
@@ -343,6 +356,8 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	wait("Order lookup deadline exceeded")
 	send("enter")
 	footer(wait("Full log"), "correlated span")
+	wait("order.id")
+	wait("9007199254740993")
 	capture("log-detail")
 	send("s")
 	wait("9007199254740993")
@@ -365,6 +380,7 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	wait("Checkout overview")
 	send("enter")
 	wait("Latency by second")
+	wait("Series: value")
 	capture("dashboard-chart")
 	send("e")
 	footer(wait("Set $service"), "apply value")

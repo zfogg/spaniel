@@ -12,7 +12,7 @@ import (
 func TestAttributeTablePreservesTypesExactNumbersAndNestedValues(t *testing.T) {
 	raw := `{"large":18446744073709551615,"precise":1.234567890123456789,"flag":true,"text":"true","nothing":null,"nested":{"child":"value"},"array":[7,"entry",{}],"empty":[]}`
 	table := attributeTable(raw, 120)
-	for _, expected := range []string{"KEY", "TYPE", "VALUE", "18446744073709551615", "1.234567890123456789", "boolean", "string", "null", `nested["child"]`, "object", "array[0]", "array[1]", "array[2]", "0 keys", "0 items"} {
+	for _, expected := range []string{"KEY", "TYPE", "VALUE", "18446744073709551615", "1.234567890123456789", "boolean", "string", "null", `nested["child"]`, "object", "array[0]", "array[1]", "array[2]", "0 fields", "0 items"} {
 		if !strings.Contains(table, expected) {
 			t.Fatalf("attributes table lost %q: %s", expected, table)
 		}

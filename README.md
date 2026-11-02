@@ -149,7 +149,9 @@ alerts. Tab/Shift-Tab switch views; Enter inspects a row and Escape returns. The
 single bottom shortcut row follows the focused tab, inspector or input. `? help`
 opens the complete shortcut popup; while editing text, use `F2 help` and type `?`
 normally. Popup arrows/page keys scroll and Escape closes it. Connection state
-stays in the heading. `watch --session ID` pins a recording; omission follows the
+stays in the heading. Trace, span and full-log metadata use aligned tables with
+ellipses for long fields; attribute tables preserve complete scrollable values.
+`watch --session ID` pins a recording; omission follows the
 active recording. Dashboards and alerts are read-only. `trace --session ID` uses
 the same live inspector. See [watch development](docs/watch-development.md) for
 filter/history bounds and integration validation.

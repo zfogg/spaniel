@@ -6,31 +6,17 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 var heading = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("111"))
 
-func clean(s string) string {
-	// Never let server strings introduce terminal controls, OSC hyperlinks or
-	// bidirectional display overrides. Newlines are preserved for wrapped detail.
-	return strings.Map(func(r rune) rune {
-		if r == '\n' {
-			return r
-		}
-		if r == '\t' {
-			return ' '
-		}
-		if unicode.IsControl(r) || unicode.In(r, unicode.Cf) {
-			return -1
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func clean(s string) string { return terminal.Multiline(s) }
+
 func oneLine(s string) string { return strings.Join(strings.Fields(clean(s)), " ") }
 func label(s string) string {
 	if s == "" {

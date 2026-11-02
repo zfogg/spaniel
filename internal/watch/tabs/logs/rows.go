@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
+	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 // The wire contract has no row ID. All durable fields, including received_at,
@@ -90,20 +90,8 @@ func severityName(severity float64) string {
 
 // Telemetry is untrusted terminal text: remove escape sequences and controls,
 // preserving line breaks for the inspector. No body/attribute truncation there.
-func clean(s string) string {
-	return strings.Map(func(r rune) rune {
-		if r == '\n' {
-			return r
-		}
-		if r == '\t' {
-			return ' '
-		}
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, ansi.Strip(s))
-}
+func clean(s string) string { return terminal.Multiline(s) }
+
 func preview(s string) string { return strings.Join(strings.Fields(clean(s)), " ") }
 func cell(s string, width int) string {
 	return ansi.Truncate(s, width, "…") + strings.Repeat(" ", max(0, width-ansi.StringWidth(s)))
