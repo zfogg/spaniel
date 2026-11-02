@@ -9,7 +9,6 @@ func helpBinding(keys []string, display, description string) key.Binding {
 // ShortHelp exposes only actions applicable to the focused alert view. The
 // coordinator's shared footer can discover this structural method without a
 // protocol change. Global tab/Back/quit bindings remain the shell's concern.
-// Inline legends stay until the coordinator installs that shared footer.
 func (m *model) ShortHelp() []key.Binding {
 	if m.editing {
 		return []key.Binding{

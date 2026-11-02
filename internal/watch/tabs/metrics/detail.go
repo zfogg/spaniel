@@ -333,7 +333,7 @@ func (m *detail) render() ([]string, []string) {
 	if temporality == "" && m.metric.AggregationTemporality != nil {
 		temporality = *m.metric.AggregationTemporality
 	}
-	header := []string{tui.Title.Render(safe(m.metric.Name)) + " · " + safe(m.metric.ServiceName), fmt.Sprintf("%s · %s · %s · view %s · window %s", safe(m.kind()), safe(temporality), safe(unit), m.operation, windows[m.window]), tui.Muted.Render("←→ series · / labels · o operation · w window · a overlay · ↑↓/PgDn scroll")}
+	header := []string{tui.Title.Render(safe(m.metric.Name)) + " · " + safe(m.metric.ServiceName), fmt.Sprintf("%s · %s · %s · view %s · window %s", safe(m.kind()), safe(temporality), safe(unit), m.operation, windows[m.window])}
 	if m.data.Monotonic != nil {
 		header[1] += fmt.Sprintf(" · monotonic %t", *m.data.Monotonic)
 	}
@@ -459,6 +459,5 @@ func (m *detail) View() string {
 	offset := min(m.offset, max(0, len(wrapped)-available))
 	header = append(header, wrapped[offset:min(len(wrapped), offset+available)]...)
 	header = append(header, fmt.Sprintf("Scroll %d/%d", offset+1, max(1, len(wrapped)-available+1)))
-	header = append(header, tui.Muted.Render("Esc returns to catalog"))
 	return fit(header, m.width, m.height)
 }

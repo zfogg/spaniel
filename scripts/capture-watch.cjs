@@ -10,7 +10,8 @@ async function main() {
   const directory = path.resolve(process.argv[2])
   const browser = await chromium.launch({ headless: true })
   try {
-    for (const name of ['watch-traces', 'watch-spans', 'watch-reconnecting']) {
+    const names = (await fs.readdir(directory)).filter(name => name.endsWith('.ansi')).map(name => name.slice(0, -5))
+    for (const name of names) {
       const terminal = new Terminal({ cols: 120, rows: 30, allowProposedApi: true })
       const recording = await fs.readFile(path.join(directory, `${name}.ansi`), 'utf8')
       await new Promise((resolve) => terminal.write(recording, resolve))
@@ -26,6 +27,7 @@ async function main() {
           if (cell.isFgRGB()) style.push(`color:#${cell.getFgColor().toString(16).padStart(6, '0')}`)
           if (cell.isBgRGB()) style.push(`background:#${cell.getBgColor().toString(16).padStart(6, '0')}`)
           if (cell.isBold()) style.push('font-weight:700')
+          if (cell.isItalic()) style.push('font-style:italic')
           if (cell.isUnderline()) style.push('text-decoration:underline;text-underline-offset:3px')
           if (cell.isDim()) style.push('opacity:.65')
           const css = style.join(';'), text = cell.getChars() || ' '
@@ -35,8 +37,8 @@ async function main() {
         styledRows.push(runs)
       }
       const screen = lines.join('\n')
-      if (!screen.includes('spaniel - ') || !screen.includes('Foundation extension point') || !screen.includes('q quit')) {
-        throw new Error(`${name} did not capture the actual foundation screen`)
+      if (!screen.includes('spaniel - ') || !screen.includes('Ctrl+C quit')) {
+        throw new Error(`${name} did not capture the actual watch screen`)
       }
       if (name === 'watch-reconnecting' && !screen.includes('reconnecting:')) throw new Error('missing real reconnect state')
       const page = await browser.newPage({ viewport: { width: 1320, height: 720 }, deviceScaleFactor: 1 })

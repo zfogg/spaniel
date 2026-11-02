@@ -46,8 +46,7 @@ func New(env protocol.Env) tea.Model {
 func (m *catalog) Init() tea.Cmd      { return nil }
 func (m *catalog) CapturesKeys() bool { return m.editing }
 
-// ShortHelp is consumed structurally by the integration footer. Inline legends
-// remain until that shared shell change can move all feature help together.
+// ShortHelp describes the focused catalog or search for the shared footer.
 func (m *catalog) ShortHelp() []key.Binding {
 	if m.editing {
 		return inputHelp("search", m.draft)
@@ -285,7 +284,7 @@ func (m *catalog) View() string {
 	if m.editing {
 		query = m.draft + "▏"
 	}
-	lines := []string{tui.Title.Render("Metric catalog"), tui.Muted.Render("/ search · service=api type=sum unit=ms · ↑↓ select · Enter inspect"), "Search: " + safe(query)}
+	lines := []string{tui.Title.Render("Metric catalog"), tui.Muted.Render("Search terms: service=api type=sum unit=ms"), "Search: " + safe(query)}
 	if m.env.Filters.Service != "" {
 		lines = append(lines, "Service scope: "+safe(m.env.Filters.Service))
 	}
@@ -328,7 +327,6 @@ func (m *catalog) View() string {
 	}
 	if len(rows) > 0 {
 		lines = append(lines, fmt.Sprintf("%d/%d", index+1, len(rows)))
-		lines = append(lines, tui.Muted.Render("Enter: labeled series, dimensions, chart and raw samples"))
 	}
 	return fit(lines, m.width, m.height)
 }

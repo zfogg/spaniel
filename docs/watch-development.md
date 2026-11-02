@@ -15,7 +15,7 @@ Every constructor below is already wired in `internal/watch/app.go`. Replace the
 | #130 | `internal/watch/tabs/dashboards/**` | `dashboards.New(protocol.Env) tea.Model` |
 | #131 | `internal/watch/tabs/alerts/**` | `alerts.New(protocol.Env) tea.Model` |
 
-`internal/watch/foundation` is a temporary, clearly labeled status view. It loads real stored snapshots but deliberately renders no feature rows. All seven feature views and final trace/span rendering remain pending their issues; this foundation does not complete the parent dashboard. Do not copy the old command-local watch/N+1/log renderers into the new packages. `cmd/spaniel/watch_tui.go`, `logs_tui.go`, and `trace_tui.go` retain legacy helpers/tests and standalone-command behavior; new feature rendering belongs only in the packages above.
+All seven feature packages are implemented and composed by the shared shell. `internal/watch/foundation` remains a test/support view and is not used by the production dashboard. Feature rendering belongs in the packages above; shared trace/span details serve every telemetry entry path.
 
 The seven ordered tabs are traces, spans, metrics, logs, lints, dashboards, alerts. `spaniel watch` uses the shared shell on a TTY; piped output and existing span filters keep their original line format. `spaniel tui` is deprecated and calls the same command implementation. `--api` selects the HTTP base; `--session ID` pins the dashboard scope; omission follows the active session. The heading and terminal title are `spaniel - <tab title>`.
 
@@ -61,6 +61,8 @@ type Details interface {
 ```
 
 For a feature-owned full log or other detail, emit `protocol.ShowDetail{New protocol.Factory, Return protocol.ReturnContext}`. The factory receives a new owner/environment; register its own requests under that owner. `protocol.Back{}` or Escape pops one view. Each tab retains its detail stack when switching tabs; all retained details keep receiving live updates and owner results. Closing a detail removes its subscriptions; late results are discarded.
+
+The shell renders the focused model’s `ShortHelp() []key.Binding` in the bottom help area. The active tab, retained detail, subview, selection, pause state and text input determine the available actions. Features render data, filter syntax, state and scroll position without inline shortcut legends. Global navigation is shown where applicable; text capture keeps only Ctrl+C global. F1 pages long help without consuming printable input. The heading occupies one terminal row; every pane receives a viewport that reserves the actual footer height. Reconnect errors are sanitized and clipped to that footer.
 
 The shell owns Tab/Shift-Tab, Ctrl+C, `q`, heading/title, and Escape/Backspace in details. Features own arrows, scrolling, Enter, filter entry, and pause behavior. Implement `protocol.KeyCapture.CapturesKeys() bool` while text input or another modal consumes `q`/Escape/Tab; Ctrl+C always quits. Pause must pause presentation, retain bounded live state, and reconcile when unpaused. Never stop the shared stream for a single tab.
 
@@ -154,4 +156,4 @@ npm install --prefix .local/watch-capture-tools --no-package-lock --no-save @xte
 node scripts/capture-watch.cjs bin/watch-captures .local/watch-capture-tools/node_modules
 ```
 
-Inspect all generated PNGs before attaching them to a PR. The renderer capture includes explicitly pending feature labels; it is a screenshot of the foundation behavior, not a claim that trace/span feature rows have been implemented.
+Inspect all generated PNGs before attaching them to a PR. The capture script rasterizes the recorded production renderer through xterm, preserving styles and cursor/erase operations. The seeded smoke test records all seven tabs, the shared trace/span views, filter input and a forced disconnect. These HTTP fixtures verify footer integration; feature terminal tests additionally exercise actual DuckDB-backed API reads and ingestion.

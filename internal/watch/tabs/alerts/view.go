@@ -90,9 +90,9 @@ func (m *model) View() string {
 		}
 		body = m.ruleLines(ruleIDs(m.visibleRules()))
 	} else {
-		head = append(head, "d definition · i instances · h history · l links", "Viewing: "+m.section)
+		head = append(head, "Viewing: "+m.section)
 		if m.deleted() {
-			head = append(head, "Rule deleted or unavailable (404) · retained definition is stale · Escape returns")
+			head = append(head, "Rule deleted or unavailable (404) · retained definition is stale")
 		} else if status := m.status("rule"); status != "" {
 			head = append(head, status)
 		}
@@ -124,18 +124,14 @@ func (m *model) View() string {
 		head = append(head, m.notice)
 	}
 	if m.editing {
-		head = append(head, "Search> "+oneLine(string(m.draft))+"_  Enter apply · Esc cancel · Ctrl+U clear")
-	}
-	help := "↑↓ select · Enter details · / search · s state · v severity · [ ] API page · c clear"
-	if m.id != "" {
-		help = "↑↓ / PgUp PgDn · Enter inspect · / search · s state · v severity · [ ] history page · g group · t telemetry · c clear · Esc Back"
+		head = append(head, "Search> "+oneLine(string(m.draft))+"_")
 	}
 	// Clip every rendered line, including statuses/help, to the current viewport.
 	// This also works at one-column/one-row sizes without negative dimensions.
 	if m.height < 10 && len(head) > 1 {
 		head = head[:1]
 	}
-	available := max(0, m.height-len(head)-1)
+	available := max(0, m.height-len(head))
 	if len(head) >= m.height {
 		head = head[:max(0, m.height-1)]
 	}
@@ -146,7 +142,6 @@ func (m *model) View() string {
 	for len(lines) < m.height-1 {
 		lines = append(lines, "")
 	}
-	lines = append(lines, help)
 	for i, line := range lines {
 		lines[i] = ansi.Truncate(line, m.width, "…")
 	}
@@ -272,7 +267,6 @@ func (m *model) instanceLines() []string {
 		lines = append(lines, "No current instances match.")
 	}
 	lines = m.selectedWindow(lines, m.instance, ids, 1)
-	lines = append(lines, "Enter inspects full labels, evaluation and acknowledgment context.")
 	return append(lines, m.silenceLines()...)
 }
 func (m *model) instanceDetail() []string {

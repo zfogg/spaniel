@@ -235,7 +235,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) View() string {
 	rows := m.visible()
 	// The shell owns the tab heading and connection status. Keep data context
-	// separate from the temporary inline legend for the contextual-footer move.
+	// separate from keyboard help in the shell footer.
 	var lines []string
 	service, severity := m.service, m.severity
 	if service == "" {
@@ -251,9 +251,6 @@ func (m *model) View() string {
 	lines = append(lines, tui.Muted.Render(filters))
 	if m.editing != "" {
 		lines = append(lines, tui.Accent.Render(m.editing+": "+clean(m.input)+"▏"))
-		lines = append(lines, tui.Muted.Render("Enter apply · Esc cancel · Ctrl+U clear input"))
-	} else {
-		lines = append(lines, tui.Muted.Render("↑↓ select · Enter full log · / text (page) · s service · v severity · [ ] pages · p pause"))
 	}
 	if m.text != "" {
 		lines = append(lines, "Text on loaded page: "+clean(m.text))

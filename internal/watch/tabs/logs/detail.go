@@ -84,7 +84,7 @@ func (m *detail) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = max(1, msg.Width), max(1, msg.Height)
-		m.view.Width, m.view.Height = m.width, max(1, m.height-4)
+		m.view.Width, m.view.Height = m.width, max(1, m.height-2)
 		m.content()
 	case protocol.Connection:
 		m.connected = msg.Connected
@@ -169,18 +169,10 @@ func (m *detail) View() string {
 	case m.uncertain:
 		state = "Retained copy · not found within bounded timestamp lookup"
 	}
-	navigation := "No trace/span correlation on this log."
-	if !m.changedSession && m.row.TraceId != "" {
-		navigation = "Enter/t trace (selects correlated span)"
+	lines := []string{tui.Title.Render("Full log") + tui.Muted.Render("  ·  "+state)}
+	if m.row.TraceId == "" && m.row.SpanId == "" {
+		lines = append(lines, "No trace/span correlation on this log.")
 	}
-	if !m.changedSession && m.row.SpanId != "" {
-		if m.row.TraceId == "" {
-			navigation = "Enter/s span · no containing trace ID"
-		} else {
-			navigation += " · s span"
-		}
-	}
-	lines := []string{tui.Title.Render("Full log") + tui.Muted.Render("  ·  "+state), tui.Accent.Render(navigation), tui.Muted.Render("↑↓/PgUp/PgDn scroll · Esc back · expired correlation: Esc restores this log")}
 	lines = append(lines, strings.Split(m.view.View(), "\n")...)
 	lines = append(lines, tui.Faint.Render(fmt.Sprintf("%d%%", int(m.view.ScrollPercent()*100))))
 	return fit(lines, m.width, m.height)

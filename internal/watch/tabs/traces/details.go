@@ -214,7 +214,7 @@ func (m *traceModel) View() string {
 	if m.paused {
 		title = "PAUSED · " + title
 	}
-	lines := []string{tui.Title.Render(title), m.state.banner(), tui.Muted.Render("↑↓ / PgUp PgDn scroll · Enter inspect span · p pause · r reload · Esc Back")}
+	lines := []string{tui.Title.Render(title), m.state.banner()}
 	if len(rows) == 0 {
 		text := "No spans in this trace/session. Data may have expired; waiting for telemetry…"
 		if m.state.loading {
@@ -418,7 +418,7 @@ func (m *spanModel) content() []string {
 	return wrapped
 }
 func (m *spanModel) View() string {
-	lines := []string{tui.Title.Render("Span " + clean(m.spanID)), m.state.banner(), tui.Muted.Render("↑↓ / PgUp PgDn scroll · t containing trace · r reload · Esc Back")}
+	lines := []string{tui.Title.Render("Span " + clean(m.spanID)), m.state.banner()}
 	content := m.content()
 	start := min(m.offset, max(0, len(content)-max(1, m.height-3)))
 	end := min(len(content), start+max(1, m.height-3))

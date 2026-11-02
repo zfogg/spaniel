@@ -7,8 +7,7 @@ func binding(press []string, label, action string) keys.Binding {
 }
 
 // ShortHelp is the structural footer contract consumed by the integration
-// shell. Keep these actions separate from data/status rendering. Inline help
-// remains until #132 switches the shared footer atomically across all tabs.
+// shell. Keep these actions separate from data/status rendering.
 func (m *model) ShortHelp() []keys.Binding {
 	if m.editing {
 		return []keys.Binding{binding([]string{"enter"}, "enter", "apply filter"), binding([]string{"esc"}, "esc", "cancel filter")}

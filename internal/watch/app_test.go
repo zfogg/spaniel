@@ -63,13 +63,15 @@ func TestSeededTerminalSmoke(t *testing.T) {
 		var data any = []any{}
 		switch r.URL.Path {
 		case "/api/traces":
-			data = []any{map[string]any{"trace_id": "seed-trace", "service_name": "api", "span_count": 1, "start_ns": int64(1793631000000000000)}}
+			data = []any{map[string]any{"session_id": "seed", "trace_id": "seed-trace", "name": "GET /orders", "service_name": "api", "span_count": 1, "start_ns": int64(1793631000000000000)}}
 		case "/api/spans", "/api/traces/seed-trace":
-			data = []any{map[string]any{"trace_id": "seed-trace", "span_id": "seed-span", "name": "GET /seed", "service_name": "api"}}
+			data = []any{map[string]any{"session_id": "seed", "trace_id": "seed-trace", "span_id": "seed-span", "name": "GET /orders", "service_name": "api", "start_ns": int64(1793631000000000000), "end_ns": int64(1793631000240000000), "duration_ns": 240000000, "attributes": `{"order.id":9007199254740993,"retry":true}`}}
+		case "/api/spans/seed-span":
+			data = map[string]any{"session_id": "seed", "trace_id": "seed-trace", "span_id": "seed-span", "name": "GET /orders", "service_name": "api", "start_ns": int64(1793631000000000000), "end_ns": int64(1793631000240000000), "duration_ns": 240000000, "attributes": `{"order.id":9007199254740993,"retry":true}`}
 		case "/api/metrics":
 			data = []any{map[string]any{"name": "requests", "service_name": "api", "unit": "{request}"}}
 		case "/api/logs":
-			data = []any{map[string]any{"trace_id": "seed-trace", "span_id": "seed-span", "body": "seeded log"}}
+			data = []any{map[string]any{"session_id": "seed", "trace_id": "seed-trace", "span_id": "seed-span", "service_name": "api", "severity_text": "ERROR", "severity_number": 17, "timestamp_ns": int64(1793631000000000000), "body": "Order lookup deadline exceeded"}}
 		case "/api/lint":
 			data = []any{map[string]any{"rule_id": "http.method", "message": "seeded lint"}}
 		case "/api/dashboards":
@@ -148,8 +150,26 @@ func TestSeededTerminalSmoke(t *testing.T) {
 
 	p.Send(protocol.OpenTrace{TraceID: "seed-trace", SpanID: "seed-span"})
 	waitPaths("/api/traces/seed-trace")
+	capture("watch-waterfall")
+	p.Send(protocol.OpenSpan{TraceID: "seed-trace", SpanID: "seed-span"})
+	waitPaths("/api/spans/seed-span")
+	capture("watch-span-inspector")
+	p.Send(tea.KeyMsg{Type: tea.KeyEsc})
 	p.Send(tea.KeyMsg{Type: tea.KeyTab})
 	capture("watch-spans")
+	for _, name := range []string{"metrics", "logs", "lints", "dashboards", "alerts"} {
+		p.Send(tea.KeyMsg{Type: tea.KeyTab})
+		capture("watch-" + name)
+		if name != "dashboards" {
+			p.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+			capture("watch-" + name + "-input")
+			p.Send(tea.KeyMsg{Type: tea.KeyEsc})
+		}
+	}
+	// Back to spans; the trace waterfall stays retained on its own tab.
+	for i := 0; i < 2; i++ {
+		p.Send(tea.KeyMsg{Type: tea.KeyTab})
+	}
 	hub.Broadcast(liveevent.NewSpanEvent(&liveevent.SpanPayload{TraceID: "seed-trace", SpanID: "late", SessionID: "seed"}))
 	waitPaths("/api/traces", "/api/spans", "/api/traces/seed-trace")
 	if os.Getenv("SPANIEL_WATCH_CAPTURE_DIR") != "" {

@@ -126,7 +126,7 @@ func (m *model) links() []telemetryLink {
 	return result
 }
 func (m *model) linkLines() []string {
-	lines := []string{"Links from rule annotations, selected instance and selected history event.", "Enter follows telemetry via the shared viewer. External URLs are text only."}
+	lines := []string{"Links from rule annotations, selected instance and selected history event.", "Telemetry links use the shared viewer. External URLs are text only."}
 	var ids []string
 	for _, l := range m.links() {
 		ids = append(ids, l.key())
@@ -142,7 +142,7 @@ func (m *model) linkLines() []string {
 	if len(ids) == 0 {
 		lines = append(lines, "No correlated telemetry links exposed. Alert context remains available.")
 	}
-	lines = append(lines, "Missing or expired telemetry is reported by the shared viewer; Escape returns here.")
+	lines = append(lines, "Missing or expired telemetry is reported by the shared viewer.")
 	return m.selectedWindow(lines, m.link, ids, 2)
 }
 func (m *model) navigate() tea.Cmd {

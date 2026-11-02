@@ -16,6 +16,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
@@ -139,7 +140,10 @@ func TestRunningFindingsHiddenRefreshAndCapture(t *testing.T) {
 			time.Sleep(20 * time.Millisecond)
 		}
 	}
-	waitText := func(text string) { t.Helper(); wait(func() bool { return strings.Contains(output.text(), text) }) }
+	waitText := func(text string) {
+		t.Helper()
+		wait(func() bool { return strings.Contains(ansi.Strip(output.text()), text) })
+	}
 	capture := func(name string) {
 		t.Helper()
 		dir := os.Getenv("SPANIEL_WATCH_CAPTURE_DIR")

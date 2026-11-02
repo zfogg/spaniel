@@ -396,11 +396,6 @@ func (m *listModel) View() string {
 			lines = append(lines, line)
 		}
 	}
-	help := "↑↓ select · Enter open · [ ] page · / text (page) · s service · e errors (page) · n N+1 (page) · p pause · r reload"
-	if m.input != "" {
-		help = "Enter apply " + m.input + " filter · Esc cancel · Backspace erase"
-	}
-	lines = append(lines, tui.Muted.Render(help))
 	return screen(lines, m.width, m.height)
 }
 
