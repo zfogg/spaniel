@@ -201,6 +201,11 @@ func TestDefinitionLifecycleStaleGuardsAndSession(t *testing.T) {
 	if m.panels[name].err != nil {
 		t.Fatal("sequence guard")
 	}
+	d.Panels[0].Id = "reloaded-panel"
+	snapshot(m, d)
+	if m.panelID != "reloaded-panel" {
+		t.Fatal("selected panel lost when file reload regenerated child IDs")
+	}
 	snapshot(m)
 	if !m.removed || len(m.panels) != 0 || !strings.Contains(m.View(), "removed externally") {
 		t.Fatal(m.View())

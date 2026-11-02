@@ -256,7 +256,27 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						found = found || p.Id == m.panelID
 					}
 					if !found && len(d.Panels) > 0 {
+						previousPanelID := m.panelID
 						m.panelID = d.Panels[0].Id
+						// File reload replaces child IDs. Preserve an unambiguous
+						// panel title when the selected panel survives that reload.
+						if previous != nil {
+							for _, oldPanel := range previous.Panels {
+								if oldPanel.Id != previousPanelID {
+									continue
+								}
+								candidate, matches := "", 0
+								for _, panel := range d.Panels {
+									if panel.Title == oldPanel.Title {
+										candidate, matches = panel.Id, matches+1
+									}
+								}
+								if matches == 1 {
+									m.panelID = candidate
+								}
+								break
+							}
+						}
 						m.scroll = 0
 					}
 					m.queryPanels()
