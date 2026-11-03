@@ -42,7 +42,11 @@ func Table(fields []Field, width int) []string {
 		}
 		return tui.RenderContent(keyStyle, cell(key, keyWidth)) + tui.RenderContent(tui.ContentRule, " "+glyphs.Pipe+" ") + valueCell
 	}
-	lines := []string{row("FIELD", "VALUE", tui.ContentHeading, tui.ContentHeading, false), tui.RenderContent(tui.ContentRule, strings.Repeat(glyphs.Rule, width))}
+	rule := strings.Repeat(glyphs.Rule, width)
+	if width >= 5 {
+		rule = strings.Repeat(glyphs.Rule, keyWidth+1) + glyphs.Cross + strings.Repeat(glyphs.Rule, width-keyWidth-2)
+	}
+	lines := []string{row("FIELD", "VALUE", tui.ContentHeading, tui.ContentHeading, false), tui.RenderContent(tui.ContentRule, rule)}
 	for _, field := range fields {
 		lines = append(lines, row(field.Name, field.Value, tui.ContentLabel, field.Style.Inherit(tui.ContentValue), field.Service))
 	}
