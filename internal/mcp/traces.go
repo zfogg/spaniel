@@ -289,12 +289,9 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 		}
 	}
 
-	// The waterfall is the most useful artifact for the model; surface it as the
-	// text content while the structured output carries the precise data.
-	result := &mcpsdk.CallToolResult{
-		Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: out.Waterfall}},
-	}
-	return result, out, nil
+	// addTOONTool serializes the waterfall together with the precise span data,
+	// issues, logs, and lint in one response.
+	return nil, out, nil
 }
 
 // ---- get_span ----
