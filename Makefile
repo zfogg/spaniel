@@ -25,6 +25,9 @@ endif
 # associates an allow rule with the executable path; `go run` instead creates a
 # fresh temporary executable on every invocation and repeatedly prompts.
 BIN_DIR := bin
+# Generators can use an explicitly selected Go launcher without changing the
+# workstation's global toolchain (for example a bounded container wrapper).
+GO ?= go
 EXE :=
 BIN := $(BIN_DIR)/spaniel$(EXE)
 
@@ -65,6 +68,18 @@ build-server:
 	mkdir -p $(BIN_DIR)
 	go build -ldflags "-X main.version=$$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o $(BIN) ./cmd/spaniel
 
+.PHONY: build-assert test-assert
+build-assert:
+	mkdir -p $(BIN_DIR)
+	go build -o $(BIN_DIR)/spaniel-assert$(EXE) ./cmd/spaniel-assert
+
+test-assert:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/traceassert.test$(EXE) ./traceassert
+	./$(BIN_DIR)/traceassert.test$(EXE) -test.count=1 -test.timeout=2m
+	go test -c -o $(BIN_DIR)/assert-cli.test$(EXE) ./cmd/spaniel-assert
+	./$(BIN_DIR)/assert-cli.test$(EXE) -test.count=1 -test.timeout=2m
+
 run: build-server
 	./$(BIN) $(ARGS)
 
@@ -82,7 +97,8 @@ test-linter:
 test: verify-generated
 	@set -e; \
 	  mkdir -p $(BIN_DIR); \
-	  for package in $$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...); do \
+	  packages="$$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...)"; \
+	  for package in $$packages; do \
 	    package_dir=$$(go list -f '{{.Dir}}' "$$package"); \
 	    test_name=$$(basename "$$package"); \
 	    test_binary="$(CURDIR)/$(BIN_DIR)/$$test_name.test$(EXE)"; \
@@ -192,19 +208,19 @@ test-dashboard-cli:
 	(cd cmd/spaniel && "$(CURDIR)/$(BIN_DIR)/dashboard-cli.test$(EXE)" -test.count=1 -test.timeout=10m)
 
 generate:
-	go run ./cmd/genliveevent
+	$(GO) run ./cmd/genliveevent
 	cd frontend && pnpm exec oxfmt --write src/generated/liveevent.ts
-	go run ./cmd/genquery
-	go run ./cmd/genschema
+	$(GO) run ./cmd/genquery
+	$(GO) run ./cmd/genschema
 	cd frontend && pnpm exec oxfmt --write src/generated/schemaCatalog.ts
 	$(MAKE) generate-openapi
 
 # OpenAPI is the canonical HTTP contract. Regenerate both server and browser
 # bindings together so neither side can silently drift from the document.
 generate-openapi:
-	go run ./cmd/openapiyaml
-	go tool oapi-codegen --config api/oapi-codegen.yaml api/openapi.json
-	go run ./cmd/genopenapi
+	$(GO) run ./cmd/openapiyaml
+	$(GO) tool oapi-codegen --config api/oapi-codegen.yaml api/openapi.json
+	$(GO) run ./cmd/genopenapi
 	cd frontend && pnpm run generate:openapi
 
 setup:
@@ -217,6 +233,18 @@ test-ingestion:
 	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestChildStartingBeforeParent|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration' -test.v
 
 .PHONY: test-query-diagnostics
+.PHONY: test-query-analysis
+test-query-analysis:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/query-analysis.test$(EXE) ./internal/querydiagnostics
+	(cd internal/querydiagnostics && "$(CURDIR)/$(BIN_DIR)/query-analysis.test$(EXE)" -test.count=1 -test.timeout=2m)
+	go test -c -o $(BIN_DIR)/query-counts.test$(EXE) ./internal/storage
+	./$(BIN_DIR)/query-counts.test$(EXE) -test.run 'TestSessionQueryOccurrences|TestNamedHelpersPrefixSimpleNames|TestReadOnlyQueryNamesAndSanitizesUserSQL' -test.count=1 -test.timeout=2m
+	go test -c -o $(BIN_DIR)/query-analysis-api.test$(EXE) ./internal/api
+	./$(BIN_DIR)/query-analysis-api.test$(EXE) -test.run 'TestSQLAnalyzeAPI|TestTraceCaptureIncludes|TestSettingsStorageSharesRequestTrace|TestOpenAPI' -test.count=1 -test.timeout=3m
+	go test -c -o $(BIN_DIR)/query-fingerprints.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/query-fingerprints.test$(EXE) -test.run 'TestN1|TestFingerprintSQL' -test.count=1 -test.timeout=3m
+
 # Optional bounded real-DuckDB probe export: SPANIEL_DIAGNOSTICS_PROBE_ENDPOINT
 # is a local OTLP gRPC endpoint. No deliberately malformed SQL runs in servers.
 test-query-diagnostics:
@@ -228,6 +256,12 @@ test-query-diagnostics:
 	  done
 
 .PHONY: test-query-name-race
+.PHONY: test-query-names
+test-query-names:
+	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/querynames.test$(EXE) ./internal/ingestion
+	./$(BIN_DIR)/querynames.test$(EXE) -test.run 'TestStorageQueryName' -test.count=1 -test.v
+
 test-query-name-race:
 	mkdir -p $(BIN_DIR)
 	go test -race -c -o $(BIN_DIR)/querynames.test$(EXE) ./internal/ingestion

@@ -743,6 +743,14 @@ export default function Spans() {
                             className="font-mono text-[11.5px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
                           >
                             {httpDisplayName(s)}
+                            {(s.query_occurrences ?? 0) > 0 && (
+                              <span
+                                className="ml-2 rounded border border-border px-1 text-[10px] text-muted-foreground"
+                                title="Distinct same-query-type executions across this span's session; independent of page and display filters"
+                              >
+                                {s.query_occurrences} in session
+                              </span>
+                            )}
                           </div>
                           <div>
                             <ServiceNameBadge name={s.service_name} />

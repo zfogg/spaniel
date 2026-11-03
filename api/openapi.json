@@ -23,6 +23,90 @@
       }
     },
     "schemas": {
+      "SQLDisplayDiagnostic": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "column": {
+            "type": "integer"
+          },
+          "end_line": {
+            "type": "integer"
+          },
+          "end_column": {
+            "type": "integer"
+          },
+          "display_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "display_end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mapping_status": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "approximate",
+              "unavailable"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "explanation",
+          "hint",
+          "line",
+          "column",
+          "end_line",
+          "end_column",
+          "mapping_status"
+        ]
+      },
+      "SQLDisplayAnalysis": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sql": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SQLDisplayDiagnostic"
+            }
+          }
+        },
+        "required": [
+          "sql",
+          "status",
+          "reason",
+          "diagnostics"
+        ]
+      },
       "ActiveSession": {
         "properties": {
           "id": {
@@ -4064,6 +4148,12 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "query_occurrences": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Distinct same-query-type executions across this span's persisted session, scoped by service, versioned fingerprint (including dialect), database namespace and server address/port, independent of page and display filters."
+          },
           "attributes": {
             "type": "string"
           },
@@ -4348,6 +4438,12 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "query_occurrences": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Distinct same-query-type executions across this span's persisted session, scoped by service, versioned fingerprint (including dialect), database namespace and server address/port, independent of page and display filters."
+          },
           "attributes": {
             "type": "string"
           },
@@ -4978,6 +5074,128 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/sql/analyze": {
+      "post": {
+        "operationId": "analyzeSQL",
+        "tags": [
+          "SQL"
+        ],
+        "summary": "Analyze SQL and map trusted diagnostics into safe displayed SQL using Sequel source maps and UTF-16 coordinates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sql": {
+                    "type": "string",
+                    "maxLength": 1048576
+                  },
+                  "dialect": {
+                    "type": "string",
+                    "enum": [
+                      "duckdb",
+                      "postgresql",
+                      "mysql",
+                      "clickhouse",
+                      "sqlite",
+                      "generic"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "original",
+                      "telemetry"
+                    ]
+                  },
+                  "diagnostics": {
+                    "type": "array",
+                    "maxItems": 64,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "source_map": {
+                    "type": "string",
+                    "maxLength": 16384
+                  },
+                  "original_length": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "diagnostic_schema_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "sql",
+                  "source"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Safe displayed SQL and mapped canonical diagnostics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SQLDisplayAnalysis"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                },
+                "examples": {
+                  "clean": {
+                    "summary": "A safe query with no diagnostic findings",
+                    "value": {
+                      "data": {
+                        "sql": "SELECT ?",
+                        "status": "ok",
+                        "reason": "",
+                        "diagnostics": []
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/alerts": {
       "get": {
         "operationId": "listAlerts",

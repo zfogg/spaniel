@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -10,7 +11,9 @@ import (
 
 	sequel "github.com/zfogg/sequel/go"
 	"github.com/zfogg/spaniel/internal/ingestion"
+	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/ws"
+	"github.com/zfogg/spaniel/traceassert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -84,5 +87,37 @@ func TestQueryDiagnosticsAPIAndOTLPExport(t *testing.T) {
 	results, ok := attrs.Get("db.query.diagnostics")
 	if !ok || results.Type() != pcommon.ValueTypeSlice || results.Slice().Len() != 1 || results.Slice().At(0).Type() != pcommon.ValueTypeMap {
 		t.Fatalf("OTLP diagnostics are not structured: %v", attrs.AsRaw())
+	}
+}
+
+func TestTraceCaptureIncludesPersistedEventsForSharedRedactionAssertions(t *testing.T) {
+	handler, store := setupRouter(t)
+	traceID := "00000000000000000000000000000001"
+	spanID := "0000000000000001"
+	if err := store.InsertSpan(&storage.Span{TraceID: traceID, SpanID: spanID, ServiceName: "api", Name: "request", Attributes: "{}", Resource: "{}"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.InsertSpanEvents([]*storage.SpanEvent{{TraceID: traceID, SpanID: spanID, Name: "exception", Attributes: `{"nested":{"values":["private-event-value"]}}`, TimeNs: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/api/traces/"+traceID, nil))
+	if w.Code != 200 {
+		t.Fatal(w.Code)
+	}
+	spans, err := traceassert.Decode(bytes.NewReader(w.Body.Bytes()), "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 || len(spans[0].Events) != 1 {
+		t.Fatal("trace capture concealed persisted events")
+	}
+	report := traceassert.Check(spans, traceassert.Spec{Version: 1, Redaction: traceassert.Redaction{ForbiddenValues: []string{"private-event-value"}}})
+	if report.OK() {
+		t.Fatal("shared capture assertions missed a persisted event secret")
+	}
+	encoded, _ := json.Marshal(report)
+	if bytes.Contains(encoded, []byte("private-event-value")) {
+		t.Fatal("redaction report echoed event secret")
 	}
 }

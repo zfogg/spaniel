@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+  '/api/sql/analyze': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Analyze SQL and map trusted diagnostics into safe displayed SQL using Sequel source maps and UTF-16 coordinates */
+    post: operations['analyzeSQL']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/alerts': {
     parameters: {
       query?: never
@@ -1391,6 +1408,26 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    SQLDisplayDiagnostic: {
+      code: string
+      message: string
+      explanation: string
+      hint: string
+      line: number
+      column: number
+      end_line: number
+      end_column: number
+      display_start?: number
+      display_end?: number
+      /** @enum {string} */
+      mapping_status: 'exact' | 'approximate' | 'unavailable'
+    }
+    SQLDisplayAnalysis: {
+      sql: string
+      status: string
+      reason: string
+      diagnostics: components['schemas']['SQLDisplayDiagnostic'][]
+    }
     ActiveSession: {
       id: string
       label: string
@@ -2622,6 +2659,11 @@ export interface components {
       service: string
     }
     Span: {
+      /**
+       * Format: int64
+       * @description Distinct same-query-type executions across this span's persisted session, scoped by service, versioned fingerprint (including dialect), database namespace and server address/port, independent of page and display filters.
+       */
+      query_occurrences?: number
       attributes: string
       /** Format: int64 */
       duration_ns: number
@@ -2702,6 +2744,11 @@ export interface components {
       trace_state: string
     }
     SpanRow: {
+      /**
+       * Format: int64
+       * @description Distinct same-query-type executions across this span's persisted session, scoped by service, versioned fingerprint (including dialect), database namespace and server address/port, independent of page and display filters.
+       */
+      query_occurrences?: number
       attributes: string
       /** Format: int64 */
       duration_ns: number
@@ -2913,6 +2960,55 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  analyzeSQL: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': {
+          sql: string
+          /** @enum {string} */
+          dialect?: 'duckdb' | 'postgresql' | 'mysql' | 'clickhouse' | 'sqlite' | 'generic'
+          /** @enum {string} */
+          source: 'original' | 'telemetry'
+          diagnostics?: {
+            [key: string]: unknown
+          }[]
+          source_map?: string
+          original_length?: number
+          diagnostic_schema_version?: number
+        }
+      }
+    }
+    responses: {
+      /** @description Safe displayed SQL and mapped canonical diagnostics */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            data: components['schemas']['SQLDisplayAnalysis']
+          }
+        }
+      }
+      400: components['responses']['BadRequest']
+      /** @description Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason. */
+      401: {
+        headers: {
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
+    }
+  }
   listAlerts: {
     parameters: {
       query?: {

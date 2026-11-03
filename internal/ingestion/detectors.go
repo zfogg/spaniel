@@ -1,38 +1,13 @@
 package ingestion
 
-import (
-	"strings"
+import sequel "github.com/zfogg/sequel/go"
 
-	"github.com/xwb1989/sqlparser"
-)
-
-// fingerprintSQL normalises a SQL statement by replacing all literal values
-// with ? using a lightweight SQL parser. Falls back to whitespace
-// normalisation on parse error (non-standard dialects, truncated statements,
-// non-SQL input). The parser exposes package-level Parse, so there is no
-// per-call parser construction.
+// fingerprintSQL retains the internal helper for generic SQL callers. Invalid
+// SQL has no fingerprint; raw SQL must never become a persisted identifier.
 func fingerprintSQL(stmt string) string {
-	parsed, err := sqlparser.Parse(stmt)
+	fp, err := sequel.Fingerprint(sequel.DialectGeneric, stmt)
 	if err != nil {
-		return fallbackFingerprint(stmt)
+		return ""
 	}
-	buf := sqlparser.NewTrackedBuffer(func(buf *sqlparser.TrackedBuffer, node sqlparser.SQLNode) {
-		switch node.(type) {
-		case *sqlparser.SQLVal:
-			buf.WriteString("?")
-		case sqlparser.ListArg:
-			buf.WriteString("(?)")
-		default:
-			node.Format(buf)
-		}
-	})
-	parsed.Format(buf)
-	return strings.TrimSpace(buf.String())
-}
-
-// fallbackFingerprint uses whitespace normalisation when the Vitess parser
-// fails (non-standard SQL dialects, truncated statements, etc.)
-func fallbackFingerprint(stmt string) string {
-	fields := strings.Fields(stmt)
-	return strings.Join(fields, " ")
+	return fp
 }

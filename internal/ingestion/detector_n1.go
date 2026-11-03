@@ -2,11 +2,13 @@ package ingestion
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/xwb1989/sqlparser"
 	"github.com/zfogg/spaniel/internal/ingestion/linter"
+	"github.com/zfogg/spaniel/internal/querydiagnostics"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -22,6 +24,7 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 	type group struct {
 		spans []*storage.Span
 		fp    string
+		key   string
 	}
 	groups := map[string]*group{}
 	seen := map[string]bool{}
@@ -39,9 +42,6 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 		if raw == "" {
 			raw = extractAttrString(s.Attributes, "db.query.text")
 		}
-		if raw == "" {
-			continue
-		}
 		if isN1LifecycleSpan(s, raw) {
 			continue
 		}
@@ -56,14 +56,21 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 		if strings.Contains(lowerSQL, "unnest(") || strings.Contains(lowerSQL, "jsonb_to_recordset(") {
 			continue
 		}
-		fp := fingerprintSQL(raw)
+		attrs := map[string]any{}
+		if json.Unmarshal([]byte(s.Attributes), &attrs) != nil {
+			continue
+		}
+		fp := querydiagnostics.Fingerprint(attrs)
+		if fp == "" || raw == "" && !strings.EqualFold(operation, "SELECT") {
+			continue
+		}
 		// SQL reused by independent operations is not an N+1. Keep the parent
 		// in the key so the issue points at the loop that issued it.
-		key := s.ParentSpanID + "\x00" + fp
+		key := s.ParentSpanID + "\x00" + querydiagnostics.Identity(attrs, s.ServiceName, fp)
 		if g, ok := groups[key]; ok {
 			g.spans = append(g.spans, s)
 		} else {
-			groups[key] = &group{spans: []*storage.Span{s}, fp: fp}
+			groups[key] = &group{spans: []*storage.Span{s}, fp: fp, key: key}
 		}
 	}
 
@@ -91,7 +98,7 @@ func (*N1Detector) Analyze(traceID, sessionID string, spans []*storage.Span, now
 		issues = append(issues, &storage.TraceIssue{
 			// SQL templates commonly share their first 12 characters. Hash
 			// the full parent/template key instead of truncating the SQL.
-			ID:            fmt.Sprintf("%s-n_plus_one-%x", traceID, sha256.Sum256([]byte(loopSpanID+"\x00"+g.fp))),
+			ID:            fmt.Sprintf("%s-n_plus_one-%x", traceID, sha256.Sum256([]byte(g.key))),
 			TraceID:       traceID,
 			SessionID:     sessionID,
 			Kind:          "n_plus_one",

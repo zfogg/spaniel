@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 // Run the same browser contracts against an isolated production collector
 // when qualifying its built assets; ordinary development still owns Vite.
 const externalBaseURL = process.env.SPANIEL_E2E_BASE_URL
+const fixturePort = Number(process.env.SPANIEL_E2E_PORT ?? 5173)
+const fixtureURL = `http://127.0.0.1:${fixturePort}`
 
 /**
  * Playwright config for the spaniel frontend.
@@ -21,19 +23,19 @@ export default defineConfig({
   // CI runners pick their own default.
   workers: process.env.CI ? undefined : 4,
   use: {
-    baseURL: externalBaseURL ?? 'http://localhost:5173',
+    baseURL: externalBaseURL ?? fixtureURL,
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: externalBaseURL
     ? undefined
     : {
-        command: 'pnpm dev --host 127.0.0.1',
+        command: `pnpm dev --host 127.0.0.1 --port ${fixturePort} --strictPort`,
         // Mocked API tests must not export synthetic single-span traces into
         // a developer's collector. Live collector tests use its built assets.
         env: { VITE_SPANIEL_TELEMETRY: 'false' },
-        url: 'http://localhost:5173',
-        reuseExistingServer: !process.env.CI,
+        url: fixtureURL,
+        reuseExistingServer: !process.env.CI && !process.env.SPANIEL_E2E_PORT,
         timeout: 60_000,
         stdout: 'ignore',
         stderr: 'pipe',
