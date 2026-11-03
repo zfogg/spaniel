@@ -103,7 +103,11 @@ function dbSpan(id: string, stmt: string, dur = 1_000_000): Span {
     parent_span_id: 'parent',
     duration_ns: dur,
     end_ns: dur,
-    attributes: JSON.stringify({ 'db.statement': stmt, 'db.system': 'postgresql' }),
+    attributes: JSON.stringify({
+      'db.statement': stmt,
+      'db.system': 'postgresql',
+      'gotel.db.query.fingerprint': `sequel:v1:postgresql:${(stmt.includes('users') ? 'a' : 'b').repeat(64)}`,
+    }),
   })
 }
 

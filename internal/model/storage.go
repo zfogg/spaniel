@@ -46,6 +46,13 @@ type SpanRow struct {
 	Tag string `json:"tag,omitempty"`
 }
 
+// QueryOccurrence is a session-wide count projected for one displayed span.
+type QueryOccurrence struct {
+	TraceID string
+	SpanID  string
+	Count   int64
+}
+
 // SpanGroup is the operation-level aggregate used by grouped span views.
 type SpanGroup struct {
 	ServiceName       string `json:"service_name"`
@@ -217,25 +224,26 @@ type SessionSize struct {
 }
 
 type Span struct {
-	TraceID       string       `json:"trace_id"`
-	SpanID        string       `json:"span_id"`
-	ParentSpanID  string       `json:"parent_span_id"`
-	ServiceName   string       `json:"service_name"`
-	Name          string       `json:"name"`
-	Kind          int          `json:"kind"`
-	StartNs       int64        `json:"start_ns"`
-	EndNs         int64        `json:"end_ns"`
-	DurationNs    int64        `json:"duration_ns"`
-	StatusCode    int          `json:"status_code"`
-	StatusMessage string       `json:"status_message"`
-	Attributes    string       `json:"attributes"`
-	Resource      string       `json:"resource"`
-	SessionID     string       `json:"session_id"`
-	SessionLabel  string       `json:"session_label"`
-	ReceivedAt    int64        `json:"received_at"`
-	Sampled       bool         `json:"sampled"`
-	Events        []*SpanEvent `json:"events" gorm:"-"`
-	Links         []*SpanLink  `json:"links" gorm:"-"`
+	TraceID          string       `json:"trace_id"`
+	SpanID           string       `json:"span_id"`
+	ParentSpanID     string       `json:"parent_span_id"`
+	ServiceName      string       `json:"service_name"`
+	Name             string       `json:"name"`
+	Kind             int          `json:"kind"`
+	StartNs          int64        `json:"start_ns"`
+	EndNs            int64        `json:"end_ns"`
+	DurationNs       int64        `json:"duration_ns"`
+	StatusCode       int          `json:"status_code"`
+	StatusMessage    string       `json:"status_message"`
+	Attributes       string       `json:"attributes"`
+	Resource         string       `json:"resource"`
+	SessionID        string       `json:"session_id"`
+	SessionLabel     string       `json:"session_label"`
+	ReceivedAt       int64        `json:"received_at"`
+	Sampled          bool         `json:"sampled"`
+	QueryOccurrences int64        `json:"query_occurrences,omitempty" gorm:"-"`
+	Events           []*SpanEvent `json:"events" gorm:"-"`
+	Links            []*SpanLink  `json:"links" gorm:"-"`
 }
 
 func (Span) TableName() string { return "spans" }

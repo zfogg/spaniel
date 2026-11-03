@@ -8,6 +8,7 @@ import (
 	"github.com/zfogg/gotel/go/dbmetrics"
 	gotelgorm "github.com/zfogg/gotel/go/tracers/gorm"
 	gotelsql "github.com/zfogg/gotel/go/tracers/sql"
+	sequel "github.com/zfogg/sequel/go"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
@@ -41,9 +42,11 @@ func newGORMPlugin() gorm.Plugin {
 		System:    "duckdb",
 		Namespace: "spaniel",
 		Dialect:   gotelsql.DialectDuckDB,
-		SpanKind:  trace.SpanKindInternal,
-		Caller:    gotelsql.CallerNamer("github.com/zfogg/spaniel/internal/storage.(*DB)."),
-		Observe:   storageObserver,
+		// Opt into bounded provenance for SQL displayed by Spaniel itself.
+		Analysis: &sequel.AnalysisOptions{Format: true, OmitBindDescriptors: true},
+		SpanKind: trace.SpanKindInternal,
+		Caller:   gotelsql.CallerNamer("github.com/zfogg/spaniel/internal/storage.(*DB)."),
+		Observe:  storageObserver,
 	})
 }
 

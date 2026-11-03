@@ -6,6 +6,9 @@ import { useMemo, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
 import { FormatSQLButton } from './FormatSQLButton'
 import { useFormattedSQL } from '@/lib/sql-format'
+import { useSQLAnalysis } from '@/lib/sql-analysis'
+import { SQLDiagnosticList } from './SQLDiagnostics'
+import { diagnosticDecorations } from '@/lib/sql-diagnostic-editor'
 
 // CodeMirror's Lezer parser is incremental and error-tolerant: an unfinished
 // CTE, string, or parenthesis produces an error node while retaining every
@@ -62,14 +65,22 @@ type SqlEditorProps = {
 }
 
 export function SqlEditor({ value, onChange, label = 'DuckDB SQL' }: SqlEditorProps) {
+  // CodeMirror's document model normalizes line endings to LF. Analyze that
+  // exact model instead of applying CRLF source offsets to its normalized view.
+  const documentValue = value.replace(/\r\n?/g, '\n')
+  const { analysis } = useSQLAnalysis({ sql: documentValue, dialect: 'duckdb', source: 'original' })
+  const extensions = useMemo(
+    () => [...sqlExtensions, diagnosticDecorations(documentValue, analysis?.diagnostics ?? [])],
+    [documentValue, analysis],
+  )
   return (
     <div>
       <FormatSQLButton value={value} onChange={onChange} />
       <CodeMirror
         aria-label={label}
-        value={value}
+        value={documentValue}
         onChange={onChange}
-        extensions={sqlExtensions}
+        extensions={extensions}
         basicSetup={{
           lineNumbers: true,
           foldGutter: false,
@@ -79,6 +90,7 @@ export function SqlEditor({ value, onChange, label = 'DuckDB SQL' }: SqlEditorPr
         }}
         className="overflow-hidden rounded border border-input bg-background text-xs"
       />
+      {analysis && <SQLDiagnosticList diagnostics={analysis.diagnostics} />}
     </div>
   )
 }

@@ -67,6 +67,20 @@ func (d *DB) InsertSpanLinks(links []*SpanLink) error {
 	return d.namedQuery("InsertSpanLinks").SpanLink.Create(links...)
 }
 
+// ListEventsByTrace reads all persisted events for a complete trace capture.
+// Its generated projection preserves structured attributes as JSON text.
+func (d *DB) ListEventsByTrace(traceID string) ([]*SpanEvent, error) {
+	rows, err := d.namedQuery("ListEventsByTrace").SpanEvent.ListByTrace(traceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*SpanEvent, len(rows))
+	for i := range rows {
+		out[i] = &rows[i]
+	}
+	return out, nil
+}
+
 // ListLinksBySpan returns the outbound links emitted by a single span.
 func (d *DB) ListLinksBySpan(spanID string) ([]*SpanLink, error) {
 	q := d.namedQuery("ListLinksBySpan")
@@ -110,6 +124,9 @@ func (d *DB) GetSpan(spanID string) (*Span, error) {
 	if len(spans) == 0 {
 		return nil, nil
 	}
+	if err := d.attachQueryOccurrences(spans); err != nil {
+		return nil, err
+	}
 	return spans[0], nil
 }
 
@@ -152,6 +169,13 @@ func (d *DB) ListSpans(f SpanFilter) ([]*SpanRow, error) {
 	result := make([]*SpanRow, len(rows))
 	for i := range rows {
 		result[i] = &rows[i]
+	}
+	spans := make([]*Span, len(result))
+	for i, row := range result {
+		spans[i] = &row.Span
+	}
+	if err := d.attachQueryOccurrences(spans); err != nil {
+		return nil, err
 	}
 	return result, nil
 }

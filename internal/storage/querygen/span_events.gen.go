@@ -172,7 +172,29 @@ type ISpanEventDo interface {
 	UnderlyingDB() *gorm.DB
 	schema.Tabler
 
+	ListByTrace(traceID string) (result []model.SpanEvent, err error)
 	ListBySpan(spanID string) (result []model.SpanEvent, err error)
+}
+
+// ListByTrace
+//
+// SELECT span_id, trace_id, session_id, time_ns, name,
+//
+//	attributes::VARCHAR AS attributes
+//
+// FROM @@table WHERE trace_id = @traceID ORDER BY time_ns ASC
+func (s spanEventDo) ListByTrace(traceID string) (result []model.SpanEvent, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, traceID)
+	generateSQL.WriteString("SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes FROM span_events WHERE trace_id = ? ORDER BY time_ns ASC ")
+
+	var executeSQL *gorm.DB
+	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
 }
 
 // ListBySpan

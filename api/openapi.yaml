@@ -2057,6 +2057,67 @@ components:
                 - rows
                 - warnings
             type: object
+        SQLDisplayAnalysis:
+            additionalProperties: false
+            properties:
+                diagnostics:
+                    items:
+                        $ref: '#/components/schemas/SQLDisplayDiagnostic'
+                    type: array
+                reason:
+                    type: string
+                sql:
+                    type: string
+                status:
+                    type: string
+            required:
+                - sql
+                - status
+                - reason
+                - diagnostics
+            type: object
+        SQLDisplayDiagnostic:
+            additionalProperties: false
+            properties:
+                code:
+                    type: string
+                column:
+                    type: integer
+                display_end:
+                    minimum: 0
+                    type: integer
+                display_start:
+                    minimum: 0
+                    type: integer
+                end_column:
+                    type: integer
+                end_line:
+                    type: integer
+                explanation:
+                    type: string
+                hint:
+                    type: string
+                line:
+                    type: integer
+                mapping_status:
+                    enum:
+                        - exact
+                        - approximate
+                        - unavailable
+                    type: string
+                message:
+                    type: string
+            required:
+                - code
+                - message
+                - explanation
+                - hint
+                - line
+                - column
+                - end_line
+                - end_column
+                - mapping_status
+            type: object
         SearchResult:
             $schema: https://json-schema.org/draft/2020-12/schema
             additionalProperties: false
@@ -2855,6 +2916,11 @@ components:
                     type: string
                 parent_span_id:
                     type: string
+                query_occurrences:
+                    description: Distinct same-query-type executions across this span's persisted session, scoped by service, versioned fingerprint (including dialect), database namespace and server address/port, independent of page and display filters.
+                    format: int64
+                    minimum: 0
+                    type: integer
                 received_at:
                     type: number
                 resource:
@@ -3051,6 +3117,11 @@ components:
                     type: string
                 parent_span_id:
                     type: string
+                query_occurrences:
+                    description: Distinct same-query-type executions across this span's persisted session, scoped by service, versioned fingerprint (including dialect), database namespace and server address/port, independent of page and display filters.
+                    format: int64
+                    minimum: 0
+                    type: integer
                 received_at:
                     type: number
                 resource:
@@ -9538,6 +9609,89 @@ paths:
             summary: get Span
             tags:
                 - Traces
+    /api/sql/analyze:
+        post:
+            operationId: analyzeSQL
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: false
+                            properties:
+                                diagnostic_schema_version:
+                                    minimum: 1
+                                    type: integer
+                                diagnostics:
+                                    items:
+                                        additionalProperties: true
+                                        type: object
+                                    maxItems: 64
+                                    type: array
+                                dialect:
+                                    enum:
+                                        - duckdb
+                                        - postgresql
+                                        - mysql
+                                        - clickhouse
+                                        - sqlite
+                                        - generic
+                                    type: string
+                                original_length:
+                                    maximum: 9.007199254740991e+15
+                                    minimum: 0
+                                    type: integer
+                                source:
+                                    enum:
+                                        - original
+                                        - telemetry
+                                    type: string
+                                source_map:
+                                    maxLength: 16384
+                                    type: string
+                                sql:
+                                    maxLength: 1.048576e+06
+                                    type: string
+                            required:
+                                - sql
+                                - source
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            examples:
+                                clean:
+                                    summary: A safe query with no diagnostic findings
+                                    value:
+                                        data:
+                                            diagnostics: []
+                                            reason: ""
+                                            sql: SELECT ?
+                                            status: ok
+                            schema:
+                                properties:
+                                    data:
+                                        $ref: '#/components/schemas/SQLDisplayAnalysis'
+                                required:
+                                    - data
+                                type: object
+                    description: Safe displayed SQL and mapped canonical diagnostics
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Missing, invalid, expired, or revoked token. WWW-Authenticate contains the Bearer challenge. JSON code identifies the reason.
+                    headers:
+                        WWW-Authenticate:
+                            schema:
+                                type: string
+            summary: Analyze SQL and map trusted diagnostics into safe displayed SQL using Sequel source maps and UTF-16 coordinates
+            tags:
+                - SQL
     /api/sql/format:
         post:
             operationId: formatSQL

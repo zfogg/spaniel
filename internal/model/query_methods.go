@@ -2,6 +2,27 @@ package model
 
 import "gorm.io/gen"
 
+// QueryOccurrenceMethods counts executions across the target span's persisted
+// session, independently of page, time, name and other display filters.
+type QueryOccurrenceMethods interface {
+	// QueryOccurrences
+	//
+	// SELECT target.trace_id, target.span_id,
+	//   COUNT(DISTINCT (candidate.trace_id, candidate.span_id)) AS count
+	// FROM @@table target
+	// JOIN @@table candidate
+	//   ON candidate.session_id = target.session_id
+	//   AND candidate.service_name = target.service_name
+	//   AND json_extract_string(candidate.attributes, '$."gotel.db.query.fingerprint"') = json_extract_string(target.attributes, '$."gotel.db.query.fingerprint"')
+	//   AND coalesce(json_extract_string(candidate.attributes, '$."db.namespace"'), json_extract_string(candidate.attributes, '$."db.name"'), '') = coalesce(json_extract_string(target.attributes, '$."db.namespace"'), json_extract_string(target.attributes, '$."db.name"'), '')
+	//   AND coalesce(json_extract_string(candidate.attributes, '$."server.address"'), json_extract_string(candidate.attributes, '$."net.peer.name"'), '') = coalesce(json_extract_string(target.attributes, '$."server.address"'), json_extract_string(target.attributes, '$."net.peer.name"'), '')
+	//   AND coalesce(json_extract_string(candidate.attributes, '$."server.port"'), json_extract_string(candidate.attributes, '$."net.peer.port"'), '') = coalesce(json_extract_string(target.attributes, '$."server.port"'), json_extract_string(target.attributes, '$."net.peer.port"'), '')
+	// WHERE target.span_id IN @spanIDs
+	//   AND regexp_full_match(json_extract_string(target.attributes, '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
+	// GROUP BY target.trace_id, target.span_id
+	QueryOccurrences(spanIDs []string) ([]QueryOccurrence, error)
+}
+
 // MetaWriteMethods keeps small persisted-state writes as named generated DML,
 // rather than letting callers assemble an upsert at runtime.
 type MetaWriteMethods interface {
@@ -21,6 +42,13 @@ type MetaWriteMethods interface {
 // runtime. The names become part of the storage API and remain low-cardinality
 // even when callers supply different IDs.
 type SpanEventMethods interface {
+	// ListByTrace
+	//
+	// SELECT span_id, trace_id, session_id, time_ns, name,
+	//   attributes::VARCHAR AS attributes
+	// FROM @@table WHERE trace_id = @traceID ORDER BY time_ns ASC
+	ListByTrace(traceID string) ([]gen.T, error)
+
 	// ListBySpan
 	//
 	// SELECT

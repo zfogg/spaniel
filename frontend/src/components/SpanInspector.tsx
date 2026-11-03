@@ -480,6 +480,20 @@ export default function SpanInspector({
         </Link>
       </div>
 
+      {(span.query_occurrences ?? 0) > 0 && (
+        <div
+          data-testid="session-query-occurrences"
+          className="mx-3.5 mt-3 rounded border border-border px-3 py-2 text-xs"
+        >
+          <strong>{span.query_occurrences}</strong> same-query-type executions in this session.
+          <p className="mt-1 text-muted-foreground">
+            Same service, fingerprint version/dialect, database namespace and server address/port.
+            Counts distinct trace/span IDs across all pages and display filters. Missing database
+            identity stays unknown.
+          </p>
+        </div>
+      )}
+
       {/* Detector issue callouts — one card per matching TraceIssue on this span.
           N+1 keeps its specific messaging; all others get a generic card. */}
       {(() => {
@@ -508,15 +522,8 @@ export default function SpanInspector({
                   </span>
                 </div>
                 <div className="text-[11.5px] leading-snug text-[var(--ink)]">
-                  <strong>{n1Issue?.count ?? n1Count}</strong> sibling spans share fingerprint
-                  {n1Issue?.fingerprint && (
-                    <>
-                      {' '}
-                      <code className="rounded-[3px] bg-[var(--surface)] px-1 py-0 font-mono">
-                        {n1Issue.fingerprint}
-                      </code>
-                    </>
-                  )}
+                  <strong>{n1Issue?.count ?? n1Count}</strong> sibling spans share a query shape.{' '}
+                  <span className="break-words">{span.name}</span>
                   {n1Issue?.wasted_ns && n1Issue.wasted_ns > 0 ? (
                     <>
                       {' '}
@@ -527,6 +534,14 @@ export default function SpanInspector({
                   )}{' '}
                   Batch with <code className="font-mono">WHERE … IN (?)</code>.
                 </div>
+                {n1Issue?.fingerprint && (
+                  <details className="mt-2 text-[10px]">
+                    <summary className="cursor-pointer">Query fingerprint</summary>
+                    <code className="block select-text break-all rounded bg-[var(--surface)] p-1 font-mono">
+                      {n1Issue.fingerprint}
+                    </code>
+                  </details>
+                )}
               </div>
             )}
             {spanIssues

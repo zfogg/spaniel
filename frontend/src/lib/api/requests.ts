@@ -15,6 +15,7 @@ type QueryParameters<K extends keyof operations> = operations[K]['parameters'] e
 
 export type ListAlertsQuery = QueryParameters<'listAlerts'>
 export type FormatSQLInput = JsonBody<'formatSQL'>
+export type AnalyzeSQLInput = JsonBody<'analyzeSQL'>
 export type CreateAlertInput = JsonBody<'createAlert'>
 export type PatchAlertInput = JsonBody<'patchAlert'>
 export type PreviewAlertDraftInput = JsonBody<'previewAlertDraft'>

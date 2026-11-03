@@ -7,6 +7,25 @@ export function telemetrySQLDialect(attributes: Record<string, unknown>): SQLDia
   for (const key of ['db.system.name', 'db.system']) {
     const system = attributes[key]
     switch (system) {
+      case 'postgres':
+        return 'postgresql'
+      case 'sqlite3':
+        return 'sqlite'
+      case 'mariadb':
+        return 'mysql'
+      case 'sql':
+      case 'other_sql':
+      case 'mssql':
+      case 'microsoft.sql_server':
+      case 'oracle':
+      case 'db2':
+      case 'h2':
+      case 'hsqldb':
+      case 'snowflake':
+      case 'trino':
+      case 'presto':
+      case 'cockroachdb':
+        return 'generic'
       case 'postgresql':
       case 'duckdb':
       case 'sqlite':

@@ -1,0 +1,265 @@
+{
+  "approximate": {
+    "input": {
+      "diagnostic_schema_version": 1,
+      "diagnostics": [
+        {
+          "code": "unterminated_string",
+          "severity": "warning",
+          "offset": 8,
+          "end_offset": 31,
+          "line": 1,
+          "column": 9,
+          "end_line": 1,
+          "end_column": 32,
+          "incomplete": true,
+          "statement_complete": false,
+          "message": "Unfinished string literal",
+          "explanation": "The string starts here but its closing quote or dollar tag has not been entered yet. Semicolons inside the string do not finish a statement.",
+          "hint": "Add the matching closing quote or exact dollar tag; use --tolerant to highlight while editing."
+        }
+      ],
+      "dialect": "postgresql",
+      "original_length": 85,
+      "source": "telemetry",
+      "source_map": "{\"schema_version\":1,\"original_to_sanitized\":{\"from_length\":85,\"to_length\":60,\"segments\":[{\"from_start\":0,\"from_end\":6,\"to_start\":0,\"to_end\":6,\"kind\":\"copy\"},{\"from_start\":6,\"from_end\":7,\"to_start\":6,\"to_end\":6,\"kind\":\"delete\"},{\"from_start\":7,\"from_end\":7,\"to_start\":6,\"to_end\":7,\"kind\":\"insert\"},{\"from_start\":7,\"from_end\":32,\"to_start\":7,\"to_end\":8,\"kind\":\"replace\"},{\"from_start\":32,\"from_end\":33,\"to_start\":8,\"to_end\":9,\"kind\":\"copy\"},{\"from_start\":33,\"from_end\":34,\"to_start\":9,\"to_end\":9,\"kind\":\"delete\"},{\"from_start\":34,\"from_end\":34,\"to_start\":9,\"to_end\":10,\"kind\":\"insert\"},{\"from_start\":34,\"from_end\":43,\"to_start\":10,\"to_end\":19,\"kind\":\"copy\"},{\"from_start\":43,\"from_end\":45,\"to_start\":19,\"to_end\":19,\"kind\":\"delete\"},{\"from_start\":45,\"from_end\":45,\"to_start\":19,\"to_end\":20,\"kind\":\"insert\"},{\"from_start\":45,\"from_end\":49,\"to_start\":20,\"to_end\":24,\"kind\":\"copy\"},{\"from_start\":49,\"from_end\":50,\"to_start\":24,\"to_end\":24,\"kind\":\"delete\"},{\"from_start\":50,\"from_end\":50,\"to_start\":24,\"to_end\":25,\"kind\":\"insert\"},{\"from_start\":50,\"from_end\":56,\"to_start\":25,\"to_end\":31,\"kind\":\"copy\"},{\"from_start\":56,\"from_end\":57,\"to_start\":31,\"to_end\":31,\"kind\":\"delete\"},{\"from_start\":57,\"from_end\":57,\"to_start\":31,\"to_end\":32,\"kind\":\"insert\"},{\"from_start\":57,\"from_end\":62,\"to_start\":32,\"to_end\":37,\"kind\":\"copy\"},{\"from_start\":62,\"from_end\":63,\"to_start\":37,\"to_end\":37,\"kind\":\"delete\"},{\"from_start\":63,\"from_end\":63,\"to_start\":37,\"to_end\":38,\"kind\":\"insert\"},{\"from_start\":63,\"from_end\":65,\"to_start\":38,\"to_end\":40,\"kind\":\"copy\"},{\"from_start\":65,\"from_end\":66,\"to_start\":40,\"to_end\":40,\"kind\":\"delete\"},{\"from_start\":66,\"from_end\":66,\"to_start\":40,\"to_end\":41,\"kind\":\"insert\"},{\"from_start\":66,\"from_end\":68,\"to_start\":41,\"to_end\":43,\"kind\":\"copy\"},{\"from_start\":68,\"from_end\":69,\"to_start\":43,\"to_end\":43,\"kind\":\"delete\"},{\"from_start\":69,\"from_end\":69,\"to_start\":43,\"to_end\":44,\"kind\":\"insert\"},{\"from_start\":69,\"from_end\":70,\"to_start\":44,\"to_end\":45,\"kind\":\"copy\"},{\"from_start\":70,\"from_end\":71,\"to_start\":45,\"to_end\":46,\"kind\":\"replace\"},{\"from_start\":71,\"from_end\":72,\"to_start\":46,\"to_end\":47,\"kind\":\"copy\"},{\"from_start\":72,\"from_end\":73,\"to_start\":47,\"to_end\":47,\"kind\":\"delete\"},{\"from_start\":73,\"from_end\":73,\"to_start\":47,\"to_end\":48,\"kind\":\"insert\"},{\"from_start\":73,\"from_end\":75,\"to_start\":48,\"to_end\":50,\"kind\":\"copy\"},{\"from_start\":75,\"from_end\":76,\"to_start\":50,\"to_end\":50,\"kind\":\"delete\"},{\"from_start\":76,\"from_end\":76,\"to_start\":50,\"to_end\":51,\"kind\":\"insert\"},{\"from_start\":76,\"from_end\":78,\"to_start\":51,\"to_end\":53,\"kind\":\"copy\"},{\"from_start\":78,\"from_end\":79,\"to_start\":53,\"to_end\":53,\"kind\":\"delete\"},{\"from_start\":79,\"from_end\":79,\"to_start\":53,\"to_end\":54,\"kind\":\"insert\"},{\"from_start\":79,\"from_end\":81,\"to_start\":54,\"to_end\":56,\"kind\":\"copy\"},{\"from_start\":81,\"from_end\":82,\"to_start\":56,\"to_end\":56,\"kind\":\"delete\"},{\"from_start\":82,\"from_end\":82,\"to_start\":56,\"to_end\":57,\"kind\":\"insert\"},{\"from_start\":82,\"from_end\":83,\"to_start\":57,\"to_end\":58,\"kind\":\"copy\"},{\"from_start\":83,\"from_end\":84,\"to_start\":58,\"to_end\":59,\"kind\":\"replace\"},{\"from_start\":84,\"from_end\":85,\"to_start\":59,\"to_end\":60,\"kind\":\"copy\"}]},\"sanitized_to_formatted\":{\"from_length\":60,\"to_length\":68,\"segments\":[{\"from_start\":0,\"from_end\":6,\"to_start\":0,\"to_end\":6,\"kind\":\"copy\"},{\"from_start\":6,\"from_end\":7,\"to_start\":6,\"to_end\":9,\"kind\":\"replace\"},{\"from_start\":7,\"from_end\":9,\"to_start\":9,\"to_end\":11,\"kind\":\"copy\"},{\"from_start\":9,\"from_end\":10,\"to_start\":11,\"to_end\":14,\"kind\":\"replace\"},{\"from_start\":10,\"from_end\":19,\"to_start\":14,\"to_end\":23,\"kind\":\"copy\"},{\"from_start\":19,\"from_end\":20,\"to_start\":23,\"to_end\":24,\"kind\":\"replace\"},{\"from_start\":20,\"from_end\":24,\"to_start\":24,\"to_end\":28,\"kind\":\"copy\"},{\"from_start\":24,\"from_end\":25,\"to_start\":28,\"to_end\":29,\"kind\":\"replace\"},{\"from_start\":25,\"from_end\":31,\"to_start\":29,\"to_end\":35,\"kind\":\"copy\"},{\"from_start\":31,\"from_end\":32,\"to_start\":35,\"to_end\":36,\"kind\":\"replace\"},{\"from_start\":32,\"from_end\":37,\"to_start\":36,\"to_end\":41,\"kind\":\"copy\"},{\"from_start\":37,\"from_end\":38,\"to_start\":41,\"to_end\":44,\"kind\":\"replace\"},{\"from_start\":38,\"from_end\":40,\"to_start\":44,\"to_end\":46,\"kind\":\"copy\"},{\"from_start\":40,\"from_end\":41,\"to_start\":46,\"to_end\":47,\"kind\":\"replace\"},{\"from_start\":41,\"from_end\":43,\"to_start\":47,\"to_end\":49,\"kind\":\"copy\"},{\"from_start\":43,\"from_end\":44,\"to_start\":49,\"to_end\":50,\"kind\":\"replace\"},{\"from_start\":44,\"from_end\":47,\"to_start\":50,\"to_end\":53,\"kind\":\"copy\"},{\"from_start\":47,\"from_end\":48,\"to_start\":53,\"to_end\":56,\"kind\":\"replace\"},{\"from_start\":48,\"from_end\":50,\"to_start\":56,\"to_end\":58,\"kind\":\"copy\"},{\"from_start\":50,\"from_end\":51,\"to_start\":58,\"to_end\":59,\"kind\":\"replace\"},{\"from_start\":51,\"from_end\":53,\"to_start\":59,\"to_end\":61,\"kind\":\"copy\"},{\"from_start\":53,\"from_end\":54,\"to_start\":61,\"to_end\":62,\"kind\":\"replace\"},{\"from_start\":54,\"from_end\":56,\"to_start\":62,\"to_end\":64,\"kind\":\"copy\"},{\"from_start\":56,\"from_end\":57,\"to_start\":64,\"to_end\":65,\"kind\":\"replace\"},{\"from_start\":57,\"from_end\":60,\"to_start\":65,\"to_end\":68,\"kind\":\"copy\"}]},\"display\":\"formatted\"}",
+      "sql": "SELECT\n  ?,\n  \"😀é\"\nFROM things\nWHERE\n  id IN (?)\n  OR id IN (?)"
+    },
+    "output": {
+      "sql": "SELECT\n  ?,\n  \"😀é\"\nFROM things\nWHERE\n  id IN (?)\n  OR id IN (?)",
+      "status": "ok",
+      "reason": "",
+      "diagnostics": [
+        {
+          "code": "unterminated_string",
+          "message": "Unfinished string literal",
+          "explanation": "The string starts here but its closing quote or dollar tag has not been entered yet. Semicolons inside the string do not finish a statement.",
+          "hint": "Add the matching closing quote or exact dollar tag; use --tolerant to highlight while editing.",
+          "line": 1,
+          "column": 9,
+          "end_line": 1,
+          "end_column": 32,
+          "display_start": 9,
+          "display_end": 10,
+          "mapping_status": "approximate"
+        }
+      ]
+    }
+  },
+  "editor": {
+    "input": {
+      "dialect": "postgresql",
+      "source": "original",
+      "sql": "SELECT \"😀é\",\n(1"
+    },
+    "output": {
+      "sql": "SELECT \"😀é\",\n(1",
+      "status": "malformed",
+      "reason": "malformed",
+      "diagnostics": [
+        {
+          "code": "unclosed_group",
+          "message": "Unfinished delimiter group",
+          "explanation": "This opening parenthesis or bracket has not been closed yet.",
+          "hint": "Add the matching closing delimiter before formatting or completing the statement.",
+          "line": 2,
+          "column": 1,
+          "end_line": 2,
+          "end_column": 3,
+          "display_start": 15,
+          "display_end": 17,
+          "mapping_status": "exact"
+        }
+      ]
+    }
+  },
+  "mapped": {
+    "input": {
+      "diagnostic_schema_version": 1,
+      "diagnostics": [
+        {
+          "code": "unmatched_close",
+          "severity": "error",
+          "offset": 71,
+          "end_offset": 72,
+          "line": 2,
+          "column": 27,
+          "end_line": 2,
+          "end_column": 28,
+          "incomplete": false,
+          "statement_complete": false,
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter."
+        },
+        {
+          "code": "unmatched_close",
+          "severity": "error",
+          "offset": 84,
+          "end_offset": 85,
+          "line": 2,
+          "column": 40,
+          "end_line": 2,
+          "end_column": 41,
+          "incomplete": false,
+          "statement_complete": false,
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter."
+        }
+      ],
+      "dialect": "postgresql",
+      "original_length": 85,
+      "source": "telemetry",
+      "source_map": "{\"schema_version\":1,\"original_to_sanitized\":{\"from_length\":85,\"to_length\":60,\"segments\":[{\"from_start\":0,\"from_end\":6,\"to_start\":0,\"to_end\":6,\"kind\":\"copy\"},{\"from_start\":6,\"from_end\":7,\"to_start\":6,\"to_end\":6,\"kind\":\"delete\"},{\"from_start\":7,\"from_end\":7,\"to_start\":6,\"to_end\":7,\"kind\":\"insert\"},{\"from_start\":7,\"from_end\":32,\"to_start\":7,\"to_end\":8,\"kind\":\"replace\"},{\"from_start\":32,\"from_end\":33,\"to_start\":8,\"to_end\":9,\"kind\":\"copy\"},{\"from_start\":33,\"from_end\":34,\"to_start\":9,\"to_end\":9,\"kind\":\"delete\"},{\"from_start\":34,\"from_end\":34,\"to_start\":9,\"to_end\":10,\"kind\":\"insert\"},{\"from_start\":34,\"from_end\":43,\"to_start\":10,\"to_end\":19,\"kind\":\"copy\"},{\"from_start\":43,\"from_end\":45,\"to_start\":19,\"to_end\":19,\"kind\":\"delete\"},{\"from_start\":45,\"from_end\":45,\"to_start\":19,\"to_end\":20,\"kind\":\"insert\"},{\"from_start\":45,\"from_end\":49,\"to_start\":20,\"to_end\":24,\"kind\":\"copy\"},{\"from_start\":49,\"from_end\":50,\"to_start\":24,\"to_end\":24,\"kind\":\"delete\"},{\"from_start\":50,\"from_end\":50,\"to_start\":24,\"to_end\":25,\"kind\":\"insert\"},{\"from_start\":50,\"from_end\":56,\"to_start\":25,\"to_end\":31,\"kind\":\"copy\"},{\"from_start\":56,\"from_end\":57,\"to_start\":31,\"to_end\":31,\"kind\":\"delete\"},{\"from_start\":57,\"from_end\":57,\"to_start\":31,\"to_end\":32,\"kind\":\"insert\"},{\"from_start\":57,\"from_end\":62,\"to_start\":32,\"to_end\":37,\"kind\":\"copy\"},{\"from_start\":62,\"from_end\":63,\"to_start\":37,\"to_end\":37,\"kind\":\"delete\"},{\"from_start\":63,\"from_end\":63,\"to_start\":37,\"to_end\":38,\"kind\":\"insert\"},{\"from_start\":63,\"from_end\":65,\"to_start\":38,\"to_end\":40,\"kind\":\"copy\"},{\"from_start\":65,\"from_end\":66,\"to_start\":40,\"to_end\":40,\"kind\":\"delete\"},{\"from_start\":66,\"from_end\":66,\"to_start\":40,\"to_end\":41,\"kind\":\"insert\"},{\"from_start\":66,\"from_end\":68,\"to_start\":41,\"to_end\":43,\"kind\":\"copy\"},{\"from_start\":68,\"from_end\":69,\"to_start\":43,\"to_end\":43,\"kind\":\"delete\"},{\"from_start\":69,\"from_end\":69,\"to_start\":43,\"to_end\":44,\"kind\":\"insert\"},{\"from_start\":69,\"from_end\":70,\"to_start\":44,\"to_end\":45,\"kind\":\"copy\"},{\"from_start\":70,\"from_end\":71,\"to_start\":45,\"to_end\":46,\"kind\":\"replace\"},{\"from_start\":71,\"from_end\":72,\"to_start\":46,\"to_end\":47,\"kind\":\"copy\"},{\"from_start\":72,\"from_end\":73,\"to_start\":47,\"to_end\":47,\"kind\":\"delete\"},{\"from_start\":73,\"from_end\":73,\"to_start\":47,\"to_end\":48,\"kind\":\"insert\"},{\"from_start\":73,\"from_end\":75,\"to_start\":48,\"to_end\":50,\"kind\":\"copy\"},{\"from_start\":75,\"from_end\":76,\"to_start\":50,\"to_end\":50,\"kind\":\"delete\"},{\"from_start\":76,\"from_end\":76,\"to_start\":50,\"to_end\":51,\"kind\":\"insert\"},{\"from_start\":76,\"from_end\":78,\"to_start\":51,\"to_end\":53,\"kind\":\"copy\"},{\"from_start\":78,\"from_end\":79,\"to_start\":53,\"to_end\":53,\"kind\":\"delete\"},{\"from_start\":79,\"from_end\":79,\"to_start\":53,\"to_end\":54,\"kind\":\"insert\"},{\"from_start\":79,\"from_end\":81,\"to_start\":54,\"to_end\":56,\"kind\":\"copy\"},{\"from_start\":81,\"from_end\":82,\"to_start\":56,\"to_end\":56,\"kind\":\"delete\"},{\"from_start\":82,\"from_end\":82,\"to_start\":56,\"to_end\":57,\"kind\":\"insert\"},{\"from_start\":82,\"from_end\":83,\"to_start\":57,\"to_end\":58,\"kind\":\"copy\"},{\"from_start\":83,\"from_end\":84,\"to_start\":58,\"to_end\":59,\"kind\":\"replace\"},{\"from_start\":84,\"from_end\":85,\"to_start\":59,\"to_end\":60,\"kind\":\"copy\"}]},\"sanitized_to_formatted\":{\"from_length\":60,\"to_length\":68,\"segments\":[{\"from_start\":0,\"from_end\":6,\"to_start\":0,\"to_end\":6,\"kind\":\"copy\"},{\"from_start\":6,\"from_end\":7,\"to_start\":6,\"to_end\":9,\"kind\":\"replace\"},{\"from_start\":7,\"from_end\":9,\"to_start\":9,\"to_end\":11,\"kind\":\"copy\"},{\"from_start\":9,\"from_end\":10,\"to_start\":11,\"to_end\":14,\"kind\":\"replace\"},{\"from_start\":10,\"from_end\":19,\"to_start\":14,\"to_end\":23,\"kind\":\"copy\"},{\"from_start\":19,\"from_end\":20,\"to_start\":23,\"to_end\":24,\"kind\":\"replace\"},{\"from_start\":20,\"from_end\":24,\"to_start\":24,\"to_end\":28,\"kind\":\"copy\"},{\"from_start\":24,\"from_end\":25,\"to_start\":28,\"to_end\":29,\"kind\":\"replace\"},{\"from_start\":25,\"from_end\":31,\"to_start\":29,\"to_end\":35,\"kind\":\"copy\"},{\"from_start\":31,\"from_end\":32,\"to_start\":35,\"to_end\":36,\"kind\":\"replace\"},{\"from_start\":32,\"from_end\":37,\"to_start\":36,\"to_end\":41,\"kind\":\"copy\"},{\"from_start\":37,\"from_end\":38,\"to_start\":41,\"to_end\":44,\"kind\":\"replace\"},{\"from_start\":38,\"from_end\":40,\"to_start\":44,\"to_end\":46,\"kind\":\"copy\"},{\"from_start\":40,\"from_end\":41,\"to_start\":46,\"to_end\":47,\"kind\":\"replace\"},{\"from_start\":41,\"from_end\":43,\"to_start\":47,\"to_end\":49,\"kind\":\"copy\"},{\"from_start\":43,\"from_end\":44,\"to_start\":49,\"to_end\":50,\"kind\":\"replace\"},{\"from_start\":44,\"from_end\":47,\"to_start\":50,\"to_end\":53,\"kind\":\"copy\"},{\"from_start\":47,\"from_end\":48,\"to_start\":53,\"to_end\":56,\"kind\":\"replace\"},{\"from_start\":48,\"from_end\":50,\"to_start\":56,\"to_end\":58,\"kind\":\"copy\"},{\"from_start\":50,\"from_end\":51,\"to_start\":58,\"to_end\":59,\"kind\":\"replace\"},{\"from_start\":51,\"from_end\":53,\"to_start\":59,\"to_end\":61,\"kind\":\"copy\"},{\"from_start\":53,\"from_end\":54,\"to_start\":61,\"to_end\":62,\"kind\":\"replace\"},{\"from_start\":54,\"from_end\":56,\"to_start\":62,\"to_end\":64,\"kind\":\"copy\"},{\"from_start\":56,\"from_end\":57,\"to_start\":64,\"to_end\":65,\"kind\":\"replace\"},{\"from_start\":57,\"from_end\":60,\"to_start\":65,\"to_end\":68,\"kind\":\"copy\"}]},\"display\":\"formatted\"}",
+      "sql": "SELECT\n  ?,\n  \"😀é\"\nFROM things\nWHERE\n  id IN (?)\n  OR id IN (?)"
+    },
+    "output": {
+      "sql": "SELECT\n  ?,\n  \"😀é\"\nFROM things\nWHERE\n  id IN (?)\n  OR id IN (?)",
+      "status": "ok",
+      "reason": "",
+      "diagnostics": [
+        {
+          "code": "unmatched_close",
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter.",
+          "line": 2,
+          "column": 27,
+          "end_line": 2,
+          "end_column": 28,
+          "display_start": 49,
+          "display_end": 50,
+          "mapping_status": "exact"
+        },
+        {
+          "code": "unmatched_close",
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter.",
+          "line": 2,
+          "column": 40,
+          "end_line": 2,
+          "end_column": 41,
+          "display_start": 64,
+          "display_end": 65,
+          "mapping_status": "exact"
+        }
+      ]
+    }
+  },
+  "omitted": {
+    "input": {
+      "diagnostic_schema_version": 1,
+      "diagnostics": [
+        {
+          "code": "unterminated_string",
+          "severity": "warning",
+          "offset": 7,
+          "end_offset": 31,
+          "line": 1,
+          "column": 8,
+          "end_line": 1,
+          "end_column": 32,
+          "incomplete": true,
+          "statement_complete": false,
+          "message": "Unfinished string literal",
+          "explanation": "The string starts here but its closing quote or dollar tag has not been entered yet. Semicolons inside the string do not finish a statement.",
+          "hint": "Add the matching closing quote or exact dollar tag; use --tolerant to highlight while editing."
+        }
+      ],
+      "dialect": "postgresql",
+      "original_length": 31,
+      "source": "telemetry",
+      "sql": ""
+    },
+    "output": {
+      "sql": "",
+      "status": "not_analyzed",
+      "reason": "empty",
+      "diagnostics": [
+        {
+          "code": "unterminated_string",
+          "message": "Unfinished string literal",
+          "explanation": "The string starts here but its closing quote or dollar tag has not been entered yet. Semicolons inside the string do not finish a statement.",
+          "hint": "Add the matching closing quote or exact dollar tag; use --tolerant to highlight while editing.",
+          "line": 1,
+          "column": 8,
+          "end_line": 1,
+          "end_column": 32,
+          "mapping_status": "unavailable"
+        }
+      ]
+    }
+  },
+  "unavailable": {
+    "input": {
+      "diagnostic_schema_version": 1,
+      "diagnostics": [
+        {
+          "code": "unmatched_close",
+          "severity": "error",
+          "offset": 71,
+          "end_offset": 72,
+          "line": 2,
+          "column": 27,
+          "end_line": 2,
+          "end_column": 28,
+          "incomplete": false,
+          "statement_complete": false,
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter."
+        },
+        {
+          "code": "unmatched_close",
+          "severity": "error",
+          "offset": 84,
+          "end_offset": 85,
+          "line": 2,
+          "column": 40,
+          "end_line": 2,
+          "end_column": 41,
+          "incomplete": false,
+          "statement_complete": false,
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter."
+        }
+      ],
+      "dialect": "postgresql",
+      "original_length": 85,
+      "source": "telemetry",
+      "sql": "SELECT\n  ?,\n  \"😀é\"\nFROM things\nWHERE\n  id IN (?)\n  OR id IN (?)"
+    },
+    "output": {
+      "sql": "SELECT\n  ?,\n  \"😀é\"\nFROM things\nWHERE\n  id IN (?)\n  OR id IN (?)",
+      "status": "ok",
+      "reason": "",
+      "diagnostics": [
+        {
+          "code": "unmatched_close",
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter.",
+          "line": 2,
+          "column": 27,
+          "end_line": 2,
+          "end_column": 28,
+          "mapping_status": "unavailable"
+        },
+        {
+          "code": "unmatched_close",
+          "message": "Unexpected closing delimiter",
+          "explanation": "This closing parenthesis or bracket has no matching opening delimiter.",
+          "hint": "Remove it or add the corresponding opening delimiter.",
+          "line": 2,
+          "column": 40,
+          "end_line": 2,
+          "end_column": 41,
+          "mapping_status": "unavailable"
+        }
+      ]
+    }
+  }
+}

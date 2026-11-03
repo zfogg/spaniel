@@ -235,6 +235,7 @@ type ISpanDo interface {
 	CountGroups(sessionID string, services []string) (result []model.CountValue, err error)
 	CountTraces(sessionID string, service string, operation string, hasStatus bool, statusCode int, fromNs int64, toNs int64, minDurationNs int64, issueKind string, services []string, attributeFilters string, resourceFilters string) (result []model.CountValue, err error)
 	ListSourceStats(sessionID string) (result []model.SourceStatsRow, err error)
+	QueryOccurrences(spanIDs []string) (result []model.QueryOccurrence, err error)
 	ServiceP95(serviceName string) (result []model.P95Value, err error)
 	ListServiceMapNodes(sessionID string, fromNs int64, toNs int64) (result []model.ServiceMapNode, err error)
 	ListServiceMapEdges(sessionID string, fromNs int64, toNs int64) (result []model.ServiceMapEdge, err error)
@@ -2288,6 +2289,41 @@ func (s spanDo) ListSourceStats(sessionID string) (result []model.SourceStatsRow
 	params = append(params, sessionID)
 	params = append(params, sessionID)
 	generateSQL.WriteString("SELECT service_name, COUNT(*) AS span_count, COUNT(*) FILTER (WHERE status_code = 2) AS error_count, SUM(LENGTH(attributes) + LENGTH(resource)) AS bytes_total, MIN(received_at) AS first_seen, MAX(received_at) AS last_seen FROM spans WHERE ( ? = '' OR session_id = ? ) GROUP BY service_name ORDER BY span_count DESC ")
+
+	var executeSQL *gorm.DB
+	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	err = executeSQL.Error
+
+	return
+}
+
+// QueryOccurrences
+//
+// SELECT target.trace_id, target.span_id,
+//
+//	COUNT(DISTINCT (candidate.trace_id, candidate.span_id)) AS count
+//
+// FROM @@table target
+// JOIN @@table candidate
+//
+//	ON candidate.session_id = target.session_id
+//	AND candidate.service_name = target.service_name
+//	AND json_extract_string(candidate.attributes, '$."gotel.db.query.fingerprint"') = json_extract_string(target.attributes, '$."gotel.db.query.fingerprint"')
+//	AND coalesce(json_extract_string(candidate.attributes, '$."db.namespace"'), json_extract_string(candidate.attributes, '$."db.name"'), '') = coalesce(json_extract_string(target.attributes, '$."db.namespace"'), json_extract_string(target.attributes, '$."db.name"'), '')
+//	AND coalesce(json_extract_string(candidate.attributes, '$."server.address"'), json_extract_string(candidate.attributes, '$."net.peer.name"'), '') = coalesce(json_extract_string(target.attributes, '$."server.address"'), json_extract_string(target.attributes, '$."net.peer.name"'), '')
+//	AND coalesce(json_extract_string(candidate.attributes, '$."server.port"'), json_extract_string(candidate.attributes, '$."net.peer.port"'), '') = coalesce(json_extract_string(target.attributes, '$."server.port"'), json_extract_string(target.attributes, '$."net.peer.port"'), '')
+//
+// WHERE target.span_id IN @spanIDs
+//
+//	AND regexp_full_match(json_extract_string(target.attributes, '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
+//
+// GROUP BY target.trace_id, target.span_id
+func (s spanDo) QueryOccurrences(spanIDs []string) (result []model.QueryOccurrence, err error) {
+	var params []interface{}
+
+	var generateSQL strings.Builder
+	params = append(params, spanIDs)
+	generateSQL.WriteString("SELECT target.trace_id, target.span_id, COUNT(DISTINCT (candidate.trace_id, candidate.span_id)) AS count FROM spans target JOIN spans candidate ON candidate.session_id = target.session_id AND candidate.service_name = target.service_name AND json_extract_string(candidate.attributes, '$.\"gotel.db.query.fingerprint\"') = json_extract_string(target.attributes, '$.\"gotel.db.query.fingerprint\"') AND coalesce(json_extract_string(candidate.attributes, '$.\"db.namespace\"'), json_extract_string(candidate.attributes, '$.\"db.name\"'), '') = coalesce(json_extract_string(target.attributes, '$.\"db.namespace\"'), json_extract_string(target.attributes, '$.\"db.name\"'), '') AND coalesce(json_extract_string(candidate.attributes, '$.\"server.address\"'), json_extract_string(candidate.attributes, '$.\"net.peer.name\"'), '') = coalesce(json_extract_string(target.attributes, '$.\"server.address\"'), json_extract_string(target.attributes, '$.\"net.peer.name\"'), '') AND coalesce(json_extract_string(candidate.attributes, '$.\"server.port\"'), json_extract_string(candidate.attributes, '$.\"net.peer.port\"'), '') = coalesce(json_extract_string(target.attributes, '$.\"server.port\"'), json_extract_string(target.attributes, '$.\"net.peer.port\"'), '') WHERE target.span_id IN ? AND regexp_full_match(json_extract_string(target.attributes, '$.\"gotel.db.query.fingerprint\"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}') GROUP BY target.trace_id, target.span_id ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert

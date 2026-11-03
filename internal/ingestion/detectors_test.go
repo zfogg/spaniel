@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -53,51 +54,18 @@ func TestFingerprintSQLEmptyString(t *testing.T) {
 	_ = result
 }
 
-func TestFingerprintSQLUnparseable(t *testing.T) {
-	// Unparseable SQL falls back to whitespace-normalized input, not a panic.
-	result := fingerprintSQL("not sql at all !@#$")
-	expected := "not sql at all !@#$"
-	if result != expected {
-		t.Errorf("expected fallback to return whitespace-normalized input %q, got %q", expected, result)
+func TestFingerprintSQLVersionedAndFailClosed(t *testing.T) {
+	fp := fingerprintSQL("SELECT 'private-value'")
+	if !strings.HasPrefix(fp, "sequel:v1:generic:") || strings.Contains(fp, "private-value") {
+		t.Fatal("fingerprint is not a safe versioned identifier")
 	}
-}
-
-func TestFingerprintSQLMultiSpaceNormalized(t *testing.T) {
-	// Multi-space / tab input should be whitespace-normalized via fallback.
-	result := fingerprintSQL("not\tsql\t\tat   all")
-	expected := "not sql at all"
-	if result != expected {
-		t.Errorf("expected %q, got %q", expected, result)
+	if fingerprintSQL("SELECT 'private-value") != "" {
+		t.Fatal("malformed input has a fingerprint")
 	}
-}
-
-func TestFallbackFingerprintCollapseSpaces(t *testing.T) {
-	result := fallbackFingerprint("  SELECT   *   FROM   t  ")
-	expected := "SELECT * FROM t"
-	if result != expected {
-		t.Errorf("expected %q, got %q", expected, result)
+	if fingerprintSQL("SELECT a, bc") == fingerprintSQL("SELECT ab, c") {
+		t.Fatal("token boundaries collapsed")
 	}
-}
-
-func TestFallbackFingerprintCollapseTabs(t *testing.T) {
-	result := fallbackFingerprint("SELECT\t*\tFROM\tt")
-	expected := "SELECT * FROM t"
-	if result != expected {
-		t.Errorf("expected %q, got %q", expected, result)
-	}
-}
-
-func TestFallbackFingerprintTrimLeadingTrailing(t *testing.T) {
-	result := fallbackFingerprint("  hello world  ")
-	expected := "hello world"
-	if result != expected {
-		t.Errorf("expected %q, got %q", expected, result)
-	}
-}
-
-func TestFallbackFingerprintEmpty(t *testing.T) {
-	result := fallbackFingerprint("")
-	if result != "" {
-		t.Errorf("expected empty string, got %q", result)
+	if fingerprintSQL("SELECT 1") != fingerprintSQL("  SELECT   99  -- comment\n") {
+		t.Fatal("literals or whitespace changed shape")
 	}
 }

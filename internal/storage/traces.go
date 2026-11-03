@@ -166,6 +166,13 @@ func (d *DB) ListTracesInWindow(f TraceOverlayFilter) ([]*TraceOverlay, error) {
 }
 
 func (d *DB) GetTrace(traceID string) ([]*Span, error) {
-	return d.query.Span.Where(d.query.Span.TraceID.Eq(traceID)).
+	spans, err := d.query.Span.Where(d.query.Span.TraceID.Eq(traceID)).
 		Order(d.query.Span.StartNs).Find()
+	if err != nil {
+		return nil, err
+	}
+	if err = d.attachQueryOccurrences(spans); err != nil {
+		return nil, err
+	}
+	return spans, nil
 }
