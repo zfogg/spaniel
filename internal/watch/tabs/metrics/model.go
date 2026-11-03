@@ -290,20 +290,20 @@ func (m *catalog) View() string {
 	if m.editing {
 		query = m.draft + "▏"
 	}
-	lines := []string{tui.Title.Render("Metric catalog"), tui.Muted.Render("Search terms: service=api type=sum unit=ms"), "Search: " + safe(query)}
+	lines := []string{tui.RenderContent(tui.ContentTitle, "Metric catalog"), tui.RenderContent(tui.ContentContext, "Search terms: service=api type=sum unit=ms"), tui.ContentPair("Search: ", safe(query))}
 	if m.env.Filters.Service != "" {
-		lines = append(lines, "Service scope: "+safe(m.env.Filters.Service))
+		lines = append(lines, tui.RenderContent(tui.ContentLabel, "Service scope: ")+tui.RenderServiceName(m.env.Filters.Service, safe(m.env.Filters.Service)))
 	}
 	if s := state(m.loaded, m.err, m.connection); s != "" {
 		lines = append(lines, s)
 	}
 	rows := m.filtered()
-	lines = append(lines, fmt.Sprintf("%d matching streams · catalog counts are snapshot samples, not series", len(rows)))
+	lines = append(lines, tui.RenderContent(tui.ContentContext, fmt.Sprintf("%d matching streams · catalog counts are snapshot samples, not series", len(rows))))
 	if m.capped {
 		lines = append(lines, "Catalog limited to 4096 streams; narrow the server scope.")
 	}
 	if len(rows) == 0 && m.loaded {
-		lines = append(lines, "No metrics match this search/session. Waiting for stored telemetry.")
+		lines = append(lines, tui.RenderContent(tui.ContentContext, "No metrics match this search/session. Waiting for stored telemetry."))
 	}
 	start, index := 0, 0
 	for i, row := range rows {
@@ -325,11 +325,9 @@ func (m *catalog) View() string {
 		if row.SampleCount == 0 {
 			count = "pending"
 		}
-		line := fmt.Sprintf("%s%s  %s  [%s] %s · %s samples", prefix, safe(row.Name), safe(row.ServiceName), safe(row.Type), safe(row.Unit), count)
-		if identity(row) == m.selected {
-			line = tui.SelectedRow.Render(cut(line, m.width))
-		}
-		lines = append(lines, line, "  "+safe(row.Description), "  "+m.admission.summary(row.ServiceName, row.Name))
+		line := prefix + tui.RenderContent(tui.ContentStrong, safe(row.Name)) + "  " + tui.RenderServiceName(row.ServiceName, safe(row.ServiceName)) + tui.RenderContent(tui.ContentLabel, "  ["+safe(row.Type)+"] "+safe(row.Unit)+" · ") + tui.RenderContent(tui.ContentMeasure, count) + " samples"
+		line = tui.ContentRow(cut(line, m.width), identity(row) == m.selected)
+		lines = append(lines, line, tui.RenderContent(tui.ContentContext, "  "+safe(row.Description)), tui.RenderContent(tui.ContentContext, "  "+m.admission.summary(row.ServiceName, row.Name)))
 	}
 	if len(rows) > 0 {
 		lines = append(lines, fmt.Sprintf("%d/%d", index+1, len(rows)))
@@ -350,13 +348,13 @@ func fit(lines []string, width, height int) string {
 }
 func state(loaded bool, err error, connection protocol.Connection) string {
 	if err != nil {
-		return tui.Danger.Render("Error: " + safe(err.Error()) + " · retrying; retained data is stale")
+		return tui.RenderContent(tui.ContentError, "Error: "+safe(err.Error())+" · retrying; retained data is stale")
 	}
 	if !loaded {
-		return tui.Warn.Render("Loading stored metrics…")
+		return tui.RenderContent(tui.ContentWarning, "Loading stored metrics…")
 	}
 	if !connection.Connected {
-		return tui.Warn.Render("Stale · disconnected; retained data may be incomplete")
+		return tui.RenderContent(tui.ContentWarning, "Stale · disconnected; retained data may be incomplete")
 	}
 	return ""
 }

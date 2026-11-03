@@ -1,4 +1,4 @@
-import { customServiceColor } from './service-color'
+import { serviceColor, serviceHex, serviceTextHex } from './service-color'
 // Spaniel design system — Drift direction (sky · sand · slate)
 //
 // Single source of truth for all design tokens.  CSS vars are the runtime
@@ -112,8 +112,7 @@ export const DARK = {
 } as const
 
 // Span timeline palette — 12 perceptually distinct, Drift-aligned.
-// Used as the canonical service palette: services are assigned a slot by hash
-// of their name, so the same service gets the same color across sessions.
+// Decorative chart accents. Service identity colors come from service-color.ts.
 export const SPAN_PALETTE = [
   '#7aa3c4', // sky  (accent)
   '#88b29a', // sage (ok)
@@ -129,63 +128,15 @@ export const SPAN_PALETTE = [
   '#70a8a8', // teal
 ] as const
 
-// Pair each palette hex with fg/bg ink+tint pairs for chips.
-// Light: tinted bg + darker ink. Dark: deep bg + lifted ink.
-const PALETTE_CHIPS_LIGHT: ReadonlyArray<{ fg: string; bg: string }> = [
-  { fg: '#284a6a', bg: '#c4d8e8' },
-  { fg: '#2a5a3a', bg: '#c8e0d2' },
-  { fg: '#6a4f1e', bg: '#ecdcb4' },
-  { fg: '#4b3a6e', bg: '#d6c8e6' },
-  { fg: '#1f3e5a', bg: '#bccfe0' },
-  { fg: '#2f5a48', bg: '#c8e0d2' },
-  { fg: '#6a4f1e', bg: '#ecdcb4' },
-  { fg: '#2a4a78', bg: '#c8d8ec' },
-  { fg: '#7a3a2a', bg: '#ecc8bc' },
-  { fg: '#3d4a58', bg: '#dde6ee' },
-  { fg: '#4b3a6e', bg: '#e0d4ec' },
-  { fg: '#1e4848', bg: '#bcd8d8' },
-]
-const PALETTE_CHIPS_DARK: ReadonlyArray<{ fg: string; bg: string }> = [
-  { fg: '#c4dcf0', bg: '#1a3048' },
-  { fg: '#b8e0c8', bg: '#102818' },
-  { fg: '#f0d898', bg: '#2c2010' },
-  { fg: '#d0c4f0', bg: '#20183a' },
-  { fg: '#b8d4ec', bg: '#152a40' },
-  { fg: '#b8e0d0', bg: '#102820' },
-  { fg: '#f0d898', bg: '#2c2010' },
-  { fg: '#c4d8ec', bg: '#15263c' },
-  { fg: '#f0b8aa', bg: '#2c1a16' },
-  { fg: '#b8c4d4', bg: '#1a2330' },
-  { fg: '#d8c4ec', bg: '#241a3a' },
-  { fg: '#a8d4d4', bg: '#0e2828' },
-]
-
-// Stable string hash → palette index.
-function hashStr(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
+// Compatibility grouping only; service renderers use the full canonical color.
 export function svcPaletteIndex(svcName: string): number {
-  return hashStr(svcName) % SPAN_PALETTE.length
+  return Math.floor((serviceColor(svcName).hue * SPAN_PALETTE.length) / 360)
 }
 
 export function svcHex(svcName: string): string {
-  return customServiceColor(svcName) ?? SPAN_PALETTE[svcPaletteIndex(svcName)]
+  return serviceHex(svcName)
 }
 
-// Helper — get service swatch (light or dark). Falls back to hash-based
-// palette slot for unknown services so colors stay stable per name.
 export function svcColor(svcName: string, dark: boolean) {
-  const custom = customServiceColor(svcName)
-  if (custom) return { fg: custom, bg: custom + '28' }
-  const map = dark ? DARK.svc : LIGHT.svc
-  const hard = (map as Record<string, { fg: string; bg: string }>)[svcName]
-  if (hard) return hard
-  const chips = dark ? PALETTE_CHIPS_DARK : PALETTE_CHIPS_LIGHT
-  return chips[svcPaletteIndex(svcName)]
+  return { fg: serviceTextHex(svcName, dark), bg: serviceHex(svcName) + '28' }
 }

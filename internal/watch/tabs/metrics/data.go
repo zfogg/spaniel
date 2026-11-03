@@ -3,6 +3,7 @@ package metrics
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
 	"sort"
@@ -362,9 +363,9 @@ func histogramInterval(points []sample, index int, temporality string) (float64,
 }
 func sampleDescription(p sample, typ string, width int, now ...time.Time) []string {
 	reference := terminal.BatchTime(now...)
-	lines := []string{fmt.Sprintf("timestamp %s · start %s · flags %d", timestamp(p.Timestamp, reference), timestamp(p.Start, reference), p.Flags)}
+	lines := []string{tui.RenderContent(tui.ContentContext, fmt.Sprintf("timestamp %s · start %s · flags %d", timestamp(p.Timestamp, reference), timestamp(p.Start, reference), p.Flags))}
 	if typ == "gauge" || typ == "sum" || typ == "counter" {
-		lines = append(lines, "raw value "+number(p.Value))
+		lines = append(lines, tui.ContentPair("raw value ", number(p.Value)))
 	} else {
 		lines = append(lines, fmt.Sprintf("count %s · sum %s · min %s · max %s", optional(p.Count), optional(p.Sum), optional(p.Min), optional(p.Max)))
 		if typ == "histogram" {
@@ -381,7 +382,7 @@ func sampleDescription(p sample, typ string, width int, now ...time.Time) []stri
 		lines = append(lines, "OTLP no recorded value: excluded from chart")
 	}
 	if p.ScopeName != "" || p.ScopeVersion != "" || len(p.ScopeAttributes) > 0 {
-		lines = append(lines, "scope "+safe(p.ScopeName)+" "+safe(p.ScopeVersion))
+		lines = append(lines, tui.RenderContent(tui.ContentContext, "scope "+safe(p.ScopeName)+" "+safe(p.ScopeVersion)))
 		lines = append(lines, attributeTable("Scope attributes", p.ScopeAttributes, width)...)
 	}
 	for _, ex := range p.Exemplars {

@@ -1,8 +1,8 @@
 import type { Span, LintWarning } from '@/lib/api'
 
 // ── palette & svc color ───────────────────────────────────────────────────────
-// Re-exported from the canonical Drift palette in `tokens.ts`. Service color
-// is hash-based so a name maps to the same slot across sessions/screens.
+// Decorative accents remain available; service colors delegate through tokens
+// to the canonical service-color algorithm and browser-local overrides.
 
 import { SPAN_PALETTE as DRIFT_PALETTE, svcHex } from '@/lib/tokens'
 

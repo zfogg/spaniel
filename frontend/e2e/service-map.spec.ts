@@ -1,4 +1,5 @@
 import { test, expect, type Route, type Page } from '@playwright/test'
+import { serviceHex } from '../src/lib/service-color'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,19 @@ async function stubServiceMap(page: Page, fx: ServiceMapFixture) {
 }
 
 // ── specs ────────────────────────────────────────────────────────────────────
+
+test('default map colors match the canonical badge swatch and hex adapter', async ({ page }) => {
+  await stubServiceMap(page, { nodes: [{ id: 'api', span_count: 10, error_count: 0 }], edges: [] })
+  await page.goto('/services')
+  const dot = page.getByTestId('node-api').locator('circle')
+  await expect(dot).toHaveAttribute('fill', serviceHex('api'))
+  await expect(dot).toHaveCSS('fill', 'rgb(136, 77, 224)')
+  await page.getByText('Service colors', { exact: true }).click()
+  await expect(page.locator('[data-service-name="api"] > span').first()).toHaveCSS(
+    'background-color',
+    'rgb(136, 77, 224)',
+  )
+})
 
 test.describe('ServiceMap page', () => {
   test('shows empty state when there are no nodes', async ({ page }) => {

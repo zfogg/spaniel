@@ -215,9 +215,9 @@ func (m *traceModel) View() string {
 	if m.paused {
 		title = "PAUSED · " + title
 	}
-	lines := m.state.appendBanner([]string{tui.Title.Render(title)})
+	lines := m.state.appendBanner([]string{tui.RenderContent(tui.ContentTitle, title)})
 	lines = append(lines, metadata.Table([]metadata.Field{
-		{Name: "Trace ID", Value: m.traceID}, {Name: "Session", Value: m.state.session},
+		{Name: "Trace ID", Value: m.traceID, Style: tui.ContentStrong}, {Name: "Session", Value: m.state.session},
 		{Name: "Spans", Value: fmt.Sprint(len(rows))}, {Name: "Duration", Value: duration(end - start)},
 		{Name: "Start", Value: stamp(start, m.env.Now())}, {Name: "End", Value: stamp(end, m.env.Now())},
 	}, m.width)...)
@@ -228,7 +228,7 @@ func (m *traceModel) View() string {
 		}
 		lines = append(lines, text)
 	} else {
-		lines = append(lines, tui.Muted.Render(fmt.Sprintf("Operation / service · duration · status     Waterfall 0 → %s", duration(end-start))))
+		lines = append(lines, tui.RenderContent(tui.ContentHeading, fmt.Sprintf("Operation / service · duration · status     Waterfall 0 → %s", duration(end-start))))
 		cursor := 0
 		for i, r := range rows {
 			if spanKey(r.span) == m.selected {
@@ -243,7 +243,7 @@ func (m *traceModel) View() string {
 		if m.truncated {
 			footer = "Live window full · complete trace available on reload · " + footer
 		}
-		lines = append(lines, tui.Muted.Render(footer))
+		lines = append(lines, tui.RenderContent(tui.ContentLabel, footer))
 	}
 	return screen(lines, m.width, m.height)
 }
@@ -401,7 +401,7 @@ func (m *spanModel) content() []string {
 		return []string{"Span missing, unavailable in this session, or expired. The originating view is retained."}
 	}
 	lines := spanContent(*m.span, m.width, m.env.Now())
-	lines = append(lines, "", tui.Title.Render("Associated logs · latest 100"))
+	lines = append(lines, "", tui.RenderContent(tui.ContentTitle, "Associated logs · latest 100"))
 	lines = m.logState.appendBanner(lines)
 	if len(m.logs) == 0 {
 		if m.logState.loading {
@@ -411,10 +411,7 @@ func (m *spanModel) content() []string {
 		}
 	}
 	for _, l := range m.logs {
-		text := stamp(l.TimestampNs, m.env.Now()) + " · " + clean(l.ServiceName) + fmt.Sprintf(" · severity %.0f", l.Severity) + " · " + clean(l.Body)
-		if l.Severity >= 17 {
-			text = errorStyle.Render(text)
-		}
+		text := tui.RenderContent(tui.ContentLabel, stamp(l.TimestampNs, m.env.Now())) + " · " + tui.RenderServiceName(l.ServiceName, clean(l.ServiceName)) + tui.RenderContent(tui.ContentSeverityStyle(int(l.Severity)), fmt.Sprintf(" · severity %.0f", l.Severity)) + " · " + tui.RenderContent(tui.ContentValue, clean(l.Body))
 		lines = append(lines, text)
 		lines = append(lines, attributeLines("Log attributes", l.Attributes, m.width)...)
 	}
@@ -425,7 +422,7 @@ func (m *spanModel) content() []string {
 	return wrapped
 }
 func (m *spanModel) header() []string {
-	return m.state.appendBanner([]string{tui.Title.Render("Span " + clean(m.spanID))})
+	return m.state.appendBanner([]string{tui.RenderContent(tui.ContentTitle, "Span "+clean(m.spanID))})
 }
 func (m *spanModel) contentHeight() int { return max(1, m.height-len(m.header())) }
 func (m *spanModel) View() string {

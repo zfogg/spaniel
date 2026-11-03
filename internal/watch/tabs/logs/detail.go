@@ -117,14 +117,14 @@ func (m *detail) content() {
 		body = "(empty body)"
 	}
 	info := metadata.Table([]metadata.Field{
-		{Name: "Service", Value: m.row.ServiceName},
-		{Name: "Severity", Value: fmt.Sprintf("%s (%g)", severityName(m.row.Severity), m.row.Severity)},
+		{Name: "Service", Value: m.row.ServiceName, Service: true},
+		{Name: "Severity", Value: fmt.Sprintf("%s (%g)", severityName(m.row.Severity), m.row.Severity), Style: tui.ContentSeverityStyle(int(m.row.Severity))},
 		{Name: "Session", Value: m.row.SessionId},
 		{Name: "Timestamp", Value: stamp(m.row.TimestampNs, true, m.env.Now())},
 		{Name: "Received at", Value: stamp(m.row.ReceivedAt, true, m.env.Now())},
 		{Name: "Trace ID", Value: trace}, {Name: "Span ID", Value: span},
 	}, m.view.Width)
-	text := strings.Join(info, "\n") + "\n\nBody\n" + body + "\n\nAttributes\n" + attrs
+	text := strings.Join(info, "\n") + "\n\n" + tui.RenderContent(tui.ContentTitle, "Body") + "\n" + tui.RenderContent(tui.ContentValue, body) + "\n\n" + tui.RenderContent(tui.ContentTitle, "Attributes") + "\n" + attrs
 	offset := m.view.YOffset
 	m.view.SetContent(ansi.Hardwrap(text, max(1, m.view.Width), true))
 	m.view.SetYOffset(offset)
@@ -233,11 +233,11 @@ func (m *detail) View() string {
 	case m.uncertain:
 		state = "Retained copy · not found within bounded timestamp lookup"
 	}
-	lines := []string{tui.Title.Render("Full log") + tui.Muted.Render("  ·  "+state)}
+	lines := []string{tui.RenderContent(tui.ContentTitle, "Full log") + tui.RenderContent(tui.ContentContext, "  ·  "+state)}
 	if m.row.TraceId == "" && m.row.SpanId == "" {
 		lines = append(lines, "No trace/span correlation on this log.")
 	}
 	lines = append(lines, strings.Split(m.view.View(), "\n")...)
-	lines = append(lines, tui.Faint.Render(fmt.Sprintf("%d%%", int(m.view.ScrollPercent()*100))))
+	lines = append(lines, tui.RenderContent(tui.ContentLabel, fmt.Sprintf("%d%%", int(m.view.ScrollPercent()*100))))
 	return fit(lines, m.width, m.height)
 }

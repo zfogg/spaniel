@@ -127,11 +127,23 @@ func Render(rows []Row, width int) []string {
 	width = max(1, width)
 	var lines []string
 	if width < 40 {
-		lines = append(lines, terminal.Wrap("KEY / TYPE / VALUE", width)...)
+		for _, line := range terminal.Wrap("KEY / TYPE / VALUE", width) {
+			lines = append(lines, tui.RenderContent(tui.ContentHeading, line))
+		}
 		for _, row := range rows {
-			lines = append(lines, terminal.Wrap("Key: "+row.Key, width)...)
-			lines = append(lines, terminal.Wrap("Type: "+row.Type, width)...)
-			lines = append(lines, terminal.Wrap("Value: "+row.Value, width)...)
+			for _, line := range terminal.Wrap("Key: "+row.Key, width) {
+				lines = append(lines, tui.RenderContent(tui.ContentLabel, line))
+			}
+			for _, line := range terminal.Wrap("Type: "+row.Type, width) {
+				lines = append(lines, tui.RenderContent(tui.ContentContext, line))
+			}
+			for _, line := range terminal.Wrap("Value: "+row.Value, width) {
+				value := tui.RenderContent(tui.ContentValue, line)
+				if serviceAttribute(row) {
+					value = tui.RenderServiceName(row.Value, line)
+				}
+				lines = append(lines, value)
+			}
 		}
 		return lines
 	}
@@ -147,8 +159,9 @@ func Render(rows []Row, width int) []string {
 	}
 	glyphs := terminal.Glyphs()
 	separator, joint := " "+glyphs.Pipe+" ", glyphs.Rule+glyphs.Cross+glyphs.Rule
-	lines = append(lines, tui.Muted.Render(pad("KEY", keyWidth)+separator+pad("TYPE", typeWidth)+separator+"VALUE"))
-	lines = append(lines, tui.Muted.Render(strings.Repeat(glyphs.Rule, keyWidth)+joint+strings.Repeat(glyphs.Rule, typeWidth)+joint+strings.Repeat(glyphs.Rule, valueWidth)))
+	styledSeparator := tui.RenderContent(tui.ContentRule, separator)
+	lines = append(lines, tui.RenderContent(tui.ContentHeading, pad("KEY", keyWidth))+styledSeparator+tui.RenderContent(tui.ContentHeading, pad("TYPE", typeWidth))+styledSeparator+tui.RenderContent(tui.ContentHeading, "VALUE"))
+	lines = append(lines, tui.RenderContent(tui.ContentRule, strings.Repeat(glyphs.Rule, keyWidth)+joint+strings.Repeat(glyphs.Rule, typeWidth)+joint+strings.Repeat(glyphs.Rule, valueWidth)))
 	for _, row := range rows {
 		cells := [3][]string{terminal.Wrap(row.Key, keyWidth), terminal.Wrap(row.Type, typeWidth), terminal.Wrap(row.Value, valueWidth)}
 		for i := 0; i < max(len(cells[0]), len(cells[1]), len(cells[2])); i++ {
@@ -158,8 +171,16 @@ func Render(rows []Row, width int) []string {
 					parts[column] = cells[column][i]
 				}
 			}
-			lines = append(lines, pad(parts[0], keyWidth)+separator+pad(parts[1], typeWidth)+separator+parts[2])
+			value := tui.RenderContent(tui.ContentValue, parts[2])
+			if serviceAttribute(row) {
+				value = tui.RenderServiceName(row.Value, parts[2])
+			}
+			lines = append(lines, tui.RenderContent(tui.ContentLabel, pad(parts[0], keyWidth))+styledSeparator+tui.RenderContent(tui.ContentContext, pad(parts[1], typeWidth))+styledSeparator+value)
 		}
 	}
 	return lines
+}
+
+func serviceAttribute(row Row) bool {
+	return row.Type == "string" && row.Value != "(empty string)" && (row.Key == "service.name" || row.Key == "service_name" || row.Key == "service" || row.Key == `service["name"]`)
 }

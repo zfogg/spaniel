@@ -6,29 +6,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
-var muted = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-var accent = lipgloss.NewStyle().Foreground(lipgloss.Color("81")).Bold(true)
-
 func severity(s string) string {
-	color := "245"
+	level := 5
 	switch strings.ToLower(s) {
 	case "error", "critical":
-		color = "203"
+		level = 17
 	case "warning", "warn":
-		color = "214"
+		level = 13
 	case "info":
-		color = "81"
+		level = 9
 	}
 	if s == "" {
 		s = "unknown"
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(clean(s))
+	return tui.RenderContent(tui.ContentSeverityStyle(level), clean(s))
 }
 func unknown(s string) string {
 	if s == "" {
@@ -75,7 +72,7 @@ func (m *model) View() string {
 			semantic++
 		}
 	}
-	lines := []string{accent.Render(fmt.Sprintf("Findings  %d semantic · %d detector · %d matching", semantic, detector, len(m.visible)))}
+	lines := []string{tui.RenderContent(tui.ContentTitle, fmt.Sprintf("Findings  %d semantic · %d detector · %d matching", semantic, detector, len(m.visible)))}
 	filter := clean(m.filter)
 	if filter == "" {
 		filter = "all"
@@ -83,13 +80,13 @@ func (m *model) View() string {
 	if m.editing {
 		lines = append(lines, m.input.View())
 	} else {
-		lines = append(lines, "Filter: "+filter)
+		lines = append(lines, tui.ContentPair("Filter: ", filter))
 	}
-	lines = append(lines, muted.Render("Filter terms: severity:warning rule:http service:api text"))
+	lines = append(lines, tui.RenderContent(tui.ContentContext, "Filter terms: severity:warning rule:http service:api text"))
 	if status := m.status(); status != "" {
 		lines = append(lines, status)
 	} else {
-		lines = append(lines, muted.Render("Live · findings are up to date"))
+		lines = append(lines, tui.RenderContent(tui.ContentContext, "Live · findings are up to date"))
 	}
 	if len(m.visible) == 0 {
 		text := "No findings match this filter."
@@ -99,7 +96,7 @@ func (m *model) View() string {
 				text = "Waiting for finding snapshots; loading or errors shown above."
 			}
 		}
-		lines = append(lines, text)
+		lines = append(lines, tui.RenderContent(tui.ContentContext, text))
 	} else {
 		size := m.pageSize()
 		start := (m.cursor / size) * size
@@ -108,33 +105,34 @@ func (m *model) View() string {
 			row := m.visible[i]
 			prefix := "  "
 			if i == m.cursor {
-				prefix = accent.Render("› ")
+				prefix = "› "
 			}
-			lines = append(lines, prefix+severity(row.severity)+" · "+clean(row.rule)+" · "+row.source+" · "+unknown(row.service)+fmt.Sprintf(" · ×%g", row.count))
+			line := prefix + severity(row.severity) + " · " + tui.RenderContent(tui.ContentStrong, clean(row.rule)) + " · " + tui.RenderContent(tui.ContentLabel, clean(row.source)) + " · " + tui.RenderServiceName(row.service, unknown(row.service)) + tui.RenderContent(tui.ContentMeasure, fmt.Sprintf(" · ×%g", row.count))
+			lines = append(lines, tui.ContentRow(ansi.Truncate(line, m.width, "…"), i == m.cursor))
 			message := row.message
 			if row.fingerprint != "" {
 				message += " — " + row.fingerprint
 			}
-			lines = append(lines, "  "+clean(message)+"  [trace "+unknown(row.trace)+" / span "+unknown(row.span)+"]")
+			lines = append(lines, tui.RenderContent(tui.ContentValue, "  "+clean(message))+tui.RenderContent(tui.ContentContext, "  [trace "+unknown(row.trace)+" / span "+unknown(row.span)+"]"))
 		}
-		lines = append(lines, muted.Render(fmt.Sprintf("Page %d/%d", start/size+1, (len(m.visible)+size-1)/size)))
+		lines = append(lines, tui.RenderContent(tui.ContentContext, fmt.Sprintf("Page %d/%d", start/size+1, (len(m.visible)+size-1)/size)))
 	}
-	lines = append(lines, muted.Render("Latest ≤2000 findings; service lookup: latest ≤2000 spans; unavailable services do not match filters."))
+	lines = append(lines, tui.RenderContent(tui.ContentContext, "Latest ≤2000 findings; service lookup: latest ≤2000 spans; unavailable services do not match filters."))
 	return m.fit(lines)
 }
 func (m *model) detailBody() []string {
 	row := m.detail
-	lines := []string{accent.Render("Finding · " + clean(row.rule)), m.status()}
+	lines := []string{tui.RenderContent(tui.ContentTitle, "Finding · "+clean(row.rule)), tui.RenderContent(tui.ContentContext, m.status())}
 	if m.wrongSession {
 		lines = append(lines, "Session changed. This finding belongs to the previous session; Back returns to current findings.")
 	} else if !m.found {
 		lines = append(lines, "Finding removed or expired. Last known context is retained below; navigation is disabled.")
 	}
-	lines = append(lines, "Source: "+row.source+"   Severity: "+severity(row.severity), "Service: "+unknown(row.service), "Rule / kind: "+clean(row.rule), "Message: "+clean(row.message), fmt.Sprintf("Count: %g", row.count))
+	lines = append(lines, tui.ContentPair("Source: ", clean(row.source))+tui.RenderContent(tui.ContentLabel, "   Severity: ")+severity(row.severity), tui.RenderContent(tui.ContentLabel, "Service: ")+tui.RenderServiceName(row.service, unknown(row.service)), tui.ContentPair("Rule / kind: ", clean(row.rule)), tui.ContentPair("Message: ", clean(row.message)), tui.ContentPair("Count: ", fmt.Sprint(row.count)))
 	if row.source == "detector" {
 		lines = append(lines, "Fingerprint: "+unknown(row.fingerprint), "Wasted time: "+time.Duration(row.wasted).String(), "Parent span: "+unknown(row.parent))
 	}
-	lines = append(lines, "Session: "+unknown(row.session), "Trace: "+unknown(row.trace), "Span: "+unknown(row.span), "Created: "+created(row.created, m.env.Now()))
+	lines = append(lines, tui.ContentPair("Session: ", unknown(row.session)), tui.ContentPair("Trace: ", unknown(row.trace)), tui.ContentPair("Span: ", unknown(row.span)), tui.ContentPair("Created: ", created(row.created, m.env.Now())))
 	navigation := "No trace/span correlation was recorded."
 	if row.trace == "" && row.span != "" {
 		navigation = "Resolving correlated span…"
@@ -183,7 +181,7 @@ func (m *model) detailBody() []string {
 	}
 	// Wrap before vertical scrolling so complete messages and IDs remain accessible.
 	body := []string{}
-	lines = append(lines, navigation)
+	lines = append(lines, tui.RenderContent(tui.ContentContext, navigation))
 	for _, line := range lines {
 		body = append(body, strings.Split(ansi.Wrap(line, max(1, m.width), ""), "\n")...)
 	}
@@ -204,7 +202,7 @@ func (m *model) detailView() string {
 	start := min(m.scroll, max(0, len(body)-height))
 	end := min(len(body), start+height)
 	visible := append([]string(nil), body[start:end]...)
-	visible = append(visible, muted.Render(fmt.Sprintf("Lines %d–%d/%d", start+1, end, len(body))))
+	visible = append(visible, tui.RenderContent(tui.ContentContext, fmt.Sprintf("Lines %d–%d/%d", start+1, end, len(body))))
 	return m.fit(visible)
 }
 func (m *model) fit(lines []string) string {

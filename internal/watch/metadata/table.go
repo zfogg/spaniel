@@ -13,6 +13,7 @@ import (
 type Field struct {
 	Name, Value string
 	Style       lipgloss.Style
+	Service     bool // Value is a canonical service name, before display clipping.
 }
 
 // Table keeps each field on one physical row, including at narrow widths.
@@ -29,15 +30,21 @@ func Table(fields []Field, width int) []string {
 		value = terminal.FitTimestamp(value, size)
 		return value + strings.Repeat(" ", max(0, size-ansi.StringWidth(value)))
 	}
-	row := func(key, value string) string {
+	row := func(key, value string, keyStyle, valueStyle lipgloss.Style, service bool) string {
 		if width < 5 {
-			return cell(key+" "+value, width)
+			return tui.RenderContent(valueStyle, cell(key+" "+value, width))
 		}
-		return cell(key, keyWidth) + " " + glyphs.Pipe + " " + cell(value, width-keyWidth-3)
+		valueCell := cell(value, width-keyWidth-3)
+		if service {
+			valueCell = tui.RenderServiceName(value, valueCell)
+		} else {
+			valueCell = tui.RenderContent(valueStyle, valueCell)
+		}
+		return tui.RenderContent(keyStyle, cell(key, keyWidth)) + tui.RenderContent(tui.ContentRule, " "+glyphs.Pipe+" ") + valueCell
 	}
-	lines := []string{tui.Muted.Render(row("FIELD", "VALUE")), tui.Muted.Render(strings.Repeat(glyphs.Rule, width))}
+	lines := []string{row("FIELD", "VALUE", tui.ContentHeading, tui.ContentHeading, false), tui.RenderContent(tui.ContentRule, strings.Repeat(glyphs.Rule, width))}
 	for _, field := range fields {
-		lines = append(lines, field.Style.Render(row(field.Name, field.Value)))
+		lines = append(lines, row(field.Name, field.Value, tui.ContentLabel, field.Style.Inherit(tui.ContentValue), field.Service))
 	}
 	return lines
 }

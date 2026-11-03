@@ -7,7 +7,7 @@ import (
 )
 
 func attributeLines(title, raw string, width int) []string {
-	lines := []string{"", tui.Title.Render(title + " · key/value table")}
+	lines := []string{"", tui.RenderContent(tui.ContentTitle, title+" · key/value table")}
 	rows, err := attributes.Parse(raw)
 	if err != nil {
 		return append(append(lines, "Invalid attributes JSON; raw value follows:"), terminal.Wrap(raw, width)...)

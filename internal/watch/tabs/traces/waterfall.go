@@ -148,21 +148,19 @@ func waterfallRow(row flatSpan, selected bool, start, end int64, width int) stri
 	if _, _, ok := timing(s); !ok || s.EndNs == 0 {
 		mark += "! "
 	}
-	label := strings.Repeat("  ", min(row.depth, 12)) + mark + clean(s.Name) + " / " + clean(s.ServiceName)
+	labelPrefix := strings.Repeat("  ", min(row.depth, 12)) + mark + clean(s.Name) + " / "
 	status := statusText(s.StatusCode)
-	line := prefix + status + " · " + label + " · " + duration(s.DurationNs)
+	line := prefix + tui.RenderContent(statusStyle(s.StatusCode), status) + " · " + serviceLabel(labelPrefix, s.ServiceName, "", 0) + " · " + tui.RenderContent(tui.ContentMeasure, duration(s.DurationNs))
 	if width >= 62 {
 		labelWidth := max(16, min(52, width/2))
 		barWidth := max(1, width-labelWidth-24)
 		edge := terminal.Glyphs().Pipe
-		line = prefix + pad(label, labelWidth) + " " + pad(duration(s.DurationNs), 10) + " " + pad(status, 5) + " " + edge + waterfallBar(s, start, end, barWidth) + edge
+		barStyle := tui.ContentChart
+		if s.StatusCode >= 2 {
+			barStyle = tui.ContentError
+		}
+		line = prefix + serviceLabel(labelPrefix, s.ServiceName, "", labelWidth) + " " + tui.RenderContent(tui.ContentMeasure, pad(duration(s.DurationNs), 10)) + " " + tui.RenderContent(statusStyle(s.StatusCode), pad(status, 5)) + " " + tui.RenderContent(tui.ContentRule, edge) + tui.RenderContent(barStyle, waterfallBar(s, start, end, barWidth)) + tui.RenderContent(tui.ContentRule, edge)
 	}
 	line = clip(line, width)
-	if s.StatusCode >= 2 {
-		return errorStyle.Render(line)
-	}
-	if selected {
-		return tui.SelectedRow.Render(line)
-	}
-	return tui.Ink.Render(line)
+	return tui.ContentRow(line, selected)
 }

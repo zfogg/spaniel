@@ -260,34 +260,34 @@ func (m *model) View() string {
 	if m.env.Filters.ErrorsOnly {
 		filters += "  errors only (stored)"
 	}
-	lines = append(lines, tui.Muted.Render(filters))
+	lines = append(lines, tui.RenderContent(tui.ContentContext, filters))
 	if m.editing != "" {
-		lines = append(lines, tui.Accent.Render(m.editing+": "+clean(m.input)+"▏"))
+		lines = append(lines, tui.RenderContent(tui.ContentMeasure, m.editing+": "+clean(m.input)+"▏"))
 	}
 	if m.text != "" {
 		lines = append(lines, "Text: "+clean(m.text))
 	}
 	if m.paused {
-		lines = append(lines, tui.Warn.Render("PAUSED · background log updates retained"))
+		lines = append(lines, tui.RenderContent(tui.ContentWarning, "PAUSED · background log updates retained"))
 	}
 	if m.pending && m.connected && !m.loading {
 		lines = append(lines, "Resyncing stored logs…")
 	}
 	if m.err != nil {
-		lines = append(lines, tui.Danger.Render("Logs API: "+preview(m.err.Error())+" · retrying automatically; retained rows are stale"))
+		lines = append(lines, tui.RenderContent(tui.ContentError, "Logs API: "+preview(m.err.Error())+" · retrying automatically; retained rows are stale"))
 	}
 	if m.loading {
 		lines = append(lines, "Loading stored logs…")
 	}
 	if len(rows) == 0 && !m.loading {
 		if m.loaded || len(m.rows) > 0 {
-			lines = append(lines, "No stored logs match these filters.")
+			lines = append(lines, tui.RenderContent(tui.ContentContext, "No stored logs match these filters."))
 		} else if m.err == nil {
-			lines = append(lines, "Waiting for stored logs…")
+			lines = append(lines, tui.RenderContent(tui.ContentContext, "Waiting for stored logs…"))
 		}
 	}
 	if len(rows) > 0 {
-		lines = append(lines, tui.Faint.Render(RenderHeader(m.width)))
+		lines = append(lines, tui.RenderContent(tui.ContentHeading, RenderHeader(m.width)))
 		i := m.selection(rows)
 		capacity := max(1, m.height-len(lines))
 		start := max(0, i-capacity+1)
@@ -326,13 +326,22 @@ func RenderRow(row apigen.Log, selected bool, width int, now ...time.Time) strin
 	if row.TraceId != "" || row.SpanId != "" {
 		correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
 	}
-	level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
+	level := RenderSeverity(row.Severity, fmt.Sprintf("%-5s", severityName(row.Severity)))
 	timeWidth := logTimeWidth(width)
 	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), timeWidth)
 	timeText += strings.Repeat(" ", max(0, timeWidth-ansi.StringWidth(timeText)))
-	line := prefix + timeText + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, width-timeWidth-52)) + "  " + correlation
-	if width < 70 {
-		line = prefix + timeText + " " + level + " " + preview(row.Body)
+	bodyStyle := tui.ContentValue
+	if row.Severity >= 17 {
+		bodyStyle = tui.ContentStrong
 	}
-	return ansi.Truncate(line, max(1, width), "…")
+	line := prefix + tui.RenderContent(tui.ContentLabel, timeText) + "  " + level + "  " + tui.RenderServiceName(row.ServiceName, cell(preview(row.ServiceName), 16)) + " " + tui.RenderContent(bodyStyle, cell(preview(row.Body), max(1, width-timeWidth-52))) + "  " + tui.RenderContent(tui.ContentContext, correlation)
+	if width < 70 {
+		line = prefix + tui.RenderContent(tui.ContentLabel, timeText) + " " + level + " " + tui.RenderContent(bodyStyle, preview(row.Body))
+	}
+	return tui.ContentRow(ansi.Truncate(line, max(1, width), "…"), selected)
+}
+
+// RenderSeverity is shared by lists, dashboard log rows and the full inspector.
+func RenderSeverity(severity float64, display string) string {
+	return tui.RenderContent(tui.ContentSeverityStyle(int(severity)), display)
 }

@@ -55,7 +55,13 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	}
 	if captureDir != "" {
 		profile, dark := lipgloss.ColorProfile(), lipgloss.HasDarkBackground()
+		t.Setenv("TERM", "xterm-256color")
+		t.Setenv("NO_COLOR", "")
 		lipgloss.SetColorProfile(termenv.TrueColor)
+		if os.Getenv("SPANIEL_INTEGRATION_CAPTURE_PLAIN") == "1" {
+			t.Setenv("NO_COLOR", "1")
+			lipgloss.SetColorProfile(termenv.Ascii)
+		}
 		lipgloss.SetHasDarkBackground(true)
 		defer func() { lipgloss.SetColorProfile(profile); lipgloss.SetHasDarkBackground(dark) }()
 	}
@@ -582,6 +588,34 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	wait("Missed inventory lookup")
 	capture("late-span-waterfall")
 	send("back")
+	// Safe multi-service fixture demonstrates the same severity policy as linked
+	// dashboard rows without affecting earlier scope/count/navigation assertions.
+	for i, sample := range []struct {
+		service, body string
+		severity      int
+	}{
+		{"api-gateway", "Request accepted", 9},
+		{"queue-worker", "Retry scheduled after slow response", 13},
+		{"checkout-api", "Order lookup deadline exceeded", 17},
+		{"inventory-store", "Storage unavailable; worker stopped", 21},
+	} {
+		timestamp := now.UnixNano() - int64(i+1)*int64(time.Second)
+		if err := db.InsertLog(&storage.Log{SessionID: selected.ID, TraceID: traceID, SpanID: childID, ServiceName: sample.service, TimestampNs: timestamp, ReceivedAt: timestamp, Severity: sample.severity, Body: sample.body, Attributes: `{}`}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hub.Broadcast(liveevent.NewResourcesChangedEvent([]liveevent.Resource{"logs"}, "severity fixture", ""))
+	send("tab")
+	send("tab")
+	send("tab")
+	wait("Storage unavailable")
+	wait("Request accepted")
+	capture("log-severities")
+	send("tab")
+	send("tab")
+	send("tab")
+	send("tab")
+	wait("GET /orders")
 	if err := db.DeleteSession(selected.ID); err != nil {
 		t.Fatal(err)
 	}

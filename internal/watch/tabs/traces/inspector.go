@@ -24,7 +24,7 @@ func spanContent(s apigen.Span, width int, now ...time.Time) []string {
 		kind = kinds[int(s.Kind)]
 	}
 	lines := metadata.Table([]metadata.Field{
-		{Name: "Service", Value: s.ServiceName}, {Name: "Operation", Value: s.Name}, status,
+		{Name: "Service", Value: s.ServiceName, Service: true}, {Name: "Operation", Value: s.Name, Style: tui.ContentStrong}, status,
 		{Name: "Trace ID", Value: s.TraceId}, {Name: "Span ID", Value: s.SpanId},
 		{Name: "Parent ID", Value: fallback(s.ParentSpanId, "(root)")},
 		{Name: "Session", Value: s.SessionId + " · " + s.SessionLabel},
@@ -37,7 +37,7 @@ func spanContent(s apigen.Span, width int, now ...time.Time) []string {
 	}
 	lines = append(lines, attributeLines("Attributes", s.Attributes, width)...)
 	lines = append(lines, attributeLines("Resource", s.Resource, width)...)
-	lines = append(lines, "", tui.Title.Render("Events"))
+	lines = append(lines, "", tui.RenderContent(tui.ContentTitle, "Events"))
 	events := append(s.Events[:0:0], s.Events...)
 	sort.SliceStable(events, func(i, j int) bool { return events[i].TimeNs < events[j].TimeNs })
 	seen := map[string]bool{}
@@ -56,7 +56,7 @@ func spanContent(s apigen.Span, width int, now ...time.Time) []string {
 	if len(seen) == 0 {
 		lines = append(lines, "No events available.")
 	}
-	lines = append(lines, "", tui.Title.Render("Links"))
+	lines = append(lines, "", tui.RenderContent(tui.ContentTitle, "Links"))
 	seen = map[string]bool{}
 	for _, l := range s.Links {
 		if (l.SessionId != "" && l.SessionId != s.SessionId) || (l.TraceId != "" && l.TraceId != s.TraceId) || (l.SpanId != "" && l.SpanId != s.SpanId) {

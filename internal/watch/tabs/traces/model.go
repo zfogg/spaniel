@@ -341,16 +341,16 @@ func (m *listModel) View() string {
 	if m.total >= 0 {
 		count += fmt.Sprintf(" · %d at snapshot", m.total)
 	}
-	lines := m.state.appendBanner([]string{tui.Title.Render(fmt.Sprintf("%s · page %d · %s", kind, m.page, count))})
+	lines := m.state.appendBanner([]string{tui.RenderContent(tui.ContentTitle, fmt.Sprintf("%s · page %d · %s", kind, m.page, count))})
 	filters := fmt.Sprintf("service: %s · errors: %t · N+1: %t · text: %s", fallback(m.service, "all"), m.errors, m.n1, fallback(m.text, "none"))
 	if m.paused {
 		filters = "PAUSED · " + filters
 	}
-	lines = append(lines, clean(filters))
+	lines = append(lines, tui.RenderContent(tui.ContentContext, clean(filters)))
 	if m.input != "" {
-		lines = append(lines, tui.Accent.Render(m.input+"> "+m.draft+"▏"))
+		lines = append(lines, tui.RenderContent(tui.ContentMeasure, m.input+"> "+m.draft+"▏"))
 	}
-	lines = append(lines, tui.Muted.Render("   STATUS DURATION    SERVICE / OPERATION                         ID"))
+	lines = append(lines, tui.RenderContent(tui.ContentHeading, "   STATUS DURATION    SERVICE / OPERATION                         ID"))
 	if len(rows) == 0 {
 		message := "No matching rows on this page. Adjust filters or choose another page."
 		if m.state.loading {
@@ -417,30 +417,25 @@ func renderListRow(r listRow, selected, spans bool, width int) string {
 	if selected {
 		prefix = "› "
 	}
-	name := clean(r.service + " / " + r.name)
+	tail := " / " + clean(r.name)
 	if spans {
 		if r.tag != "" {
-			name += " [" + clean(r.tag) + "]"
+			tail += " [" + clean(r.tag) + "]"
 		}
 	} else {
 		if r.count >= 0 {
-			name += fmt.Sprintf(" (%.0f spans)", r.count)
+			tail += fmt.Sprintf(" (%.0f spans)", r.count)
 		} else {
-			name += " (span count unavailable)"
+			tail += " (span count unavailable)"
 		}
 		if r.n1 {
-			name += " [N+1]"
+			tail += " [N+1]"
 		}
 	}
-	line := fmt.Sprintf("%s%-6s %-11s %s", prefix, statusText(r.status), duration(r.duration), name)
+	label := serviceLabel("", r.service, tail, 0)
 	if width >= 78 {
-		line = fmt.Sprintf("%s%-6s %-11s %s %s", prefix, statusText(r.status), duration(r.duration), pad(name, max(12, width-53)), short(fallback(r.span, r.trace)))
+		label = serviceLabel("", r.service, tail, max(12, width-53)) + " " + tui.RenderContent(tui.ContentContext, short(fallback(r.span, r.trace)))
 	}
-	line = clip(line, width)
-	if r.status >= 2 {
-		line = errorStyle.Render(line)
-	} else if selected {
-		line = tui.SelectedRow.Render(line)
-	}
-	return line
+	line := prefix + tui.RenderContent(statusStyle(r.status), fmt.Sprintf("%-6s", statusText(r.status))) + " " + tui.RenderContent(tui.ContentMeasure, fmt.Sprintf("%-11s", duration(r.duration))) + " " + label
+	return tui.ContentRow(clip(line, width), selected)
 }

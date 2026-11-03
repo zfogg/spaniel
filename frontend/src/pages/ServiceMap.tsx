@@ -1,6 +1,6 @@
 import { useRefreshInterval } from '@/lib/display-preferences'
 import ServiceColorEditor from '@/components/ServiceColorEditor'
-import { customServiceColor } from '@/lib/service-color'
+import { svcColor } from '@/lib/span-utils'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '@/lib/query'
@@ -8,29 +8,6 @@ import { useNavigate } from 'react-router-dom'
 import { api, ServiceMapNode, ServiceMapEdge, SourceStats } from '@/lib/api'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
-
-// ── palette (same hash as TraceWaterfall) ─────────────────────────────────────
-
-// Drift-aligned palette — sky, sage, amber, lavender, slate, mint, sand…
-const PALETTE = [
-  '#7aa3c4',
-  '#88b29a',
-  '#d6b46a',
-  '#a08cc8',
-  '#6a98b8',
-  '#8ab8a0',
-  '#c8a870',
-  '#7898c0',
-  '#d69882',
-  '#98a8c0',
-]
-
-function svcColor(name: string): { fg: string; bg: string } {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0
-  const fg = customServiceColor(name) ?? PALETTE[Math.abs(h) % PALETTE.length]
-  return { fg, bg: fg + '28' }
-}
 
 // ── layout: layered left-to-right ─────────────────────────────────────────────
 

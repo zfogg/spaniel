@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
@@ -40,9 +41,9 @@ func (m *model) table(columns []tableColumn, rows [][]string, ids []string, sele
 	}
 	var header []string
 	for i, column := range columns {
-		header = append(header, cell(column.title, widths[i], false))
+		header = append(header, tui.RenderContent(tui.ContentHeading, cell(column.title, widths[i], false)))
 	}
-	separator := terminal.ColumnSeparator()
+	separator := tui.RenderContent(tui.ContentRule, terminal.ColumnSeparator())
 	lines := []string{"  " + strings.Join(header, separator)}
 	for index, row := range rows {
 		var cells []string
@@ -53,7 +54,8 @@ func (m *model) table(columns []tableColumn, rows [][]string, ids []string, sele
 			}
 			cells = append(cells, cell(text, widths[i], column.state))
 		}
-		lines = append(lines, marker(index < len(ids) && ids[index] == selected)+strings.Join(cells, separator))
+		isSelected := index < len(ids) && ids[index] == selected
+		lines = append(lines, tui.ContentRow(marker(isSelected)+strings.Join(cells, separator), isSelected))
 	}
 	return lines
 }

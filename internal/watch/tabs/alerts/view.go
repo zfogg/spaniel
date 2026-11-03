@@ -7,13 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
-
-var heading = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("111"))
 
 func clean(s string) string { return terminal.Multiline(s) }
 
@@ -31,16 +29,16 @@ func stamp(ns int64, now ...time.Time) string {
 	return terminal.Timestamp(ns, "2006-01-02 15:04:05 MST", time.UTC, terminal.BatchTime(now...))
 }
 func tone(state string) string {
-	color := "245"
+	style := tui.ContentLabel
 	switch state {
 	case "firing", "error":
-		color = "203"
+		style = tui.ContentError
 	case "pending":
-		color = "214"
+		style = tui.ContentWarning
 	case "resolved":
-		color = "114"
+		style = tui.ContentOK
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(state)
+	return tui.RenderContent(style, oneLine(state))
 }
 func (m *model) status(name string) string {
 	s := m.loads[name]
@@ -65,18 +63,18 @@ func (m *model) View() string {
 	if m.id != "" {
 		title = "Alert · " + oneLine(m.rule.Name) + " · read-only"
 	}
-	head = append(head, heading.Render(title))
+	head = append(head, tui.RenderContent(tui.ContentTitle, title))
 	if !m.connection.Connected {
 		head = append(head, "Offline / connecting · retained snapshots are stale")
 	}
 	if m.id == "" {
-		head = append(head, fmt.Sprintf("API page %d/%d · %d rules · state %s · severity %s (filters on this page)", m.page, max(1, (m.total+pageSize-1)/pageSize), m.total, label(m.state), label(m.severity)), "Search: "+oneLine(m.search))
+		head = append(head, tui.RenderContent(tui.ContentContext, fmt.Sprintf("API page %d/%d · %d rules · state %s · severity %s (filters on this page)", m.page, max(1, (m.total+pageSize-1)/pageSize), m.total, oneLine(label(m.state)), oneLine(label(m.severity)))), tui.ContentPair("Search: ", oneLine(m.search)))
 		if status := m.status("list"); status != "" {
 			head = append(head, status)
 		}
 		body = m.ruleLines(ruleIDs(m.visibleRules()))
 	} else {
-		head = append(head, "Viewing: "+m.section)
+		head = append(head, tui.ContentPair("Viewing: ", m.section))
 		if m.deleted() {
 			head = append(head, "Rule deleted or unavailable (404) · retained definition is stale")
 		} else if status := m.status("rule"); status != "" {
@@ -171,7 +169,8 @@ func (m *model) wrap(s string) []string {
 func (m *model) scroll(lines []string) []string {
 	var wrapped []string
 	for _, line := range lines {
-		wrapped = append(wrapped, m.wrap(line)...)
+		// Detail builders sanitize each payload before applying shared table styles.
+		wrapped = append(wrapped, strings.Split(ansi.Hardwrap(line, max(1, m.width-1), true), "\n")...)
 	}
 	start := min(m.offset, max(0, len(wrapped)-max(1, m.height-8)))
 	return wrapped[start:]
@@ -181,17 +180,17 @@ func (m *model) definition() []string {
 		return nil
 	}
 	r := m.rule
-	lines := []string{tone(ruleState(r)) + " · " + string(r.Severity) + " · id " + oneLine(r.Id), "Name: " + clean(r.Name), "Condition / threshold:"}
+	lines := []string{tone(ruleState(r)) + tui.RenderContent(tui.ContentContext, " · "+oneLine(string(r.Severity))+" · id "+oneLine(r.Id)), tui.ContentPair("Name: ", clean(r.Name)), tui.RenderContent(tui.ContentTitle, "Condition / threshold:")}
 	lines = append(lines, m.attributeTable(r.ConditionJson)...)
-	lines = append(lines, "Query (version "+fmt.Sprint(r.QueryVersion)+"):", clean(r.QuerySql), "Group by:")
+	lines = append(lines, tui.RenderContent(tui.ContentTitle, "Query (version "+fmt.Sprint(r.QueryVersion)+"):"), tui.RenderContent(tui.ContentValue, clean(r.QuerySql)), tui.RenderContent(tui.ContentTitle, "Group by:"))
 	groups := r.GroupByJson
 	if groups == "" {
 		groups = "[]"
 	}
 	lines = append(lines, m.attributeTable(`{"group_by":`+groups+`}`)...)
 	lines = append(lines, fmt.Sprintf("Pending %s · cooldown %s · repeat %s", duration(r.PendingForNs), duration(r.CooldownNs), duration(r.RepeatIntervalNs)),
-		"Last evaluation: "+m.stamp(r.LastEvaluatedAt)+" · duration "+duration(r.LastDurationNs),
-		"Last success: "+m.stamp(r.LastSuccessAt)+" · next: "+m.stamp(r.NextEvaluationAt),
+		tui.ContentPair("Last evaluation: ", m.stamp(r.LastEvaluatedAt)+" · duration "+duration(r.LastDurationNs)),
+		tui.ContentPair("Last success: ", m.stamp(r.LastSuccessAt)+" · next: "+m.stamp(r.NextEvaluationAt)),
 		fmt.Sprintf("Notifications: browser=%t · pushover=%t", r.BrowserEnabled, r.PushoverEnabled))
 	if r.LastError != "" {
 		lines = append(lines, "Evaluation error: "+clean(r.LastError))
@@ -202,7 +201,7 @@ func (m *model) definition() []string {
 	if r.InstanceDiscoverySql != "" {
 		lines = append(lines, "Instance discovery: "+clean(r.InstanceDiscoverySql), fmt.Sprintf("Every %s · stale after %s · last run %s", duration(r.InstanceDiscoveryIntervalNs), duration(r.InstanceDiscoveryStaleAfterNs), m.stamp(r.InstanceDiscoveryLastRunAt)))
 	}
-	lines = append(lines, "Annotations:")
+	lines = append(lines, tui.RenderContent(tui.ContentTitle, "Annotations:"))
 	lines = append(lines, m.attributeTable(r.AnnotationsJson)...)
 	lines = append(lines, m.silenceLines()...)
 	return lines
@@ -268,7 +267,7 @@ func (m *model) instanceDetail() []string {
 		if r.GroupKey != m.instance {
 			continue
 		}
-		lines := []string{"Group: " + clean(r.GroupKey), "State: " + instanceState(r) + " / condition: " + r.State + " / value: " + value(r.Value), "Labels:"}
+		lines := []string{tui.ContentPair("Group: ", clean(r.GroupKey)), tui.RenderContent(tui.ContentLabel, "State: ") + tone(instanceState(r)) + " / condition: " + oneLine(r.State) + " / value: " + value(r.Value), tui.RenderContent(tui.ContentTitle, "Labels:")}
 		lines = append(lines, m.attributeTable(r.LabelsJson)...)
 		lines = append(lines, "Last evaluated: "+m.stamp(r.LastEvaluatedAt))
 
@@ -297,7 +296,7 @@ func (m *model) eventDetail() []string {
 	}
 	for _, r := range m.events {
 		if r.Id == m.event {
-			return []string{"Event: " + r.Id, "Kind: " + r.Kind + " / state: " + r.State + " / value: " + value(r.Value), "Group: " + r.GroupKey, "Time: " + m.stamp(r.CreatedAt), r.Detail}
+			return []string{tui.ContentPair("Event: ", oneLine(r.Id)), tui.ContentPair("Kind: ", oneLine(r.Kind)) + " / state: " + tone(r.State) + " / value: " + value(r.Value), tui.ContentPair("Group: ", clean(r.GroupKey)), tui.ContentPair("Time: ", m.stamp(r.CreatedAt)), tui.RenderContent(tui.ContentValue, clean(r.Detail))}
 		}
 	}
 	return []string{"This event is no longer on the current history page. Press h for history."}

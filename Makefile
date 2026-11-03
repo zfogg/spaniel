@@ -319,7 +319,7 @@ test-watch-api:
 .PHONY: test-watch-presentation
 test-watch-presentation:
 	@set -e; mkdir -p $(BIN_DIR); \
-	  for package in ./internal/watch/attributes ./internal/watch/terminal ./internal/watch/charts ./internal/watch/tabs/traces; do \
+	  for package in ./internal/servicecolor ./internal/tui ./internal/watch/metadata ./internal/watch/attributes ./internal/watch/terminal ./internal/watch/charts ./internal/watch/tabs/traces; do \
 	    test_binary="$(CURDIR)/$(BIN_DIR)/watch-presentation-$$(basename "$$package").test$(EXE)"; \
 	    go test -race -c -o "$$test_binary" "$$package"; \
 	    "$$test_binary" -test.count=1 -test.timeout=2m; \

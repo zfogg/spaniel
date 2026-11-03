@@ -1,0 +1,71 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
+	"github.com/zfogg/spaniel/internal/servicecolor"
+)
+
+func TestContentCapabilitiesAndCanonicalService(t *testing.T) {
+	profile, dark := lipgloss.ColorProfile(), lipgloss.HasDarkBackground()
+	t.Cleanup(func() { lipgloss.SetColorProfile(profile); lipgloss.SetHasDarkBackground(dark) })
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("NO_COLOR", "")
+	const canonical = " 服务-🚀 with full name "
+	const display = "服务…"
+	for _, depth := range []termenv.Profile{termenv.TrueColor, termenv.ANSI256, termenv.ANSI, termenv.Ascii} {
+		lipgloss.SetColorProfile(depth)
+		for _, background := range []bool{false, true} {
+			lipgloss.SetHasDarkBackground(background)
+			got := RenderServiceName(canonical, display)
+			if ansi.Strip(got) != display || ansi.StringWidth(got) != ansi.StringWidth(display) {
+				t.Fatal("service styling changed laid-out text", got)
+			}
+			if depth == termenv.TrueColor {
+				color := servicecolor.Color(canonical).Text(background)
+				if !strings.Contains(got, fmt.Sprintf("38;2;%d;%d;%d", color.R, color.G, color.B)) {
+					t.Fatal("service was hashed after clipping", got)
+				}
+			} else if strings.Contains(got, "38;2;") {
+				t.Fatal("forced truecolor on a lower-depth terminal", got)
+			}
+			if depth == termenv.Ascii && got != display {
+				t.Fatal("plain terminal received attributes", got)
+			}
+		}
+	}
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	for _, mode := range []string{"NO_COLOR", "dumb"} {
+		t.Run(mode, func(t *testing.T) {
+			if mode == "NO_COLOR" {
+				t.Setenv("NO_COLOR", "1")
+			} else {
+				t.Setenv("TERM", "dumb")
+			}
+			if RenderServiceName(canonical, display) != display || RenderContent(ContentHeading, "FIELD") != "FIELD" || RenderContent(ContentTitle, "\x1b[1mTitle\x1b[m") != "Title" {
+				t.Fatal("plain mode retained ANSI")
+			}
+		})
+	}
+}
+
+func TestSeverityRolesRemainDistinctAndReadable(t *testing.T) {
+	profile := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(profile) })
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Setenv("TERM", "xterm")
+	t.Setenv("NO_COLOR", "")
+	seen := map[string]bool{}
+	for _, severity := range []int{5, 9, 13, 17, 21} {
+		styled := RenderContent(ContentSeverityStyle(severity), "LEVEL")
+		if seen[styled] || ansi.Strip(styled) != "LEVEL" {
+			t.Fatal("severity lost its distinct role", severity, styled)
+		}
+		seen[styled] = true
+	}
+}

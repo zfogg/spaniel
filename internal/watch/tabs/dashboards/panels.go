@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/charts"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
@@ -30,12 +31,13 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.UseNumber()
 	configErr := decoder.Decode(&config)
+	config.Unit = safe(config.Unit)
 	lines := []string{}
 	if config.Unit != "" {
 		lines = append(lines, "Unit: "+config.Unit)
 	}
 	for _, warning := range data.Warnings {
-		lines = append(lines, "Warning: "+warning)
+		lines = append(lines, "Warning: "+safe(warning))
 	}
 	if data.Truncated != nil && *data.Truncated {
 		lines = append(lines, "Truncated: first 128 query rows; refine the query/window.")
@@ -46,7 +48,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 	switch kind {
 	case "bar", "pie", "entity_list", "gauge", "heatmap":
 		if configErr != nil && strings.TrimSpace(raw) != "" {
-			return append(lines, "Invalid panel settings: "+configErr.Error())
+			return append(lines, "Invalid panel settings: "+safe(configErr.Error()))
 		}
 		switch kind {
 		case "gauge":
@@ -60,9 +62,9 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 		for _, row := range data.Rows {
 			label := ""
 			if group, ok := row["group_value"]; ok {
-				label = cell(group) + " · "
+				label = safe(cell(group)) + " · "
 			}
-			lines = append(lines, strings.TrimSpace(label+cell(row["value"])+" "+config.Unit))
+			lines = append(lines, strings.TrimSpace(label+safe(cell(row["value"]))+" "+config.Unit))
 		}
 	case "table":
 		lines = append(lines, renderTable(data, false, width)...)
@@ -97,7 +99,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			}
 			labels := []string{}
 			for _, s := range series {
-				labels = append(labels, s.Name)
+				labels = append(labels, safe(s.Name))
 			}
 			lines = append(lines, "Series: "+strings.Join(labels, terminal.ColumnSeparator()), "From: "+displayTime(from, reference), "To: "+displayTime(to, reference))
 			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series, reference), "\n")...)
@@ -106,7 +108,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			lines = append(lines, renderTableAt(data, true, reference, width)...)
 		}
 	default:
-		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", kind))
+		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", safe(kind)))
 		lines = append(lines, renderTable(data, false, width)...)
 	}
 	return lines
@@ -175,9 +177,13 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 	}
 	if width < 72 || len(columns) > 6 {
 		for i, row := range rows {
-			lines = append(lines, fmt.Sprintf("ROW %d", i+1))
+			lines = append(lines, tui.RenderContent(tui.ContentHeading, fmt.Sprintf("ROW %d", i+1)))
 			for j, value := range row {
-				lines = append(lines, columns[j]+": "+value)
+				display := tui.RenderContent(tui.ContentValue, safe(value))
+				if columns[j] == "service_name" || columns[j] == "service.name" || columns[j] == "service" {
+					display = tui.RenderServiceName(value, safe(value))
+				}
+				lines = append(lines, tui.RenderContent(tui.ContentLabel, safe(columns[j])+": ")+display)
 			}
 			lines = append(lines, "")
 		}
@@ -191,7 +197,7 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 			columnWidths[i] = max(columnWidths[i], min(capWidth, ansi.StringWidth(safe(row[i]))))
 		}
 	}
-	appendRow := func(row []string) {
+	appendRow := func(row []string, header bool) {
 		cells := make([][]string, len(row))
 		height := 1
 		for i, value := range row {
@@ -205,19 +211,27 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 				if line < len(cells[i]) {
 					text = cells[i][line]
 				}
-				parts[i] = text + strings.Repeat(" ", max(0, columnWidths[i]-ansi.StringWidth(text)))
+				text += strings.Repeat(" ", max(0, columnWidths[i]-ansi.StringWidth(text)))
+				style := tui.ContentValue
+				if header {
+					style = tui.ContentHeading
+				}
+				parts[i] = tui.RenderContent(style, text)
+				if !header && (columns[i] == "service_name" || columns[i] == "service") {
+					parts[i] = tui.RenderServiceName(row[i], text)
+				}
 			}
-			lines = append(lines, strings.Join(parts, " "+glyphs.Pipe+" "))
+			lines = append(lines, strings.Join(parts, tui.RenderContent(tui.ContentRule, " "+glyphs.Pipe+" ")))
 		}
 	}
-	appendRow(columns)
+	appendRow(columns, true)
 	separators := make([]string, len(columns))
 	for i, size := range columnWidths {
 		separators[i] = strings.Repeat(glyphs.Rule, size)
 	}
-	lines = append(lines, strings.Join(separators, glyphs.Rule+glyphs.Cross+glyphs.Rule))
+	lines = append(lines, tui.RenderContent(tui.ContentRule, strings.Join(separators, glyphs.Rule+glyphs.Cross+glyphs.Rule)))
 	for _, row := range rows {
-		appendRow(row)
+		appendRow(row, false)
 	}
 	return lines
 }
