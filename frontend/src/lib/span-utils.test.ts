@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { fmtNs, flatten, buildTagMap, svcColor, SPAN_PALETTE } from './span-utils'
 import type { Span, LintWarning } from './api'
+import { serviceHex } from './service-color'
 
 // ── fmtNs ─────────────────────────────────────────────────────────────────────
 
@@ -164,9 +165,9 @@ describe('buildTagMap', () => {
 // ── svcColor ──────────────────────────────────────────────────────────────────
 
 describe('svcColor', () => {
-  it('returns a color from the palette', () => {
+  it('uses the canonical service color', () => {
     const { fg } = svcColor('api-gateway')
-    expect(SPAN_PALETTE).toContain(fg)
+    expect(fg).toBe(serviceHex('api-gateway'))
   })
 
   it('is deterministic — same input gives same output', () => {

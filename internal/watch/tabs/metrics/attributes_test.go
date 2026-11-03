@@ -31,7 +31,11 @@ func TestAttributeTablePreservesTypesNumbersContainersAndWrappedValues(t *testin
 	}
 	long := "BEGIN_" + strings.Repeat("very-long-value-", 10) + "_END"
 	for _, width := range []int{12, 32, 60} {
-		lines = attributeTable("Telemetry attributes", map[string]any{"long.key": long}, width)
+		labels := map[string]any{"long.key": long}
+		lines = attributeTable("Telemetry attributes", labels, width)
+		if labels["long.key"] != long {
+			t.Fatal("table rendering changed the source label")
+		}
 		pieces := []string{}
 		for _, line := range lines {
 			if ansi.StringWidth(line) > width {
@@ -40,7 +44,9 @@ func TestAttributeTablePreservesTypesNumbersContainersAndWrappedValues(t *testin
 			if width >= 40 {
 				columns := strings.SplitN(line, " │ ", 3)
 				if len(columns) == 3 {
-					pieces = append(pieces, columns[2])
+					// Charmbracelet pads the last column as well. Remove only
+					// display padding when reconstructing this non-space fixture.
+					pieces = append(pieces, strings.TrimRight(ansi.Strip(columns[2]), " "))
 				}
 			} else {
 				pieces = append(pieces, line)

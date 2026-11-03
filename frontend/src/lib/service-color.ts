@@ -47,6 +47,50 @@ export function serviceSwatch(name: string): string {
   return `hsl(${hue} ${saturation}% ${lightness}%)`
 }
 
+// Hex adapters keep canvas/SVG consumers and callers appending alpha in sync
+// with the canonical HSL service color, including browser-local overrides.
+function hslHex(hue: number, saturation: number, lightness: number): string {
+  const s = saturation / 100
+  const l = lightness / 100
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1))
+  const m = l - c / 2
+  const [r, g, b] =
+    hue < 60
+      ? [c, x, 0]
+      : hue < 120
+        ? [x, c, 0]
+        : hue < 180
+          ? [0, c, x]
+          : hue < 240
+            ? [0, x, c]
+            : hue < 300
+              ? [x, 0, c]
+              : [c, 0, x]
+  return (
+    '#' +
+    [r, g, b]
+      .map((value) =>
+        Math.round((value + m) * 255)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')
+  )
+}
+
+export function serviceHex(name: string): string {
+  const custom = customServiceColor(name)
+  if (custom) return custom
+  const { hue, saturation, lightness } = serviceColor(name)
+  return hslHex(hue, saturation, lightness)
+}
+
+export function serviceTextHex(name: string, dark: boolean): string {
+  const { hue, saturation } = serviceColor(name)
+  return hslHex(hue, saturation, dark ? 78 : 30)
+}
+
 const STORAGE_KEY = 'spaniel.service-colors'
 export const SERVICE_COLORS_EVENT = 'spaniel:service-colors'
 

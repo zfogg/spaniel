@@ -42,12 +42,34 @@ func TestTableGlyphModesPreservePayloadAndWidths(t *testing.T) {
 	for _, mode := range []string{"0", "1"} {
 		t.Setenv("SPANIEL_ASCII", mode)
 		lines := Table([]Field{{Name: "Payload", Value: "user │ | • * data"}}, 60)
-		if !strings.Contains(lines[0], terminal.ColumnSeparator()) || lines[1] != strings.Repeat(terminal.Glyphs().Rule, 60) || !strings.Contains(lines[2], "user │ | • * data") {
+		if !strings.Contains(lines[0], terminal.ColumnSeparator()) || !strings.Contains(lines[1], terminal.Glyphs().Cross) || !strings.Contains(lines[2], "user │ | • * data") {
 			t.Fatal(mode, lines)
 		}
 		for _, line := range lines {
 			if ansi.StringWidth(line) != 60 {
 				t.Fatal("glyph mode changed alignment", mode, line)
+			}
+		}
+	}
+}
+
+func TestDividerJoinsHeaderRuleInBothGlyphModes(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", mode)
+		for _, width := range []int{5, 12, 40, 120} {
+			lines := Table([]Field{{Name: "Trace ID", Value: "0123456789abcdef"}}, width)
+			for i := range lines {
+				lines[i] = ansi.Strip(lines[i])
+			}
+			column := -1
+			for i, r := range []rune(lines[0]) {
+				if r == []rune(terminal.Glyphs().Pipe)[0] {
+					column = i
+					break
+				}
+			}
+			if column < 0 || []rune(lines[1])[column] != []rune(terminal.Glyphs().Cross)[0] || []rune(lines[2])[column] != []rune(terminal.Glyphs().Pipe)[0] {
+				t.Fatalf("disconnected header divider in mode %s, width %d: %q", mode, width, lines)
 			}
 		}
 	}

@@ -340,10 +340,11 @@ func (m *detail) render() ([]string, []string) {
 	if temporality == "" && m.metric.AggregationTemporality != nil {
 		temporality = *m.metric.AggregationTemporality
 	}
-	header := []string{tui.Title.Render(safe(m.metric.Name)) + " · " + safe(m.metric.ServiceName), fmt.Sprintf("%s · %s · %s · view %s · window %s", safe(m.kind()), safe(temporality), safe(unit), m.operation, windows[m.window])}
+	header := []string{tui.RenderContent(tui.ContentTitle, safe(m.metric.Name)) + " · " + tui.RenderServiceName(m.metric.ServiceName, safe(m.metric.ServiceName)), fmt.Sprintf("%s · %s · %s · view %s · window %s", safe(m.kind()), safe(temporality), safe(unit), m.operation, windows[m.window])}
 	if m.data.Monotonic != nil {
 		header[1] += fmt.Sprintf(" · monotonic %t", *m.data.Monotonic)
 	}
+	header[1] = tui.RenderContent(tui.ContentContext, header[1])
 	if s := state(m.loaded, m.err, m.connection); s != "" {
 		header = append(header, s)
 	}
@@ -354,7 +355,7 @@ func (m *detail) render() ([]string, []string) {
 	if query != "" {
 		header = append(header, "Label filter: "+safe(query))
 	}
-	body := []string{safe(m.metric.Description), m.admission.summary(m.metric.ServiceName, m.metric.Name), "Session: " + safe(m.session), "From: " + timestamp(m.now.Add(-windows[m.window]).UnixNano(), reference), "To: " + timestamp(m.now.UnixNano(), reference)}
+	body := []string{tui.RenderContent(tui.ContentContext, safe(m.metric.Description)), tui.RenderContent(tui.ContentContext, m.admission.summary(m.metric.ServiceName, m.metric.Name)), tui.ContentPair("Session: ", safe(m.session)), tui.ContentPair("From: ", timestamp(m.now.Add(-windows[m.window]).UnixNano(), reference)), tui.ContentPair("To: ", timestamp(m.now.UnixNano(), reference))}
 	if m.data.Capped {
 		body = append(body, "Bounded view: first 256 series, latest 2048 samples per series; no aggregation.")
 	}
@@ -368,11 +369,11 @@ func (m *detail) render() ([]string, []string) {
 	}
 	if index < 0 {
 		if m.loaded {
-			body = append(body, "No samples in this time window/session or label filter. Waiting for telemetry.")
+			body = append(body, tui.RenderContent(tui.ContentContext, "No samples in this time window/session or label filter. Waiting for telemetry."))
 		}
 	} else {
 		current := rows[index]
-		body = append(body, fmt.Sprintf("Series %d/%d (%d in window) · %d samples", index+1, len(rows), len(m.data.Series), len(current.Points)))
+		body = append(body, tui.RenderContent(tui.ContentStrong, fmt.Sprintf("Series %d/%d (%d in window) · %d samples", index+1, len(rows), len(m.data.Series), len(current.Points))))
 		body = append(body, attributeTable("Series labels", current.Attributes, m.width)...)
 		if m.kind() == "exponential_histogram" || m.kind() == "summary" {
 			body = append(body, "Distribution table: scalar/percentile chart unavailable for this type; raw observations below.")
@@ -423,7 +424,7 @@ func (m *detail) render() ([]string, []string) {
 				body = append(body, "Histogram intervals: cumulative snapshots differenced; first/reset uses snapshot. Percentiles estimate bucket bounds.")
 			}
 		}
-		body = append(body, tui.Title.Render("Authoritative samples · newest first · "+safe(unit)))
+		body = append(body, tui.RenderContent(tui.ContentTitle, "Authoritative samples · newest first · "+safe(unit)))
 		for i := len(current.Points) - 1; i >= 0; i-- {
 			p := current.Points[i]
 			v, ok := plottedValue(current.Points, i, m.data, m.operation)
@@ -432,7 +433,7 @@ func (m *detail) render() ([]string, []string) {
 				display = number(v)
 			}
 			if m.kind() == "gauge" || m.kind() == "sum" || m.kind() == "counter" || m.kind() == "histogram" {
-				body = append(body, fmt.Sprintf("%s = %s %s", m.operation, display, safe(unit)))
+				body = append(body, tui.RenderContent(tui.ContentMeasure, fmt.Sprintf("%s = %s %s", m.operation, display, safe(unit))))
 			}
 			body = append(body, sampleDescription(p, m.kind(), m.width, reference)...)
 			if m.operation == "rate" {

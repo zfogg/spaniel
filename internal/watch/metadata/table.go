@@ -2,42 +2,55 @@
 package metadata
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/tui"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type Field struct {
 	Name, Value string
 	Style       lipgloss.Style
+	Service     bool // Value is a canonical service name, before display clipping.
 }
 
-// Table keeps each field on one physical row, including at narrow widths.
+// Table keeps identity/timing values on one row; Lipgloss aligns the cells.
 func Table(fields []Field, width int) []string {
-	glyphs := terminal.Glyphs()
 	width = max(1, width)
 	keyWidth := 5
 	for _, field := range fields {
 		keyWidth = max(keyWidth, ansi.StringWidth(field.Name))
 	}
 	keyWidth = min(keyWidth, max(1, width/3))
-	cell := func(value string, size int) string {
-		value = terminal.SingleLine(value)
-		value = terminal.FitTimestamp(value, size)
-		return value + strings.Repeat(" ", max(0, size-ansi.StringWidth(value)))
-	}
-	row := func(key, value string) string {
-		if width < 5 {
-			return cell(key+" "+value, width)
+	fit := func(value string, size int) string { return terminal.FitTimestamp(terminal.SingleLine(value), size) }
+	if width < 5 {
+		rows := make([][]string, 0, len(fields))
+		for _, field := range fields {
+			rows = append(rows, []string{fit(field.Name+" "+field.Value, width)})
 		}
-		return cell(key, keyWidth) + " " + glyphs.Pipe + " " + cell(value, width-keyWidth-3)
+		return tables.Render([]string{fit("FIELD VALUE", width)}, rows, []int{width}, false, false, true, func(row, col int) lipgloss.Style {
+			if row < 0 {
+				return tui.ContentHeading
+			}
+			return fields[row].Style.Inherit(tui.ContentValue)
+		})
 	}
-	lines := []string{tui.Muted.Render(row("FIELD", "VALUE")), tui.Muted.Render(strings.Repeat(glyphs.Rule, width))}
+	widths := []int{keyWidth, max(1, width-keyWidth-3)}
+	rows := make([][]string, 0, len(fields))
 	for _, field := range fields {
-		lines = append(lines, field.Style.Render(row(field.Name, field.Value)))
+		rows = append(rows, []string{fit(field.Name, widths[0]), fit(field.Value, widths[1])})
 	}
-	return lines
+	return tables.Render([]string{fit("FIELD", widths[0]), fit("VALUE", widths[1])}, rows, widths, false, true, true, func(row, col int) lipgloss.Style {
+		if row < 0 {
+			return tui.ContentHeading
+		}
+		if col == 0 {
+			return tui.ContentLabel
+		}
+		if fields[row].Service {
+			return tui.ServiceNameStyle(fields[row].Value)
+		}
+		return fields[row].Style.Inherit(tui.ContentValue)
+	})
 }

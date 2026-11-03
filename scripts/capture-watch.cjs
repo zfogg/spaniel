@@ -52,13 +52,26 @@ async function main() {
       }
       if (name === 'watch-reconnecting' && !screen.includes('reconnecting:')) throw new Error('missing real reconnect state')
       const page = await browser.newPage({ viewport: { width: Math.max(360, terminal.cols * 11), height: terminal.rows * 22 + 60 }, deviceScaleFactor: 1 })
-      await page.setContent('<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#11151b;color:#d8dee9}pre{margin:20px;font:17px/22px "DejaVu Sans Mono",Consolas,monospace;white-space:pre}</style><pre id="terminal"></pre>')
+      // Terminals paint box-drawing glyphs edge-to-edge in their cells. A browser
+      // font's 17px ink in a 22px line box leaves misleading gaps, so paint these
+      // recorded Unicode glyphs as cell strokes, preserving their actual text.
+      await page.setContent('<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#11151b;color:#d8dee9}pre{margin:20px;font:17px/22px "DejaVu Sans Mono",Consolas,monospace;white-space:pre}.box{display:inline-block;position:relative;vertical-align:top;width:1ch;height:22px}.box>span{visibility:hidden}.vertical:before{content:"";position:absolute;top:0;bottom:0;left:50%;border-left:1px solid currentColor}.horizontal:after{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px solid currentColor}</style><pre id="terminal"></pre>')
       await page.locator('#terminal').evaluate((element, rows) => {
         for (const runs of rows) {
           for (const run of runs) {
             const span = document.createElement('span')
             span.setAttribute('style', run.css)
-            span.textContent = run.text
+            for (const text of run.text.split(/([│─┼])/u)) {
+              if (!text) continue
+              if (/^[│─┼]$/u.test(text)) {
+                const cell = document.createElement('span')
+                cell.className = 'box' + (text !== '─' ? ' vertical' : '') + (text !== '│' ? ' horizontal' : '')
+                const glyph = document.createElement('span')
+                glyph.textContent = text
+                cell.append(glyph)
+                span.append(cell)
+              } else span.append(document.createTextNode(text))
+            }
             element.append(span)
           }
           element.append(document.createTextNode('\n'))

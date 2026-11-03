@@ -10,12 +10,13 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
@@ -260,34 +261,34 @@ func (m *model) View() string {
 	if m.env.Filters.ErrorsOnly {
 		filters += "  errors only (stored)"
 	}
-	lines = append(lines, tui.Muted.Render(filters))
+	lines = append(lines, tui.RenderContent(tui.ContentContext, filters))
 	if m.editing != "" {
-		lines = append(lines, tui.Accent.Render(m.editing+": "+clean(m.input)+"▏"))
+		lines = append(lines, tui.RenderContent(tui.ContentMeasure, m.editing+": "+clean(m.input)+"▏"))
 	}
 	if m.text != "" {
 		lines = append(lines, "Text: "+clean(m.text))
 	}
 	if m.paused {
-		lines = append(lines, tui.Warn.Render("PAUSED · background log updates retained"))
+		lines = append(lines, tui.RenderContent(tui.ContentWarning, "PAUSED · background log updates retained"))
 	}
 	if m.pending && m.connected && !m.loading {
 		lines = append(lines, "Resyncing stored logs…")
 	}
 	if m.err != nil {
-		lines = append(lines, tui.Danger.Render("Logs API: "+preview(m.err.Error())+" · retrying automatically; retained rows are stale"))
+		lines = append(lines, tui.RenderContent(tui.ContentError, "Logs API: "+preview(m.err.Error())+" · retrying automatically; retained rows are stale"))
 	}
 	if m.loading {
 		lines = append(lines, "Loading stored logs…")
 	}
 	if len(rows) == 0 && !m.loading {
 		if m.loaded || len(m.rows) > 0 {
-			lines = append(lines, "No stored logs match these filters.")
+			lines = append(lines, tui.RenderContent(tui.ContentContext, "No stored logs match these filters."))
 		} else if m.err == nil {
-			lines = append(lines, "Waiting for stored logs…")
+			lines = append(lines, tui.RenderContent(tui.ContentContext, "Waiting for stored logs…"))
 		}
 	}
 	if len(rows) > 0 {
-		lines = append(lines, tui.Faint.Render(RenderHeader(m.width)))
+		lines = append(lines, RenderHeader(m.width))
 		i := m.selection(rows)
 		capacity := max(1, m.height-len(lines))
 		start := max(0, i-capacity+1)
@@ -305,34 +306,65 @@ func logTimeWidth(width int) int {
 	return min(26, max(12, width/4))
 }
 
-// RenderHeader uses the same age-aware column widths as logs and dashboard rows.
-func RenderHeader(width int) string {
+// Log columns share Charmbracelet's alignment in the overview and dashboard.
+func logColumns(width int) ([]string, []int) {
 	timeWidth := logTimeWidth(width)
-	header := "  " + cell("TIME (local)", timeWidth) + "  " + cell("LEVEL", 5) + "  " + cell("SERVICE", 16) + " " + cell("BODY", max(1, width-timeWidth-52)) + "  CORRELATION"
 	if width < 70 {
-		header = "  " + cell("TIME (local)", timeWidth) + " " + cell("LEVEL", 5) + " BODY"
+		return []string{"TIME (local)", "LEVEL", "BODY"}, []int{timeWidth, 5, max(1, width-timeWidth-11)}
 	}
-	return ansi.Truncate(header, max(1, width), "…")
+	return []string{"TIME (local)", "LEVEL", "SERVICE", "BODY", "CORRELATION"}, []int{timeWidth, 5, 16, max(1, width-timeWidth-51), 20}
+}
+func RenderHeader(width int) string {
+	headers, widths := logColumns(width)
+	for i := range headers {
+		headers[i] = terminal.Truncate(headers[i], widths[i])
+	}
+	lines := tables.Render(headers, nil, widths, false, false, false, func(row, col int) lipgloss.Style { return tui.ContentHeading })
+	return terminal.Truncate("  "+lines[0], max(1, width))
 }
 
-// RenderRow shares the log list columns, severity and correlation display with dashboard panels.
+// RenderRow shares log columns, severity and correlation with dashboard panels.
 func RenderRow(row apigen.Log, selected bool, width int, now ...time.Time) string {
 	reference := terminal.BatchTime(now...)
+	_, widths := logColumns(width)
+	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), widths[0])
+	cells := []string{timeText, severityName(row.Severity), preview(row.Body)}
+	if width >= 70 {
+		correlation := "t:— s:—"
+		if row.TraceId != "" || row.SpanId != "" {
+			correlation = "t:" + terminal.Truncate(preview(row.TraceId), 8) + " s:" + terminal.Truncate(preview(row.SpanId), 8)
+		}
+		cells = []string{timeText, severityName(row.Severity), preview(row.ServiceName), preview(row.Body), correlation}
+	}
+	for i := range cells {
+		cells[i] = terminal.Truncate(cells[i], widths[i])
+	}
+	lines := tables.Render(nil, [][]string{cells}, widths, false, false, false, func(r, col int) lipgloss.Style {
+		switch col {
+		case 0:
+			return tui.ContentLabel
+		case 1:
+			return tui.ContentSeverityStyle(int(row.Severity))
+		case 2:
+			if width >= 70 {
+				return tui.ServiceNameStyle(row.ServiceName)
+			}
+		case 4:
+			return tui.ContentContext
+		}
+		if row.Severity >= 17 {
+			return tui.ContentStrong
+		}
+		return tui.ContentValue
+	})
 	prefix := "  "
 	if selected {
 		prefix = "› "
 	}
-	correlation := "t:— s:—"
-	if row.TraceId != "" || row.SpanId != "" {
-		correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
-	}
-	level := tui.SeverityStyle(int(row.Severity)).Render(fmt.Sprintf("%-5s", severityName(row.Severity)))
-	timeWidth := logTimeWidth(width)
-	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), timeWidth)
-	timeText += strings.Repeat(" ", max(0, timeWidth-ansi.StringWidth(timeText)))
-	line := prefix + timeText + "  " + level + "  " + cell(preview(row.ServiceName), 16) + " " + cell(preview(row.Body), max(1, width-timeWidth-52)) + "  " + correlation
-	if width < 70 {
-		line = prefix + timeText + " " + level + " " + preview(row.Body)
-	}
-	return ansi.Truncate(line, max(1, width), "…")
+	return tui.ContentRow(terminal.Truncate(prefix+lines[0], max(1, width)), selected)
+}
+
+// RenderSeverity is shared by lists, dashboard log rows and the full inspector.
+func RenderSeverity(severity float64, display string) string {
+	return tui.RenderContent(tui.ContentSeverityStyle(int(severity)), display)
 }

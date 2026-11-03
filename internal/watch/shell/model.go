@@ -326,5 +326,9 @@ func (m *Model) View() string {
 	if m.height > 0 {
 		lines = lines[:min(len(lines), m.height)]
 	}
-	return strings.Join(lines, "\n")
+	view := strings.Join(lines, "\n")
+	if !tui.ContentEnabled() {
+		return ansi.Strip(view)
+	}
+	return view
 }

@@ -4,6 +4,8 @@ package charts
 import (
 	tslc "github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
 	"sort"
@@ -43,7 +45,11 @@ func NewTimeSeries(width, height int, from, to time.Time, minY, maxY float64, no
 		}
 		return terminal.FitTimestamp(terminal.Timestamp(time.Unix(int64(value), 0).UnixNano(), layout, time.UTC, reference), tickWidth)
 	}
-	chart := tslc.New(max(8, width), max(4, height), tslc.WithXLabelFormatter(formatter), tslc.WithTimeRange(from, to), tslc.WithYRange(minY, maxY), tslc.WithAxesStyles(lipgloss.NewStyle().Foreground(lipgloss.Color("8")), lipgloss.NewStyle().Foreground(lipgloss.Color("7"))))
+	rule, labels := lipgloss.NewStyle(), lipgloss.NewStyle()
+	if tui.ContentEnabled() {
+		rule, labels = tui.ContentRule, tui.ContentLabel
+	}
+	chart := tslc.New(max(8, width), max(4, height), tslc.WithXLabelFormatter(formatter), tslc.WithTimeRange(from, to), tslc.WithYRange(minY, maxY), tslc.WithAxesStyles(rule, labels))
 	chart.SetXStep(tickWidth + 2)
 	return chart
 }
@@ -81,10 +87,17 @@ func RenderTimeSeries(width, height int, from, to time.Time, series []Series, no
 	names := make([]string, 0, len(sets))
 	for _, s := range sets {
 		names = append(names, s.Name)
+		if tui.ContentEnabled() {
+			chart.SetDataSetStyle(s.Name, tui.ContentChart)
+		}
 		for _, p := range s.Points {
 			chart.PushDataSet(s.Name, tslc.TimePoint{Time: p.Time, Value: p.Value})
 		}
 	}
 	chart.DrawBrailleDataSets(names)
-	return chart.View()
+	view := chart.View()
+	if !tui.ContentEnabled() {
+		return ansi.Strip(view)
+	}
+	return view
 }

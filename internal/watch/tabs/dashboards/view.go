@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
@@ -17,22 +18,23 @@ import (
 // All data is sanitized before styles are applied. Styles originate here, never
 // in dashboard names, SQL, variables or query results received from the server.
 var (
-	titleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E6EDF3"))
-	selectedStyle  = lipgloss.NewStyle().Bold(true).Underline(true).Foreground(lipgloss.Color("#79D5CA"))
-	captionStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#8CC8F1"))
-	secondaryStyle = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("#8996A8"))
-	mutedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#8996A8"))
-	ruleStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#3C4C61"))
-	valueStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#79D5CA"))
-	chartStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#79D5CA"))
-	warningStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E9C46A"))
-	errorStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F08A8A"))
+	titleStyle     = tui.ContentTitle
+	selectedStyle  = tui.ContentSelected.Underline(true)
+	captionStyle   = tui.ContentHeading
+	secondaryStyle = tui.ContentContext
+	mutedStyle     = tui.ContentLabel
+	ruleStyle      = tui.ContentRule
+	valueStyle     = tui.ContentMeasure
+	chartStyle     = tui.ContentChart
+	warningStyle   = tui.ContentWarning
+	errorStyle     = tui.ContentError
 )
 
 type uiLine struct {
-	text  string
-	style lipgloss.Style
-	clip  bool
+	text    string
+	style   lipgloss.Style
+	clip    bool
+	trusted bool // Output of a shared presenter that already sanitized its data.
 }
 
 func ui(text string, style lipgloss.Style) uiLine { return uiLine{text: text, style: style} }
@@ -40,15 +42,21 @@ func compact(text string, style lipgloss.Style) uiLine {
 	return uiLine{text: text, style: style, clip: true}
 }
 func plain(text string) uiLine { return ui(text, lipgloss.NewStyle()) }
+func presented(text string, style lipgloss.Style) uiLine {
+	return uiLine{text: text, style: style, trusted: true}
+}
 func wrapUI(lines []uiLine, width int) []string {
 	var out []string
 	for _, line := range lines {
-		text := safe(line.text)
+		text := line.text
+		if !line.trusted {
+			text = safe(text)
+		}
 		if line.clip {
 			text = ansi.Truncate(text, max(1, width), "…")
 		}
 		for _, part := range strings.Split(ansi.Hardwrap(text, max(1, width), true), "\n") {
-			out = append(out, line.style.Render(part))
+			out = append(out, tui.RenderContent(line.style, part))
 		}
 	}
 	return out
@@ -213,7 +221,7 @@ func (m *model) View() string {
 	if state.loaded {
 		if m.inspect {
 			for _, line := range renderTable(state.result, false, m.width) {
-				body = append(body, plain(line))
+				body = append(body, presented(line, lipgloss.NewStyle()))
 			}
 		} else {
 			if telemetryKind(string(p.DisplayType)) {
@@ -259,7 +267,7 @@ func (m *model) View() string {
 				if strings.HasPrefix(line, "No ") {
 					style = secondaryStyle
 				}
-				body = append(body, ui(line, style))
+				body = append(body, presented(line, style))
 			}
 		}
 	}

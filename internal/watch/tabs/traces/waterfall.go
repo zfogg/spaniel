@@ -5,8 +5,11 @@ import (
 	"sort"
 	"strings"
 
+	"fmt"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/tui"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
@@ -148,21 +151,60 @@ func waterfallRow(row flatSpan, selected bool, start, end int64, width int) stri
 	if _, _, ok := timing(s); !ok || s.EndNs == 0 {
 		mark += "! "
 	}
-	label := strings.Repeat("  ", min(row.depth, 12)) + mark + clean(s.Name) + " / " + clean(s.ServiceName)
-	status := statusText(s.StatusCode)
-	line := prefix + status + " · " + label + " · " + duration(s.DurationNs)
+	labelPrefix := strings.Repeat("  ", min(row.depth, 12)) + mark + clean(s.Name) + " / "
+	_, widths := waterfallColumns(width)
+	var cells []string
+	if width >= 62 {
+		barStyle := tui.ContentChart
+		if s.StatusCode >= 2 {
+			barStyle = tui.ContentError
+		}
+		edge := terminal.Glyphs().Pipe
+		bar := tui.RenderContent(tui.ContentRule, edge) + tui.RenderContent(barStyle, waterfallBar(s, start, end, max(1, widths[3]-2))) + tui.RenderContent(tui.ContentRule, edge)
+		cells = []string{serviceLabel(labelPrefix, s.ServiceName, "", 0), duration(s.DurationNs), statusText(s.StatusCode), bar}
+	} else {
+		cells = []string{statusText(s.StatusCode), serviceLabel(labelPrefix, s.ServiceName, "", 0), duration(s.DurationNs)}
+	}
+	for i := range cells {
+		cells[i] = terminal.Truncate(cells[i], widths[i])
+	}
+	lines := tables.Compact(nil, [][]string{cells}, widths, func(row, col int) lipgloss.Style {
+		if width >= 62 {
+			switch col {
+			case 1:
+				return tui.ContentMeasure
+			case 2:
+				return statusStyle(s.StatusCode)
+			}
+		} else {
+			switch col {
+			case 0:
+				return statusStyle(s.StatusCode)
+			case 2:
+				return tui.ContentMeasure
+			}
+		}
+		return tui.ContentValue
+	})
+	return tui.ContentRow(clip(prefix+lines[0], width), selected)
+}
+
+// The heading and span rows use the same component and column geometry.
+func waterfallColumns(width int) ([]string, []int) {
 	if width >= 62 {
 		labelWidth := max(16, min(52, width/2))
-		barWidth := max(1, width-labelWidth-24)
-		edge := terminal.Glyphs().Pipe
-		line = prefix + pad(label, labelWidth) + " " + pad(duration(s.DurationNs), 10) + " " + pad(status, 5) + " " + edge + waterfallBar(s, start, end, barWidth) + edge
+		return []string{"OPERATION / SERVICE", "DURATION", "STATUS", "Waterfall"}, []int{labelWidth, 10, 6, max(3, width-labelWidth-21)}
 	}
-	line = clip(line, width)
-	if s.StatusCode >= 2 {
-		return errorStyle.Render(line)
+	return []string{"STATUS", "OPERATION / SERVICE", "DURATION"}, []int{6, max(1, width-20), 10}
+}
+func waterfallHeader(width int, start, end int64) string {
+	headers, widths := waterfallColumns(width)
+	if width >= 62 {
+		headers[3] += fmt.Sprintf(" 0 → %s", duration(end-start))
 	}
-	if selected {
-		return tui.SelectedRow.Render(line)
+	for i := range headers {
+		headers[i] = terminal.Truncate(headers[i], widths[i])
 	}
-	return tui.Ink.Render(line)
+	lines := tables.Compact(headers, nil, widths, func(row, col int) lipgloss.Style { return tui.ContentHeading })
+	return clip("  "+lines[0], width)
 }

@@ -10,11 +10,13 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
 type category struct {
 	label, raw, context string
+	service             string
 	value               float64
 }
 
@@ -54,7 +56,14 @@ func categoryRows(kind string, config settings, rows []map[string]any) ([]catego
 				}
 			}
 		}
-		out = append(out, category{safe(cell(label)), cell(value), context, n})
+		service := ""
+		for _, key := range []string{"service_name", "service.name", "service"} {
+			if row[key] != nil && cell(row[key]) == cell(label) {
+				service = cell(row[key])
+				break
+			}
+		}
+		out = append(out, category{label: safe(cell(label)), raw: safe(cell(value)), context: context, value: n, service: service})
 	}
 	return out, invalid
 }
@@ -94,11 +103,14 @@ func renderCategories(kind string, config settings, rows []map[string]any, width
 		lines = append(lines, fmt.Sprintf("Signed bars · zero %s · range %g → %g %s", terminal.Glyphs().Pipe, minV*scale, maxV*scale, safe(config.Unit)))
 	}
 	for i, row := range values {
-		label := row.label
+		label := tui.RenderContent(tui.ContentStrong, row.label)
+		if row.service != "" {
+			label = tui.RenderServiceName(row.service, row.label)
+		}
 		if kind == "entity_list" || pie {
 			label = fmt.Sprintf("%d. %s", i+1, label)
 		}
-		text := fmt.Sprintf("%s  %s %s", label, row.raw, safe(config.Unit))
+		text := fmt.Sprintf("%s  %s %s", label, tui.RenderContent(tui.ContentMeasure, row.raw), safe(config.Unit))
 		bar := []rune(strings.Repeat(" ", barWidth))
 		if pie {
 			share := row.value / scale / total
@@ -118,7 +130,7 @@ func renderCategories(kind string, config settings, rows []map[string]any, width
 			}
 			bar[zero] = []rune(terminal.Glyphs().Pipe)[0]
 		}
-		lines = append(lines, text+row.context, "  "+string(bar))
+		lines = append(lines, text+tui.RenderContent(tui.ContentContext, row.context), tui.RenderContent(tui.ContentChart, "  "+string(bar)))
 	}
 	return lines
 }
@@ -184,7 +196,7 @@ func renderGauge(config settings, rows []map[string]any, width int) []string {
 	fraction := math.Max(0, math.Min(1, (value-minV)/(maxV-minV)))
 	size := max(1, min(72, width-2))
 	fill := int(math.Round(fraction * float64(size)))
-	lines := []string{"Value: " + cell(rows[0]["value"]) + " " + safe(config.Unit), "[" + strings.Repeat("█", fill) + strings.Repeat("░", size-fill) + "]", fmt.Sprintf("Range: %g → %g %s", minV, maxV, safe(config.Unit))}
+	lines := []string{"Value: " + safe(cell(rows[0]["value"])) + " " + safe(config.Unit), "[" + strings.Repeat("█", fill) + strings.Repeat("░", size-fill) + "]", fmt.Sprintf("Range: %g → %g %s", minV, maxV, safe(config.Unit))}
 	if value < minV || value > maxV {
 		lines = append(lines, "Out of range: meter fill clamped; actual value shown above.")
 	}
@@ -213,7 +225,7 @@ func renderGauge(config settings, rows []map[string]any, width int) []string {
 		} else {
 			state += " · outside meter range"
 		}
-		thresholdLines = append(thresholdLines, fmt.Sprintf("Threshold %s: %s %s · %s", label, cell(raw), safe(config.Unit), state))
+		thresholdLines = append(thresholdLines, fmt.Sprintf("Threshold %s: %s %s · %s", label, safe(cell(raw)), safe(config.Unit), state))
 	}
 	if len(config.Thresholds) > 0 {
 		lines = append(lines, " "+string(ticks)+" ", "┆ threshold positions")

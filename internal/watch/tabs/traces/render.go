@@ -14,7 +14,7 @@ import (
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
-var errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef6b73"))
+var errorStyle = tui.ContentError
 
 type generation struct{ epoch, sequence uint64 }
 type viewState struct {
@@ -75,7 +75,7 @@ func (s viewState) banner() string {
 	if len(parts) == 0 {
 		return ""
 	}
-	return tui.Muted.Render(strings.Join(parts, " · "))
+	return tui.RenderContent(tui.ContentLabel, strings.Join(parts, " · "))
 }
 
 func (s viewState) appendBanner(lines []string) []string {
@@ -143,6 +143,36 @@ func clip(s string, w int) string { return ansi.Truncate(s, max(0, w), "…") }
 func pad(s string, w int) string {
 	s = clip(s, w)
 	return s + strings.Repeat(" ", max(0, w-ansi.StringWidth(s)))
+}
+
+// serviceLabel lays out plain text first, then colors only the visible service
+// fragment using the full canonical name. Both service-first lists and the
+// operation-first waterfall use this same path.
+func serviceLabel(prefix, canonical, suffix string, width int) string {
+	prefix, service, suffix := clean(prefix), clean(canonical), clean(suffix)
+	line := prefix + service + suffix
+	if width > 0 {
+		line = pad(line, width)
+	}
+	if !strings.HasPrefix(line, prefix) {
+		return tui.RenderContent(tui.ContentValue, line)
+	}
+	rest := line[len(prefix):]
+	display, after := rest, ""
+	if strings.HasPrefix(rest, service) {
+		display, after = service, rest[len(service):]
+	}
+	return tui.RenderContent(tui.ContentValue, prefix) + tui.RenderServiceName(canonical, display) + tui.RenderContent(tui.ContentValue, after)
+}
+
+func statusStyle(code float64) lipgloss.Style {
+	if code >= 2 {
+		return tui.ContentError
+	}
+	if code == 1 {
+		return tui.ContentOK
+	}
+	return tui.ContentLabel
 }
 func short(s string) string {
 	r := []rune(clean(s))

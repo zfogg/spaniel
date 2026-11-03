@@ -283,13 +283,16 @@ func TestTimingHierarchyAndNarrowScreens(t *testing.T) {
 			}
 		}
 	}
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("NO_COLOR", "")
 	old := lipgloss.ColorProfile()
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	defer lipgloss.SetColorProfile(old)
 	errSpan := sampleSpan("error", "", 1000)
 	errSpan.StatusCode = 2
 	row := waterfallRow(flatSpan{span: errSpan}, true, 1000, 1100, 100)
-	if !strings.Contains(row, "ERROR") || !strings.Contains(row, "38;2;239;107;115") {
+	errorPrefix := strings.Split(errorStyle.Render("ERROR"), "ERROR")[0]
+	if !strings.Contains(row, "ERROR") || !strings.Contains(row, "38;2;") || errorPrefix == "" || !strings.Contains(row, errorPrefix) {
 		t.Fatalf("error span is not visibly labeled red: %q", row)
 	}
 	if clean("safe\x1b]0;bad\a\ntext") != "safe text" {

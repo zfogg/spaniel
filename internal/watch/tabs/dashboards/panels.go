@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/zfogg/spaniel/internal/api/apigen"
+	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/charts"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
 	"sort"
@@ -12,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -30,12 +33,13 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.UseNumber()
 	configErr := decoder.Decode(&config)
+	config.Unit = safe(config.Unit)
 	lines := []string{}
 	if config.Unit != "" {
 		lines = append(lines, "Unit: "+config.Unit)
 	}
 	for _, warning := range data.Warnings {
-		lines = append(lines, "Warning: "+warning)
+		lines = append(lines, "Warning: "+safe(warning))
 	}
 	if data.Truncated != nil && *data.Truncated {
 		lines = append(lines, "Truncated: first 128 query rows; refine the query/window.")
@@ -46,7 +50,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 	switch kind {
 	case "bar", "pie", "entity_list", "gauge", "heatmap":
 		if configErr != nil && strings.TrimSpace(raw) != "" {
-			return append(lines, "Invalid panel settings: "+configErr.Error())
+			return append(lines, "Invalid panel settings: "+safe(configErr.Error()))
 		}
 		switch kind {
 		case "gauge":
@@ -60,9 +64,9 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 		for _, row := range data.Rows {
 			label := ""
 			if group, ok := row["group_value"]; ok {
-				label = cell(group) + " · "
+				label = safe(cell(group)) + " · "
 			}
-			lines = append(lines, strings.TrimSpace(label+cell(row["value"])+" "+config.Unit))
+			lines = append(lines, strings.TrimSpace(label+safe(cell(row["value"]))+" "+config.Unit))
 		}
 	case "table":
 		lines = append(lines, renderTable(data, false, width)...)
@@ -97,7 +101,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			}
 			labels := []string{}
 			for _, s := range series {
-				labels = append(labels, s.Name)
+				labels = append(labels, safe(s.Name))
 			}
 			lines = append(lines, "Series: "+strings.Join(labels, terminal.ColumnSeparator()), "From: "+displayTime(from, reference), "To: "+displayTime(to, reference))
 			lines = append(lines, strings.Split(charts.RenderTimeSeries(width, max(4, height-3), from, to, series, reference), "\n")...)
@@ -106,7 +110,7 @@ func renderPanel(kind, raw string, data apigen.QueryPreview, width, height int, 
 			lines = append(lines, renderTableAt(data, true, reference, width)...)
 		}
 	default:
-		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", kind))
+		lines = append(lines, fmt.Sprintf("Visualization %q is unsupported in the terminal; showing ordered query data.", safe(kind)))
 		lines = append(lines, renderTable(data, false, width)...)
 	}
 	return lines
@@ -168,16 +172,19 @@ func renderTableAt(data apigen.QueryPreview, sampleTimes bool, reference time.Ti
 // Result cells wrap instead of truncating. Wide terminals get aligned columns;
 // narrow terminals get labeled records, preserving every SQL column and value.
 func layoutTable(columns []string, rows [][]string, width int) []string {
-	glyphs := terminal.Glyphs()
 	lines := []string{fmt.Sprintf("%d rows", len(rows))}
 	if len(columns) == 0 {
 		return lines
 	}
 	if width < 72 || len(columns) > 6 {
 		for i, row := range rows {
-			lines = append(lines, fmt.Sprintf("ROW %d", i+1))
+			lines = append(lines, tui.RenderContent(tui.ContentHeading, fmt.Sprintf("ROW %d", i+1)))
 			for j, value := range row {
-				lines = append(lines, columns[j]+": "+value)
+				display := tui.RenderContent(tui.ContentValue, safe(value))
+				if serviceColumn(columns[j]) {
+					display = tui.RenderServiceName(value, safe(value))
+				}
+				lines = append(lines, tui.RenderContent(tui.ContentLabel, safe(columns[j])+": ")+display)
 			}
 			lines = append(lines, "")
 		}
@@ -191,34 +198,26 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 			columnWidths[i] = max(columnWidths[i], min(capWidth, ansi.StringWidth(safe(row[i]))))
 		}
 	}
-	appendRow := func(row []string) {
-		cells := make([][]string, len(row))
-		height := 1
-		for i, value := range row {
-			cells[i] = strings.Split(ansi.Hardwrap(safe(value), columnWidths[i], true), "\n")
-			height = max(height, len(cells[i]))
-		}
-		for line := 0; line < height; line++ {
-			parts := make([]string, len(row))
-			for i := range row {
-				text := ""
-				if line < len(cells[i]) {
-					text = cells[i][line]
-				}
-				parts[i] = text + strings.Repeat(" ", max(0, columnWidths[i]-ansi.StringWidth(text)))
-			}
-			lines = append(lines, strings.Join(parts, " "+glyphs.Pipe+" "))
+	safeColumns := make([]string, len(columns))
+	safeRows := make([][]string, len(rows))
+	for i, name := range columns {
+		safeColumns[i] = safe(name)
+	}
+	for i, row := range rows {
+		safeRows[i] = make([]string, len(row))
+		for j, value := range row {
+			safeRows[i][j] = safe(value)
 		}
 	}
-	appendRow(columns)
-	separators := make([]string, len(columns))
-	for i, size := range columnWidths {
-		separators[i] = strings.Repeat(glyphs.Rule, size)
-	}
-	lines = append(lines, strings.Join(separators, glyphs.Rule+glyphs.Cross+glyphs.Rule))
-	for _, row := range rows {
-		appendRow(row)
-	}
+	lines = append(lines, tables.Render(safeColumns, safeRows, columnWidths, true, true, true, func(row, col int) lipgloss.Style {
+		if row < 0 {
+			return tui.ContentHeading
+		}
+		if serviceColumn(columns[col]) {
+			return tui.ServiceNameStyle(rows[row][col])
+		}
+		return tui.ContentValue
+	})...)
 	return lines
 }
 func cell(value any) string {
@@ -333,4 +332,8 @@ func timeSeries(rows []map[string]any) ([]charts.Series, time.Time, time.Time, i
 		series = append(series, charts.Series{Name: name, Points: grouped[name]})
 	}
 	return series, from, to, skipped
+}
+
+func serviceColumn(name string) bool {
+	return name == "service_name" || name == "service.name" || name == "service"
 }

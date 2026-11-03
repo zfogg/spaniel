@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
 	"github.com/zfogg/spaniel/internal/watch/tabs/logs"
@@ -155,19 +155,15 @@ func (m *model) openTelemetry(row telemetryRow) tea.Cmd {
 }
 
 func (m *model) telemetryView(top, body []uiLine, rows []telemetryRow, selected int) string {
-	header := "  STATUS / DURATION / SERVICE / OPERATION / ID"
+	header := traces.RenderListHeader(m.width)
 	if len(rows) > 0 && rows[0].kind == "log_list" {
 		header = logs.RenderHeader(m.width)
 	}
-	body = append(body, ui(header, captionStyle))
+	body = append(body, presented(header, lipgloss.NewStyle()))
 	selectedStart := 0
 	for i, row := range rows {
 		if i == selected {
 			selectedStart = len(wrapUI(body, m.width))
-		}
-		style := titleStyle
-		if i == selected {
-			style = selectedStyle
 		}
 		var line string
 		if row.err != nil {
@@ -177,28 +173,19 @@ func (m *model) telemetryView(top, body []uiLine, rows []telemetryRow, selected 
 			}
 			body = append(body, ui(line, warningStyle))
 			for _, item := range renderTable(apigen.QueryPreview{Rows: []map[string]any{row.raw}}, false, m.width) {
-				body = append(body, plain(item))
+				body = append(body, presented(item, lipgloss.NewStyle()))
 			}
 			continue
 		}
 		switch row.kind {
 		case "trace_list":
 			line = traces.RenderTraceRow(row.trace, i == selected, m.width)
-			if row.trace.StatusCode >= 2 {
-				style = errorStyle
-			}
 		case "span_list":
 			line = traces.RenderSpanRow(row.span, i == selected, m.width)
-			if row.span.StatusCode >= 2 {
-				style = errorStyle
-			}
 		case "log_list":
 			line = logs.RenderRow(row.log, i == selected, m.width, m.env.Now())
-			if row.log.Severity >= 17 {
-				style = errorStyle
-			}
 		}
-		body = append(body, ui(ansi.Strip(line), style))
+		body = append(body, presented(line, lipgloss.NewStyle()))
 		if i == selected && row.action() == "" {
 			body = append(body, ui("Read-only row · correlation ID/time unavailable in the selected session.", secondaryStyle))
 		}
