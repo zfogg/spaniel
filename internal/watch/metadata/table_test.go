@@ -61,7 +61,13 @@ func TestDividerJoinsHeaderRuleInBothGlyphModes(t *testing.T) {
 			for i := range lines {
 				lines[i] = ansi.Strip(lines[i])
 			}
-			column := strings.IndexRune(lines[0], []rune(terminal.Glyphs().Pipe)[0])
+			column := -1
+			for i, r := range []rune(lines[0]) {
+				if r == []rune(terminal.Glyphs().Pipe)[0] {
+					column = i
+					break
+				}
+			}
 			if column < 0 || []rune(lines[1])[column] != []rune(terminal.Glyphs().Cross)[0] || []rune(lines[2])[column] != []rune(terminal.Glyphs().Pipe)[0] {
 				t.Fatalf("disconnected header divider in mode %s, width %d: %q", mode, width, lines)
 			}
