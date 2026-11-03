@@ -91,7 +91,7 @@ func TestResetPublishesCommittedDeletionEvenWhenCheckpointFails(t *testing.T) {
 						if reason != "reset" {
 							t.Fatalf("unexpected change %s", reason)
 						}
-						for _, want := range []string{"traces", "logs", "metrics", "lint", "issues", "active-session"} {
+						for _, want := range []string{"traces", "logs", "metrics", "lint", "issues", "active-session", "dashboards", "notifications"} {
 							if !slices.Contains(resources, want) {
 								t.Errorf("missing reset resource %s", want)
 							}

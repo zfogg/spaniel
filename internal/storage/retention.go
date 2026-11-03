@@ -217,7 +217,7 @@ func (d *DB) clearWithCheckpoint(clear func(*DB) error, checkpoint func(*DB) err
 	// Publish durable deletion even if checkpoint or appender restoration fails,
 	// after SQL leases are released so connected clients can resync safely.
 	if cleared {
-		d.changed("reset", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "alerts", "sessions", "stats", "sources", "services", "service-map", "coverage", "active-session", "storage")
+		d.changed("reset", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "dashboards", "alerts", "notifications", "sessions", "stats", "sources", "services", "service-map", "coverage", "active-session", "storage")
 	}
 	return err
 }
