@@ -69,3 +69,23 @@ func TestSeverityRolesRemainDistinctAndReadable(t *testing.T) {
 		seen[styled] = true
 	}
 }
+
+func TestSelectedRowRestoresBackgroundAfterNestedStyles(t *testing.T) {
+	profile := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(profile) })
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Setenv("TERM", "xterm")
+	t.Setenv("NO_COLOR", "")
+	level := RenderContent(ContentSeverityStyle(21), "FATAL")
+	service := RenderServiceName("api", "api")
+	text := "› " + level + " " + service + " payload"
+	selected := ContentRow(text, true)
+	if ansi.Strip(selected) != "› FATAL api payload" || !strings.Contains(selected, level) || !strings.Contains(selected, service) {
+		t.Fatal("selection changed semantic content", selected)
+	}
+	sample := ContentSelected.Render(" ")
+	start := sample[:strings.IndexByte(sample, ' ')]
+	if strings.Count(selected, start) != strings.Count(text, "\x1b[0m")+1 {
+		t.Fatal("nested resets lost the selected background", selected)
+	}
+}

@@ -46,8 +46,15 @@ func RenderContent(style lipgloss.Style, text string) string {
 }
 
 func ContentRow(text string, selected bool) string {
-	if selected {
-		return RenderContent(ContentSelected, text)
+	if selected && ContentEnabled() && text != "" {
+		// Nested semantic styles reset SGR at their end. Restore the selected
+		// background after each reset, preserving their foreground/severity.
+		sample := ContentSelected.Render(" ")
+		if at := strings.IndexByte(sample, ' '); at > 0 {
+			start := sample[:at]
+			text = strings.NewReplacer("\x1b[0m", "\x1b[0m"+start, "\x1b[m", "\x1b[m"+start).Replace(text)
+			return start + text + "\x1b[0m"
+		}
 	}
 	return RenderContent(ContentValue, text)
 }
