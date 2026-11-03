@@ -12,8 +12,10 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zfogg/spaniel/internal/tui"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
@@ -154,30 +156,25 @@ func Render(rows []Row, width int) []string {
 	keyWidth = min(keyWidth, min(36, width/3))
 	const typeWidth = 7
 	valueWidth := width - keyWidth - typeWidth - 6
-	pad := func(value string, size int) string {
-		return value + strings.Repeat(" ", max(0, size-ansi.StringWidth(value)))
-	}
-	glyphs := terminal.Glyphs()
-	separator, joint := " "+glyphs.Pipe+" ", glyphs.Rule+glyphs.Cross+glyphs.Rule
-	styledSeparator := tui.RenderContent(tui.ContentRule, separator)
-	lines = append(lines, tui.RenderContent(tui.ContentHeading, pad("KEY", keyWidth))+styledSeparator+tui.RenderContent(tui.ContentHeading, pad("TYPE", typeWidth))+styledSeparator+tui.RenderContent(tui.ContentHeading, "VALUE"))
-	lines = append(lines, tui.RenderContent(tui.ContentRule, strings.Repeat(glyphs.Rule, keyWidth)+joint+strings.Repeat(glyphs.Rule, typeWidth)+joint+strings.Repeat(glyphs.Rule, valueWidth)))
+	cells := make([][]string, 0, len(rows))
 	for _, row := range rows {
-		cells := [3][]string{terminal.Wrap(row.Key, keyWidth), terminal.Wrap(row.Type, typeWidth), terminal.Wrap(row.Value, valueWidth)}
-		for i := 0; i < max(len(cells[0]), len(cells[1]), len(cells[2])); i++ {
-			var parts [3]string
-			for column := range cells {
-				if i < len(cells[column]) {
-					parts[column] = cells[column][i]
-				}
-			}
-			value := tui.RenderContent(tui.ContentValue, parts[2])
-			if serviceAttribute(row) {
-				value = tui.RenderServiceName(row.Value, parts[2])
-			}
-			lines = append(lines, tui.RenderContent(tui.ContentLabel, pad(parts[0], keyWidth))+styledSeparator+tui.RenderContent(tui.ContentContext, pad(parts[1], typeWidth))+styledSeparator+value)
-		}
+		cells = append(cells, []string{terminal.Multiline(row.Key), terminal.Multiline(row.Type), terminal.Multiline(row.Value)})
 	}
+	lines = append(lines, tables.Render([]string{"KEY", "TYPE", "VALUE"}, cells, []int{keyWidth, typeWidth, valueWidth}, true, true, true, func(row, col int) lipgloss.Style {
+		if row < 0 {
+			return tui.ContentHeading
+		}
+		if col == 0 {
+			return tui.ContentLabel
+		}
+		if col == 1 {
+			return tui.ContentContext
+		}
+		if serviceAttribute(rows[row]) {
+			return tui.ServiceNameStyle(rows[row].Value)
+		}
+		return tui.ContentValue
+	})...)
 	return lines
 }
 

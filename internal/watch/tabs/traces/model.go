@@ -10,11 +10,13 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 )
 
 const pageSize = 100
@@ -350,7 +352,7 @@ func (m *listModel) View() string {
 	if m.input != "" {
 		lines = append(lines, tui.RenderContent(tui.ContentMeasure, m.input+"> "+m.draft+"▏"))
 	}
-	lines = append(lines, tui.RenderContent(tui.ContentHeading, "   STATUS DURATION    SERVICE / OPERATION                         ID"))
+	lines = append(lines, RenderListHeader(m.width))
 	if len(rows) == 0 {
 		message := "No matching rows on this page. Adjust filters or choose another page."
 		if m.state.loading {
@@ -432,10 +434,39 @@ func renderListRow(r listRow, selected, spans bool, width int) string {
 			tail += " [N+1]"
 		}
 	}
-	label := serviceLabel("", r.service, tail, 0)
-	if width >= 78 {
-		label = serviceLabel("", r.service, tail, max(12, width-53)) + " " + tui.RenderContent(tui.ContentContext, short(fallback(r.span, r.trace)))
+	_, widths := traceColumns(width)
+	cells := []string{statusText(r.status), duration(r.duration), serviceLabel("", r.service, tail, 0)}
+	if len(widths) == 4 {
+		cells = append(cells, short(fallback(r.span, r.trace)))
 	}
-	line := prefix + tui.RenderContent(statusStyle(r.status), fmt.Sprintf("%-6s", statusText(r.status))) + " " + tui.RenderContent(tui.ContentMeasure, fmt.Sprintf("%-11s", duration(r.duration))) + " " + label
-	return tui.ContentRow(clip(line, width), selected)
+	for i := range cells {
+		cells[i] = clip(cells[i], widths[i])
+	}
+	lines := tables.Render(nil, [][]string{cells}, widths, false, false, false, func(row, col int) lipgloss.Style {
+		switch col {
+		case 0:
+			return statusStyle(r.status)
+		case 1:
+			return tui.ContentMeasure
+		case 3:
+			return tui.ContentContext
+		}
+		return tui.ContentValue
+	})
+	return tui.ContentRow(clip(prefix+lines[0], width), selected)
+}
+
+func traceColumns(width int) ([]string, []int) {
+	if width >= 78 {
+		return []string{"STATUS", "DURATION", "SERVICE / OPERATION", "ID"}, []int{6, 11, max(1, width-41), 16}
+	}
+	return []string{"STATUS", "DURATION", "SERVICE / OPERATION"}, []int{6, 11, max(1, width-23)}
+}
+func RenderListHeader(width int) string {
+	headers, widths := traceColumns(width)
+	for i := range headers {
+		headers[i] = clip(headers[i], widths[i])
+	}
+	lines := tables.Render(headers, nil, widths, false, false, false, func(row, col int) lipgloss.Style { return tui.ContentHeading })
+	return clip("  "+lines[0], width)
 }

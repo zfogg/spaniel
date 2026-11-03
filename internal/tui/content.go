@@ -17,7 +17,7 @@ var (
 	contentRed      = lipgloss.AdaptiveColor{Light: "#b91c1c", Dark: "#f87171"}
 	contentAmber    = lipgloss.AdaptiveColor{Light: "#6a4f1e", Dark: "#f0d898"}
 	ContentTitle    = lipgloss.NewStyle().Foreground(contentSky).Bold(true)
-	ContentHeading  = lipgloss.NewStyle().Foreground(contentSky).Bold(true).Underline(true)
+	ContentHeading  = lipgloss.NewStyle().Foreground(contentSky).Bold(true).Underline(true).UnderlineSpaces(false)
 	ContentLabel    = lipgloss.NewStyle().Foreground(colorInk2)
 	ContentValue    = lipgloss.NewStyle().Foreground(colorInk)
 	ContentStrong   = lipgloss.NewStyle().Foreground(colorInk).Bold(true)
@@ -82,10 +82,15 @@ func ContentSeverityStyle(severity int) lipgloss.Style {
 // clipping or fallback. display must already be safe and laid out by the caller.
 // Lower-depth terminals keep the readable theme instead of nearest-color hashes.
 func RenderServiceName(canonical, display string) string {
+	return RenderContent(ServiceNameStyle(canonical), display)
+}
+
+// ServiceNameStyle is also used by Charmbracelet's per-cell table styling.
+func ServiceNameStyle(canonical string) lipgloss.Style {
 	style := ContentStrong
 	if ContentEnabled() && lipgloss.ColorProfile() == termenv.TrueColor {
 		color := servicecolor.Color(canonical).Text(lipgloss.HasDarkBackground())
 		style = style.Foreground(lipgloss.Color(color.Hex()))
 	}
-	return RenderContent(style, display)
+	return style
 }

@@ -155,11 +155,11 @@ func (m *model) openTelemetry(row telemetryRow) tea.Cmd {
 }
 
 func (m *model) telemetryView(top, body []uiLine, rows []telemetryRow, selected int) string {
-	header := "  STATUS / DURATION / SERVICE / OPERATION / ID"
+	header := traces.RenderListHeader(m.width)
 	if len(rows) > 0 && rows[0].kind == "log_list" {
 		header = logs.RenderHeader(m.width)
 	}
-	body = append(body, ui(header, captionStyle))
+	body = append(body, presented(header, lipgloss.NewStyle()))
 	selectedStart := 0
 	for i, row := range rows {
 		if i == selected {

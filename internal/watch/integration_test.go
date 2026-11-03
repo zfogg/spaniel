@@ -426,6 +426,7 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	send("l")
 	send("i")
 	wait("9007199254740993")
+	wait("1 rows") // Wait for results; the SQL source itself contains the integer.
 	capture("dashboard-sql")
 	send("i")
 	for _, step := range []struct{ title, ready, capture string }{

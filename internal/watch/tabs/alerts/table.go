@@ -2,10 +2,10 @@ package alerts
 
 import (
 	"strconv"
-	"strings"
 
-	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/zfogg/spaniel/internal/tui"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
@@ -30,32 +30,38 @@ func (m *model) table(columns []tableColumn, rows [][]string, ids []string, sele
 			widths[i] = max(1, remaining)
 		}
 	}
-	cell := func(text string, width int, state bool) string {
-		text = oneLine(text)
-		truncated := terminal.FitTimestamp(text, width)
-		padding := strings.Repeat(" ", max(0, width-ansi.StringWidth(truncated)))
-		if state {
-			truncated = tone(truncated)
-		}
-		return truncated + padding
-	}
-	var header []string
+	headers := make([]string, len(columns))
+	cells := make([][]string, len(rows))
 	for i, column := range columns {
-		header = append(header, tui.RenderContent(tui.ContentHeading, cell(column.title, widths[i], false)))
+		headers[i] = terminal.FitTimestamp(oneLine(column.title), widths[i])
 	}
-	separator := tui.RenderContent(tui.ContentRule, terminal.ColumnSeparator())
-	lines := []string{"  " + strings.Join(header, separator)}
-	for index, row := range rows {
-		var cells []string
-		for i, column := range columns {
+	for i, row := range rows {
+		cells[i] = make([]string, len(columns))
+		for j, column := range columns {
 			text := ""
-			if i < len(row) {
-				text = row[i]
+			if j < len(row) {
+				text = row[j]
 			}
-			cells = append(cells, cell(text, widths[i], column.state))
+			cells[i][j] = terminal.FitTimestamp(oneLine(text), widths[j])
+			if column.state {
+				cells[i][j] = tone(cells[i][j])
+			}
 		}
+	}
+	lines := tables.Render(headers, cells, widths, false, true, false, func(row, col int) lipgloss.Style {
+		if row < 0 {
+			return tui.ContentHeading
+		}
+		return tui.ContentValue
+	})
+	for i := range lines {
+		if i == 0 {
+			lines[i] = "  " + lines[i]
+			continue
+		}
+		index := i - 1
 		isSelected := index < len(ids) && ids[index] == selected
-		lines = append(lines, tui.ContentRow(marker(isSelected)+strings.Join(cells, separator), isSelected))
+		lines[i] = tui.ContentRow(marker(isSelected)+lines[i], isSelected)
 	}
 	return lines
 }

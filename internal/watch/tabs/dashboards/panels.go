@@ -6,6 +6,7 @@ import (
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/charts"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 	"math"
 	"sort"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -170,7 +172,6 @@ func renderTableAt(data apigen.QueryPreview, sampleTimes bool, reference time.Ti
 // Result cells wrap instead of truncating. Wide terminals get aligned columns;
 // narrow terminals get labeled records, preserving every SQL column and value.
 func layoutTable(columns []string, rows [][]string, width int) []string {
-	glyphs := terminal.Glyphs()
 	lines := []string{fmt.Sprintf("%d rows", len(rows))}
 	if len(columns) == 0 {
 		return lines
@@ -197,42 +198,26 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 			columnWidths[i] = max(columnWidths[i], min(capWidth, ansi.StringWidth(safe(row[i]))))
 		}
 	}
-	appendRow := func(row []string, header bool) {
-		cells := make([][]string, len(row))
-		height := 1
-		for i, value := range row {
-			cells[i] = strings.Split(ansi.Hardwrap(safe(value), columnWidths[i], true), "\n")
-			height = max(height, len(cells[i]))
-		}
-		for line := 0; line < height; line++ {
-			parts := make([]string, len(row))
-			for i := range row {
-				text := ""
-				if line < len(cells[i]) {
-					text = cells[i][line]
-				}
-				text += strings.Repeat(" ", max(0, columnWidths[i]-ansi.StringWidth(text)))
-				style := tui.ContentValue
-				if header {
-					style = tui.ContentHeading
-				}
-				parts[i] = tui.RenderContent(style, text)
-				if !header && serviceColumn(columns[i]) {
-					parts[i] = tui.RenderServiceName(row[i], text)
-				}
-			}
-			lines = append(lines, strings.Join(parts, tui.RenderContent(tui.ContentRule, " "+glyphs.Pipe+" ")))
+	safeColumns := make([]string, len(columns))
+	safeRows := make([][]string, len(rows))
+	for i, name := range columns {
+		safeColumns[i] = safe(name)
+	}
+	for i, row := range rows {
+		safeRows[i] = make([]string, len(row))
+		for j, value := range row {
+			safeRows[i][j] = safe(value)
 		}
 	}
-	appendRow(columns, true)
-	separators := make([]string, len(columns))
-	for i, size := range columnWidths {
-		separators[i] = strings.Repeat(glyphs.Rule, size)
-	}
-	lines = append(lines, tui.RenderContent(tui.ContentRule, strings.Join(separators, glyphs.Rule+glyphs.Cross+glyphs.Rule)))
-	for _, row := range rows {
-		appendRow(row, false)
-	}
+	lines = append(lines, tables.Render(safeColumns, safeRows, columnWidths, true, true, true, func(row, col int) lipgloss.Style {
+		if row < 0 {
+			return tui.ContentHeading
+		}
+		if serviceColumn(columns[col]) {
+			return tui.ServiceNameStyle(rows[row][col])
+		}
+		return tui.ContentValue
+	})...)
 	return lines
 }
 func cell(value any) string {

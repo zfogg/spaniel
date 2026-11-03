@@ -114,7 +114,9 @@ func TestFullValuesWrapSafelyAtEveryWidth(t *testing.T) {
 			if width >= 40 {
 				parts := strings.SplitN(ansi.Strip(line), " │ ", 3)
 				if len(parts) == 3 {
-					values = append(values, parts[2])
+					// Lipgloss pads the final column too; omit display padding
+					// when reassembling the wrapped fixture's non-space value.
+					values = append(values, strings.TrimRight(parts[2], " "))
 				}
 			} else {
 				values = append(values, ansi.Strip(line))

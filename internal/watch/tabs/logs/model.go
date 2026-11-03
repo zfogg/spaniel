@@ -10,12 +10,13 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/zfogg/spaniel/internal/api/apigen"
 	"github.com/zfogg/spaniel/internal/liveevent"
 	"github.com/zfogg/spaniel/internal/tui"
 	"github.com/zfogg/spaniel/internal/watch/client"
 	"github.com/zfogg/spaniel/internal/watch/protocol"
+	"github.com/zfogg/spaniel/internal/watch/tables"
 	"github.com/zfogg/spaniel/internal/watch/terminal"
 )
 
@@ -287,7 +288,7 @@ func (m *model) View() string {
 		}
 	}
 	if len(rows) > 0 {
-		lines = append(lines, tui.RenderContent(tui.ContentHeading, RenderHeader(m.width)))
+		lines = append(lines, RenderHeader(m.width))
 		i := m.selection(rows)
 		capacity := max(1, m.height-len(lines))
 		start := max(0, i-capacity+1)
@@ -305,40 +306,62 @@ func logTimeWidth(width int) int {
 	return min(26, max(12, width/4))
 }
 
-// RenderHeader uses the same age-aware column widths as logs and dashboard rows.
-func RenderHeader(width int) string {
+// Log columns share Charmbracelet's alignment in the overview and dashboard.
+func logColumns(width int) ([]string, []int) {
 	timeWidth := logTimeWidth(width)
-	header := "  " + cell("TIME (local)", timeWidth) + "  " + cell("LEVEL", 5) + "  " + cell("SERVICE", 16) + " " + cell("BODY", max(1, width-timeWidth-52)) + "  CORRELATION"
 	if width < 70 {
-		header = "  " + cell("TIME (local)", timeWidth) + " " + cell("LEVEL", 5) + " BODY"
+		return []string{"TIME (local)", "LEVEL", "BODY"}, []int{timeWidth, 5, max(1, width-timeWidth-11)}
 	}
-	return ansi.Truncate(header, max(1, width), "…")
+	return []string{"TIME (local)", "LEVEL", "SERVICE", "BODY", "CORRELATION"}, []int{timeWidth, 5, 16, max(1, width-timeWidth-51), 20}
+}
+func RenderHeader(width int) string {
+	headers, widths := logColumns(width)
+	for i := range headers {
+		headers[i] = terminal.Truncate(headers[i], widths[i])
+	}
+	lines := tables.Render(headers, nil, widths, false, false, false, func(row, col int) lipgloss.Style { return tui.ContentHeading })
+	return terminal.Truncate("  "+lines[0], max(1, width))
 }
 
-// RenderRow shares the log list columns, severity and correlation display with dashboard panels.
+// RenderRow shares log columns, severity and correlation with dashboard panels.
 func RenderRow(row apigen.Log, selected bool, width int, now ...time.Time) string {
 	reference := terminal.BatchTime(now...)
+	_, widths := logColumns(width)
+	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), widths[0])
+	cells := []string{timeText, severityName(row.Severity), preview(row.Body)}
+	if width >= 70 {
+		correlation := "t:— s:—"
+		if row.TraceId != "" || row.SpanId != "" {
+			correlation = "t:" + terminal.Truncate(preview(row.TraceId), 8) + " s:" + terminal.Truncate(preview(row.SpanId), 8)
+		}
+		cells = []string{timeText, severityName(row.Severity), preview(row.ServiceName), preview(row.Body), correlation}
+	}
+	for i := range cells {
+		cells[i] = terminal.Truncate(cells[i], widths[i])
+	}
+	lines := tables.Render(nil, [][]string{cells}, widths, false, false, false, func(r, col int) lipgloss.Style {
+		switch col {
+		case 0:
+			return tui.ContentLabel
+		case 1:
+			return tui.ContentSeverityStyle(int(row.Severity))
+		case 2:
+			if width >= 70 {
+				return tui.ServiceNameStyle(row.ServiceName)
+			}
+		case 4:
+			return tui.ContentContext
+		}
+		if row.Severity >= 17 {
+			return tui.ContentStrong
+		}
+		return tui.ContentValue
+	})
 	prefix := "  "
 	if selected {
 		prefix = "› "
 	}
-	correlation := "t:— s:—"
-	if row.TraceId != "" || row.SpanId != "" {
-		correlation = "t:" + cell(preview(row.TraceId), 8) + " s:" + cell(preview(row.SpanId), 8)
-	}
-	level := RenderSeverity(row.Severity, fmt.Sprintf("%-5s", severityName(row.Severity)))
-	timeWidth := logTimeWidth(width)
-	timeText := terminal.FitTimestamp(stamp(row.TimestampNs, false, reference), timeWidth)
-	timeText += strings.Repeat(" ", max(0, timeWidth-ansi.StringWidth(timeText)))
-	bodyStyle := tui.ContentValue
-	if row.Severity >= 17 {
-		bodyStyle = tui.ContentStrong
-	}
-	line := prefix + tui.RenderContent(tui.ContentLabel, timeText) + "  " + level + "  " + tui.RenderServiceName(row.ServiceName, cell(preview(row.ServiceName), 16)) + " " + tui.RenderContent(bodyStyle, cell(preview(row.Body), max(1, width-timeWidth-52))) + "  " + tui.RenderContent(tui.ContentContext, correlation)
-	if width < 70 {
-		line = prefix + tui.RenderContent(tui.ContentLabel, timeText) + " " + level + " " + tui.RenderContent(bodyStyle, preview(row.Body))
-	}
-	return tui.ContentRow(ansi.Truncate(line, max(1, width), "…"), selected)
+	return tui.ContentRow(terminal.Truncate(prefix+lines[0], max(1, width)), selected)
 }
 
 // RenderSeverity is shared by lists, dashboard log rows and the full inspector.
