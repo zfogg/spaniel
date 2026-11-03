@@ -76,9 +76,28 @@ function attrs(span: Span): Record<string, unknown> {
   }
 }
 
+/** Identity shared by the existing presentation fallback. Producer fingerprints
+ * carry version and dialect; no raw SQL can become a grouping identifier. */
+export function queryIdentity(span: Span): string | undefined {
+  const a = attrs(span)
+  const fp = a['gotel.db.query.fingerprint']
+  if (
+    typeof fp !== 'string' ||
+    !/^sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}$/.test(fp)
+  )
+    return
+  return JSON.stringify([
+    span.service_name,
+    fp,
+    a['db.namespace'] ?? a['db.name'] ?? '',
+    a['server.address'] ?? a['net.peer.name'] ?? '',
+    String(a['server.port'] ?? a['net.peer.port'] ?? ''),
+  ])
+}
+
 /** Span IDs that should be flagged with the N+1 badge. Combines server-side
  *  issues (when present, by example_span_id) with a client-side fallback that
- *  groups spans sharing the same raw `db.statement` or `db.query.text` and
+ *  groups spans sharing the same versioned fingerprint/database identity and
  *  flags any group with 10+ occurrences. */
 export function detectN1SpanIds(flatSpans: FlatSpan[], issues: TraceIssue[]): Set<string> {
   const set = new Set<string>()
@@ -93,12 +112,9 @@ export function detectN1SpanIds(flatSpans: FlatSpan[], issues: TraceIssue[]): Se
   for (const flat of flatSpans) {
     if (seen.has(flat.span.span_id)) continue
     seen.add(flat.span.span_id)
-    const a = attrs(flat.span)
-    const stmt =
-      (typeof a['db.statement'] === 'string' && a['db.statement']) ||
-      (typeof a['db.query.text'] === 'string' && a['db.query.text'])
-    if (!stmt) continue
-    const key = `${flat.span.parent_span_id}\0${stmt}`
+    const identity = queryIdentity(flat.span)
+    if (!identity) continue
+    const key = `${flat.span.parent_span_id}\0${identity}`
     const ids = counts.get(key) ?? []
     ids.push(flat.span.span_id)
     counts.set(key, ids)
@@ -133,7 +149,10 @@ export function n1IssueForSpan(
   } catch {
     /* empty */
   }
-  const hasStmt = typeof a['db.statement'] === 'string' || typeof a['db.query.text'] === 'string'
+  const hasStmt =
+    typeof a['db.statement'] === 'string' ||
+    typeof a['db.query.text'] === 'string' ||
+    typeof a['gotel.db.query.fingerprint'] === 'string'
   if (!hasStmt) return null
   for (const issue of issues) {
     if (issue.kind !== 'n_plus_one') continue
@@ -145,6 +164,13 @@ export function n1IssueForSpan(
     ) {
       const example = spans.find((s) => s.span_id === issue.example_span_id)
       if (!example) continue
+      const identity = queryIdentity(span),
+        exampleIdentity = queryIdentity(example)
+      if (identity || exampleIdentity) {
+        if (identity && identity === exampleIdentity) return issue
+        continue
+      }
+      if (span.service_name !== example.service_name) continue
       const exampleAttrs = attrs(example)
       const statement = a['db.statement'] || a['db.query.text']
       const exampleStatement = exampleAttrs['db.statement'] || exampleAttrs['db.query.text']
@@ -155,7 +181,7 @@ export function n1IssueForSpan(
 }
 
 /** Summary entries for the N+1 banner. Prefers server issues when present;
- *  otherwise derives from client-side `db.statement` grouping. Sorted by
+ *  otherwise derives from the existing versioned-fingerprint grouping. Sorted by
  *  wasted time descending. */
 export function n1BannerEntries(flatSpans: FlatSpan[], issues: TraceIssue[]): N1BannerEntry[] {
   const server = issues
@@ -168,12 +194,10 @@ export function n1BannerEntries(flatSpans: FlatSpan[], issues: TraceIssue[]): N1
   for (const flat of flatSpans) {
     if (seen.has(flat.span.span_id)) continue
     seen.add(flat.span.span_id)
-    const a = attrs(flat.span)
-    const stmt =
-      (typeof a['db.statement'] === 'string' && a['db.statement']) ||
-      (typeof a['db.query.text'] === 'string' && a['db.query.text'])
-    if (!stmt) continue
-    const key = `${flat.span.parent_span_id}\0${stmt}`
+    const identity = queryIdentity(flat.span)
+    if (!identity) continue
+    const stmt = attrs(flat.span)['gotel.db.query.fingerprint'] as string
+    const key = `${flat.span.parent_span_id}\0${identity}`
     const g = groups.get(key) ?? { fingerprint: stmt, ids: [], totalNs: 0 }
     g.ids.push(flat.span.span_id)
     g.totalNs += flat.span.duration_ns

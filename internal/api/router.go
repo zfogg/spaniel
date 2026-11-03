@@ -285,6 +285,22 @@ func (r *Router) getTrace(w http.ResponseWriter, req *http.Request) {
 		span.Events = []*storage.SpanEvent{}
 		span.Links = []*storage.SpanLink{}
 	}
+	// Shared capture assertions must see persisted event attributes as well as
+	// spans and links; returning empty collections would conceal event leaks.
+	events, err := r.store.WithContext(req.Context()).ListEventsByTrace(traceID)
+	if err != nil {
+		respondErr(w, req, 500, "Could not read trace events")
+		return
+	}
+	byEventSpan := map[string][]*storage.SpanEvent{}
+	for _, event := range events {
+		byEventSpan[event.SpanID] = append(byEventSpan[event.SpanID], event)
+	}
+	for _, span := range spans {
+		if values := byEventSpan[span.SpanID]; values != nil {
+			span.Events = values
+		}
+	}
 	// Bulk-attach links so the waterfall can show the link badge without a
 	// per-span round-trip. Include the owning session when attaching metadata.
 	if links, err := r.store.WithContext(req.Context()).ListLinksByTrace(traceID, req.URL.Query().Get("sessionId")); err == nil && len(links) > 0 {

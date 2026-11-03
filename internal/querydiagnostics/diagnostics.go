@@ -36,12 +36,37 @@ func Normalize(attrs map[string]any) {
 	}
 	dialect, sql := sqlDialect(system)
 	results := []sequel.Diagnostic{}
+	analyzed := false
+	if sql && present && query == "" {
+		if _, valid := decode(incoming, attrs); !valid {
+			attrs["spaniel.db.query.diagnostics_status"] = "invalid"
+		}
+	}
 	if sql {
-		if normalized, valid := decode(incoming); present && valid {
+		if normalized, valid := decode(incoming, attrs); present && valid {
 			results = normalized
 		} else if truncated, _ := attrs["gotel.db.query.truncated"].(bool); query != "" && !truncated {
-			if diagnostic := sequel.Diagnose(dialect, query); diagnostic.Code != "none" {
-				results = append(results, diagnostic)
+			analysis := sequel.Analyze(query, sequel.AnalysisOptions{Dialect: dialect, OmitSourceMaps: true, OmitBindDescriptors: true})
+			analyzed = true
+			results = analysis.Diagnostics
+			if _, present := attrs["gotel.db.query.fingerprint"]; !present && analysis.Fingerprint != "" {
+				attrs["gotel.db.query.fingerprint"] = analysis.Fingerprint
+			}
+			attrs["gotel.db.query.diagnostic_schema_version"] = sequel.DiagnosticSchemaVersion
+			attrs["gotel.db.query.original_length"] = analysis.OriginalLength
+			attrs["gotel.db.query.analysis_status"] = analysis.Status
+			// These diagnostics refer to the available transported text, not to
+			// an unknown pre-sanitization original. Keep provenance explicit.
+			attrs["spaniel.db.query.diagnostics_source"] = "display"
+			// Existing producer maps refer to a different original. They cannot
+			// accompany a new analysis of its transported display text.
+			delete(attrs, "gotel.db.query.source_map")
+		}
+	}
+	if sql && query != "" && !analyzed {
+		if _, ok := attrs["gotel.db.query.fingerprint"]; !ok {
+			if fp, err := sequel.Fingerprint(dialect, query); err == nil && fp != "" {
+				attrs["gotel.db.query.fingerprint"] = fp
 			}
 		}
 	}
@@ -74,40 +99,16 @@ func sqlDialect(system string) (sequel.Dialect, bool) {
 	}
 }
 
-// Canonical descriptions come from trusted, literal-free probes of Sequel.
-// Incoming prose is never persisted: even a valid-looking Diagnostic can carry
-// SQL literals, bind values or arbitrary injected text in its message fields.
-var descriptions = func() map[string]sequel.Diagnostic {
-	out := map[string]sequel.Diagnostic{}
-	for _, probe := range []struct {
-		dialect sequel.Dialect
-		query   string
-	}{
-		{sequel.DialectGeneric, "SELECT '"},
-		{sequel.DialectGeneric, "SELECT \""},
-		{sequel.DialectGeneric, "/*"},
-		{sequel.DialectClickHouse, "SELECT {name:"},
-		{sequel.DialectClickHouse, "SELECT {name:}"},
-		{sequel.DialectGeneric, ")"},
-		{sequel.DialectGeneric, "("},
-		{sequel.DialectGeneric, strings.Repeat("(", 65)},
-		{sequel.DialectGeneric, "\xff"},
-		{sequel.DialectGeneric, "\x00"},
-		{sequel.DialectClickHouse, "INSERT INTO t FORMAT CSV\n1"},
-	} {
-		d := sequel.Diagnose(probe.dialect, probe.query)
-		if d.Code != "none" {
-			out[d.Code] = d
+func decode(value any, metadata ...map[string]any) ([]sequel.Diagnostic, bool) {
+	version, sourceLength := sequel.DiagnosticSchemaVersion, sequel.MaxInputBytes
+	if len(metadata) > 0 {
+		var valid bool
+		version, sourceLength, valid = diagnosticMetadata(metadata[0])
+		if !valid {
+			return nil, false
 		}
 	}
-	// Resource/API failures cannot be reproduced cheaply at initialization.
-	for _, code := range []string{"null_input", "invalid_argument", "input_limit", "token_limit", "unsupported_layout", "output_limit", "out_of_memory"} {
-		out[code] = sequel.Diagnostic{Code: code, Severity: "error", Message: "SQL analysis could not complete", Explanation: "SQL analysis encountered an input, resource or API limit.", Hint: "Check the diagnostic code and the SQL analysis limits."}
-	}
-	return out
-}()
 
-func decode(value any) ([]sequel.Diagnostic, bool) {
 	// OTLP SDKs send []string; native OTLP can also carry structured maps.
 	switch values := value.(type) {
 	case []string:
@@ -120,6 +121,10 @@ func decode(value any) ([]sequel.Diagnostic, bool) {
 			}
 		}
 	case []any:
+		if len(values) > 64 {
+			return nil, false
+		}
+	case []map[string]any:
 		if len(values) > 64 {
 			return nil, false
 		}
@@ -164,15 +169,11 @@ func decode(value any) ([]sequel.Diagnostic, bool) {
 		if decoder.Decode(&d) != nil {
 			return nil, false
 		}
-		canonical, known := descriptions[d.Code]
-		if !known || d.Severity != canonical.Severity || d.Incomplete != canonical.Incomplete || d.StatementComplete ||
-			d.Offset < 0 || d.EndOffset < d.Offset || d.EndOffset > sequel.MaxInputBytes ||
-			d.Line < 1 || d.Column < 1 || d.EndLine < d.Line || d.EndColumn < 1 ||
-			d.Line > sequel.MaxInputBytes+1 || d.EndLine > sequel.MaxInputBytes+1 || d.Column > sequel.MaxInputBytes+1 || d.EndColumn > sequel.MaxInputBytes+1 ||
-			(d.EndLine == d.Line && d.EndColumn < d.Column) {
+		canonical, err := sequel.CanonicalizeDiagnostic(version, sourceLength, d)
+		if err != nil {
 			return nil, false
 		}
-		d.Message, d.Explanation, d.Hint = canonical.Message, canonical.Explanation, canonical.Hint
+		d = canonical
 		out = append(out, d)
 	}
 	return out, true

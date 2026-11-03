@@ -14,7 +14,12 @@ import {
   FlatSpan,
   httpDisplayName,
 } from '@/lib/span-utils'
-import { computeLayout, detectN1SpanIds, n1BannerEntries } from '@/components/trace-waterfall-utils'
+import {
+  computeLayout,
+  detectN1SpanIds,
+  n1BannerEntries,
+  queryIdentity,
+} from '@/components/trace-waterfall-utils'
 import TraceGraph from '@/components/TraceGraph'
 import SpanInspector from '@/components/SpanInspector'
 
@@ -751,7 +756,11 @@ function N1Banner({
 }) {
   if (issues.length === 0) return null
   const top = issues[0]
-  const fp = top.fingerprint.length > 60 ? top.fingerprint.slice(0, 57) + '…' : top.fingerprint
+  const fp = top.fingerprint.startsWith('sequel:')
+    ? 'same query shape'
+    : top.fingerprint.length > 60
+      ? top.fingerprint.slice(0, 57) + '…'
+      : top.fingerprint
   return (
     <div className="px-4 py-[9px] border-b border-border bg-warn-bg border-l-[3px] border-l-warn flex items-center gap-2.5 shrink-0">
       <AlertTriangle size={13} color="var(--warn)" className="shrink-0" />
@@ -973,28 +982,15 @@ export default function TraceWaterfall({
             // Compute count for the selected span's db.statement
             let selN1Count = 0
             if (selIsN1) {
-              let attrs: Record<string, unknown> = {}
-              try {
-                attrs = JSON.parse(selectedSpan.attributes ?? '{}')
-              } catch {
-                /* empty */
-              }
-              const stmt = attrs['db.statement'] || attrs['db.query.text']
-              if (typeof stmt === 'string') {
+              const identity = queryIdentity(selectedSpan)
+              if (identity)
                 for (const flat of flatSpans) {
-                  let a: Record<string, unknown> = {}
-                  try {
-                    a = JSON.parse(flat.span.attributes ?? '{}')
-                  } catch {
-                    /* empty */
-                  }
                   if (
                     flat.span.parent_span_id === selectedSpan.parent_span_id &&
-                    (a['db.statement'] || a['db.query.text']) === stmt
+                    queryIdentity(flat.span) === identity
                   )
                     selN1Count++
                 }
-              }
             }
             return (
               <SpanInspector

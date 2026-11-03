@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	gotelsql "github.com/zfogg/gotel/go/tracers/sql"
+	sequel "github.com/zfogg/sequel/go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -45,7 +46,8 @@ func (d *DB) querySQLArgs(ctx context.Context, query string, args []any, maxRows
 	rs, err := gotelsql.QueryContext(ctx, d.SQL(), gotelsql.SpanConfig{
 		Tracer: otel.Tracer("spaniel/storage"), Namer: storageNamer, Name: "ReadOnlyQuery",
 		Dialect: gotelsql.DialectDuckDB, System: "duckdb", Namespace: "spaniel",
-		Kind: trace.SpanKindInternal, Observe: storageObserver,
+		Analysis: &sequel.AnalysisOptions{Format: true, OmitBindDescriptors: true},
+		Kind:     trace.SpanKindInternal, Observe: storageObserver,
 	}, query, args...)
 	if err != nil {
 		return nil, nil, false, err

@@ -5,7 +5,7 @@ import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags, highlightTree, tagHighlighter } from '@lezer/highlight'
 import { useMemo, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
-import { FormatSQLButton } from '../FormatSQLButton'
+export { SqlEditor } from '../SqlCode'
 import { useFormattedSQL, type SQLDialect } from '@/lib/sql-format'
 
 // CodeMirror's Lezer parser is incremental and error-tolerant: an unfinished
@@ -54,34 +54,11 @@ const driftHighlight = HighlightStyle.define([
 // Do not make this a fallback highlighter. `basicSetup` supplies CodeMirror's
 // default highlighter too; a fallback loses to it and leaves the light-theme
 // purple SQL tokens in place. This is the editor's authoritative palette.
-const sqlExtensions = [sql(), driftTheme, syntaxHighlighting(driftHighlight)]
 
 type SqlEditorProps = {
   value: string
   onChange: (value: string) => void
   label?: string
-}
-
-export function SqlEditor({ value, onChange, label = 'DuckDB SQL' }: SqlEditorProps) {
-  return (
-    <div>
-      <FormatSQLButton value={value} onChange={onChange} />
-      <CodeMirror
-        aria-label={label}
-        value={value}
-        onChange={onChange}
-        extensions={sqlExtensions}
-        basicSetup={{
-          lineNumbers: true,
-          foldGutter: false,
-          highlightActiveLineGutter: true,
-          bracketMatching: true,
-          autocompletion: true,
-        }}
-        className="overflow-hidden rounded border border-input bg-background text-xs"
-      />
-    </div>
-  )
 }
 
 // The alert importer accepts YAML, so keep it in the same real editor used

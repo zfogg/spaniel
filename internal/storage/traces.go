@@ -170,5 +170,12 @@ func (d *DB) GetTrace(traceID string, scope ...string) ([]*Span, error) {
 	if session := optionalScope(scope, 0); session != "" {
 		q = q.Where(d.query.Span.SessionID.Eq(session))
 	}
-	return q.Order(d.query.Span.StartNs).Find()
+	spans, err := q.Order(d.query.Span.StartNs).Find()
+	if err != nil {
+		return nil, err
+	}
+	if err = d.attachQueryOccurrences(spans); err != nil {
+		return nil, err
+	}
+	return spans, nil
 }
