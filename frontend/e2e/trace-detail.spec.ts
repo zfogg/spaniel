@@ -1,4 +1,5 @@
 import { test, expect, type Route, type Page } from '@playwright/test'
+import { replySQLAnalysis } from './sql-analysis-fixture'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,8 @@ async function stubBackend(page: Page, fx: Fixture) {
     (url) => new URL(url.toString()).pathname.startsWith('/api/'),
     (r) => {
       const { pathname, searchParams } = new URL(r.request().url())
+
+      if (pathname === '/api/sql/analyze') return replySQLAnalysis(r)
 
       if (pathname === '/api/stats')
         return json(r, {
@@ -303,8 +306,11 @@ test.describe('Trace detail page', () => {
     await expect(page.getByText('postgres').first()).toBeVisible()
     await expect(page.getByText(/30\.0ms/).first()).toBeVisible()
 
-    // Attribute key from the stubbed attributes is visible (attrs tab is default).
-    await expect(page.getByText('db.statement').first()).toBeVisible()
+    // SQL has its own analysis view; non-SQL attributes remain in the tree.
+    await expect(page.getByRole('region', { name: 'SQL analysis' })).toContainText(
+      'SELECT * FROM items',
+    )
+    await expect(page.getByRole('tree', { name: 'JSON view' })).toContainText('db.system')
   })
 
   test('shows the n+1 badge on the span flagged by a server issue', async ({ page }) => {
@@ -361,6 +367,7 @@ test.describe('Trace detail page', () => {
     await expect(callout).toBeVisible()
     await expect(callout.getByText('N+1 SUSPECTED')).toBeVisible()
     await expect(callout.getByText(/12/)).toBeVisible()
+    await callout.getByText('Query fingerprint', { exact: true }).click()
     await expect(callout.getByText('SELECT * FROM items WHERE sku = ?')).toBeVisible()
     await expect(callout.getByText(/20\.0ms/)).toBeVisible()
     await expect(callout.getByText('WHERE … IN (?)')).toBeVisible() // fix hint
@@ -506,7 +513,9 @@ test.describe('Trace detail page', () => {
     await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
     // Inspector for db1 (SELECT items) appears without any user click.
     await expect(page.getByText('postgres').first()).toBeVisible()
-    await expect(page.getByText('db.statement').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'SQL analysis' })).toContainText(
+      'SELECT * FROM items',
+    )
   })
 
   test('selecting a span with links shows the inspector links section', async ({ page }) => {
@@ -556,8 +565,10 @@ test.describe('Trace detail page', () => {
   test('a span with no links does NOT render the links section', async ({ page }) => {
     await stubBackend(page, makeTrace()) // no spanLinks fixture
     await page.goto(`/traces/${TRACE_ID}?spanId=db1`)
-    // Wait for the inspector itself to mount via the events section call.
-    await expect(page.getByText('db.statement').first()).toBeVisible()
+    // Wait for the selected span's SQL view to mount.
+    await expect(page.getByRole('region', { name: 'SQL analysis' })).toContainText(
+      'SELECT * FROM items',
+    )
     await expect(page.getByTestId('span-links')).toHaveCount(0)
   })
 
@@ -676,7 +687,9 @@ test.describe('Trace detail page', () => {
 
     // The inspector for db1 (SELECT items) should be pre-loaded.
     await expect(page.getByText('postgres').first()).toBeVisible()
-    await expect(page.getByText('db.statement').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'SQL analysis' })).toContainText(
+      'SELECT * FROM items',
+    )
   })
 })
 

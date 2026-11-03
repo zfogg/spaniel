@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { emptyRule } from '../src/pages/alerts/alert-model'
+import type { components } from '../src/generated/openapi'
+import { replySQLAnalysis } from './sql-analysis-fixture'
 
 const rule = { ...emptyRule(), id: 'test-alert', name: 'High latency' }
 const dashboard = {
@@ -22,6 +24,7 @@ test.beforeEach(async ({ page }) => {
     else if (path === '/api/dashboards') data = [dashboard]
     else if (path === '/api/dashboards/test-dashboard') data = dashboard
     else if (path === '/api/sql/format') data = { sql: route.request().postDataJSON().sql }
+    else if (path === '/api/sql/analyze') return replySQLAnalysis(route)
     else if (path.endsWith('/config')) {
       await route.fulfill({
         contentType: 'text/yaml',
@@ -30,7 +33,21 @@ test.beforeEach(async ({ page }) => {
       return
     } else if (path === '/api/sessions/active') data = { id: 'test-session', label: 'Test session' }
     else if (path === '/api/stats')
-      data = { total_traces: 0, total_spans: 0, total_logs: 0, total_metrics: 0 }
+      data = {
+        trace_count: 0,
+        span_count: 0,
+        log_count: 0,
+        db_size: 0,
+        dropped_spans: 0,
+        dropped_logs: 0,
+        dropped_metric_points: 0,
+        last_drop_at: 0,
+        logs_per_sec: 0,
+        metrics_per_sec: 0,
+        peak_spans_per_sec: 0,
+        spans_per_sec: 0,
+        storage_full: false,
+      } satisfies components['schemas']['Stats']
     await route.fulfill({
       json: {
         data,

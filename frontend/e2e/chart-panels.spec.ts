@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { replySQLAnalysis } from './sql-analysis-fixture'
 
 test('bar, pie and gauge panels render saved query results and survive reload', async ({
   page,
@@ -31,6 +32,7 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
     const path = new URL(route.request().url()).pathname
     let data: unknown = []
     if (path === '/api/dashboards') data = [dashboard]
+    else if (path === '/api/sql/analyze') return replySQLAnalysis(route)
     else if (path === '/api/dashboards/charts') {
       if (route.request().method() === 'PATCH')
         Object.assign(dashboard, route.request().postDataJSON())

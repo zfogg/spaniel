@@ -93,10 +93,11 @@ test.describe('Traces page', () => {
     await page.goto('/')
 
     await expect(page.getByText('Waiting for traces…')).toBeVisible()
-    await expect(page.locator('pre').filter({ hasText: 'http://localhost:4318' })).toContainText(
+    const host = new URL(page.url()).hostname
+    await expect(page.locator('pre').filter({ hasText: `http://${host}:4318` })).toContainText(
       'OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf',
     )
-    await expect(page.locator('pre').filter({ hasText: 'http://localhost:4317' })).toContainText(
+    await expect(page.locator('pre').filter({ hasText: `http://${host}:4317` })).toContainText(
       'OTEL_EXPORTER_OTLP_PROTOCOL=grpc',
     )
   })
