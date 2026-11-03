@@ -256,6 +256,9 @@ func TestGetTrace(t *testing.T) {
 	if out.DurationMs != 301.0 {
 		t.Errorf("duration_ms = %v, want 301", out.DurationMs)
 	}
+	if !strings.Contains(out.Waterfall, "+1.000ms") || !strings.Contains(out.Waterfall, "span_id="+dbSpanID) || len(strings.Split(out.Waterfall, "\n")) != 4 {
+		t.Errorf("TOON waterfall lost timing, identity, or row boundaries:\n%s", out.Waterfall)
+	}
 	if len(out.Issues) != 1 || out.Issues[0].Kind != "n_plus_one" {
 		t.Errorf("issues = %+v, want one n_plus_one", out.Issues)
 	}

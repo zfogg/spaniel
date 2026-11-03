@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,9 +12,9 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
-// nsToMs converts nanoseconds to milliseconds, rounded to 0.1ms.
+// nsToMs converts nanoseconds to milliseconds without discarding sub-ms data.
 func nsToMs(ns int64) float64 {
-	return float64(ns/1e5) / 10.0
+	return float64(ns) / 1e6
 }
 
 // kindString maps an OTel SpanKind int to its name.
@@ -194,11 +195,15 @@ var keyAttrOrder = []string{
 // truncate shortens s to at most n runes, appending an ellipsis when cut.
 func truncate(s string, n int) string {
 	s = strings.TrimSpace(s)
-	if len(s) <= n {
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return string(runes[:n]) + "…"
 }
+
+// oneLine keeps telemetry text from breaking the waterfall's row boundaries.
+func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // attrSummary produces a compact one-line summary of the most relevant
 // attributes for a span, suitable for a waterfall line.
@@ -211,7 +216,7 @@ func attrSummary(attrs map[string]string) string {
 	for _, k := range keyAttrOrder {
 		if v, ok := attrs[k]; ok && v != "" && !seen[k] {
 			seen[k] = true
-			parts = append(parts, fmt.Sprintf("%s=%s", k, truncate(v, 80)))
+			parts = append(parts, fmt.Sprintf("%s=%s", k, truncate(oneLine(v), 80)))
 		}
 	}
 	return strings.Join(parts, " ")
@@ -233,24 +238,21 @@ func selectKeyAttrs(attrs map[string]string) map[string]string {
 	return out
 }
 
-// renderWaterfall renders a trace's spans as an indented tree ordered by start
-// time, one line per span: name, service, duration, status, and a key-attribute
-// summary. Spans are assumed pre-sorted by start_ns (as GetTrace returns them).
+// renderWaterfall uses the complete trace time range for every timing bar.
+// Rows follow parent-child order; explicit offsets show concurrency and gaps.
 func renderWaterfall(traceID string, spans []*storage.Span) string {
 	if len(spans) == 0 {
 		return fmt.Sprintf("trace %s: no spans found", traceID)
 	}
 
-	bySpanID := make(map[string]*storage.Span, len(spans))
 	children := make(map[string][]*storage.Span)
 	present := make(map[string]bool, len(spans))
 	for _, s := range spans {
-		bySpanID[s.SpanID] = s
 		present[s.SpanID] = true
 	}
 	var roots []*storage.Span
 	for _, s := range spans {
-		if s.ParentSpanID == "" || !present[s.ParentSpanID] {
+		if s.ParentSpanID == "" || s.ParentSpanID == "0000000000000000" || !present[s.ParentSpanID] {
 			roots = append(roots, s)
 		} else {
 			children[s.ParentSpanID] = append(children[s.ParentSpanID], s)
@@ -267,21 +269,37 @@ func renderWaterfall(traceID string, spans []*storage.Span) string {
 	}
 	sortSpans(roots)
 
-	var traceStart int64 = spans[0].StartNs
+	traceStart, traceEnd := spans[0].StartNs, spans[0].EndNs
 	for _, s := range spans {
 		if s.StartNs < traceStart {
 			traceStart = s.StartNs
 		}
+		if s.EndNs > traceEnd {
+			traceEnd = s.EndNs
+		}
 	}
+	traceDuration := max(int64(0), traceEnd-traceStart)
 
 	var b strings.Builder
+	fmt.Fprintf(&b, "trace %s: %d spans, %.3fms; start_unix_ns=%d\n", oneLine(traceID), len(spans), nsToMs(traceDuration), traceStart)
+	b.WriteString("timeline (# = span, . = idle; shared trace scale)  start offset  duration  span\n")
+	visited := make(map[*storage.Span]bool, len(spans))
 	var walk func(s *storage.Span, depth int)
 	walk = func(s *storage.Span, depth int) {
+		if visited[s] {
+			return
+		}
+		visited[s] = true
 		indent := strings.Repeat("  ", depth)
-		line := fmt.Sprintf("%s%s  [%s]  %.1fms  %s",
-			indent, s.Name, s.ServiceName, nsToMs(s.DurationNs), statusString(s.StatusCode))
+		line := fmt.Sprintf("%s  %+11.3fms  %11.3fms  %s%s  [%s]  %s  span_id=%s",
+			waterfallBar(s.StartNs-traceStart, s.EndNs-traceStart, traceDuration),
+			nsToMs(s.StartNs-traceStart), nsToMs(s.DurationNs), indent,
+			oneLine(s.Name), oneLine(s.ServiceName), statusString(s.StatusCode), oneLine(s.SpanID))
 		if s.StatusMessage != "" {
-			line += "  msg=" + truncate(s.StatusMessage, 80)
+			line += "  msg=" + truncate(oneLine(s.StatusMessage), 80)
+		}
+		if s.ParentSpanID != "" && s.ParentSpanID != "0000000000000000" && !present[s.ParentSpanID] {
+			line += "  missing_parent=" + oneLine(s.ParentSpanID)
 		}
 		if sum := attrSummary(parseAttrs(s.Attributes)); sum != "" {
 			line += "  " + sum
@@ -297,5 +315,23 @@ func renderWaterfall(traceID string, spans []*storage.Span) string {
 	for _, r := range roots {
 		walk(r, 0)
 	}
+	// Malformed parent cycles have no root. Keep their spans visible and bound
+	// traversal with visited rather than silently omitting the component.
+	for _, s := range spans {
+		if !visited[s] {
+			b.WriteString("unrooted span component (invalid parent cycle):\n")
+			walk(s, 0)
+		}
+	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func waterfallBar(start, end, duration int64) string {
+	const width = 40
+	left, right := 0, 1
+	if duration > 0 {
+		left = min(width-1, max(0, int(float64(start)/float64(duration)*width)))
+		right = min(width, max(left+1, int(math.Ceil(float64(end)/float64(duration)*width))))
+	}
+	return "|" + strings.Repeat(".", left) + strings.Repeat("#", right-left) + strings.Repeat(".", width-right) + "|"
 }
