@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -158,8 +159,7 @@ func (r *Router) getMetricSeries(w http.ResponseWriter, req *http.Request) {
 		}
 		id, known := identities[key]
 		if !known {
-			attrs := map[string]any{}
-			_ = json.Unmarshal([]byte(row.SeriesAttributes), &attrs)
+			attrs := decodeMetricAttributes(row.SeriesAttributes)
 			id = identity{attrs: attrs, matches: matchesMetricFilters(attrs, filters)}
 			identities[key] = id
 			// Dimension menus describe the stream, not merely the currently filtered
@@ -228,6 +228,18 @@ func metricPoint(row *storage.Metric) MetricSeriesPoint {
 	return newMetricPointDecoder().decode(row)
 }
 
+// Labels and scope metadata are dynamic telemetry values, not measurements.
+// Preserve numeric JSON text before it enters response caches or the wire.
+func decodeMetricAttributes(raw string) map[string]any {
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.UseNumber()
+	var attributes map[string]any
+	if err := decoder.Decode(&attributes); err != nil || decoder.Decode(new(any)) != io.EOF || attributes == nil {
+		return map[string]any{}
+	}
+	return attributes
+}
+
 // Scope attributes and histogram bounds repeat on almost every export. Decode
 // them once per response rather than once per point. Bound the caches even for
 // untrusted senders that change these fields on every observation.
@@ -257,7 +269,7 @@ func (d *metricPointDecoder) decode(row *storage.Metric) MetricSeriesPoint {
 	if cached, ok := d.scopes[row.ScopeAttributes]; ok {
 		p.ScopeAttributes = cached
 	} else {
-		_ = json.Unmarshal([]byte(row.ScopeAttributes), &p.ScopeAttributes)
+		p.ScopeAttributes = decodeMetricAttributes(row.ScopeAttributes)
 		if len(d.scopes) < 128 {
 			d.scopes[row.ScopeAttributes] = p.ScopeAttributes
 		}

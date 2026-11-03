@@ -64,13 +64,19 @@ func (d *DB) GetAlertRule(id string) (*AlertRule, error) {
 	return x, nil
 }
 func (d *DB) CreateAlertRule(r *AlertRule) error {
-	now := time.Now().UnixNano()
-	if r.ID == "" {
-		r.ID = uuid.NewString()
+	err := func() error {
+		now := time.Now().UnixNano()
+		if r.ID == "" {
+			r.ID = uuid.NewString()
+		}
+		r.CreatedAt = now
+		r.UpdatedAt = now
+		return d.namedQuery("CreateAlertRule").AlertRule.Create(r)
+	}()
+	if err == nil {
+		d.changed("CreateAlertRule", "alerts")
 	}
-	r.CreatedAt = now
-	r.UpdatedAt = now
-	return d.namedQuery("CreateAlertRule").AlertRule.Create(r)
+	return err
 }
 
 // DuplicateAlertRule copies only the definition. Runtime state, file ownership,
@@ -93,48 +99,66 @@ func (d *DB) DuplicateAlertRule(id string) (*AlertRule, error) {
 	return &copy, nil
 }
 func (d *DB) ReplaceAlertDefinition(r *AlertRule) error {
-	if old, e := d.GetAlertRule(r.ID); e == nil {
-		r.CreatedAt = old.CreatedAt
-		if old.SourceFileModified && old.SourceFile == r.SourceFile {
-			r.SourceFileModified = true
+	err := func() error {
+		if old, e := d.GetAlertRule(r.ID); e == nil {
+			r.CreatedAt = old.CreatedAt
+			if old.SourceFileModified && old.SourceFile == r.SourceFile {
+				r.SourceFileModified = true
+			}
+			return d.UpdateAlertRule(r)
 		}
-		return d.UpdateAlertRule(r)
+		now := time.Now().UnixNano()
+		r.CreatedAt = now
+		r.UpdatedAt = now
+		return d.query.AlertRule.Create(r)
+	}()
+	if err == nil {
+		d.changed("ReplaceAlertDefinition", "alerts")
 	}
-	now := time.Now().UnixNano()
-	r.CreatedAt = now
-	r.UpdatedAt = now
-	return d.query.AlertRule.Create(r)
+	return err
 }
 
 func (d *DB) AcknowledgeAlertSourceFile(id string) error {
-	q := d.namedQuery("AcknowledgeAlertSourceFile")
-	result, err := q.AlertRule.Where(q.AlertRule.ID.Eq(id), q.AlertRule.SourceFile.Neq("")).UpdateColumn(q.AlertRule.SourceFileModified, false)
-	if err != nil {
-		return err
+	err := func() error {
+		q := d.namedQuery("AcknowledgeAlertSourceFile")
+		result, err := q.AlertRule.Where(q.AlertRule.ID.Eq(id), q.AlertRule.SourceFile.Neq("")).UpdateColumn(q.AlertRule.SourceFileModified, false)
+		if err != nil {
+			return err
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("file-managed alert not found")
+		}
+		return nil
+	}()
+	if err == nil {
+		d.changed("AcknowledgeAlertSourceFile", "alerts")
 	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("file-managed alert not found")
-	}
-	return nil
+	return err
 }
 func (d *DB) UpdateAlertRule(r *AlertRule) error {
-	// Rule edits are definition changes. Preserve evaluator-owned health state
-	// so saving a title or query never erases the reliability record.
-	if old, err := d.GetAlertRule(r.ID); err == nil {
-		r.LastEvaluatedAt = old.LastEvaluatedAt
-		r.LastSuccessAt = old.LastSuccessAt
-		r.LastDurationNs = old.LastDurationNs
-		r.NextEvaluationAt = old.NextEvaluationAt
-		r.LastError = old.LastError
-		// UI/API updates intentionally leave these blank and must not detach a
-		// file-managed rule. Directory reconciliation supplies fresh provenance.
-		if r.SourceFile == "" {
-			r.SourceFile = old.SourceFile
-			r.SourceHash = old.SourceHash
+	err := func() error {
+		// Rule edits are definition changes. Preserve evaluator-owned health state
+		// so saving a title or query never erases the reliability record.
+		if old, err := d.GetAlertRule(r.ID); err == nil {
+			r.LastEvaluatedAt = old.LastEvaluatedAt
+			r.LastSuccessAt = old.LastSuccessAt
+			r.LastDurationNs = old.LastDurationNs
+			r.NextEvaluationAt = old.NextEvaluationAt
+			r.LastError = old.LastError
+			// UI/API updates intentionally leave these blank and must not detach a
+			// file-managed rule. Directory reconciliation supplies fresh provenance.
+			if r.SourceFile == "" {
+				r.SourceFile = old.SourceFile
+				r.SourceHash = old.SourceHash
+			}
 		}
+		r.UpdatedAt = time.Now().UnixNano()
+		return d.namedQuery("UpdateAlertRule").AlertRule.Save(r)
+	}()
+	if err == nil {
+		d.changed("UpdateAlertRule", "alerts")
 	}
-	r.UpdatedAt = time.Now().UnixNano()
-	return d.namedQuery("UpdateAlertRule").AlertRule.Save(r)
+	return err
 }
 
 func (d *DB) RecordAlertEvaluation(ruleID string, evaluatedAt, durationNs, nextAt int64, evaluationErr error) error {
@@ -160,7 +184,16 @@ func (d *DB) RecordAlertEvaluations(rules []*AlertRule) error {
 	if len(rules) == 0 {
 		return nil
 	}
-	return d.namedQuery("RecordAlertEvaluations").AlertRule.Save(rules...)
+	err := func() error {
+		if len(rules) == 0 {
+			return nil
+		}
+		return d.namedQuery("RecordAlertEvaluations").AlertRule.Save(rules...)
+	}()
+	if err == nil {
+		d.changed("RecordAlertEvaluations", "alerts")
+	}
+	return err
 }
 func (d *DB) UpsertAlertInstance(x *AlertInstance) error {
 	return d.UpsertAlertInstances([]*AlertInstance{x})
@@ -170,11 +203,20 @@ func (d *DB) UpsertAlertInstances(instances []*AlertInstance) error {
 	if len(instances) == 0 {
 		return nil
 	}
-	q := d.namedQuery("UpsertAlertInstances")
-	if err := q.AlertInstance.Save(instances...); err != nil {
-		return fmt.Errorf("upsert alert instances: %w", err)
+	err := func() error {
+		if len(instances) == 0 {
+			return nil
+		}
+		q := d.namedQuery("UpsertAlertInstances")
+		if err := q.AlertInstance.Save(instances...); err != nil {
+			return fmt.Errorf("upsert alert instances: %w", err)
+		}
+		return nil
+	}()
+	if err == nil {
+		d.changed("UpsertAlertInstances", "alerts")
 	}
-	return nil
+	return err
 }
 
 func (d *DB) ListAlertInstanceTargets(ruleID string, activeSince int64) ([]*AlertInstanceTarget, error) {
@@ -218,83 +260,107 @@ func (d *DB) RecordAlertInstanceDiscoveryRun(ruleID string, at int64) error {
 // changed. Callers use that list to emit one genuine acknowledgement event per
 // transition; repeating the request is intentionally a no-op.
 func (d *DB) AcknowledgeAlert(id string) ([]*AlertInstance, error) {
-	now := time.Now().UnixNano()
-	// Acknowledgement is operator metadata, not an alert lifecycle state.  A
-	// firing condition must remain firing so a later evaluation can resolve it
-	// correctly (and so the UI can still communicate the actual condition).
-	var changed []*AlertInstance
-	err := d.namedQuery("AcknowledgeAlert").Transaction(func(tx *querygen.Query) error {
-		q := tx.AlertInstance.Where(
-			tx.AlertInstance.RuleID.Eq(id),
-			tx.AlertInstance.State.In("pending", "firing"),
-			tx.AlertInstance.AcknowledgedAt.IsNull(),
-		)
-		var err error
-		changed, err = q.Find()
-		if err != nil {
+	value, err := func() ([]*AlertInstance, error) {
+		now := time.Now().UnixNano()
+		// Acknowledgement is operator metadata, not an alert lifecycle state.  A
+		// firing condition must remain firing so a later evaluation can resolve it
+		// correctly (and so the UI can still communicate the actual condition).
+		var changed []*AlertInstance
+		err := d.namedQuery("AcknowledgeAlert").Transaction(func(tx *querygen.Query) error {
+			q := tx.AlertInstance.Where(
+				tx.AlertInstance.RuleID.Eq(id),
+				tx.AlertInstance.State.In("pending", "firing"),
+				tx.AlertInstance.AcknowledgedAt.IsNull(),
+			)
+			var err error
+			changed, err = q.Find()
+			if err != nil {
+				return err
+			}
+			if len(changed) == 0 {
+				return nil
+			}
+			_, err = q.Update(tx.AlertInstance.AcknowledgedAt, now)
 			return err
+		})
+		if err != nil {
+			return nil, err
 		}
-		if len(changed) == 0 {
-			return nil
+		for _, instance := range changed {
+			instance.AcknowledgedAt = &now
 		}
-		_, err = q.Update(tx.AlertInstance.AcknowledgedAt, now)
-		return err
-	})
-	if err != nil {
-		return nil, err
+		return changed, nil
+	}()
+	if err == nil {
+		d.changed("AcknowledgeAlert", "alerts")
 	}
-	for _, instance := range changed {
-		instance.AcknowledgedAt = &now
-	}
-	return changed, nil
+	return value, err
 }
 
 // AcknowledgeAlertInstance records acknowledgement metadata for one label-set.
 // It deliberately does not change the lifecycle state: a firing instance must
 // remain firing until evaluation resolves it.
 func (d *DB) AcknowledgeAlertInstance(ruleID, groupKey, note string) (*AlertInstance, bool, error) {
-	instance, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).First()
-	if err != nil {
-		return nil, false, err
+	value, changed, err := func() (*AlertInstance, bool, error) {
+		instance, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).First()
+		if err != nil {
+			return nil, false, err
+		}
+		if instance.State != "pending" && instance.State != "firing" || instance.AcknowledgedAt != nil {
+			return instance, false, nil
+		}
+		now := time.Now().UnixNano()
+		if _, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).Updates(map[string]any{"acknowledged_at": now, "acknowledgement_note": note}); err != nil {
+			return nil, false, err
+		}
+		instance.AcknowledgedAt = &now
+		instance.AcknowledgementNote = note
+		return instance, true, nil
+	}()
+	if err == nil {
+		d.changed("AcknowledgeAlertInstance", "alerts")
 	}
-	if instance.State != "pending" && instance.State != "firing" || instance.AcknowledgedAt != nil {
-		return instance, false, nil
-	}
-	now := time.Now().UnixNano()
-	if _, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).Updates(map[string]any{"acknowledged_at": now, "acknowledgement_note": note}); err != nil {
-		return nil, false, err
-	}
-	instance.AcknowledgedAt = &now
-	instance.AcknowledgementNote = note
-	return instance, true, nil
+	return value, changed, err
 }
 
 func (d *DB) UnacknowledgeAlertInstance(ruleID, groupKey string) (*AlertInstance, bool, error) {
-	instance, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).First()
-	if err != nil {
-		return nil, false, err
+	value, changed, err := func() (*AlertInstance, bool, error) {
+		instance, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).First()
+		if err != nil {
+			return nil, false, err
+		}
+		if instance.AcknowledgedAt == nil {
+			return instance, false, nil
+		}
+		if _, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).Updates(map[string]any{"acknowledged_at": nil, "acknowledgement_note": ""}); err != nil {
+			return nil, false, err
+		}
+		instance.AcknowledgedAt = nil
+		instance.AcknowledgementNote = ""
+		return instance, true, nil
+	}()
+	if err == nil {
+		d.changed("UnacknowledgeAlertInstance", "alerts")
 	}
-	if instance.AcknowledgedAt == nil {
-		return instance, false, nil
-	}
-	if _, err := d.query.AlertInstance.Where(d.query.AlertInstance.RuleID.Eq(ruleID), d.query.AlertInstance.GroupKey.Eq(groupKey)).Updates(map[string]any{"acknowledged_at": nil, "acknowledgement_note": ""}); err != nil {
-		return nil, false, err
-	}
-	instance.AcknowledgedAt = nil
-	instance.AcknowledgementNote = ""
-	return instance, true, nil
+	return value, changed, err
 }
 func (d *DB) DeleteAlertRule(id string) error {
-	return d.namedQuery("DeleteAlertRule").Transaction(func(tx *querygen.Query) error {
-		if _, err := tx.AlertInstanceTarget.Where(tx.AlertInstanceTarget.RuleID.Eq(id)).Delete(); err != nil {
+	err := func() error {
+		return d.namedQuery("DeleteAlertRule").Transaction(func(tx *querygen.Query) error {
+			if _, err := tx.AlertInstanceTarget.Where(tx.AlertInstanceTarget.RuleID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.AlertInstance.Where(tx.AlertInstance.RuleID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			_, err := tx.AlertRule.Where(tx.AlertRule.ID.Eq(id)).Delete()
 			return err
-		}
-		if _, err := tx.AlertInstance.Where(tx.AlertInstance.RuleID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		_, err := tx.AlertRule.Where(tx.AlertRule.ID.Eq(id)).Delete()
-		return err
-	})
+		})
+	}()
+	if err == nil {
+		d.changed("DeleteAlertRule", "alerts")
+	}
+	return err
 }
 
 func (d *DB) RecordAlertEvent(e *AlertEvent) error {
@@ -305,13 +371,22 @@ func (d *DB) RecordAlertEvents(events []*AlertEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
-	for _, e := range events {
-		e.ID = uuid.NewString()
-		if e.CreatedAt == 0 {
-			e.CreatedAt = time.Now().UnixNano()
+	err := func() error {
+		if len(events) == 0 {
+			return nil
 		}
+		for _, e := range events {
+			e.ID = uuid.NewString()
+			if e.CreatedAt == 0 {
+				e.CreatedAt = time.Now().UnixNano()
+			}
+		}
+		return d.namedQuery("RecordAlertEvents").AlertEvent.CreateInBatches(events, len(events))
+	}()
+	if err == nil {
+		d.changed("RecordAlertEvents", "alerts")
 	}
-	return d.namedQuery("RecordAlertEvents").AlertEvent.CreateInBatches(events, len(events))
+	return err
 }
 
 type AlertEventFilter struct {
@@ -386,9 +461,15 @@ func (d *DB) ListAlertEvents(ruleID, groupKey string, limit int) ([]*AlertEvent,
 }
 
 func (d *DB) CreateAlertSilence(s *AlertSilence) error {
-	s.ID = uuid.NewString()
-	s.CreatedAt = time.Now().UnixNano()
-	return d.query.AlertSilence.Create(s)
+	err := func() error {
+		s.ID = uuid.NewString()
+		s.CreatedAt = time.Now().UnixNano()
+		return d.query.AlertSilence.Create(s)
+	}()
+	if err == nil {
+		d.changed("CreateAlertSilence", "alerts")
+	}
+	return err
 }
 func (d *DB) ListAlertSilences(ruleID string) ([]*AlertSilence, error) {
 	q := d.query.AlertSilence
@@ -398,35 +479,47 @@ func (d *DB) ListAlertSilences(ruleID string) ([]*AlertSilence, error) {
 	return q.Order(q.EndsAt.Desc()).Find()
 }
 func (d *DB) DeleteAlertSilence(ruleID, id string) error {
-	_, err := d.query.AlertSilence.Where(d.query.AlertSilence.RuleID.Eq(ruleID), d.query.AlertSilence.ID.Eq(id)).Delete()
+	err := func() error {
+		_, err := d.query.AlertSilence.Where(d.query.AlertSilence.RuleID.Eq(ruleID), d.query.AlertSilence.ID.Eq(id)).Delete()
+		return err
+	}()
+	if err == nil {
+		d.changed("DeleteAlertSilence", "alerts")
+	}
 	return err
 }
 
 // UpdateAlertSilence permits an operator to reschedule, extend, or narrow an
 // existing silence without revoking it and losing the reason/audit context.
 func (d *DB) UpdateAlertSilence(ruleID, id string, update *AlertSilence) (*AlertSilence, error) {
-	q := d.query.AlertSilence.Where(
-		d.query.AlertSilence.RuleID.Eq(ruleID),
-		d.query.AlertSilence.ID.Eq(id),
-	)
-	current, err := q.First()
-	if err != nil {
-		return nil, err
+	value, err := func() (*AlertSilence, error) {
+		q := d.query.AlertSilence.Where(
+			d.query.AlertSilence.RuleID.Eq(ruleID),
+			d.query.AlertSilence.ID.Eq(id),
+		)
+		current, err := q.First()
+		if err != nil {
+			return nil, err
+		}
+		_, err = q.Updates(map[string]any{
+			"group_key": update.GroupKey,
+			"comment":   update.Comment,
+			"starts_at": update.StartsAt,
+			"ends_at":   update.EndsAt,
+		})
+		if err != nil {
+			return nil, err
+		}
+		current.GroupKey = update.GroupKey
+		current.Comment = update.Comment
+		current.StartsAt = update.StartsAt
+		current.EndsAt = update.EndsAt
+		return current, nil
+	}()
+	if err == nil {
+		d.changed("UpdateAlertSilence", "alerts")
 	}
-	_, err = q.Updates(map[string]any{
-		"group_key": update.GroupKey,
-		"comment":   update.Comment,
-		"starts_at": update.StartsAt,
-		"ends_at":   update.EndsAt,
-	})
-	if err != nil {
-		return nil, err
-	}
-	current.GroupKey = update.GroupKey
-	current.Comment = update.Comment
-	current.StartsAt = update.StartsAt
-	current.EndsAt = update.EndsAt
-	return current, nil
+	return value, err
 }
 func (d *DB) IsAlertSilenced(ruleID, groupKey string, now int64) (bool, error) {
 	n, err := d.query.AlertSilence.Where(d.query.AlertSilence.RuleID.Eq(ruleID), d.query.AlertSilence.GroupKey.In("", groupKey), d.query.AlertSilence.StartsAt.Lte(now), d.query.AlertSilence.EndsAt.Gt(now)).Count()

@@ -263,9 +263,11 @@ func (r *Router) getAlert(w http.ResponseWriter, q *http.Request) {
 		respondErr(w, q, 404, "alert not found")
 		return
 	}
-	if err := r.store.WithContext(q.Context()).MarkDefinitionSeen("alert", x.ID, x.SourceHash, x.UpdatedAt); err != nil {
-		respondErr(w, q, 500, err.Error())
-		return
+	if seen, err := strconv.ParseBool(q.URL.Query().Get("markSeen")); err != nil || seen {
+		if err := r.store.WithContext(q.Context()).MarkDefinitionSeen("alert", x.ID, x.SourceHash, x.UpdatedAt); err != nil {
+			respondErr(w, q, 500, err.Error())
+			return
+		}
 	}
 	respond(w, x, 1, 1)
 }

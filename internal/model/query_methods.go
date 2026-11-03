@@ -42,13 +42,6 @@ type MetaWriteMethods interface {
 // runtime. The names become part of the storage API and remain low-cardinality
 // even when callers supply different IDs.
 type SpanEventMethods interface {
-	// ListByTrace
-	//
-	// SELECT span_id, trace_id, session_id, time_ns, name,
-	//   attributes::VARCHAR AS attributes
-	// FROM @@table WHERE trace_id = @traceID ORDER BY time_ns ASC
-	ListByTrace(traceID string) ([]gen.T, error)
-
 	// ListBySpan
 	//
 	// SELECT
@@ -61,9 +54,16 @@ type SpanEventMethods interface {
 	// FROM @@table
 	// WHERE
 	//   span_id = @spanID
+	//   AND (NOT @scopeSession OR session_id = @sessionID)
+	//   AND (@traceID = '' OR trace_id = @traceID)
 	// ORDER BY
 	//   time_ns ASC
-	ListBySpan(spanID string) ([]gen.T, error)
+	ListBySpan(spanID, sessionID, traceID string, scopeSession bool) ([]gen.T, error)
+	// SELECT span_id, trace_id, session_id, time_ns, name, attributes::VARCHAR AS attributes
+	// FROM @@table
+	// WHERE trace_id = @traceID AND (@sessionID = '' OR session_id = @sessionID)
+	// ORDER BY time_ns ASC
+	ListByTrace(traceID, sessionID string) ([]gen.T, error)
 }
 
 type SpanLinkMethods interface {
@@ -80,7 +80,9 @@ type SpanLinkMethods interface {
 	// FROM @@table
 	// WHERE
 	//   span_id = @spanID
-	ListBySpan(spanID string) ([]gen.T, error)
+	//   AND (NOT @scopeSession OR session_id = @sessionID)
+	//   AND (@traceID = '' OR trace_id = @traceID)
+	ListBySpan(spanID, sessionID, traceID string, scopeSession bool) ([]gen.T, error)
 
 	// ListIncomingByTrace
 	//
@@ -95,7 +97,8 @@ type SpanLinkMethods interface {
 	// FROM @@table
 	// WHERE
 	//   linked_trace_id = @traceID
-	ListIncomingByTrace(traceID string) ([]gen.T, error)
+	//   AND (@sessionID = '' OR session_id = @sessionID)
+	ListIncomingByTrace(traceID, sessionID string) ([]gen.T, error)
 
 	// ListByTrace
 	//
@@ -110,7 +113,8 @@ type SpanLinkMethods interface {
 	// FROM @@table
 	// WHERE
 	//   trace_id = @traceID
-	ListByTrace(traceID string) ([]gen.T, error)
+	//   AND (@sessionID = '' OR session_id = @sessionID)
+	ListByTrace(traceID, sessionID string) ([]gen.T, error)
 }
 
 // SpanSearchMethods contains the cross-table search projections. Keeping SQL
@@ -1094,6 +1098,7 @@ type LogSearchMethods interface {
 	//     @toNs = 0
 	//     OR timestamp_ns <= @toNs
 	//   )
+	//   AND (@text = '' OR contains(lower(concat_ws(' ', body, attributes::VARCHAR, service_name, trace_id, span_id)), lower(@text)))
 	//   AND NOT EXISTS (
 	//     SELECT
 	//       1
@@ -1112,7 +1117,7 @@ type LogSearchMethods interface {
 	//   timestamp_ns DESC
 	// LIMIT @limit
 	// OFFSET @offset
-	ListAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters string, limit, offset int) ([]Log, error)
+	ListAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters, text string, limit, offset int) ([]Log, error)
 	// SELECT
 	//   COUNT(*) AS count
 	// FROM logs
@@ -1147,6 +1152,7 @@ type LogSearchMethods interface {
 	//     @toNs = 0
 	//     OR timestamp_ns <= @toNs
 	//   )
+	//   AND (@text = '' OR contains(lower(concat_ws(' ', body, attributes::VARCHAR, service_name, trace_id, span_id)), lower(@text)))
 	//   AND NOT EXISTS (
 	//     SELECT
 	//       1
@@ -1161,7 +1167,7 @@ type LogSearchMethods interface {
 	//       '/' || replace(replace(f.key, '~', '~0'), '/', '~1')
 	//     )
 	//   )
-	CountAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters string) ([]CountValue, error)
+	CountAttributeFiltered(sessionID, service, traceID, spanID string, minSeverity, maxSeverity int, fromNs, toNs int64, services []string, attributeFilters, text string) ([]CountValue, error)
 
 	// SearchByBody
 	//

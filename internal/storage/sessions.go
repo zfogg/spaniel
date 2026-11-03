@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,14 +43,32 @@ func (d *DB) createSession(label string, isBaseline, isImported bool) (*Session,
 	return s, nil
 }
 
+// activeSessionState is shared by WithContext/maintenance copies. Atomic
+// snapshots keep reset and concurrent readers from retaining a cleared scope.
+type activeSessionState struct{ ID, Label string }
+
 func (d *DB) SetActiveSession(id, label string) {
-	d.activeSessionID = id
-	d.activeSessionLabel = label
+	if d.activeSession == nil {
+		d.activeSession = &atomic.Pointer[activeSessionState]{}
+	}
+	d.activeSession.Store(&activeSessionState{ID: id, Label: label})
 }
-
-func (d *DB) ActiveSessionID() string { return d.activeSessionID }
-
-func (d *DB) ActiveSessionLabel() string { return d.activeSessionLabel }
+func (d *DB) ActiveSessionID() string {
+	if d.activeSession != nil {
+		if state := d.activeSession.Load(); state != nil {
+			return state.ID
+		}
+	}
+	return ""
+}
+func (d *DB) ActiveSessionLabel() string {
+	if d.activeSession != nil {
+		if state := d.activeSession.Load(); state != nil {
+			return state.Label
+		}
+	}
+	return ""
+}
 
 func (d *DB) ListSessions() ([]*Session, error) {
 	rows, err := d.query.Session.ListWithStats()
@@ -122,33 +141,39 @@ func (d *DB) UpdateSession(id string, p SessionPatch) error {
 }
 
 func (d *DB) DeleteSession(id string) error {
-	return d.maintenanceTransaction(d.namedGORM("DeleteSession"), func(g *gorm.DB) error {
-		tx := querygen.Use(g)
-		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SessionID.Eq(id)).Delete(); err != nil {
+	err := func() error {
+		return d.maintenanceTransaction(d.namedGORM("DeleteSession"), func(g *gorm.DB) error {
+			tx := querygen.Use(g)
+			if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.LintWarning.Where(tx.LintWarning.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.TraceIssue.Where(tx.TraceIssue.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.Log.Where(tx.Log.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.Metric.Where(tx.Metric.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.SpanEvent.Where(tx.SpanEvent.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.SpanLink.Where(tx.SpanLink.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.Span.Where(tx.Span.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			_, err := tx.Session.Where(tx.Session.ID.Eq(id)).Delete()
 			return err
-		}
-		if _, err := tx.LintWarning.Where(tx.LintWarning.SessionID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		if _, err := tx.TraceIssue.Where(tx.TraceIssue.SessionID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		if _, err := tx.Log.Where(tx.Log.SessionID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		if _, err := tx.Metric.Where(tx.Metric.SessionID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		if _, err := tx.SpanEvent.Where(tx.SpanEvent.SessionID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		if _, err := tx.SpanLink.Where(tx.SpanLink.SessionID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		if _, err := tx.Span.Where(tx.Span.SessionID.Eq(id)).Delete(); err != nil {
-			return err
-		}
-		_, err := tx.Session.Where(tx.Session.ID.Eq(id)).Delete()
-		return err
-	})
+		})
+	}()
+	if err == nil {
+		d.changed("DeleteSession", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "alerts", "sessions", "stats", "sources", "services", "coverage", "service-map")
+	}
+	return err
 }

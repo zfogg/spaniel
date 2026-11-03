@@ -127,7 +127,8 @@
         "additionalProperties": false,
         "properties": {
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "detail": {
             "type": "string"
@@ -151,7 +152,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "format": "double"
           }
         },
         "required": [
@@ -171,24 +173,27 @@
         "properties": {
           "acknowledged_at": {
             "type": [
-              "number",
+              "integer",
               "null"
-            ]
+            ],
+            "format": "int64"
           },
           "acknowledgement_note": {
             "type": "string"
           },
           "fired_at": {
             "type": [
-              "number",
+              "integer",
               "null"
-            ]
+            ],
+            "format": "int64"
           },
           "first_pending_at": {
             "type": [
-              "number",
+              "integer",
               "null"
-            ]
+            ],
+            "format": "int64"
           },
           "group_key": {
             "type": "string"
@@ -200,13 +205,15 @@
             "type": "string"
           },
           "last_evaluated_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "resolved_at": {
             "type": [
-              "number",
+              "integer",
               "null"
-            ]
+            ],
+            "format": "int64"
           },
           "rule_id": {
             "type": "string"
@@ -218,7 +225,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "format": "double"
           }
         },
         "required": [
@@ -250,10 +258,12 @@
                   "type": "string"
                 },
                 "cooldown_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "created_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "enabled": {
                   "type": "boolean"
@@ -265,16 +275,19 @@
                   "type": "string"
                 },
                 "instance_discovery_interval_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "instance_discovery_last_run_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "instance_discovery_sql": {
                   "type": "string"
                 },
                 "instance_discovery_stale_after_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "instances": {
                   "default": [],
@@ -283,24 +296,27 @@
                     "properties": {
                       "acknowledged_at": {
                         "type": [
-                          "number",
+                          "integer",
                           "null"
-                        ]
+                        ],
+                        "format": "int64"
                       },
                       "acknowledgement_note": {
                         "type": "string"
                       },
                       "fired_at": {
                         "type": [
-                          "number",
+                          "integer",
                           "null"
-                        ]
+                        ],
+                        "format": "int64"
                       },
                       "first_pending_at": {
                         "type": [
-                          "number",
+                          "integer",
                           "null"
-                        ]
+                        ],
+                        "format": "int64"
                       },
                       "group_key": {
                         "type": "string"
@@ -312,13 +328,15 @@
                         "type": "string"
                       },
                       "last_evaluated_at": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "resolved_at": {
                         "type": [
-                          "number",
+                          "integer",
                           "null"
-                        ]
+                        ],
+                        "format": "int64"
                       },
                       "rule_id": {
                         "type": "string"
@@ -330,7 +348,8 @@
                         "type": [
                           "number",
                           "null"
-                        ]
+                        ],
+                        "format": "double"
                       }
                     },
                     "required": [
@@ -347,25 +366,30 @@
                   "type": "array"
                 },
                 "last_duration_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "last_error": {
                   "type": "string"
                 },
                 "last_evaluated_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "last_success_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "name": {
                   "type": "string"
                 },
                 "next_evaluation_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "pending_for_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "pushover_enabled": {
                   "type": "boolean"
@@ -374,10 +398,12 @@
                   "type": "string"
                 },
                 "query_version": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "repeat_interval_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "severity": {
                   "enum": [
@@ -401,7 +427,8 @@
                   "type": "boolean"
                 },
                 "updated_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 }
               },
               "required": [
@@ -444,7 +471,8 @@
             "properties": {
               "instance_counts": {
                 "additionalProperties": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "propertyNames": {
                   "type": "string"
@@ -453,7 +481,8 @@
               },
               "rule_counts": {
                 "additionalProperties": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "propertyNames": {
                   "type": "string"
@@ -488,10 +517,12 @@
             "type": "string"
           },
           "cooldown_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "enabled": {
             "type": "boolean"
@@ -503,16 +534,19 @@
             "type": "string"
           },
           "instance_discovery_interval_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "instance_discovery_last_run_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "instance_discovery_sql": {
             "type": "string"
           },
           "instance_discovery_stale_after_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "instances": {
             "default": [],
@@ -521,24 +555,27 @@
               "properties": {
                 "acknowledged_at": {
                   "type": [
-                    "number",
+                    "integer",
                     "null"
-                  ]
+                  ],
+                  "format": "int64"
                 },
                 "acknowledgement_note": {
                   "type": "string"
                 },
                 "fired_at": {
                   "type": [
-                    "number",
+                    "integer",
                     "null"
-                  ]
+                  ],
+                  "format": "int64"
                 },
                 "first_pending_at": {
                   "type": [
-                    "number",
+                    "integer",
                     "null"
-                  ]
+                  ],
+                  "format": "int64"
                 },
                 "group_key": {
                   "type": "string"
@@ -550,13 +587,15 @@
                   "type": "string"
                 },
                 "last_evaluated_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "resolved_at": {
                   "type": [
-                    "number",
+                    "integer",
                     "null"
-                  ]
+                  ],
+                  "format": "int64"
                 },
                 "rule_id": {
                   "type": "string"
@@ -568,7 +607,8 @@
                   "type": [
                     "number",
                     "null"
-                  ]
+                  ],
+                  "format": "double"
                 }
               },
               "required": [
@@ -585,25 +625,30 @@
             "type": "array"
           },
           "last_duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "last_error": {
             "type": "string"
           },
           "last_evaluated_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "last_success_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "name": {
             "type": "string"
           },
           "next_evaluation_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "pending_for_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "pushover_enabled": {
             "type": "boolean"
@@ -612,10 +657,12 @@
             "type": "string"
           },
           "query_version": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "repeat_interval_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "severity": {
             "enum": [
@@ -639,7 +686,8 @@
             "type": "boolean"
           },
           "updated_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
@@ -683,10 +731,12 @@
             "type": "string"
           },
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "ends_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "group_key": {
             "type": "string"
@@ -698,7 +748,8 @@
             "type": "string"
           },
           "starts_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
@@ -743,13 +794,16 @@
         "additionalProperties": false,
         "properties": {
           "bytes_after": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "bytes_before": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "reclaimed": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -767,16 +821,20 @@
             "additionalProperties": false,
             "properties": {
               "coverage_pct": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "dark_count": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "observed_operations": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "total_routes": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               }
             },
             "required": [
@@ -791,13 +849,16 @@
             "additionalProperties": false,
             "properties": {
               "dynamic_route_spans": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "generic_route_spans": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "missing_route_spans": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               }
             },
             "required": [
@@ -812,23 +873,27 @@
               "additionalProperties": false,
               "properties": {
                 "coverage_pct": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "dark_routes": {
                   "items": {
                     "additionalProperties": false,
                     "properties": {
                       "hits": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "last_seen_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "method": {
                         "type": "string"
                       },
                       "p95_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "path": {
                         "type": "string"
@@ -847,23 +912,27 @@
                   "type": "string"
                 },
                 "observed_operations": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "observed_routes": {
                   "items": {
                     "additionalProperties": false,
                     "properties": {
                       "hits": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "last_seen_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "method": {
                         "type": "string"
                       },
                       "p95_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "path": {
                         "type": "string"
@@ -889,7 +958,8 @@
                   "type": "string"
                 },
                 "total_routes": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 }
               },
               "required": [
@@ -918,16 +988,19 @@
         "additionalProperties": false,
         "properties": {
           "hits": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "last_seen_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "method": {
             "type": "string"
           },
           "p95_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "path": {
             "type": "string"
@@ -1021,7 +1094,8 @@
         "additionalProperties": false,
         "properties": {
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "description": {
             "type": "string"
@@ -1077,13 +1151,15 @@
                   "type": "string"
                 },
                 "position": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "query_sql": {
                   "type": "string"
                 },
                 "query_version": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "settings_json": {
                   "type": "string"
@@ -1092,7 +1168,8 @@
                   "type": "string"
                 },
                 "updated_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 }
               },
               "required": [
@@ -1112,7 +1189,8 @@
             "type": "array"
           },
           "updated_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "variables": {
             "default": [],
@@ -1210,13 +1288,15 @@
             "type": "string"
           },
           "position": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "query_sql": {
             "type": "string"
           },
           "query_version": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "settings_json": {
             "type": "string"
@@ -1225,7 +1305,8 @@
             "type": "string"
           },
           "updated_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
@@ -1406,7 +1487,8 @@
             "additionalProperties": false,
             "properties": {
               "db_calls": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "label": {
                 "type": "string"
@@ -1415,10 +1497,12 @@
                 "type": "string"
               },
               "span_count": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "total_duration_ns": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               }
             },
             "required": [
@@ -1438,10 +1522,12 @@
                   "type": "string"
                 },
                 "duration_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "end_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "events": {
                   "items": {
@@ -1460,7 +1546,8 @@
                         "type": "string"
                       },
                       "time_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "trace_id": {
                         "type": "string"
@@ -1479,7 +1566,8 @@
                   "type": "array"
                 },
                 "kind": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "links": {
                   "items": {
@@ -1527,7 +1615,8 @@
                   "type": "string"
                 },
                 "received_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "resource": {
                   "type": "string"
@@ -1545,10 +1634,12 @@
                   "type": "string"
                 },
                 "start_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "status_code": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "status_message": {
                   "type": "string"
@@ -1585,7 +1676,8 @@
             "additionalProperties": false,
             "properties": {
               "db_calls": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "label": {
                 "type": "string"
@@ -1594,10 +1686,12 @@
                 "type": "string"
               },
               "span_count": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "total_duration_ns": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               }
             },
             "required": [
@@ -1617,10 +1711,12 @@
                   "type": "string"
                 },
                 "duration_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "end_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "events": {
                   "items": {
@@ -1639,7 +1735,8 @@
                         "type": "string"
                       },
                       "time_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "trace_id": {
                         "type": "string"
@@ -1658,7 +1755,8 @@
                   "type": "array"
                 },
                 "kind": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "links": {
                   "items": {
@@ -1706,7 +1804,8 @@
                   "type": "string"
                 },
                 "received_at": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "resource": {
                   "type": "string"
@@ -1724,10 +1823,12 @@
                   "type": "string"
                 },
                 "start_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "status_code": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "status_message": {
                   "type": "string"
@@ -1765,16 +1866,20 @@
               "additionalProperties": false,
               "properties": {
                 "baseline_duration_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "compare_duration_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "delta_pct": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "depth": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "name": {
                   "type": "string"
@@ -1803,19 +1908,24 @@
             "additionalProperties": false,
             "properties": {
               "db_call_delta": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "duration_delta_ns": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               },
               "duration_delta_pct": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "spans_added": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "spans_removed": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               }
             },
             "required": [
@@ -1873,19 +1983,23 @@
         "additionalProperties": false,
         "properties": {
           "dropped_spool": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "errors": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "last_error": {
             "type": "string"
           },
           "pending_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "sent": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "url": {
             "type": "string"
@@ -1906,10 +2020,12 @@
             "additionalProperties": false,
             "properties": {
               "created_at": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               },
               "error_count": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "id": {
                 "type": "string"
@@ -1924,28 +2040,34 @@
                 "type": "string"
               },
               "last_activity_ns": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               },
               "n1_count": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "note": {
                 "type": "string"
               },
               "p95_ns": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               },
               "services": {
                 "type": "string"
               },
               "size_bytes": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "span_count": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "trace_count": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               }
             },
             "required": [
@@ -1967,10 +2089,12 @@
             "type": "object"
           },
           "span_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "trace_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -1986,7 +2110,8 @@
         "additionalProperties": false,
         "properties": {
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "message": {
             "type": "string"
@@ -2029,7 +2154,8 @@
             "type": "string"
           },
           "received_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "service_name": {
             "type": "string"
@@ -2038,13 +2164,15 @@
             "type": "string"
           },
           "severity": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "span_id": {
             "type": "string"
           },
           "timestamp_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "trace_id": {
             "type": "string"
@@ -2082,10 +2210,12 @@
         "additionalProperties": false,
         "properties": {
           "active_series": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "limit": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "name": {
             "type": "string"
@@ -2116,13 +2246,15 @@
             "type": "boolean"
           },
           "last_timestamp_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "name": {
             "type": "string"
           },
           "sample_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "service_name": {
             "type": "string"
@@ -2185,18 +2317,21 @@
               "properties": {
                 "bounds": {
                   "items": {
-                    "type": "number"
+                    "type": "number",
+                    "format": "double"
                   },
                   "type": "array"
                 },
                 "buckets": {
                   "items": {
-                    "type": "number"
+                    "type": "number",
+                    "format": "double"
                   },
                   "type": "array"
                 },
                 "count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "exemplars": {
                   "items": {
@@ -2219,39 +2354,49 @@
                 },
                 "exp_negative_counts": {
                   "items": {
-                    "type": "number"
+                    "type": "number",
+                    "format": "double"
                   },
                   "type": "array"
                 },
                 "exp_negative_offset": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "exp_positive_counts": {
                   "items": {
-                    "type": "number"
+                    "type": "number",
+                    "format": "double"
                   },
                   "type": "array"
                 },
                 "exp_positive_offset": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "exp_scale": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "exp_zero_count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "exp_zero_threshold": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "flags": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "max": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "min": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "percentile": {
                   "enum": [
@@ -2263,7 +2408,8 @@
                 },
                 "quantiles": {
                   "additionalProperties": {
-                    "type": "number"
+                    "type": "number",
+                    "format": "double"
                   },
                   "propertyNames": {
                     "type": "string"
@@ -2287,16 +2433,20 @@
                   "type": "string"
                 },
                 "start_timestamp_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "sum": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "timestamp_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "value": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 }
               },
               "required": [
@@ -2327,18 +2477,21 @@
                     "properties": {
                       "bounds": {
                         "items": {
-                          "type": "number"
+                          "type": "number",
+                          "format": "double"
                         },
                         "type": "array"
                       },
                       "buckets": {
                         "items": {
-                          "type": "number"
+                          "type": "number",
+                          "format": "double"
                         },
                         "type": "array"
                       },
                       "count": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "exemplars": {
                         "items": {
@@ -2361,39 +2514,49 @@
                       },
                       "exp_negative_counts": {
                         "items": {
-                          "type": "number"
+                          "type": "number",
+                          "format": "double"
                         },
                         "type": "array"
                       },
                       "exp_negative_offset": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "exp_positive_counts": {
                         "items": {
-                          "type": "number"
+                          "type": "number",
+                          "format": "double"
                         },
                         "type": "array"
                       },
                       "exp_positive_offset": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "exp_scale": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "exp_zero_count": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "exp_zero_threshold": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "flags": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "max": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "min": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "percentile": {
                         "enum": [
@@ -2405,7 +2568,8 @@
                       },
                       "quantiles": {
                         "additionalProperties": {
-                          "type": "number"
+                          "type": "number",
+                          "format": "double"
                         },
                         "propertyNames": {
                           "type": "string"
@@ -2429,16 +2593,20 @@
                         "type": "string"
                       },
                       "start_timestamp_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "sum": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "timestamp_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       },
                       "value": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       }
                     },
                     "required": [
@@ -2467,10 +2635,12 @@
               "additionalProperties": false,
               "properties": {
                 "duration_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "end_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "op": {
                   "type": "string"
@@ -2479,10 +2649,12 @@
                   "type": "string"
                 },
                 "start_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "status_code": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "trace_id": {
                   "type": "string"
@@ -2542,18 +2714,21 @@
         "properties": {
           "bounds": {
             "items": {
-              "type": "number"
+              "type": "number",
+              "format": "double"
             },
             "type": "array"
           },
           "buckets": {
             "items": {
-              "type": "number"
+              "type": "number",
+              "format": "double"
             },
             "type": "array"
           },
           "count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "exemplars": {
             "items": {
@@ -2576,39 +2751,49 @@
           },
           "exp_negative_counts": {
             "items": {
-              "type": "number"
+              "type": "number",
+              "format": "double"
             },
             "type": "array"
           },
           "exp_negative_offset": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "exp_positive_counts": {
             "items": {
-              "type": "number"
+              "type": "number",
+              "format": "double"
             },
             "type": "array"
           },
           "exp_positive_offset": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "exp_scale": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "exp_zero_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "exp_zero_threshold": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "flags": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "max": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "min": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "percentile": {
             "enum": [
@@ -2620,7 +2805,8 @@
           },
           "quantiles": {
             "additionalProperties": {
-              "type": "number"
+              "type": "number",
+              "format": "double"
             },
             "propertyNames": {
               "type": "string"
@@ -2644,16 +2830,20 @@
             "type": "string"
           },
           "start_timestamp_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "sum": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "timestamp_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "value": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -2668,15 +2858,17 @@
         "properties": {
           "acknowledged_at": {
             "type": [
-              "number",
+              "integer",
               "null"
-            ]
+            ],
+            "format": "int64"
           },
           "body": {
             "type": "string"
           },
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "dedupe_key": {
             "type": "string"
@@ -2689,9 +2881,10 @@
           },
           "read_at": {
             "type": [
-              "number",
+              "integer",
               "null"
-            ]
+            ],
+            "format": "int64"
           },
           "severity": {
             "type": "string"
@@ -2737,19 +2930,24 @@
         "additionalProperties": false,
         "properties": {
           "deleted_by_age": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "deleted_by_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "deleted_by_size": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "final_db_size_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "final_sessions": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -2816,7 +3014,8 @@
                 "type": "string"
               },
               "value": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               }
             },
             "type": "object"
@@ -2847,7 +3046,8 @@
             "type": "array"
           },
           "query_version": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "rows": {
             "items": {
@@ -2921,23 +3121,27 @@
         "additionalProperties": false,
         "properties": {
           "coverage_pct": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "dark_routes": {
             "items": {
               "additionalProperties": false,
               "properties": {
                 "hits": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "last_seen_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "method": {
                   "type": "string"
                 },
                 "p95_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "path": {
                   "type": "string"
@@ -2956,23 +3160,27 @@
             "type": "string"
           },
           "observed_operations": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "observed_routes": {
             "items": {
               "additionalProperties": false,
               "properties": {
                 "hits": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "last_seen_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "method": {
                   "type": "string"
                 },
                 "p95_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "path": {
                   "type": "string"
@@ -2998,7 +3206,8 @@
             "type": "string"
           },
           "total_routes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -3021,13 +3230,16 @@
               "additionalProperties": false,
               "properties": {
                 "avg_duration_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "call_count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "error_count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "from": {
                   "type": "string"
@@ -3052,29 +3264,34 @@
               "additionalProperties": false,
               "properties": {
                 "error_count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "id": {
                   "type": "string"
                 },
                 "p95_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "span_count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "top_operations": {
                   "items": {
                     "additionalProperties": false,
                     "properties": {
                       "count": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "double"
                       },
                       "name": {
                         "type": "string"
                       },
                       "p95_ns": {
-                        "type": "number"
+                        "type": "integer",
+                        "format": "int64"
                       }
                     },
                     "required": [
@@ -3110,13 +3327,16 @@
         "additionalProperties": false,
         "properties": {
           "avg_duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "call_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "error_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "from": {
             "type": "string"
@@ -3139,29 +3359,34 @@
         "additionalProperties": false,
         "properties": {
           "error_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "id": {
             "type": "string"
           },
           "p95_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "span_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "top_operations": {
             "items": {
               "additionalProperties": false,
               "properties": {
                 "count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "name": {
                   "type": "string"
                 },
                 "p95_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 }
               },
               "required": [
@@ -3188,13 +3413,15 @@
         "additionalProperties": false,
         "properties": {
           "count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "name": {
             "type": "string"
           },
           "p95_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
@@ -3209,10 +3436,12 @@
         "additionalProperties": false,
         "properties": {
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "error_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "id": {
             "type": "string"
@@ -3227,28 +3456,34 @@
             "type": "string"
           },
           "last_activity_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "n1_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "note": {
             "type": "string"
           },
           "p95_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "services": {
             "type": "string"
           },
           "size_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "span_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "trace_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -3274,7 +3509,8 @@
         "additionalProperties": false,
         "properties": {
           "approx_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "id": {
             "type": "string"
@@ -3283,7 +3519,8 @@
             "type": "string"
           },
           "span_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -3341,13 +3578,16 @@
             "type": "array"
           },
           "forward_sample": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "max_db_size_mb": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "max_sessions": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "mcp_allow_writes": {
             "type": "boolean"
@@ -3359,16 +3599,20 @@
             "type": "boolean"
           },
           "otlp_grpc_port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "otlp_http_port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "retention_days": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "runtime": {
             "additionalProperties": false,
@@ -3380,19 +3624,24 @@
                 "type": "string"
               },
               "db_size_bytes": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "otlp_grpc_port": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "otlp_http_port": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "pid": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "uptime_ns": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               },
               "version": {
                 "type": "string"
@@ -3414,10 +3663,12 @@
             "type": "boolean"
           },
           "source_burst": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "source_rps": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "tls_enabled": {
             "type": "boolean"
@@ -3592,13 +3843,16 @@
             "type": "array"
           },
           "forward_sample": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "max_db_size_mb": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "max_sessions": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "mcp_allow_writes": {
             "type": "boolean"
@@ -3610,16 +3864,20 @@
             "type": "boolean"
           },
           "otlp_grpc_port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "otlp_http_port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "retention_days": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "runtime": {
             "additionalProperties": false,
@@ -3631,19 +3889,24 @@
                 "type": "string"
               },
               "db_size_bytes": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "otlp_grpc_port": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "otlp_http_port": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "pid": {
-                "type": "number"
+                "type": "number",
+                "format": "double"
               },
               "uptime_ns": {
-                "type": "number"
+                "type": "integer",
+                "format": "int64"
               },
               "version": {
                 "type": "string"
@@ -3665,10 +3928,12 @@
             "type": "boolean"
           },
           "source_burst": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "source_rps": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "tls_enabled": {
             "type": "boolean"
@@ -3806,19 +4071,24 @@
             "type": "string"
           },
           "db_size_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "otlp_grpc_port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "otlp_http_port": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "pid": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "uptime_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "version": {
             "type": "string"
@@ -3841,19 +4111,24 @@
         "additionalProperties": false,
         "properties": {
           "accepted_per_sec": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "bytes_per_sec": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "error_rate": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "last_seen_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "rejected_per_sec": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "service": {
             "type": "string"
@@ -3883,10 +4158,12 @@
             "type": "string"
           },
           "duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "end_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "events": {
             "items": {
@@ -3905,7 +4182,8 @@
                   "type": "string"
                 },
                 "time_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "trace_id": {
                   "type": "string"
@@ -3924,7 +4202,8 @@
             "type": "array"
           },
           "kind": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "links": {
             "items": {
@@ -3972,7 +4251,8 @@
             "type": "string"
           },
           "received_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "resource": {
             "type": "string"
@@ -3990,10 +4270,12 @@
             "type": "string"
           },
           "start_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "status_code": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "status_message": {
             "type": "string"
@@ -4041,7 +4323,8 @@
             "type": "string"
           },
           "time_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "trace_id": {
             "type": "string"
@@ -4062,31 +4345,39 @@
         "additionalProperties": false,
         "properties": {
           "attribute_variants": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "error_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "kind": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "latest_start_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "max_duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "name": {
             "type": "string"
           },
           "p50_duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "p95_duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "service_name": {
             "type": "string"
@@ -4157,10 +4448,12 @@
             "type": "string"
           },
           "duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "end_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "events": {
             "items": {
@@ -4179,7 +4472,8 @@
                   "type": "string"
                 },
                 "time_ns": {
-                  "type": "number"
+                  "type": "integer",
+                  "format": "int64"
                 },
                 "trace_id": {
                   "type": "string"
@@ -4198,7 +4492,8 @@
             "type": "array"
           },
           "kind": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "links": {
             "items": {
@@ -4246,7 +4541,8 @@
             "type": "string"
           },
           "received_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "resource": {
             "type": "string"
@@ -4264,10 +4560,12 @@
             "type": "string"
           },
           "start_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "status_code": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "status_message": {
             "type": "string"
@@ -4306,44 +4604,56 @@
         "additionalProperties": false,
         "properties": {
           "db_size": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "dropped_logs": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "dropped_metric_points": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "dropped_spans": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "last_drop_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "log_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "logs_per_sec": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "metrics_per_sec": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "peak_spans_per_sec": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "span_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "spans_per_sec": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "storage_full": {
             "default": false,
             "type": "boolean"
           },
           "trace_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -4368,10 +4678,12 @@
         "additionalProperties": false,
         "properties": {
           "last_checkpoint_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "main_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "sessions": {
             "items": {
@@ -4384,13 +4696,15 @@
               "additionalProperties": false,
               "properties": {
                 "approx_bytes": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 },
                 "name": {
                   "type": "string"
                 },
                 "row_count": {
-                  "type": "number"
+                  "type": "number",
+                  "format": "double"
                 }
               },
               "required": [
@@ -4403,7 +4717,8 @@
             "type": "array"
           },
           "wal_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -4423,13 +4738,15 @@
         "additionalProperties": false,
         "properties": {
           "approx_bytes": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "name": {
             "type": "string"
           },
           "row_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           }
         },
         "required": [
@@ -4444,10 +4761,12 @@
         "additionalProperties": false,
         "properties": {
           "count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "created_at": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "example_span_id": {
             "type": "string"
@@ -4471,7 +4790,8 @@
             "type": "string"
           },
           "wasted_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
@@ -4493,10 +4813,12 @@
         "additionalProperties": false,
         "properties": {
           "duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "end_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "op": {
             "type": "string"
@@ -4505,10 +4827,12 @@
             "type": "string"
           },
           "start_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "status_code": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "trace_id": {
             "type": "string"
@@ -4533,10 +4857,12 @@
             "type": "string"
           },
           "duration_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "end_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "has_n1": {
             "type": "boolean"
@@ -4565,13 +4891,16 @@
             "type": "string"
           },
           "span_count": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "start_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "status_code": {
-            "type": "number"
+            "type": "number",
+            "format": "double"
           },
           "trace_id": {
             "type": "string"
@@ -4601,7 +4930,8 @@
             "type": "string"
           },
           "checked_at_ns": {
-            "type": "number"
+            "type": "integer",
+            "format": "int64"
           },
           "current": {
             "type": "string"
@@ -5816,6 +6146,16 @@
               "type": "string"
             },
             "description": "Selects the alert rule that owns the requested resource or action."
+          },
+          {
+            "in": "query",
+            "name": "markSeen",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted."
           }
         ],
         "responses": {
@@ -8522,6 +8862,16 @@
               "type": "string"
             },
             "description": "Selects the dashboard that owns the requested resource or action."
+          },
+          {
+            "in": "query",
+            "name": "markSeen",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted."
           }
         ],
         "responses": {
@@ -9534,6 +9884,10 @@
                     },
                     "type": "object",
                     "description": "Provides values for dashboard query variables while previewing the panel query."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "description": "Optional selected recording session for the server-owned $session_id built-in. Omit or leave empty to follow the server-active session. A variables.session_id override is ignored."
                   }
                 },
                 "required": [
@@ -10461,7 +10815,7 @@
             }
           },
           {
-            "description": "Filters results by severity level, such as error or warn.",
+            "description": "Exact severity band: trace, debug, info, warn, error or fatal; error+ matches ERROR and FATAL (severity >=17). Empty/all includes every severity.",
             "in": "query",
             "name": "severity",
             "required": false,
@@ -10528,6 +10882,15 @@
             },
             "style": "form",
             "explode": true
+          },
+          {
+            "in": "query",
+            "name": "text",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive literal substring across body, serialized attributes, service, trace ID and span ID, applied before count and pagination."
           }
         ],
         "responses": {
@@ -13594,6 +13957,15 @@
               "type": "string"
             },
             "description": "Selects the individual span to retrieve."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -13987,6 +14359,15 @@
               "type": "string"
             },
             "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -14086,6 +14467,15 @@
               "type": "string"
             },
             "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -14161,6 +14551,15 @@
               "type": "string"
             },
             "description": "Selects the distributed trace to retrieve, export, or inspect for linked telemetry."
+          },
+          {
+            "in": "query",
+            "name": "sessionId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace."
           }
         ],
         "responses": {
@@ -14173,14 +14572,13 @@
                     "value": {
                       "data": [
                         {
-                          "duration_ns": 1.5,
-                          "name": "POST /checkout",
-                          "parent_span_id": "example",
-                          "service_name": "checkout",
-                          "session_id": "session_2026-10-07_1200",
-                          "span_id": "19ab3f8e",
-                          "start_ns": 1.5,
-                          "trace_id": "6d8f4a9c2e1b7f30"
+                          "trace_id": "source-trace",
+                          "span_id": "source-span",
+                          "session_id": "session-demo",
+                          "linked_trace_id": "target-trace",
+                          "linked_span_id": "target-span",
+                          "trace_state": "vendor=demo",
+                          "attributes": "{\"link.type\":\"retry\"}"
                         }
                       ]
                     }
@@ -14190,7 +14588,7 @@
                   "properties": {
                     "data": {
                       "items": {
-                        "$ref": "#/components/schemas/Span"
+                        "$ref": "#/components/schemas/SpanLink"
                       },
                       "type": "array"
                     }

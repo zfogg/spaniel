@@ -1,0 +1,88 @@
+// Rasterize actual seeded Bubble Tea renderer recordings. No feature UI is
+// recreated here: xterm interprets the captured ANSI cursor/erase sequences.
+// Usage: node scripts/capture-watch.cjs CAPTURE_DIR TOOLS_NODE_MODULES
+const fs = require('node:fs/promises')
+const path = require('node:path')
+const { Terminal } = require(path.resolve(process.argv[3], '@xterm/headless'))
+const { chromium } = require(path.resolve('frontend/node_modules/@playwright/test'))
+
+async function main() {
+  const directory = path.resolve(process.argv[2])
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const names = (await fs.readdir(directory)).filter(name => name.endsWith('.ansi')).map(name => name.slice(0, -5))
+    for (const name of names) {
+      const terminal = new Terminal({ cols: 120, rows: 30, allowProposedApi: true })
+      const recording = await fs.readFile(path.join(directory, `${name}.ansi`))
+      let resize = null
+      try { resize = JSON.parse(await fs.readFile(path.join(directory, `${name}.resize.json`), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+      let offset = 0
+      for (const event of resize ? (resize.events ?? [resize]) : []) {
+        if (event.offset < offset || event.offset > recording.length) throw new Error(`${name} has an invalid resize boundary`)
+        await new Promise(resolve => terminal.write(recording.subarray(offset, event.offset).toString('utf8'), resolve))
+        terminal.resize(event.cols, event.rows)
+        offset = event.offset
+      }
+      await new Promise(resolve => terminal.write(recording.subarray(offset).toString('utf8'), resolve))
+      const lines = [], styledRows = []
+      for (let row = 0; row < terminal.rows; row++) {
+        const line = terminal.buffer.active.getLine(row)
+        lines.push(line?.translateToString(true) ?? '')
+        const runs = []
+        for (let column = 0; column < terminal.cols; column++) {
+          const cell = line?.getCell(column)
+          if (!cell || cell.getWidth() === 0) continue
+          const style = []
+          if (cell.isFgRGB()) style.push(`color:#${cell.getFgColor().toString(16).padStart(6, '0')}`)
+          if (cell.isBgRGB()) style.push(`background:#${cell.getBgColor().toString(16).padStart(6, '0')}`)
+          if (cell.isBold()) style.push('font-weight:700')
+          if (cell.isItalic()) style.push('font-style:italic')
+          if (cell.isUnderline()) style.push('text-decoration:underline;text-underline-offset:3px')
+          if (cell.isDim()) style.push('opacity:.65')
+          const css = style.join(';'), text = cell.getChars() || ' '
+          if (runs.length && runs.at(-1).css === css) runs.at(-1).text += text
+          else runs.push({ css, text })
+        }
+        styledRows.push(runs)
+      }
+      const screen = lines.join('\n')
+      await fs.writeFile(path.join(directory, `${name}.txt`), screen)
+      if (!screen.includes('spaniel - ') || !['? help', 'F2 help', 'Esc/F2 close'].some(text => screen.includes(text))) {
+        throw new Error(`${name} did not capture the actual watch screen`)
+      }
+      if (name === 'watch-reconnecting' && !screen.includes('reconnecting:')) throw new Error('missing real reconnect state')
+      const page = await browser.newPage({ viewport: { width: Math.max(360, terminal.cols * 11), height: terminal.rows * 22 + 60 }, deviceScaleFactor: 1 })
+      // Terminals paint box-drawing glyphs edge-to-edge in their cells. A browser
+      // font's 17px ink in a 22px line box leaves misleading gaps, so paint these
+      // recorded Unicode glyphs as cell strokes, preserving their actual text.
+      await page.setContent('<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#11151b;color:#d8dee9}pre{margin:20px;font:17px/22px "DejaVu Sans Mono",Consolas,monospace;white-space:pre}.box{display:inline-block;position:relative;vertical-align:top;width:1ch;height:22px}.box>span{visibility:hidden}.vertical:before{content:"";position:absolute;top:0;bottom:0;left:50%;border-left:1px solid currentColor}.horizontal:after{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px solid currentColor}</style><pre id="terminal"></pre>')
+      await page.locator('#terminal').evaluate((element, rows) => {
+        for (const runs of rows) {
+          for (const run of runs) {
+            const span = document.createElement('span')
+            span.setAttribute('style', run.css)
+            for (const text of run.text.split(/([│─┼])/u)) {
+              if (!text) continue
+              if (/^[│─┼]$/u.test(text)) {
+                const cell = document.createElement('span')
+                cell.className = 'box' + (text !== '─' ? ' vertical' : '') + (text !== '│' ? ' horizontal' : '')
+                const glyph = document.createElement('span')
+                glyph.textContent = text
+                cell.append(glyph)
+                span.append(cell)
+              } else span.append(document.createTextNode(text))
+            }
+            element.append(span)
+          }
+          element.append(document.createTextNode('\n'))
+        }
+      }, styledRows)
+      await page.screenshot({ path: path.join(directory, `${name}.png`), fullPage: true })
+      await page.close()
+      terminal.dispose()
+    }
+  } finally {
+    await browser.close()
+  }
+}
+main().catch((error) => { console.error(error); process.exitCode = 1 })

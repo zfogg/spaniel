@@ -1433,6 +1433,7 @@ export interface components {
       label: string
     }
     AlertEvent: {
+      /** Format: int64 */
       created_at: number
       detail: string
       group_key: string
@@ -1440,20 +1441,27 @@ export interface components {
       kind: string
       rule_id: string
       state: string
+      /** Format: double */
       value?: number | null
     }
     AlertInstance: {
+      /** Format: int64 */
       acknowledged_at?: number | null
       acknowledgement_note: string
+      /** Format: int64 */
       fired_at?: number | null
+      /** Format: int64 */
       first_pending_at?: number | null
       group_key: string
       labels_json: string
       last_error: string
+      /** Format: int64 */
       last_evaluated_at: number
+      /** Format: int64 */
       resolved_at?: number | null
       rule_id: string
       state: string
+      /** Format: double */
       value?: number | null
     }
     AlertList: {
@@ -1461,40 +1469,58 @@ export interface components {
         annotations_json: string
         browser_enabled: boolean
         condition_json: string
+        /** Format: int64 */
         cooldown_ns: number
+        /** Format: int64 */
         created_at: number
         enabled: boolean
         group_by_json: string
         id: string
+        /** Format: int64 */
         instance_discovery_interval_ns: number
+        /** Format: int64 */
         instance_discovery_last_run_at: number
         instance_discovery_sql: string
+        /** Format: int64 */
         instance_discovery_stale_after_ns: number
         /** @default [] */
         instances: {
+          /** Format: int64 */
           acknowledged_at?: number | null
           acknowledgement_note: string
+          /** Format: int64 */
           fired_at?: number | null
+          /** Format: int64 */
           first_pending_at?: number | null
           group_key: string
           labels_json: string
           last_error: string
+          /** Format: int64 */
           last_evaluated_at: number
+          /** Format: int64 */
           resolved_at?: number | null
           rule_id: string
           state: string
+          /** Format: double */
           value?: number | null
         }[]
+        /** Format: int64 */
         last_duration_ns: number
         last_error: string
+        /** Format: int64 */
         last_evaluated_at: number
+        /** Format: int64 */
         last_success_at: number
         name: string
+        /** Format: int64 */
         next_evaluation_at: number
+        /** Format: int64 */
         pending_for_ns: number
         pushover_enabled: boolean
         query_sql: string
+        /** Format: double */
         query_version: number
+        /** Format: int64 */
         repeat_interval_ns: number
         /** @enum {string} */
         severity: 'info' | 'warning' | 'critical'
@@ -1503,6 +1529,7 @@ export interface components {
         /** @description True until this file revision is first accessed through a detail API or MCP call. Shared across clients. */
         updated?: boolean
         source_file_modified: boolean
+        /** Format: int64 */
         updated_at: number
       }[]
       summary: {
@@ -1518,40 +1545,58 @@ export interface components {
       annotations_json: string
       browser_enabled: boolean
       condition_json: string
+      /** Format: int64 */
       cooldown_ns: number
+      /** Format: int64 */
       created_at: number
       enabled: boolean
       group_by_json: string
       id: string
+      /** Format: int64 */
       instance_discovery_interval_ns: number
+      /** Format: int64 */
       instance_discovery_last_run_at: number
       instance_discovery_sql: string
+      /** Format: int64 */
       instance_discovery_stale_after_ns: number
       /** @default [] */
       instances: {
+        /** Format: int64 */
         acknowledged_at?: number | null
         acknowledgement_note: string
+        /** Format: int64 */
         fired_at?: number | null
+        /** Format: int64 */
         first_pending_at?: number | null
         group_key: string
         labels_json: string
         last_error: string
+        /** Format: int64 */
         last_evaluated_at: number
+        /** Format: int64 */
         resolved_at?: number | null
         rule_id: string
         state: string
+        /** Format: double */
         value?: number | null
       }[]
+      /** Format: int64 */
       last_duration_ns: number
       last_error: string
+      /** Format: int64 */
       last_evaluated_at: number
+      /** Format: int64 */
       last_success_at: number
       name: string
+      /** Format: int64 */
       next_evaluation_at: number
+      /** Format: int64 */
       pending_for_ns: number
       pushover_enabled: boolean
       query_sql: string
+      /** Format: double */
       query_version: number
+      /** Format: int64 */
       repeat_interval_ns: number
       /** @enum {string} */
       severity: 'info' | 'warning' | 'critical'
@@ -1560,15 +1605,19 @@ export interface components {
       /** @description True until this file revision is first accessed through a detail API or MCP call. Shared across clients. */
       updated?: boolean
       source_file_modified: boolean
+      /** Format: int64 */
       updated_at: number
     }
     AlertSilence: {
       comment: string
+      /** Format: int64 */
       created_at: number
+      /** Format: int64 */
       ends_at: number
       group_key: string
       id: string
       rule_id: string
+      /** Format: int64 */
       starts_at: number
     }
     AlertTestNotification: {
@@ -1579,50 +1628,72 @@ export interface components {
       status: 'sent' | 'suppressed'
     }
     CompactResult: {
+      /** Format: double */
       bytes_after: number
+      /** Format: double */
       bytes_before: number
+      /** Format: double */
       reclaimed: number
     }
     CoverageReport: {
       overall: {
+        /** Format: double */
         coverage_pct: number
+        /** Format: double */
         dark_count: number
+        /** Format: double */
         observed_operations: number
+        /** Format: double */
         total_routes: number
       }
       quality: {
+        /** Format: double */
         dynamic_route_spans: number
+        /** Format: double */
         generic_route_spans: number
+        /** Format: double */
         missing_route_spans: number
       }
       services: {
+        /** Format: double */
         coverage_pct: number
         dark_routes: {
+          /** Format: double */
           hits: number
+          /** Format: int64 */
           last_seen_ns?: number
           method: string
+          /** Format: int64 */
           p95_ns?: number
           path: string
         }[]
         name: string
+        /** Format: double */
         observed_operations: number
         observed_routes: {
+          /** Format: double */
           hits: number
+          /** Format: int64 */
           last_seen_ns?: number
           method: string
+          /** Format: int64 */
           p95_ns?: number
           path: string
         }[]
         /** @enum {string} */
         source: 'openapi' | 'observed'
         spec?: string
+        /** Format: double */
         total_routes: number
       }[]
     }
     CoverageRoute: {
+      /** Format: double */
       hits: number
+      /** Format: int64 */
       last_seen_ns?: number
       method: string
+      /** Format: int64 */
       p95_ns?: number
       path: string
     }
@@ -1648,6 +1719,7 @@ export interface components {
       source_url?: string
     }
     Dashboard: {
+      /** Format: int64 */
       created_at: number
       description: string
       id: string
@@ -1676,13 +1748,17 @@ export interface components {
           | 'gauge'
         id: string
         layout_json: string
+        /** Format: double */
         position: number
         query_sql: string
+        /** Format: double */
         query_version: number
         settings_json: string
         title: string
+        /** Format: int64 */
         updated_at: number
       }[]
+      /** Format: int64 */
       updated_at: number
       /** @default [] */
       variables: {
@@ -1725,11 +1801,14 @@ export interface components {
         | 'gauge'
       id: string
       layout_json: string
+      /** Format: double */
       position: number
       query_sql: string
+      /** Format: double */
       query_version: number
       settings_json: string
       title: string
+      /** Format: int64 */
       updated_at: number
     }
     DashboardVariable: {
@@ -1780,24 +1859,31 @@ export interface components {
     }
     DiffResult: {
       baseline: {
+        /** Format: double */
         db_calls: number
         label: string
         session_id: string
+        /** Format: double */
         span_count: number
+        /** Format: int64 */
         total_duration_ns: number
       }
       baseline_spans: {
         attributes: string
+        /** Format: int64 */
         duration_ns: number
+        /** Format: int64 */
         end_ns: number
         events: {
           attributes: string
           name: string
           session_id: string
           span_id: string
+          /** Format: int64 */
           time_ns: number
           trace_id: string
         }[]
+        /** Format: double */
         kind: number
         links: {
           attributes: string
@@ -1810,36 +1896,46 @@ export interface components {
         }[]
         name: string
         parent_span_id: string
+        /** Format: int64 */
         received_at: number
         resource: string
         service_name: string
         session_id: string
         session_label: string
         span_id: string
+        /** Format: int64 */
         start_ns: number
+        /** Format: double */
         status_code: number
         status_message: string
         trace_id: string
       }[]
       compare: {
+        /** Format: double */
         db_calls: number
         label: string
         session_id: string
+        /** Format: double */
         span_count: number
+        /** Format: int64 */
         total_duration_ns: number
       }
       compare_spans: {
         attributes: string
+        /** Format: int64 */
         duration_ns: number
+        /** Format: int64 */
         end_ns: number
         events: {
           attributes: string
           name: string
           session_id: string
           span_id: string
+          /** Format: int64 */
           time_ns: number
           trace_id: string
         }[]
+        /** Format: double */
         kind: number
         links: {
           attributes: string
@@ -1852,31 +1948,43 @@ export interface components {
         }[]
         name: string
         parent_span_id: string
+        /** Format: int64 */
         received_at: number
         resource: string
         service_name: string
         session_id: string
         session_label: string
         span_id: string
+        /** Format: int64 */
         start_ns: number
+        /** Format: double */
         status_code: number
         status_message: string
         trace_id: string
       }[]
       spans: {
+        /** Format: int64 */
         baseline_duration_ns: number
+        /** Format: int64 */
         compare_duration_ns: number
+        /** Format: double */
         delta_pct: number
+        /** Format: double */
         depth: number
         name: string
         service_name: string
         status: string
       }[]
       summary: {
+        /** Format: double */
         db_call_delta: number
+        /** Format: int64 */
         duration_delta_ns: number
+        /** Format: double */
         duration_delta_pct: number
+        /** Format: double */
         spans_added: number
+        /** Format: double */
         spans_removed: number
       }
     }
@@ -1890,35 +1998,50 @@ export interface components {
       code?: string
     }
     ForwarderStatus: {
+      /** Format: double */
       dropped_spool?: number
+      /** Format: double */
       errors: number
       last_error?: string
+      /** Format: double */
       pending_bytes?: number
+      /** Format: double */
       sent: number
       url: string
     }
     ImportResult: {
       session: {
+        /** Format: int64 */
         created_at: number
+        /** Format: double */
         error_count: number
         id: string
         is_baseline: boolean
         is_imported: boolean
         label: string
+        /** Format: int64 */
         last_activity_ns: number
+        /** Format: double */
         n1_count: number
         note: string
+        /** Format: int64 */
         p95_ns: number
         services: string
+        /** Format: double */
         size_bytes: number
+        /** Format: double */
         span_count: number
+        /** Format: double */
         trace_count: number
       }
+      /** Format: double */
       span_count: number
+      /** Format: double */
       trace_count: number
     }
     JSONValue: unknown
     LintWarning: {
+      /** Format: int64 */
       created_at: number
       message: string
       rule_id: string
@@ -1930,11 +2053,14 @@ export interface components {
     Log: {
       attributes: string
       body: string
+      /** Format: int64 */
       received_at: number
       service_name: string
       session_id: string
+      /** Format: double */
       severity: number
       span_id: string
+      /** Format: int64 */
       timestamp_ns: number
       trace_id: string
     }
@@ -1945,7 +2071,9 @@ export interface components {
       [key: string]: unknown
     }
     MetricCardinalityStream: {
+      /** Format: double */
       active_series: number
+      /** Format: double */
       limit: number
       name: string
       service_name: string
@@ -1954,8 +2082,10 @@ export interface components {
       aggregation_temporality?: string
       description: string
       is_monotonic?: boolean
+      /** Format: int64 */
       last_timestamp_ns: number
       name: string
+      /** Format: double */
       sample_count: number
       service_name: string
       type: string
@@ -1974,20 +2104,29 @@ export interface components {
       points: {
         bounds?: number[]
         buckets?: number[]
+        /** Format: double */
         count?: number
         exemplars?: {
           span_id: string
           trace_id: string
         }[]
         exp_negative_counts?: number[]
+        /** Format: double */
         exp_negative_offset?: number
         exp_positive_counts?: number[]
+        /** Format: double */
         exp_positive_offset?: number
+        /** Format: double */
         exp_scale?: number
+        /** Format: double */
         exp_zero_count?: number
+        /** Format: double */
         exp_zero_threshold?: number
+        /** Format: double */
         flags?: number
+        /** Format: double */
         max?: number
+        /** Format: double */
         min?: number
         /** @enum {string} */
         percentile?: 'p50' | 'p95' | 'p99'
@@ -2000,9 +2139,13 @@ export interface components {
         scope_name?: string
         scope_schema_url?: string
         scope_version?: string
+        /** Format: int64 */
         start_timestamp_ns?: number
+        /** Format: double */
         sum?: number
+        /** Format: int64 */
         timestamp_ns: number
+        /** Format: double */
         value: number
       }[]
       series?: {
@@ -2013,20 +2156,29 @@ export interface components {
         points: {
           bounds?: number[]
           buckets?: number[]
+          /** Format: double */
           count?: number
           exemplars?: {
             span_id: string
             trace_id: string
           }[]
           exp_negative_counts?: number[]
+          /** Format: double */
           exp_negative_offset?: number
           exp_positive_counts?: number[]
+          /** Format: double */
           exp_positive_offset?: number
+          /** Format: double */
           exp_scale?: number
+          /** Format: double */
           exp_zero_count?: number
+          /** Format: double */
           exp_zero_threshold?: number
+          /** Format: double */
           flags?: number
+          /** Format: double */
           max?: number
+          /** Format: double */
           min?: number
           /** @enum {string} */
           percentile?: 'p50' | 'p95' | 'p99'
@@ -2039,19 +2191,27 @@ export interface components {
           scope_name?: string
           scope_schema_url?: string
           scope_version?: string
+          /** Format: int64 */
           start_timestamp_ns?: number
+          /** Format: double */
           sum?: number
+          /** Format: int64 */
           timestamp_ns: number
+          /** Format: double */
           value: number
         }[]
       }[]
       service_name: string
       traces: {
+        /** Format: int64 */
         duration_ns: number
+        /** Format: int64 */
         end_ns: number
         op: string
         service: string
+        /** Format: int64 */
         start_ns: number
+        /** Format: double */
         status_code: number
         trace_id: string
       }[]
@@ -2065,20 +2225,29 @@ export interface components {
     MetricSeriesPoint: {
       bounds?: number[]
       buckets?: number[]
+      /** Format: double */
       count?: number
       exemplars?: {
         span_id: string
         trace_id: string
       }[]
       exp_negative_counts?: number[]
+      /** Format: double */
       exp_negative_offset?: number
       exp_positive_counts?: number[]
+      /** Format: double */
       exp_positive_offset?: number
+      /** Format: double */
       exp_scale?: number
+      /** Format: double */
       exp_zero_count?: number
+      /** Format: double */
       exp_zero_threshold?: number
+      /** Format: double */
       flags?: number
+      /** Format: double */
       max?: number
+      /** Format: double */
       min?: number
       /** @enum {string} */
       percentile?: 'p50' | 'p95' | 'p99'
@@ -2091,18 +2260,25 @@ export interface components {
       scope_name?: string
       scope_schema_url?: string
       scope_version?: string
+      /** Format: int64 */
       start_timestamp_ns?: number
+      /** Format: double */
       sum?: number
+      /** Format: int64 */
       timestamp_ns: number
+      /** Format: double */
       value: number
     }
     NotificationRecord: {
+      /** Format: int64 */
       acknowledged_at: number | null
       body: string
+      /** Format: int64 */
       created_at: number
       dedupe_key: string
       id: string
       link: string
+      /** Format: int64 */
       read_at: number | null
       severity: string
       source: string
@@ -2113,10 +2289,15 @@ export interface components {
       ok: boolean
     }
     PruneResult: {
+      /** Format: double */
       deleted_by_age: number
+      /** Format: double */
       deleted_by_count: number
+      /** Format: double */
       deleted_by_size: number
+      /** Format: double */
       final_db_size_bytes: number
+      /** Format: double */
       final_sessions: number
     }
     QueryCatalogEntry: {
@@ -2134,6 +2315,7 @@ export interface components {
         kind?: string
         operator?: string
         pattern?: string
+        /** Format: double */
         value?: number
       }
       display_type?: string
@@ -2142,6 +2324,7 @@ export interface components {
         reason?: string
         status: string
       }[]
+      /** Format: double */
       query_version?: number
       rows: {
         [key: string]: unknown
@@ -2160,91 +2343,128 @@ export interface components {
       trace_id: string
     }
     ServiceCoverage: {
+      /** Format: double */
       coverage_pct: number
       dark_routes: {
+        /** Format: double */
         hits: number
+        /** Format: int64 */
         last_seen_ns?: number
         method: string
+        /** Format: int64 */
         p95_ns?: number
         path: string
       }[]
       name: string
+      /** Format: double */
       observed_operations: number
       observed_routes: {
+        /** Format: double */
         hits: number
+        /** Format: int64 */
         last_seen_ns?: number
         method: string
+        /** Format: int64 */
         p95_ns?: number
         path: string
       }[]
       /** @enum {string} */
       source: 'openapi' | 'observed'
       spec?: string
+      /** Format: double */
       total_routes: number
     }
     ServiceMapData: {
       edges: {
+        /** Format: int64 */
         avg_duration_ns: number
+        /** Format: double */
         call_count: number
+        /** Format: double */
         error_count: number
         from: string
         to: string
       }[]
       nodes: {
+        /** Format: double */
         error_count: number
         id: string
+        /** Format: int64 */
         p95_ns: number
+        /** Format: double */
         span_count: number
         top_operations: {
+          /** Format: double */
           count: number
           name: string
+          /** Format: int64 */
           p95_ns: number
         }[]
       }[]
     }
     ServiceMapEdge: {
+      /** Format: int64 */
       avg_duration_ns: number
+      /** Format: double */
       call_count: number
+      /** Format: double */
       error_count: number
       from: string
       to: string
     }
     ServiceMapNode: {
+      /** Format: double */
       error_count: number
       id: string
+      /** Format: int64 */
       p95_ns: number
+      /** Format: double */
       span_count: number
       top_operations: {
+        /** Format: double */
         count: number
         name: string
+        /** Format: int64 */
         p95_ns: number
       }[]
     }
     ServiceMapOpStat: {
+      /** Format: double */
       count: number
       name: string
+      /** Format: int64 */
       p95_ns: number
     }
     Session: {
+      /** Format: int64 */
       created_at: number
+      /** Format: double */
       error_count: number
       id: string
       is_baseline: boolean
       is_imported: boolean
       label: string
+      /** Format: int64 */
       last_activity_ns: number
+      /** Format: double */
       n1_count: number
       note: string
+      /** Format: int64 */
       p95_ns: number
       services: string
+      /** Format: double */
       size_bytes: number
+      /** Format: double */
       span_count: number
+      /** Format: double */
       trace_count: number
     }
     SessionSize: {
+      /** Format: double */
       approx_bytes: number
       id: string
       label: string
+      /** Format: double */
       span_count: number
     }
     Settings: {
@@ -2261,28 +2481,42 @@ export interface components {
       bind_address_v6: string
       db_path: string
       forward: string[]
+      /** Format: double */
       forward_sample: number
+      /** Format: double */
       max_db_size_mb: number
+      /** Format: double */
       max_sessions: number
       mcp_allow_writes: boolean
       mcp_enabled: boolean
       no_browser: boolean
+      /** Format: double */
       otlp_grpc_port: number
+      /** Format: double */
       otlp_http_port: number
+      /** Format: double */
       port: number
+      /** Format: double */
       retention_days: number
       runtime: {
         channel: string
         config_path: string
+        /** Format: double */
         db_size_bytes: number
+        /** Format: double */
         otlp_grpc_port: number
+        /** Format: double */
         otlp_http_port: number
+        /** Format: double */
         pid: number
+        /** Format: int64 */
         uptime_ns: number
         version: string
       }
       self_monitor: boolean
+      /** Format: double */
       source_burst: number
+      /** Format: double */
       source_rps: number
       tls_enabled: boolean
       public_url: string
@@ -2329,28 +2563,42 @@ export interface components {
       bind_address_v6: string
       db_path: string
       forward: string[]
+      /** Format: double */
       forward_sample: number
+      /** Format: double */
       max_db_size_mb: number
+      /** Format: double */
       max_sessions: number
       mcp_allow_writes: boolean
       mcp_enabled: boolean
       no_browser: boolean
+      /** Format: double */
       otlp_grpc_port: number
+      /** Format: double */
       otlp_http_port: number
+      /** Format: double */
       port: number
+      /** Format: double */
       retention_days: number
       runtime: {
         channel: string
         config_path: string
+        /** Format: double */
         db_size_bytes: number
+        /** Format: double */
         otlp_grpc_port: number
+        /** Format: double */
         otlp_http_port: number
+        /** Format: double */
         pid: number
+        /** Format: int64 */
         uptime_ns: number
         version: string
       }
       self_monitor: boolean
+      /** Format: double */
       source_burst: number
+      /** Format: double */
       source_rps: number
       tls_enabled: boolean
       public_url: string
@@ -2385,18 +2633,28 @@ export interface components {
     SettingsRuntime: {
       channel: string
       config_path: string
+      /** Format: double */
       db_size_bytes: number
+      /** Format: double */
       otlp_grpc_port: number
+      /** Format: double */
       otlp_http_port: number
+      /** Format: double */
       pid: number
+      /** Format: int64 */
       uptime_ns: number
       version: string
     }
     SourceStats: {
+      /** Format: double */
       accepted_per_sec: number
+      /** Format: double */
       bytes_per_sec: number
+      /** Format: double */
       error_rate: number
+      /** Format: int64 */
       last_seen_ns: number
+      /** Format: double */
       rejected_per_sec: number
       service: string
     }
@@ -2407,16 +2665,20 @@ export interface components {
        */
       query_occurrences?: number
       attributes: string
+      /** Format: int64 */
       duration_ns: number
+      /** Format: int64 */
       end_ns: number
       events: {
         attributes: string
         name: string
         session_id: string
         span_id: string
+        /** Format: int64 */
         time_ns: number
         trace_id: string
       }[]
+      /** Format: double */
       kind: number
       links: {
         attributes: string
@@ -2429,13 +2691,16 @@ export interface components {
       }[]
       name: string
       parent_span_id: string
+      /** Format: int64 */
       received_at: number
       resource: string
       service_name: string
       session_id: string
       session_label: string
       span_id: string
+      /** Format: int64 */
       start_ns: number
+      /** Format: double */
       status_code: number
       status_message: string
       trace_id: string
@@ -2445,18 +2710,27 @@ export interface components {
       name: string
       session_id: string
       span_id: string
+      /** Format: int64 */
       time_ns: number
       trace_id: string
     }
     SpanGroup: {
+      /** Format: double */
       attribute_variants: number
+      /** Format: double */
       count: number
+      /** Format: double */
       error_count: number
+      /** Format: double */
       kind: number
+      /** Format: int64 */
       latest_start_ns: number
+      /** Format: int64 */
       max_duration_ns: number
       name: string
+      /** Format: int64 */
       p50_duration_ns: number
+      /** Format: int64 */
       p95_duration_ns: number
       service_name: string
     }
@@ -2476,16 +2750,20 @@ export interface components {
        */
       query_occurrences?: number
       attributes: string
+      /** Format: int64 */
       duration_ns: number
+      /** Format: int64 */
       end_ns: number
       events: {
         attributes: string
         name: string
         session_id: string
         span_id: string
+        /** Format: int64 */
         time_ns: number
         trace_id: string
       }[]
+      /** Format: double */
       kind: number
       links: {
         attributes: string
@@ -2498,53 +2776,77 @@ export interface components {
       }[]
       name: string
       parent_span_id: string
+      /** Format: int64 */
       received_at: number
       resource: string
       service_name: string
       session_id: string
       session_label: string
       span_id: string
+      /** Format: int64 */
       start_ns: number
+      /** Format: double */
       status_code: number
       status_message: string
       tag?: string
       trace_id: string
     }
     Stats: {
+      /** Format: double */
       db_size: number
+      /** Format: double */
       dropped_logs: number
+      /** Format: double */
       dropped_metric_points: number
+      /** Format: double */
       dropped_spans: number
+      /** Format: int64 */
       last_drop_at: number
+      /** Format: double */
       log_count: number
+      /** Format: double */
       logs_per_sec: number
+      /** Format: double */
       metrics_per_sec: number
+      /** Format: double */
       peak_spans_per_sec: number
+      /** Format: double */
       span_count: number
+      /** Format: double */
       spans_per_sec: number
       /** @default false */
       storage_full: boolean
+      /** Format: double */
       trace_count: number
     }
     StorageBreakdown: {
+      /** Format: int64 */
       last_checkpoint_at: number
+      /** Format: double */
       main_bytes: number
       sessions: components['schemas']['SessionSize'][]
       tables: {
+        /** Format: double */
         approx_bytes: number
         name: string
+        /** Format: double */
         row_count: number
       }[]
+      /** Format: double */
       wal_bytes: number
     }
     String: string
     TableStat: {
+      /** Format: double */
       approx_bytes: number
       name: string
+      /** Format: double */
       row_count: number
     }
     TraceIssue: {
+      /** Format: double */
       count: number
+      /** Format: int64 */
       created_at: number
       example_span_id: string
       fingerprint: string
@@ -2553,20 +2855,27 @@ export interface components {
       parent_span_id: string
       session_id: string
       trace_id: string
+      /** Format: int64 */
       wasted_ns: number
     }
     TraceOverlay: {
+      /** Format: int64 */
       duration_ns: number
+      /** Format: int64 */
       end_ns: number
       op: string
       service: string
+      /** Format: int64 */
       start_ns: number
+      /** Format: double */
       status_code: number
       trace_id: string
     }
     TraceRow: {
       attributes: string
+      /** Format: int64 */
       duration_ns: number
+      /** Format: int64 */
       end_ns: number
       has_n1: boolean
       issue_kinds?: string[]
@@ -2576,13 +2885,17 @@ export interface components {
       service_name: string
       session_id: string
       session_label: string
+      /** Format: double */
       span_count: number
+      /** Format: int64 */
       start_ns: number
+      /** Format: double */
       status_code: number
       trace_id: string
     }
     UpdateCheckResult: {
       channel: string
+      /** Format: int64 */
       checked_at_ns: number
       current: string
       error?: string
@@ -3103,7 +3416,10 @@ export interface operations {
   }
   getAlert: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted. */
+        markSeen?: boolean
+      }
       header?: never
       path: {
         /** @description Selects the alert rule that owns the requested resource or action. */
@@ -4540,7 +4856,10 @@ export interface operations {
   }
   getDashboard: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted. */
+        markSeen?: boolean
+      }
       header?: never
       path: {
         /** @description Selects the dashboard that owns the requested resource or action. */
@@ -5163,6 +5482,8 @@ export interface operations {
           variables?: {
             [key: string]: string
           }
+          /** @description Optional selected recording session for the server-owned $session_id built-in. Omit or leave empty to follow the server-active session. A variables.session_id override is ignored. */
+          sessionId?: string
         }
       }
     }
@@ -5616,7 +5937,7 @@ export interface operations {
         traceId?: string
         /** @description Restricts results to logs associated with one span. */
         spanId?: string
-        /** @description Filters results by severity level, such as error or warn. */
+        /** @description Exact severity band: trace, debug, info, warn, error or fatal; error+ matches ERROR and FATAL (severity >=17). Empty/all includes every severity. */
         severity?: string
         /** @description Restricts results to telemetry emitted by the named service. */
         service?: string
@@ -5630,6 +5951,8 @@ export interface operations {
         limit?: number
         /** @description Match any selected service before pagination; intersects with service if also provided. */
         services?: string[]
+        /** @description Case-insensitive literal substring across body, serialized attributes, service, trace ID and span ID, applied before count and pagination. */
+        text?: string
       }
       header?: never
       path?: never
@@ -7196,7 +7519,10 @@ export interface operations {
   }
   getSpan: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the individual span to retrieve. */
@@ -7387,7 +7713,10 @@ export interface operations {
   }
   getTrace: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
@@ -7440,7 +7769,10 @@ export interface operations {
   }
   exportTrace: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
@@ -7491,7 +7823,10 @@ export interface operations {
   }
   listIncomingLinks: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace. */
+        sessionId?: string
+      }
       header?: never
       path: {
         /** @description Selects the distributed trace to retrieve, export, or inspect for linked telemetry. */
@@ -7508,7 +7843,7 @@ export interface operations {
         }
         content: {
           'application/json': {
-            data: components['schemas']['Span'][]
+            data: components['schemas']['SpanLink'][]
           }
         }
       }

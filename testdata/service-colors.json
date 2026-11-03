@@ -1,0 +1,341 @@
+{
+  "source": "Actual serviceColor TypeScript output; RGB channels resolved by Chromium CSS HSL conversion.",
+  "cases": [
+    {
+      "name": "",
+      "hue": 209.87,
+      "saturation": 63,
+      "lightness": 50,
+      "swatch": [
+        47,
+        128,
+        208
+      ],
+      "lightText": [
+        28,
+        77,
+        125
+      ],
+      "darkText": [
+        164,
+        199,
+        234
+      ]
+    },
+    {
+      "name": "api",
+      "hue": 263.91,
+      "saturation": 70,
+      "lightness": 59,
+      "swatch": [
+        136,
+        77,
+        224
+      ],
+      "lightText": [
+        66,
+        23,
+        130
+      ],
+      "darkText": [
+        191,
+        160,
+        238
+      ]
+    },
+    {
+      "name": "API",
+      "hue": 161.04,
+      "saturation": 67,
+      "lightness": 59,
+      "swatch": [
+        80,
+        220,
+        176
+      ],
+      "lightText": [
+        25,
+        128,
+        95
+      ],
+      "darkText": [
+        161,
+        236,
+        213
+      ]
+    },
+    {
+      "name": " api ",
+      "hue": 15.72,
+      "saturation": 63,
+      "lightness": 49,
+      "swatch": [
+        204,
+        87,
+        46
+      ],
+      "lightText": [
+        125,
+        54,
+        28
+      ],
+      "darkText": [
+        234,
+        182,
+        164
+      ]
+    },
+    {
+      "name": "api-v2",
+      "hue": 17.6,
+      "saturation": 68,
+      "lightness": 53,
+      "swatch": [
+        217,
+        101,
+        54
+      ],
+      "lightText": [
+        129,
+        55,
+        24
+      ],
+      "darkText": [
+        237,
+        183,
+        161
+      ]
+    },
+    {
+      "name": "checkout-api",
+      "hue": 35.03,
+      "saturation": 73,
+      "lightness": 54,
+      "swatch": [
+        223,
+        152,
+        52
+      ],
+      "lightText": [
+        132,
+        86,
+        21
+      ],
+      "darkText": [
+        240,
+        206,
+        158
+      ]
+    },
+    {
+      "name": "ratio-api",
+      "hue": 309.16,
+      "saturation": 84,
+      "lightness": 58,
+      "swatch": [
+        238,
+        58,
+        210
+      ],
+      "lightText": [
+        141,
+        12,
+        121
+      ],
+      "darkText": [
+        246,
+        152,
+        232
+      ]
+    },
+    {
+      "name": "spaniel",
+      "hue": 226.94,
+      "saturation": 78,
+      "lightness": 60,
+      "swatch": [
+        73,
+        108,
+        233
+      ],
+      "lightText": [
+        17,
+        43,
+        136
+      ],
+      "darkText": [
+        155,
+        174,
+        243
+      ]
+    },
+    {
+      "name": "service-worker-0",
+      "hue": 304.72,
+      "saturation": 63,
+      "lightness": 49,
+      "swatch": [
+        204,
+        46,
+        191
+      ],
+      "lightText": [
+        125,
+        28,
+        117
+      ],
+      "darkText": [
+        234,
+        164,
+        229
+      ]
+    },
+    {
+      "name": "service-worker-1",
+      "hue": 25.03,
+      "saturation": 85,
+      "lightness": 56,
+      "swatch": [
+        238,
+        127,
+        47
+      ],
+      "lightText": [
+        142,
+        66,
+        11
+      ],
+      "darkText": [
+        247,
+        191,
+        151
+      ]
+    },
+    {
+      "name": "service-worker-10",
+      "hue": 299.26,
+      "saturation": 77,
+      "lightness": 52,
+      "swatch": [
+        225,
+        38,
+        227
+      ],
+      "lightText": [
+        134,
+        18,
+        135
+      ],
+      "darkText": [
+        241,
+        156,
+        242
+      ]
+    },
+    {
+      "name": "café",
+      "hue": 69.27,
+      "saturation": 81,
+      "lightness": 60,
+      "swatch": [
+        210,
+        236,
+        70
+      ],
+      "lightText": [
+        119,
+        138,
+        15
+      ],
+      "darkText": [
+        230,
+        244,
+        153
+      ]
+    },
+    {
+      "name": "服务-🚀",
+      "hue": 149.87,
+      "saturation": 62,
+      "lightness": 52,
+      "swatch": [
+        57,
+        208,
+        132
+      ],
+      "lightText": [
+        29,
+        124,
+        76
+      ],
+      "darkText": [
+        164,
+        234,
+        199
+      ]
+    },
+    {
+      "name": "é",
+      "hue": 84.28,
+      "saturation": 74,
+      "lightness": 49,
+      "swatch": [
+        143,
+        217,
+        32
+      ],
+      "lightText": [
+        87,
+        133,
+        20
+      ],
+      "darkText": [
+        207,
+        240,
+        157
+      ]
+    },
+    {
+      "name": "é",
+      "hue": 294.29,
+      "saturation": 77,
+      "lightness": 51,
+      "swatch": [
+        208,
+        34,
+        226
+      ],
+      "lightText": [
+        124,
+        18,
+        135
+      ],
+      "darkText": [
+        234,
+        156,
+        242
+      ]
+    },
+    {
+      "name": "🚀",
+      "hue": 241.84,
+      "saturation": 77,
+      "lightness": 50,
+      "swatch": [
+        35,
+        29,
+        226
+      ],
+      "lightText": [
+        21,
+        18,
+        135
+      ],
+      "darkText": [
+        158,
+        156,
+        242
+      ]
+    }
+  ]
+}

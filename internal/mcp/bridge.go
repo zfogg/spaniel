@@ -53,6 +53,12 @@ type stdioBridge struct {
 	protocol string
 }
 
+var errStdioClientClosed = errors.New("MCP stdio client closed")
+
+func closedStdioTransport(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, mcpsdk.ErrConnectionClosed)
+}
+
 func runBridge(ctx context.Context, conn mcpsdk.Connection, endpoint, token string, client *http.Client) error {
 	b := &stdioBridge{conn: conn, client: client, endpoint: endpoint, token: token}
 	ctx, cancel := context.WithCancel(ctx)
@@ -70,7 +76,7 @@ func runBridge(ctx context.Context, conn mcpsdk.Connection, endpoint, token stri
 		for {
 			msg, err := conn.Read(ctx)
 			if err != nil {
-				if errors.Is(err, io.EOF) || ctx.Err() != nil {
+				if closedStdioTransport(err) || ctx.Err() != nil {
 					return nil
 				}
 				return fmt.Errorf("read MCP stdin: %w", err)
@@ -106,8 +112,8 @@ func runBridge(ctx context.Context, conn mcpsdk.Connection, endpoint, token stri
 	})
 	err := group.Wait()
 	// The client may close stdout before the notification reader observes EOF.
-	// A final in-flight write then reports ErrClosedPipe: normal disconnection.
-	if errors.Is(err, context.Canceled) || errors.Is(err, io.ErrClosedPipe) {
+	// forward classifies that write as client closure; upstream errors stay errors.
+	if errors.Is(err, context.Canceled) || errors.Is(err, errStdioClientClosed) {
 		return nil
 	}
 	return err
@@ -198,7 +204,13 @@ func (b *stdioBridge) forward(ctx context.Context, data []byte) error {
 			b.mu.Unlock()
 		}
 	}
-	return b.conn.Write(ctx, msg)
+	err = b.conn.Write(ctx, msg)
+	if closedStdioTransport(err) {
+		// A pending HTTP response can race the client's EOF. Only classify
+		// transport closure here: upstream HTTP/body failures remain errors.
+		return fmt.Errorf("%w: %w", errStdioClientClosed, err)
+	}
+	return err
 }
 
 func (b *stdioBridge) readSSE(ctx context.Context, body io.Reader) error {

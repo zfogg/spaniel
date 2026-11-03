@@ -57,7 +57,8 @@ components:
             additionalProperties: false
             properties:
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 detail:
                     type: string
                 group_key:
@@ -71,6 +72,7 @@ components:
                 state:
                     type: string
                 value:
+                    format: double
                     type:
                         - number
                         - "null"
@@ -88,18 +90,21 @@ components:
             additionalProperties: false
             properties:
                 acknowledged_at:
+                    format: int64
                     type:
-                        - number
+                        - integer
                         - "null"
                 acknowledgement_note:
                     type: string
                 fired_at:
+                    format: int64
                     type:
-                        - number
+                        - integer
                         - "null"
                 first_pending_at:
+                    format: int64
                     type:
-                        - number
+                        - integer
                         - "null"
                 group_key:
                     type: string
@@ -108,16 +113,19 @@ components:
                 last_error:
                     type: string
                 last_evaluated_at:
-                    type: number
+                    format: int64
+                    type: integer
                 resolved_at:
+                    format: int64
                     type:
-                        - number
+                        - integer
                         - "null"
                 rule_id:
                     type: string
                 state:
                     type: string
                 value:
+                    format: double
                     type:
                         - number
                         - "null"
@@ -145,9 +153,11 @@ components:
                             condition_json:
                                 type: string
                             cooldown_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             created_at:
-                                type: number
+                                format: int64
+                                type: integer
                             enabled:
                                 type: boolean
                             group_by_json:
@@ -155,31 +165,37 @@ components:
                             id:
                                 type: string
                             instance_discovery_interval_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             instance_discovery_last_run_at:
-                                type: number
+                                format: int64
+                                type: integer
                             instance_discovery_sql:
                                 type: string
                             instance_discovery_stale_after_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             instances:
                                 default: []
                                 items:
                                     additionalProperties: false
                                     properties:
                                         acknowledged_at:
+                                            format: int64
                                             type:
-                                                - number
+                                                - integer
                                                 - "null"
                                         acknowledgement_note:
                                             type: string
                                         fired_at:
+                                            format: int64
                                             type:
-                                                - number
+                                                - integer
                                                 - "null"
                                         first_pending_at:
+                                            format: int64
                                             type:
-                                                - number
+                                                - integer
                                                 - "null"
                                         group_key:
                                             type: string
@@ -188,16 +204,19 @@ components:
                                         last_error:
                                             type: string
                                         last_evaluated_at:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         resolved_at:
+                                            format: int64
                                             type:
-                                                - number
+                                                - integer
                                                 - "null"
                                         rule_id:
                                             type: string
                                         state:
                                             type: string
                                         value:
+                                            format: double
                                             type:
                                                 - number
                                                 - "null"
@@ -212,27 +231,34 @@ components:
                                     type: object
                                 type: array
                             last_duration_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             last_error:
                                 type: string
                             last_evaluated_at:
-                                type: number
+                                format: int64
+                                type: integer
                             last_success_at:
-                                type: number
+                                format: int64
+                                type: integer
                             name:
                                 type: string
                             next_evaluation_at:
-                                type: number
+                                format: int64
+                                type: integer
                             pending_for_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             pushover_enabled:
                                 type: boolean
                             query_sql:
                                 type: string
                             query_version:
+                                format: double
                                 type: number
                             repeat_interval_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             severity:
                                 enum:
                                     - info
@@ -249,7 +275,8 @@ components:
                                 description: True until this file revision is first accessed through a detail API or MCP call. Shared across clients.
                                 type: boolean
                             updated_at:
-                                type: number
+                                format: int64
+                                type: integer
                         required:
                             - id
                             - name
@@ -287,12 +314,14 @@ components:
                     properties:
                         instance_counts:
                             additionalProperties:
+                                format: double
                                 type: number
                             propertyNames:
                                 type: string
                             type: object
                         rule_counts:
                             additionalProperties:
+                                format: double
                                 type: number
                             propertyNames:
                                 type: string
@@ -316,9 +345,11 @@ components:
                 condition_json:
                     type: string
                 cooldown_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 enabled:
                     type: boolean
                 group_by_json:
@@ -326,31 +357,37 @@ components:
                 id:
                     type: string
                 instance_discovery_interval_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 instance_discovery_last_run_at:
-                    type: number
+                    format: int64
+                    type: integer
                 instance_discovery_sql:
                     type: string
                 instance_discovery_stale_after_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 instances:
                     default: []
                     items:
                         additionalProperties: false
                         properties:
                             acknowledged_at:
+                                format: int64
                                 type:
-                                    - number
+                                    - integer
                                     - "null"
                             acknowledgement_note:
                                 type: string
                             fired_at:
+                                format: int64
                                 type:
-                                    - number
+                                    - integer
                                     - "null"
                             first_pending_at:
+                                format: int64
                                 type:
-                                    - number
+                                    - integer
                                     - "null"
                             group_key:
                                 type: string
@@ -359,16 +396,19 @@ components:
                             last_error:
                                 type: string
                             last_evaluated_at:
-                                type: number
+                                format: int64
+                                type: integer
                             resolved_at:
+                                format: int64
                                 type:
-                                    - number
+                                    - integer
                                     - "null"
                             rule_id:
                                 type: string
                             state:
                                 type: string
                             value:
+                                format: double
                                 type:
                                     - number
                                     - "null"
@@ -383,27 +423,34 @@ components:
                         type: object
                     type: array
                 last_duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 last_error:
                     type: string
                 last_evaluated_at:
-                    type: number
+                    format: int64
+                    type: integer
                 last_success_at:
-                    type: number
+                    format: int64
+                    type: integer
                 name:
                     type: string
                 next_evaluation_at:
-                    type: number
+                    format: int64
+                    type: integer
                 pending_for_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 pushover_enabled:
                     type: boolean
                 query_sql:
                     type: string
                 query_version:
+                    format: double
                     type: number
                 repeat_interval_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 severity:
                     enum:
                         - info
@@ -420,7 +467,8 @@ components:
                     description: True until this file revision is first accessed through a detail API or MCP call. Shared across clients.
                     type: boolean
                 updated_at:
-                    type: number
+                    format: int64
+                    type: integer
             required:
                 - id
                 - name
@@ -459,9 +507,11 @@ components:
                 comment:
                     type: string
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 ends_at:
-                    type: number
+                    format: int64
+                    type: integer
                 group_key:
                     type: string
                 id:
@@ -469,7 +519,8 @@ components:
                 rule_id:
                     type: string
                 starts_at:
-                    type: number
+                    format: int64
+                    type: integer
             required:
                 - id
                 - rule_id
@@ -502,10 +553,13 @@ components:
             additionalProperties: false
             properties:
                 bytes_after:
+                    format: double
                     type: number
                 bytes_before:
+                    format: double
                     type: number
                 reclaimed:
+                    format: double
                     type: number
             required:
                 - bytes_before
@@ -520,12 +574,16 @@ components:
                     additionalProperties: false
                     properties:
                         coverage_pct:
+                            format: double
                             type: number
                         dark_count:
+                            format: double
                             type: number
                         observed_operations:
+                            format: double
                             type: number
                         total_routes:
+                            format: double
                             type: number
                     required:
                         - observed_operations
@@ -537,10 +595,13 @@ components:
                     additionalProperties: false
                     properties:
                         dynamic_route_spans:
+                            format: double
                             type: number
                         generic_route_spans:
+                            format: double
                             type: number
                         missing_route_spans:
+                            format: double
                             type: number
                     required:
                         - missing_route_spans
@@ -552,19 +613,23 @@ components:
                         additionalProperties: false
                         properties:
                             coverage_pct:
+                                format: double
                                 type: number
                             dark_routes:
                                 items:
                                     additionalProperties: false
                                     properties:
                                         hits:
+                                            format: double
                                             type: number
                                         last_seen_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         method:
                                             type: string
                                         p95_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         path:
                                             type: string
                                     required:
@@ -576,19 +641,23 @@ components:
                             name:
                                 type: string
                             observed_operations:
+                                format: double
                                 type: number
                             observed_routes:
                                 items:
                                     additionalProperties: false
                                     properties:
                                         hits:
+                                            format: double
                                             type: number
                                         last_seen_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         method:
                                             type: string
                                         p95_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         path:
                                             type: string
                                     required:
@@ -605,6 +674,7 @@ components:
                             spec:
                                 type: string
                             total_routes:
+                                format: double
                                 type: number
                         required:
                             - name
@@ -626,13 +696,16 @@ components:
             additionalProperties: false
             properties:
                 hits:
+                    format: double
                     type: number
                 last_seen_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 method:
                     type: string
                 p95_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 path:
                     type: string
             required:
@@ -724,7 +797,8 @@ components:
             additionalProperties: false
             properties:
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 description:
                     type: string
                 id:
@@ -758,17 +832,20 @@ components:
                             layout_json:
                                 type: string
                             position:
+                                format: double
                                 type: number
                             query_sql:
                                 type: string
                             query_version:
+                                format: double
                                 type: number
                             settings_json:
                                 type: string
                             title:
                                 type: string
                             updated_at:
-                                type: number
+                                format: int64
+                                type: integer
                         required:
                             - id
                             - dashboard_id
@@ -792,7 +869,8 @@ components:
                     description: True until this file revision is first accessed through a detail API or MCP call. Shared across clients.
                     type: boolean
                 updated_at:
-                    type: number
+                    format: int64
+                    type: integer
                 variables:
                     default: []
                     items:
@@ -870,17 +948,20 @@ components:
                 layout_json:
                     type: string
                 position:
+                    format: double
                     type: number
                 query_sql:
                     type: string
                 query_version:
+                    format: double
                     type: number
                 settings_json:
                     type: string
                 title:
                     type: string
                 updated_at:
-                    type: number
+                    format: int64
+                    type: integer
             required:
                 - id
                 - dashboard_id
@@ -1016,15 +1097,18 @@ components:
                     additionalProperties: false
                     properties:
                         db_calls:
+                            format: double
                             type: number
                         label:
                             type: string
                         session_id:
                             type: string
                         span_count:
+                            format: double
                             type: number
                         total_duration_ns:
-                            type: number
+                            format: int64
+                            type: integer
                     required:
                         - session_id
                         - label
@@ -1039,9 +1123,11 @@ components:
                             attributes:
                                 type: string
                             duration_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             end_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             events:
                                 items:
                                     additionalProperties: false
@@ -1055,7 +1141,8 @@ components:
                                         span_id:
                                             type: string
                                         time_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         trace_id:
                                             type: string
                                     required:
@@ -1068,6 +1155,7 @@ components:
                                     type: object
                                 type: array
                             kind:
+                                format: double
                                 type: number
                             links:
                                 items:
@@ -1102,7 +1190,8 @@ components:
                             parent_span_id:
                                 type: string
                             received_at:
-                                type: number
+                                format: int64
+                                type: integer
                             resource:
                                 type: string
                             service_name:
@@ -1114,8 +1203,10 @@ components:
                             span_id:
                                 type: string
                             start_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             status_code:
+                                format: double
                                 type: number
                             status_message:
                                 type: string
@@ -1146,15 +1237,18 @@ components:
                     additionalProperties: false
                     properties:
                         db_calls:
+                            format: double
                             type: number
                         label:
                             type: string
                         session_id:
                             type: string
                         span_count:
+                            format: double
                             type: number
                         total_duration_ns:
-                            type: number
+                            format: int64
+                            type: integer
                     required:
                         - session_id
                         - label
@@ -1169,9 +1263,11 @@ components:
                             attributes:
                                 type: string
                             duration_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             end_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             events:
                                 items:
                                     additionalProperties: false
@@ -1185,7 +1281,8 @@ components:
                                         span_id:
                                             type: string
                                         time_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         trace_id:
                                             type: string
                                     required:
@@ -1198,6 +1295,7 @@ components:
                                     type: object
                                 type: array
                             kind:
+                                format: double
                                 type: number
                             links:
                                 items:
@@ -1232,7 +1330,8 @@ components:
                             parent_span_id:
                                 type: string
                             received_at:
-                                type: number
+                                format: int64
+                                type: integer
                             resource:
                                 type: string
                             service_name:
@@ -1244,8 +1343,10 @@ components:
                             span_id:
                                 type: string
                             start_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             status_code:
+                                format: double
                                 type: number
                             status_message:
                                 type: string
@@ -1277,12 +1378,16 @@ components:
                         additionalProperties: false
                         properties:
                             baseline_duration_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             compare_duration_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             delta_pct:
+                                format: double
                                 type: number
                             depth:
+                                format: double
                                 type: number
                             name:
                                 type: string
@@ -1304,14 +1409,19 @@ components:
                     additionalProperties: false
                     properties:
                         db_call_delta:
+                            format: double
                             type: number
                         duration_delta_ns:
-                            type: number
+                            format: int64
+                            type: integer
                         duration_delta_pct:
+                            format: double
                             type: number
                         spans_added:
+                            format: double
                             type: number
                         spans_removed:
+                            format: double
                             type: number
                     required:
                         - duration_delta_ns
@@ -1353,14 +1463,18 @@ components:
             additionalProperties: false
             properties:
                 dropped_spool:
+                    format: double
                     type: number
                 errors:
+                    format: double
                     type: number
                 last_error:
                     type: string
                 pending_bytes:
+                    format: double
                     type: number
                 sent:
+                    format: double
                     type: number
                 url:
                     type: string
@@ -1377,8 +1491,10 @@ components:
                     additionalProperties: false
                     properties:
                         created_at:
-                            type: number
+                            format: int64
+                            type: integer
                         error_count:
+                            format: double
                             type: number
                         id:
                             type: string
@@ -1389,20 +1505,26 @@ components:
                         label:
                             type: string
                         last_activity_ns:
-                            type: number
+                            format: int64
+                            type: integer
                         n1_count:
+                            format: double
                             type: number
                         note:
                             type: string
                         p95_ns:
-                            type: number
+                            format: int64
+                            type: integer
                         services:
                             type: string
                         size_bytes:
+                            format: double
                             type: number
                         span_count:
+                            format: double
                             type: number
                         trace_count:
+                            format: double
                             type: number
                     required:
                         - id
@@ -1421,8 +1543,10 @@ components:
                         - error_count
                     type: object
                 span_count:
+                    format: double
                     type: number
                 trace_count:
+                    format: double
                     type: number
             required:
                 - session
@@ -1435,7 +1559,8 @@ components:
             additionalProperties: false
             properties:
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 message:
                     type: string
                 rule_id:
@@ -1466,17 +1591,20 @@ components:
                 body:
                     type: string
                 received_at:
-                    type: number
+                    format: int64
+                    type: integer
                 service_name:
                     type: string
                 session_id:
                     type: string
                 severity:
+                    format: double
                     type: number
                 span_id:
                     type: string
                 timestamp_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 trace_id:
                     type: string
             required:
@@ -1505,8 +1633,10 @@ components:
             additionalProperties: false
             properties:
                 active_series:
+                    format: double
                     type: number
                 limit:
+                    format: double
                     type: number
                 name:
                     type: string
@@ -1529,10 +1659,12 @@ components:
                 is_monotonic:
                     type: boolean
                 last_timestamp_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 name:
                     type: string
                 sample_count:
+                    format: double
                     type: number
                 service_name:
                     type: string
@@ -1579,13 +1711,16 @@ components:
                         properties:
                             bounds:
                                 items:
+                                    format: double
                                     type: number
                                 type: array
                             buckets:
                                 items:
+                                    format: double
                                     type: number
                                 type: array
                             count:
+                                format: double
                                 type: number
                             exemplars:
                                 items:
@@ -1602,27 +1737,37 @@ components:
                                 type: array
                             exp_negative_counts:
                                 items:
+                                    format: double
                                     type: number
                                 type: array
                             exp_negative_offset:
+                                format: double
                                 type: number
                             exp_positive_counts:
                                 items:
+                                    format: double
                                     type: number
                                 type: array
                             exp_positive_offset:
+                                format: double
                                 type: number
                             exp_scale:
+                                format: double
                                 type: number
                             exp_zero_count:
+                                format: double
                                 type: number
                             exp_zero_threshold:
+                                format: double
                                 type: number
                             flags:
+                                format: double
                                 type: number
                             max:
+                                format: double
                                 type: number
                             min:
+                                format: double
                                 type: number
                             percentile:
                                 enum:
@@ -1632,6 +1777,7 @@ components:
                                 type: string
                             quantiles:
                                 additionalProperties:
+                                    format: double
                                     type: number
                                 propertyNames:
                                     type: string
@@ -1648,12 +1794,16 @@ components:
                             scope_version:
                                 type: string
                             start_timestamp_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             sum:
+                                format: double
                                 type: number
                             timestamp_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             value:
+                                format: double
                                 type: number
                         required:
                             - timestamp_ns
@@ -1677,13 +1827,16 @@ components:
                                     properties:
                                         bounds:
                                             items:
+                                                format: double
                                                 type: number
                                             type: array
                                         buckets:
                                             items:
+                                                format: double
                                                 type: number
                                             type: array
                                         count:
+                                            format: double
                                             type: number
                                         exemplars:
                                             items:
@@ -1700,27 +1853,37 @@ components:
                                             type: array
                                         exp_negative_counts:
                                             items:
+                                                format: double
                                                 type: number
                                             type: array
                                         exp_negative_offset:
+                                            format: double
                                             type: number
                                         exp_positive_counts:
                                             items:
+                                                format: double
                                                 type: number
                                             type: array
                                         exp_positive_offset:
+                                            format: double
                                             type: number
                                         exp_scale:
+                                            format: double
                                             type: number
                                         exp_zero_count:
+                                            format: double
                                             type: number
                                         exp_zero_threshold:
+                                            format: double
                                             type: number
                                         flags:
+                                            format: double
                                             type: number
                                         max:
+                                            format: double
                                             type: number
                                         min:
+                                            format: double
                                             type: number
                                         percentile:
                                             enum:
@@ -1730,6 +1893,7 @@ components:
                                             type: string
                                         quantiles:
                                             additionalProperties:
+                                                format: double
                                                 type: number
                                             propertyNames:
                                                 type: string
@@ -1746,12 +1910,16 @@ components:
                                         scope_version:
                                             type: string
                                         start_timestamp_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         sum:
+                                            format: double
                                             type: number
                                         timestamp_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                         value:
+                                            format: double
                                             type: number
                                     required:
                                         - timestamp_ns
@@ -1771,16 +1939,20 @@ components:
                         additionalProperties: false
                         properties:
                             duration_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             end_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             op:
                                 type: string
                             service:
                                 type: string
                             start_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             status_code:
+                                format: double
                                 type: number
                             trace_id:
                                 type: string
@@ -1825,13 +1997,16 @@ components:
             properties:
                 bounds:
                     items:
+                        format: double
                         type: number
                     type: array
                 buckets:
                     items:
+                        format: double
                         type: number
                     type: array
                 count:
+                    format: double
                     type: number
                 exemplars:
                     items:
@@ -1848,27 +2023,37 @@ components:
                     type: array
                 exp_negative_counts:
                     items:
+                        format: double
                         type: number
                     type: array
                 exp_negative_offset:
+                    format: double
                     type: number
                 exp_positive_counts:
                     items:
+                        format: double
                         type: number
                     type: array
                 exp_positive_offset:
+                    format: double
                     type: number
                 exp_scale:
+                    format: double
                     type: number
                 exp_zero_count:
+                    format: double
                     type: number
                 exp_zero_threshold:
+                    format: double
                     type: number
                 flags:
+                    format: double
                     type: number
                 max:
+                    format: double
                     type: number
                 min:
+                    format: double
                     type: number
                 percentile:
                     enum:
@@ -1878,6 +2063,7 @@ components:
                     type: string
                 quantiles:
                     additionalProperties:
+                        format: double
                         type: number
                     propertyNames:
                         type: string
@@ -1894,12 +2080,16 @@ components:
                 scope_version:
                     type: string
                 start_timestamp_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 sum:
+                    format: double
                     type: number
                 timestamp_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 value:
+                    format: double
                     type: number
             required:
                 - timestamp_ns
@@ -1910,13 +2100,15 @@ components:
             additionalProperties: false
             properties:
                 acknowledged_at:
+                    format: int64
                     type:
-                        - number
+                        - integer
                         - "null"
                 body:
                     type: string
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 dedupe_key:
                     type: string
                 id:
@@ -1924,8 +2116,9 @@ components:
                 link:
                     type: string
                 read_at:
+                    format: int64
                     type:
-                        - number
+                        - integer
                         - "null"
                 severity:
                     type: string
@@ -1960,14 +2153,19 @@ components:
             additionalProperties: false
             properties:
                 deleted_by_age:
+                    format: double
                     type: number
                 deleted_by_count:
+                    format: double
                     type: number
                 deleted_by_size:
+                    format: double
                     type: number
                 final_db_size_bytes:
+                    format: double
                     type: number
                 final_sessions:
+                    format: double
                     type: number
             required:
                 - deleted_by_age
@@ -2017,6 +2215,7 @@ components:
                         pattern:
                             type: string
                         value:
+                            format: double
                             type: number
                     type: object
                 display_type:
@@ -2037,6 +2236,7 @@ components:
                         type: object
                     type: array
                 query_version:
+                    format: double
                     type: number
                 rows:
                     items:
@@ -2168,19 +2368,23 @@ components:
             additionalProperties: false
             properties:
                 coverage_pct:
+                    format: double
                     type: number
                 dark_routes:
                     items:
                         additionalProperties: false
                         properties:
                             hits:
+                                format: double
                                 type: number
                             last_seen_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             method:
                                 type: string
                             p95_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             path:
                                 type: string
                         required:
@@ -2192,19 +2396,23 @@ components:
                 name:
                     type: string
                 observed_operations:
+                    format: double
                     type: number
                 observed_routes:
                     items:
                         additionalProperties: false
                         properties:
                             hits:
+                                format: double
                                 type: number
                             last_seen_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             method:
                                 type: string
                             p95_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             path:
                                 type: string
                         required:
@@ -2221,6 +2429,7 @@ components:
                 spec:
                     type: string
                 total_routes:
+                    format: double
                     type: number
             required:
                 - name
@@ -2240,10 +2449,13 @@ components:
                         additionalProperties: false
                         properties:
                             avg_duration_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             call_count:
+                                format: double
                                 type: number
                             error_count:
+                                format: double
                                 type: number
                             from:
                                 type: string
@@ -2262,23 +2474,28 @@ components:
                         additionalProperties: false
                         properties:
                             error_count:
+                                format: double
                                 type: number
                             id:
                                 type: string
                             p95_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             span_count:
+                                format: double
                                 type: number
                             top_operations:
                                 items:
                                     additionalProperties: false
                                     properties:
                                         count:
+                                            format: double
                                             type: number
                                         name:
                                             type: string
                                         p95_ns:
-                                            type: number
+                                            format: int64
+                                            type: integer
                                     required:
                                         - name
                                         - count
@@ -2302,10 +2519,13 @@ components:
             additionalProperties: false
             properties:
                 avg_duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 call_count:
+                    format: double
                     type: number
                 error_count:
+                    format: double
                     type: number
                 from:
                     type: string
@@ -2323,23 +2543,28 @@ components:
             additionalProperties: false
             properties:
                 error_count:
+                    format: double
                     type: number
                 id:
                     type: string
                 p95_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 span_count:
+                    format: double
                     type: number
                 top_operations:
                     items:
                         additionalProperties: false
                         properties:
                             count:
+                                format: double
                                 type: number
                             name:
                                 type: string
                             p95_ns:
-                                type: number
+                                format: int64
+                                type: integer
                         required:
                             - name
                             - count
@@ -2358,11 +2583,13 @@ components:
             additionalProperties: false
             properties:
                 count:
+                    format: double
                     type: number
                 name:
                     type: string
                 p95_ns:
-                    type: number
+                    format: int64
+                    type: integer
             required:
                 - name
                 - count
@@ -2373,8 +2600,10 @@ components:
             additionalProperties: false
             properties:
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 error_count:
+                    format: double
                     type: number
                 id:
                     type: string
@@ -2385,20 +2614,26 @@ components:
                 label:
                     type: string
                 last_activity_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 n1_count:
+                    format: double
                     type: number
                 note:
                     type: string
                 p95_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 services:
                     type: string
                 size_bytes:
+                    format: double
                     type: number
                 span_count:
+                    format: double
                     type: number
                 trace_count:
+                    format: double
                     type: number
             required:
                 - id
@@ -2421,12 +2656,14 @@ components:
             additionalProperties: false
             properties:
                 approx_bytes:
+                    format: double
                     type: number
                 id:
                     type: string
                 label:
                     type: string
                 span_count:
+                    format: double
                     type: number
             required:
                 - id
@@ -2471,6 +2708,7 @@ components:
                 forward_bearer_token_set:
                     type: boolean
                 forward_sample:
+                    format: double
                     type: number
                 forward_tls_ca_set:
                     type: boolean
@@ -2502,8 +2740,10 @@ components:
                 logs_retention_enabled:
                     type: boolean
                 max_db_size_mb:
+                    format: double
                     type: number
                 max_sessions:
+                    format: double
                     type: number
                 mcp_allow_writes:
                     type: boolean
@@ -2526,20 +2766,24 @@ components:
                 notification_timezone:
                     type: string
                 otlp_grpc_port:
+                    format: double
                     type: number
                 otlp_grpc_url:
                     type: string
                 otlp_http_port:
+                    format: double
                     type: number
                 otlp_http_url:
                     type: string
                 port:
+                    format: double
                     type: number
                 public_url:
                     type: string
                 refresh_interval_seconds:
                     type: integer
                 retention_days:
+                    format: double
                     type: number
                 runtime:
                     additionalProperties: false
@@ -2549,15 +2793,20 @@ components:
                         config_path:
                             type: string
                         db_size_bytes:
+                            format: double
                             type: number
                         otlp_grpc_port:
+                            format: double
                             type: number
                         otlp_http_port:
+                            format: double
                             type: number
                         pid:
+                            format: double
                             type: number
                         uptime_ns:
-                            type: number
+                            format: int64
+                            type: integer
                         version:
                             type: string
                     required:
@@ -2573,8 +2822,10 @@ components:
                 self_monitor:
                     type: boolean
                 source_burst:
+                    format: double
                     type: number
                 source_rps:
+                    format: double
                     type: number
                 tls_enabled:
                     type: boolean
@@ -2651,6 +2902,7 @@ components:
                 forward_bearer_token_set:
                     type: boolean
                 forward_sample:
+                    format: double
                     type: number
                 forward_tls_ca_set:
                     type: boolean
@@ -2682,8 +2934,10 @@ components:
                 logs_retention_enabled:
                     type: boolean
                 max_db_size_mb:
+                    format: double
                     type: number
                 max_sessions:
+                    format: double
                     type: number
                 mcp_allow_writes:
                     type: boolean
@@ -2706,20 +2960,24 @@ components:
                 notification_timezone:
                     type: string
                 otlp_grpc_port:
+                    format: double
                     type: number
                 otlp_grpc_url:
                     type: string
                 otlp_http_port:
+                    format: double
                     type: number
                 otlp_http_url:
                     type: string
                 port:
+                    format: double
                     type: number
                 public_url:
                     type: string
                 refresh_interval_seconds:
                     type: integer
                 retention_days:
+                    format: double
                     type: number
                 runtime:
                     additionalProperties: false
@@ -2729,15 +2987,20 @@ components:
                         config_path:
                             type: string
                         db_size_bytes:
+                            format: double
                             type: number
                         otlp_grpc_port:
+                            format: double
                             type: number
                         otlp_http_port:
+                            format: double
                             type: number
                         pid:
+                            format: double
                             type: number
                         uptime_ns:
-                            type: number
+                            format: int64
+                            type: integer
                         version:
                             type: string
                     required:
@@ -2753,8 +3016,10 @@ components:
                 self_monitor:
                     type: boolean
                 source_burst:
+                    format: double
                     type: number
                 source_rps:
+                    format: double
                     type: number
                 tls_enabled:
                     type: boolean
@@ -2802,15 +3067,20 @@ components:
                 config_path:
                     type: string
                 db_size_bytes:
+                    format: double
                     type: number
                 otlp_grpc_port:
+                    format: double
                     type: number
                 otlp_http_port:
+                    format: double
                     type: number
                 pid:
+                    format: double
                     type: number
                 uptime_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 version:
                     type: string
             required:
@@ -2828,14 +3098,19 @@ components:
             additionalProperties: false
             properties:
                 accepted_per_sec:
+                    format: double
                     type: number
                 bytes_per_sec:
+                    format: double
                     type: number
                 error_rate:
+                    format: double
                     type: number
                 last_seen_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 rejected_per_sec:
+                    format: double
                     type: number
                 service:
                     type: string
@@ -2854,9 +3129,11 @@ components:
                 attributes:
                     type: string
                 duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 end_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 events:
                     items:
                         additionalProperties: false
@@ -2870,7 +3147,8 @@ components:
                             span_id:
                                 type: string
                             time_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             trace_id:
                                 type: string
                         required:
@@ -2883,6 +3161,7 @@ components:
                         type: object
                     type: array
                 kind:
+                    format: double
                     type: number
                 links:
                     items:
@@ -2922,7 +3201,8 @@ components:
                     minimum: 0
                     type: integer
                 received_at:
-                    type: number
+                    format: int64
+                    type: integer
                 resource:
                     type: string
                 service_name:
@@ -2934,8 +3214,10 @@ components:
                 span_id:
                     type: string
                 start_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 status_code:
+                    format: double
                     type: number
                 status_message:
                     type: string
@@ -2974,7 +3256,8 @@ components:
                 span_id:
                     type: string
                 time_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 trace_id:
                     type: string
             required:
@@ -2990,23 +3273,31 @@ components:
             additionalProperties: false
             properties:
                 attribute_variants:
+                    format: double
                     type: number
                 count:
+                    format: double
                     type: number
                 error_count:
+                    format: double
                     type: number
                 kind:
+                    format: double
                     type: number
                 latest_start_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 max_duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 name:
                     type: string
                 p50_duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 p95_duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 service_name:
                     type: string
             required:
@@ -3055,9 +3346,11 @@ components:
                 attributes:
                     type: string
                 duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 end_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 events:
                     items:
                         additionalProperties: false
@@ -3071,7 +3364,8 @@ components:
                             span_id:
                                 type: string
                             time_ns:
-                                type: number
+                                format: int64
+                                type: integer
                             trace_id:
                                 type: string
                         required:
@@ -3084,6 +3378,7 @@ components:
                         type: object
                     type: array
                 kind:
+                    format: double
                     type: number
                 links:
                     items:
@@ -3123,7 +3418,8 @@ components:
                     minimum: 0
                     type: integer
                 received_at:
-                    type: number
+                    format: int64
+                    type: integer
                 resource:
                     type: string
                 service_name:
@@ -3135,8 +3431,10 @@ components:
                 span_id:
                     type: string
                 start_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 status_code:
+                    format: double
                     type: number
                 status_message:
                     type: string
@@ -3169,31 +3467,43 @@ components:
             additionalProperties: false
             properties:
                 db_size:
+                    format: double
                     type: number
                 dropped_logs:
+                    format: double
                     type: number
                 dropped_metric_points:
+                    format: double
                     type: number
                 dropped_spans:
+                    format: double
                     type: number
                 last_drop_at:
-                    type: number
+                    format: int64
+                    type: integer
                 log_count:
+                    format: double
                     type: number
                 logs_per_sec:
+                    format: double
                     type: number
                 metrics_per_sec:
+                    format: double
                     type: number
                 peak_spans_per_sec:
+                    format: double
                     type: number
                 span_count:
+                    format: double
                     type: number
                 spans_per_sec:
+                    format: double
                     type: number
                 storage_full:
                     default: false
                     type: boolean
                 trace_count:
+                    format: double
                     type: number
             required:
                 - span_count
@@ -3215,8 +3525,10 @@ components:
             additionalProperties: false
             properties:
                 last_checkpoint_at:
-                    type: number
+                    format: int64
+                    type: integer
                 main_bytes:
+                    format: double
                     type: number
                 sessions:
                     items:
@@ -3227,10 +3539,12 @@ components:
                         additionalProperties: false
                         properties:
                             approx_bytes:
+                                format: double
                                 type: number
                             name:
                                 type: string
                             row_count:
+                                format: double
                                 type: number
                         required:
                             - name
@@ -3239,6 +3553,7 @@ components:
                         type: object
                     type: array
                 wal_bytes:
+                    format: double
                     type: number
             required:
                 - tables
@@ -3254,10 +3569,12 @@ components:
             additionalProperties: false
             properties:
                 approx_bytes:
+                    format: double
                     type: number
                 name:
                     type: string
                 row_count:
+                    format: double
                     type: number
             required:
                 - name
@@ -3269,9 +3586,11 @@ components:
             additionalProperties: false
             properties:
                 count:
+                    format: double
                     type: number
                 created_at:
-                    type: number
+                    format: int64
+                    type: integer
                 example_span_id:
                     type: string
                 fingerprint:
@@ -3287,7 +3606,8 @@ components:
                 trace_id:
                     type: string
                 wasted_ns:
-                    type: number
+                    format: int64
+                    type: integer
             required:
                 - id
                 - trace_id
@@ -3305,16 +3625,20 @@ components:
             additionalProperties: false
             properties:
                 duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 end_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 op:
                     type: string
                 service:
                     type: string
                 start_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 status_code:
+                    format: double
                     type: number
                 trace_id:
                     type: string
@@ -3334,9 +3658,11 @@ components:
                 attributes:
                     type: string
                 duration_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 end_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 has_n1:
                     type: boolean
                 issue_kinds:
@@ -3356,10 +3682,13 @@ components:
                 session_label:
                     type: string
                 span_count:
+                    format: double
                     type: number
                 start_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 status_code:
+                    format: double
                     type: number
                 trace_id:
                     type: string
@@ -3384,7 +3713,8 @@ components:
                 channel:
                     type: string
                 checked_at_ns:
-                    type: number
+                    format: int64
+                    type: integer
                 current:
                     type: string
                 error:
@@ -3677,6 +4007,13 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted.
+                  in: query
+                  name: markSeen
+                  required: false
+                  schema:
+                    default: true
+                    type: boolean
             responses:
                 "200":
                     content:
@@ -5558,6 +5895,13 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Defaults to marking the inspected definition revision as seen, preserving browser behavior. Set false for observation-only clients such as watch; no definition acknowledgement is persisted.
+                  in: query
+                  name: markSeen
+                  required: false
+                  schema:
+                    default: true
+                    type: boolean
             responses:
                 "200":
                     content:
@@ -6204,6 +6548,9 @@ paths:
                                     type: string
                                 query_sql:
                                     description: Supplies the read-only query Spaniel evaluates to produce this result or alert.
+                                    type: string
+                                sessionId:
+                                    description: Optional selected recording session for the server-owned $session_id built-in. Omit or leave empty to follow the server-active session. A variables.session_id override is ignored.
                                     type: string
                                 variables:
                                     additionalProperties:
@@ -6996,7 +7343,7 @@ paths:
                   required: false
                   schema:
                     type: string
-                - description: Filters results by severity level, such as error or warn.
+                - description: 'Exact severity band: trace, debug, info, warn, error or fatal; error+ matches ERROR and FATAL (severity >=17). Empty/all includes every severity.'
                   in: query
                   name: severity
                   required: false
@@ -7043,6 +7390,12 @@ paths:
                         type: string
                     type: array
                   style: form
+                - description: Case-insensitive literal substring across body, serialized attributes, service, trace ID and span ID, applied before count and pagination.
+                  in: query
+                  name: text
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -9559,6 +9912,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -9964,6 +10323,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -10026,6 +10391,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -10072,6 +10443,12 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Optional exact recording session. Omit to preserve the existing unscoped detail lookup. Correlated events and links are isolated to their owning span session and trace.
+                  in: query
+                  name: sessionId
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -10081,19 +10458,18 @@ paths:
                                     summary: Representative Spaniel response
                                     value:
                                         data:
-                                            - duration_ns: 1.5
-                                              name: POST /checkout
-                                              parent_span_id: example
-                                              service_name: checkout
-                                              session_id: session_2026-10-07_1200
-                                              span_id: 19ab3f8e
-                                              start_ns: 1.5
-                                              trace_id: 6d8f4a9c2e1b7f30
+                                            - attributes: '{"link.type":"retry"}'
+                                              linked_span_id: target-span
+                                              linked_trace_id: target-trace
+                                              session_id: session-demo
+                                              span_id: source-span
+                                              trace_id: source-trace
+                                              trace_state: vendor=demo
                             schema:
                                 properties:
                                     data:
                                         items:
-                                            $ref: '#/components/schemas/Span'
+                                            $ref: '#/components/schemas/SpanLink'
                                         type: array
                                 required:
                                     - data
