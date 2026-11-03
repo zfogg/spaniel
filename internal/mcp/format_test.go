@@ -47,20 +47,27 @@ func TestRenderWaterfallTiming(t *testing.T) {
 	}
 }
 
-func TestRenderWaterfallSingleLineUnicode(t *testing.T) {
+func TestRenderWaterfallFullNamesAndStatusWithoutAttributes(t *testing.T) {
+	name := "storage.postgres." + strings.Repeat("long_operation_犬", 20) + "\nusers"
+	message := "failed\r\ntry again " + strings.Repeat("犬", 100)
 	span := &storage.Span{
-		SpanID: "sql", Name: "SELECT\nusers", ServiceName: "db\r\nservice",
+		SpanID: "sql", Name: name, ServiceName: "db\r\nservice",
 		StartNs: 1, EndNs: 12_346, DurationNs: 12_345, StatusCode: 2,
-		StatusMessage: "failed\r\ntry again",
+		StatusMessage: message,
 		Attributes:    `{"db.query.text":"SELECT\n  *\tFROM users","exception.message":"` + strings.Repeat("犬", 100) + `"}`,
 	}
 	out := renderWaterfall("trace", []*storage.Span{span})
 	if !utf8.ValidString(out) || len(strings.Split(out, "\n")) != 3 {
 		t.Fatalf("expected valid UTF-8 and one span row:\n%s", out)
 	}
-	for _, want := range []string{"0.012ms", "SELECT users  [db service]", "msg=failed try again", "db.query.text=SELECT * FROM users", strings.Repeat("犬", 80) + "…"} {
+	for _, want := range []string{"0.012ms", oneLine(name) + "  [db service]", "msg=" + oneLine(message)} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	for _, unwanted := range []string{"db.query.text", "exception.message", "SELECT", "…"} {
+		if strings.Contains(out, unwanted) {
+			t.Errorf("unexpected %q in waterfall:\n%s", unwanted, out)
 		}
 	}
 	if got := nsToMs(span.DurationNs); got != 0.012345 {

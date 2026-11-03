@@ -192,35 +192,8 @@ var keyAttrOrder = []string{
 	"exception.type", "exception.message", "error",
 }
 
-// truncate shortens s to at most n runes, appending an ellipsis when cut.
-func truncate(s string, n int) string {
-	s = strings.TrimSpace(s)
-	runes := []rune(s)
-	if len(runes) <= n {
-		return s
-	}
-	return string(runes[:n]) + "…"
-}
-
 // oneLine keeps telemetry text from breaking the waterfall's row boundaries.
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
-
-// attrSummary produces a compact one-line summary of the most relevant
-// attributes for a span, suitable for a waterfall line.
-func attrSummary(attrs map[string]string) string {
-	if len(attrs) == 0 {
-		return ""
-	}
-	var parts []string
-	seen := map[string]bool{}
-	for _, k := range keyAttrOrder {
-		if v, ok := attrs[k]; ok && v != "" && !seen[k] {
-			seen[k] = true
-			parts = append(parts, fmt.Sprintf("%s=%s", k, truncate(oneLine(v), 80)))
-		}
-	}
-	return strings.Join(parts, " ")
-}
 
 // selectKeyAttrs returns the subset of attrs that are useful for debugging,
 // preserving full values. Falls back to all attrs when none of the known keys
@@ -296,13 +269,10 @@ func renderWaterfall(traceID string, spans []*storage.Span) string {
 			nsToMs(s.StartNs-traceStart), nsToMs(s.DurationNs), indent,
 			oneLine(s.Name), oneLine(s.ServiceName), statusString(s.StatusCode), oneLine(s.SpanID))
 		if s.StatusMessage != "" {
-			line += "  msg=" + truncate(oneLine(s.StatusMessage), 80)
+			line += "  msg=" + oneLine(s.StatusMessage)
 		}
 		if s.ParentSpanID != "" && s.ParentSpanID != "0000000000000000" && !present[s.ParentSpanID] {
 			line += "  missing_parent=" + oneLine(s.ParentSpanID)
-		}
-		if sum := attrSummary(parseAttrs(s.Attributes)); sum != "" {
-			line += "  " + sum
 		}
 		b.WriteString(line)
 		b.WriteByte('\n')

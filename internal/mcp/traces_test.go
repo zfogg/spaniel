@@ -259,6 +259,14 @@ func TestGetTrace(t *testing.T) {
 	if !strings.Contains(out.Waterfall, "+1.000ms") || !strings.Contains(out.Waterfall, "span_id="+dbSpanID) || len(strings.Split(out.Waterfall, "\n")) != 4 {
 		t.Errorf("TOON waterfall lost timing, identity, or row boundaries:\n%s", out.Waterfall)
 	}
+	for _, unwanted := range []string{"http.method", "db.statement", "SELECT * FROM users"} {
+		if strings.Contains(out.Waterfall, unwanted) {
+			t.Errorf("attribute %q leaked into waterfall:\n%s", unwanted, out.Waterfall)
+		}
+	}
+	if got, ok := out.Spans[1].Attributes["db.statement"].(string); !ok || strings.Join(strings.Fields(got), " ") != "SELECT * FROM users" {
+		t.Errorf("structured SQL attribute = %v, want full query", got)
+	}
 	if len(out.Issues) != 1 || out.Issues[0].Kind != "n_plus_one" {
 		t.Errorf("issues = %+v, want one n_plus_one", out.Issues)
 	}
