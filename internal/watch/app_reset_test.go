@@ -147,11 +147,17 @@ func TestTerminalRecoversActiveSessionAfterAPIReset(t *testing.T) {
 		return data
 	}
 	request(http.MethodDelete, "/api/settings/data", "")
-	wait("cleared active metadata", func(got observation) bool {
-		var active struct{ ID, Label string }
-		return got.path == "/api/sessions/active" && json.Unmarshal(got.data, &active) == nil && active.ID == "" && active.Label == ""
-	})
-	wait("empty unscoped trace cache", traceRows("", 0))
+	replacementID := store.ActiveSessionID()
+	if replacementID == "" || replacementID == old.ID {
+		t.Fatal("reset did not select a fresh active session")
+	}
+	// The API creates and announces a replacement session. A live terminal must
+	// move its empty cache into that scope without a manual activation or resync.
+	wait("replacement empty active scope", traceRows(replacementID, 0))
+	var replacement struct{ Data struct{ ID, Label string } }
+	if err := json.Unmarshal(request(http.MethodGet, "/api/sessions/active", ""), &replacement); err != nil || replacement.Data.ID != replacementID || replacement.Data.Label != store.ActiveSessionLabel() {
+		t.Fatalf("replacement active metadata is inconsistent: %v", err)
+	}
 	var created struct{ Data storage.Session }
 	if err := json.Unmarshal(request(http.MethodPost, "/api/sessions", `{"label":"empty new session"}`), &created); err != nil || created.Data.ID == "" {
 		t.Fatalf("create empty session: %v", err)
