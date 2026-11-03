@@ -196,7 +196,7 @@ func renderGauge(config settings, rows []map[string]any, width int) []string {
 	fraction := math.Max(0, math.Min(1, (value-minV)/(maxV-minV)))
 	size := max(1, min(72, width-2))
 	fill := int(math.Round(fraction * float64(size)))
-	lines := []string{"Value: " + cell(rows[0]["value"]) + " " + safe(config.Unit), "[" + strings.Repeat("█", fill) + strings.Repeat("░", size-fill) + "]", fmt.Sprintf("Range: %g → %g %s", minV, maxV, safe(config.Unit))}
+	lines := []string{"Value: " + safe(cell(rows[0]["value"])) + " " + safe(config.Unit), "[" + strings.Repeat("█", fill) + strings.Repeat("░", size-fill) + "]", fmt.Sprintf("Range: %g → %g %s", minV, maxV, safe(config.Unit))}
 	if value < minV || value > maxV {
 		lines = append(lines, "Out of range: meter fill clamped; actual value shown above.")
 	}
@@ -225,7 +225,7 @@ func renderGauge(config settings, rows []map[string]any, width int) []string {
 		} else {
 			state += " · outside meter range"
 		}
-		thresholdLines = append(thresholdLines, fmt.Sprintf("Threshold %s: %s %s · %s", label, cell(raw), safe(config.Unit), state))
+		thresholdLines = append(thresholdLines, fmt.Sprintf("Threshold %s: %s %s · %s", label, safe(cell(raw)), safe(config.Unit), state))
 	}
 	if len(config.Thresholds) > 0 {
 		lines = append(lines, " "+string(ticks)+" ", "┆ threshold positions")

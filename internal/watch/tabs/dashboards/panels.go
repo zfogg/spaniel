@@ -180,7 +180,7 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 			lines = append(lines, tui.RenderContent(tui.ContentHeading, fmt.Sprintf("ROW %d", i+1)))
 			for j, value := range row {
 				display := tui.RenderContent(tui.ContentValue, safe(value))
-				if columns[j] == "service_name" || columns[j] == "service.name" || columns[j] == "service" {
+				if serviceColumn(columns[j]) {
 					display = tui.RenderServiceName(value, safe(value))
 				}
 				lines = append(lines, tui.RenderContent(tui.ContentLabel, safe(columns[j])+": ")+display)
@@ -217,7 +217,7 @@ func layoutTable(columns []string, rows [][]string, width int) []string {
 					style = tui.ContentHeading
 				}
 				parts[i] = tui.RenderContent(style, text)
-				if !header && (columns[i] == "service_name" || columns[i] == "service") {
+				if !header && serviceColumn(columns[i]) {
 					parts[i] = tui.RenderServiceName(row[i], text)
 				}
 			}
@@ -347,4 +347,8 @@ func timeSeries(rows []map[string]any) ([]charts.Series, time.Time, time.Time, i
 		series = append(series, charts.Series{Name: name, Points: grouped[name]})
 	}
 	return series, from, to, skipped
+}
+
+func serviceColumn(name string) bool {
+	return name == "service_name" || name == "service.name" || name == "service"
 }
