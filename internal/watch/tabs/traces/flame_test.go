@@ -138,3 +138,36 @@ func TestFlamePointsAndUnavailableSelectionAreHonest(t *testing.T) {
 		t.Fatal("unplaceable selection claimed as visible", view)
 	}
 }
+
+func TestFlameShortBarsKeepExactCellWidthsAndAdjacentPositions(t *testing.T) {
+	profile := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(profile) })
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Setenv("TERM", "xterm-256color")
+	rows := []flatSpan{
+		{span: flameSpan("one", "", "api", "界 long label", 100, 101)},
+		{span: flameSpan("two", "", "api", "界 long label", 101, 103)},
+		{span: flameSpan("three", "", "api", "界 long label", 103, 106)},
+		{span: flameSpan("extent", "", "worker", "full extent", 100, 118), depth: 1},
+	}
+	for _, ascii := range []string{"0", "1"} {
+		t.Setenv("SPANIEL_ASCII", ascii)
+		for _, plain := range []string{"", "1"} {
+			t.Setenv("NO_COLOR", plain)
+			for selected := range rows[:3] {
+				layout := layoutFlame(rows, 18)
+				lines := renderFlame(rows, spanKey(rows[selected].span), 24, 6)
+				line := ansi.Strip(lines[2]) // Title, ruler, then depth zero.
+				for i, bar := range layout.lanes[0].bars {
+					rendered := renderFlameBar(bar, i == selected)
+					if got := ansi.StringWidth(rendered); got != i+1 {
+						t.Fatalf("ASCII=%s plain=%s selected=%d: bar %d width=%d, want %d", ascii, plain, selected, i, got, i+1)
+					}
+					if got := ansi.Cut(line, 6+bar.left, 6+bar.right); got != ansi.Strip(rendered) {
+						t.Fatalf("adjacent bar shifted from cells [%d,%d): got %q, want %q; row %q", bar.left, bar.right, got, ansi.Strip(rendered), line)
+					}
+				}
+			}
+		}
+	}
+}

@@ -154,7 +154,10 @@ func renderFlameBar(bar flameBar, selected bool) string {
 		if bar.incomplete || bar.mismatch {
 			name = "! " + name
 		}
-		label := terminal.Truncate(name, width-2)
+		label := ""
+		if width > 2 {
+			label = terminal.Truncate(name, width-2)
+		}
 		left := "["
 		if selected {
 			left = ">"
