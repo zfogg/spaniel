@@ -14,7 +14,7 @@ import (
 // no padding or borders: styling cannot change the layout or scrolling geometry.
 var (
 	contentSky      = lipgloss.AdaptiveColor{Light: "#284a6a", Dark: "#a8c4dc"}
-	contentRed      = lipgloss.AdaptiveColor{Light: "#7a3a2a", Dark: "#f0b8aa"}
+	contentRed      = lipgloss.AdaptiveColor{Light: "#b91c1c", Dark: "#f87171"}
 	contentAmber    = lipgloss.AdaptiveColor{Light: "#6a4f1e", Dark: "#f0d898"}
 	ContentTitle    = lipgloss.NewStyle().Foreground(contentSky).Bold(true)
 	ContentHeading  = lipgloss.NewStyle().Foreground(contentSky).Bold(true).Underline(true)
@@ -66,7 +66,7 @@ func ContentPair(label, value string) string {
 func ContentSeverityStyle(severity int) lipgloss.Style {
 	switch {
 	case severity >= 21:
-		return lipgloss.NewStyle().Foreground(colorBg).Background(colorDanger).Bold(true)
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#7e22ce")).Bold(true)
 	case severity >= 17:
 		return ContentError
 	case severity >= 13:

@@ -89,3 +89,23 @@ func TestSelectedRowRestoresBackgroundAfterNestedStyles(t *testing.T) {
 		t.Fatal("nested resets lost the selected background", selected)
 	}
 }
+
+func TestErrorRedAndFatalPurple(t *testing.T) {
+	profile, dark := lipgloss.ColorProfile(), lipgloss.HasDarkBackground()
+	t.Cleanup(func() { lipgloss.SetColorProfile(profile); lipgloss.SetHasDarkBackground(dark) })
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Setenv("TERM", "xterm")
+	t.Setenv("NO_COLOR", "")
+	for _, mode := range []struct {
+		dark bool
+		red  string
+	}{{false, "38;2;185;28;28"}, {true, "38;2;248;113;113"}} {
+		lipgloss.SetHasDarkBackground(mode.dark)
+		if got := RenderContent(ContentSeverityStyle(17), "ERROR"); !strings.Contains(got, mode.red) {
+			t.Fatal("ERROR is not red", got)
+		}
+		if got := RenderContent(ContentSeverityStyle(21), "FATAL"); !strings.Contains(got, "48;2;126;34;206") || !strings.Contains(got, "38;2;255;255;255") {
+			t.Fatal("FATAL lost its purple badge contrast", got)
+		}
+	}
+}
