@@ -165,7 +165,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
 
     await expect(page.getByTestId('row-grpc')).toBeVisible()
     await expect(page.getByTestId('row-http')).toBeVisible()
@@ -179,7 +179,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
 
     await page.getByLabel('enable grpc receiver').click()
 
@@ -192,7 +192,7 @@ test.describe('Settings page', () => {
     await stubSettings(page, makeSettings({ retention_days: 7 }))
     await page.goto('/settings')
 
-    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+    await page.getByRole('link', { name: 'Storage', exact: true }).click()
 
     // Default unit is days → "7 days".
     await expect(page.getByTestId('retention-pill')).toContainText('7 days')
@@ -212,7 +212,7 @@ test.describe('Settings page', () => {
     // 612 MB used of 500 MB cap → over 100% → clamps to 100% width, danger color.
     await stubSettings(page, makeSettings({ max_db_size_mb: 500 }))
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+    await page.getByRole('link', { name: 'Storage', exact: true }).click()
 
     const fill = page.getByTestId('usage-bar-fill')
     await expect(fill).toBeVisible()
@@ -225,7 +225,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings({ auto_prune: true }))
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+    await page.getByRole('link', { name: 'Storage', exact: true }).click()
 
     const toggle = page.getByRole('switch', { name: 'auto prune storage' })
     await expect(toggle).toBeChecked()
@@ -240,7 +240,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
 
     // The optimistic update flips display, then the server rejects with 400 and
     // the save-state strip shows the error.
@@ -255,17 +255,17 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+    await page.getByRole('link', { name: 'Storage', exact: true }).click()
 
     // 1) cancel — no API call.
     page.once('dialog', (d) => d.dismiss())
-    await page.getByRole('button', { name: /drop & recreate/i }).click()
+    await page.getByRole('button', { name: /Delete all sessions/i }).click()
     await page.waitForTimeout(150)
     expect(h.dropCount()).toBe(0)
 
     // 2) accept — one API call.
     page.once('dialog', (d) => d.accept())
-    await page.getByRole('button', { name: /drop & recreate/i }).click()
+    await page.getByRole('button', { name: /Delete all sessions/i }).click()
     await expect.poll(() => h.dropCount()).toBe(1)
   })
 
@@ -273,7 +273,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
 
     const input = page.getByLabel('ipv4 bind address')
     await input.fill('0.0.0.0')
@@ -289,7 +289,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
 
     const input = page.getByLabel('ipv6 bind address')
     await input.fill('::')
@@ -307,7 +307,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     const h = await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
 
     const slider = page.getByLabel('forward sample', { exact: true })
     await slider.evaluate((el: HTMLInputElement) => {
@@ -328,7 +328,7 @@ test.describe('Settings page', () => {
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
 
-    await page.getByRole('button', { name: 'About' }).click()
+    await page.getByRole('link', { name: 'About' }).click()
     await expect(page.getByText('spaniel 0.4.2')).toBeVisible()
     await expect(page.getByText('/home/user/.spaniel/config.yaml').first()).toBeVisible()
   })
@@ -340,7 +340,7 @@ test.describe('Settings page', () => {
     await stubChrome(page, bd)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+    await page.getByRole('link', { name: 'Storage', exact: true }).click()
 
     const bar = page.getByTestId('breakdown-bar')
     await expect(bar).toBeVisible()
@@ -360,7 +360,7 @@ test.describe('Settings page', () => {
     await stubChrome(page)
     await stubSettings(page, makeSettings())
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+    await page.getByRole('link', { name: 'Storage', exact: true }).click()
 
     const sessionsList = page.getByTestId('sessions-breakdown')
     await expect(sessionsList).toBeVisible()
@@ -381,7 +381,7 @@ test.describe('Settings page', () => {
       })
     })
     await page.goto('/settings')
-    await page.getByRole('button', { name: 'Storage', exact: true }).click()
+    await page.getByRole('link', { name: 'Storage', exact: true }).click()
 
     await page.getByTestId('compact-btn').click()
     await expect(page.getByTestId('compact-msg')).toContainText('Done', { timeout: 5000 })
@@ -412,7 +412,7 @@ test.describe('Settings page', () => {
     await stubSettings(page, makeSettings())
     await page.goto('/settings#about')
 
-    await page.getByRole('button', { name: 'About' }).click()
+    await page.getByRole('link', { name: 'About' }).click()
     await page.getByTestId('check-updates-btn').click()
     const result = page.getByTestId('update-result')
     await expect(result).toBeVisible()
@@ -460,7 +460,7 @@ test.describe('Self-monitoring definitions', () => {
     await expect(
       page.getByRole('button', { name: 'Create / refresh Spaniel alerts', exact: true }),
     ).toBeHidden()
-    await page.getByRole('button', { name: 'Self-monitoring', exact: true }).click()
+    await page.getByRole('link', { name: 'Self-monitoring', exact: true }).click()
     await expect(page.locator('#self-monitoring').getByRole('switch')).toBeVisible()
     await page.getByRole('button', { name: 'Create / refresh Spaniel dashboards' }).click()
     await expect(page.getByRole('status')).toContainText('3 created')
@@ -487,7 +487,7 @@ test.describe('Self-monitoring definitions', () => {
       })
       await page.goto('/settings')
       await expect(page.getByRole('switch', { name: 'self monitor', exact: true })).toBeHidden()
-      await page.getByRole('button', { name: 'Self-monitoring', exact: true }).click()
+      await page.getByRole('link', { name: 'Self-monitoring', exact: true }).click()
       let dialogs = 0
       page.on('dialog', async (dialog) => {
         dialogs++
@@ -535,7 +535,7 @@ test.describe('Advanced Settings tabs', () => {
   }
   test('advertised endpoint overrides persist and render both protocols', async ({ page }) => {
     const h = await setup(page)
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
     await edit(page, 'Advertised OTLP HTTP URL', 'https://ingest.example.com:443')
     await expect.poll(() => h.current().otlp_http_url).toBe('https://ingest.example.com:443')
     await expect(
@@ -543,7 +543,7 @@ test.describe('Advanced Settings tabs', () => {
     ).toBeVisible()
     await edit(page, 'Advertised OTLP gRPC URL', 'https://grpc.example.com:443')
     await page.reload()
-    await page.getByRole('button', { name: 'Network', exact: true }).click()
+    await page.getByRole('link', { name: 'Network', exact: true }).click()
     await expect(page.getByLabel('Advertised OTLP gRPC URL')).toHaveValue(
       'https://grpc.example.com:443',
     )
@@ -557,7 +557,7 @@ test.describe('Advanced Settings tabs', () => {
   })
   test('ingestion filters, all signal toggles, limits and status', async ({ page }) => {
     const h = await setup(page)
-    await page.getByRole('button', { name: 'Ingestion', exact: true }).click()
+    await page.getByRole('link', { name: 'Ingestion', exact: true }).click()
     await edit(page, 'Per-source span rate (per second)', '100')
     await edit(page, 'Per-source span burst', '500')
     await expect.poll(() => h.current().source_rps).toBe(100)
@@ -581,7 +581,7 @@ test.describe('Advanced Settings tabs', () => {
     await expect(page.getByLabel('Ingestion status')).toContainText('filtered records')
     await page.screenshot({ path: 'test-results/settings-ingestion.png', fullPage: true })
     await page.reload()
-    await page.getByRole('button', { name: 'Ingestion', exact: true }).click()
+    await page.getByRole('link', { name: 'Ingestion', exact: true }).click()
     for (const signal of ['traces', 'logs', 'metrics']) {
       await expect(page.getByLabel(`${signal} retention enabled`, { exact: true })).toBeChecked()
       await expect(page.getByLabel(`${signal} retention (days)`, { exact: true })).toHaveValue('14')
@@ -589,13 +589,13 @@ test.describe('Advanced Settings tabs', () => {
   })
   test('security submits write-only secrets and can clear them', async ({ page }) => {
     const h = await setup(page)
-    await page.getByRole('button', { name: 'Security', exact: true }).click()
+    await page.getByRole('link', { name: 'Security', exact: true }).click()
     await page.getByLabel('forward_bearer_token', { exact: true }).fill('browser-test-secret')
     await page.getByRole('button', { name: 'Save forwarding secrets', exact: true }).click()
     await expect.poll(() => h.lastPut()).toEqual({ forward_bearer_token: 'browser-test-secret' })
     await expect(page.getByLabel('forward_bearer_token', { exact: true })).toHaveValue('')
     await page.reload()
-    await page.getByRole('button', { name: 'Security', exact: true }).click()
+    await page.getByRole('link', { name: 'Security', exact: true }).click()
     await expect(page.getByLabel('forward_bearer_token', { exact: true })).toHaveValue('')
     await expect(page.getByText('browser-test-secret')).toHaveCount(0)
     await page.getByRole('button', { name: 'Clear forwarding token', exact: true }).click()
@@ -621,19 +621,30 @@ test.describe('Advanced Settings tabs', () => {
       Object.defineProperty(window, 'Notification', { value: TestNotification, configurable: true })
     })
     const h = await setup(page)
-    await page.getByRole('button', { name: 'Notifications', exact: true }).click()
-    await page.getByLabel('Browser notifications for alerts', { exact: true }).check()
+    await page.locator('a[href="/settings/notifications"]').click()
+    await page
+      .getByRole('switch', { name: 'Browser notifications for alerts', exact: true })
+      .click()
     await page.getByRole('button', { name: 'Allow browser notifications', exact: true }).click()
     await expect(page.getByText(/Browser permission: granted/)).toBeVisible()
-    await page.getByLabel('Enable quiet hours', { exact: true }).check()
-    await edit(page, 'Quiet hours start', '23:00')
-    await edit(page, 'Quiet hours end', '07:00')
-    await edit(page, 'Notification timezone', 'America/New_York')
+    await page.getByRole('switch', { name: 'Enable quiet hours', exact: true }).click()
+    for (const [label, hour] of [
+      ['Quiet hours start', '23'],
+      ['Quiet hours end', '07'],
+    ]) {
+      const field = page.getByRole('group', { name: label, exact: true })
+      await field.getByRole('spinbutton', { name: /^hour,/i }).fill(hour)
+      await field.getByRole('spinbutton', { name: /^minute,/i }).fill('00')
+      await page.getByLabel('Notification timezone', { exact: true }).focus()
+    }
+    await page.getByLabel('Notification timezone', { exact: true }).selectOption('America/New_York')
     await edit(page, 'Minimum notification cooldown (seconds)', '120')
     await expect.poll(() => h.current().notification_cooldown_seconds).toBe(120)
     await expect.poll(() => h.current().notification_timezone).toBe('America/New_York')
+    await expect.poll(() => h.current().notification_quiet_start).toBe('23:00')
+    await expect.poll(() => h.current().notification_quiet_end).toBe('07:00')
     await page.reload()
-    await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+    await page.locator('a[href="/settings/notifications"]').click()
     await expect(page.getByLabel('Enable quiet hours', { exact: true })).toBeChecked()
   })
 })
@@ -653,9 +664,73 @@ test('notification denial is visible and does not prompt repeatedly', async ({ p
   await stubChrome(page)
   await stubSettings(page, makeSettings())
   await page.goto('/settings')
-  await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+  await page.locator('a[href="/settings/notifications"]').click()
   await expect(
     page.getByRole('button', { name: 'Allow browser notifications', exact: true }),
   ).toBeDisabled()
   await expect(page.getByText(/Browser permission: denied/)).toBeVisible()
+})
+
+test('settings subpages support direct links, reload, and browser history', async ({ page }) => {
+  await stubChrome(page)
+  await stubSettings(page, makeSettings())
+  await page.goto('/settings/storage')
+  await expect(page.getByTestId('row-drop')).toBeVisible()
+  await page.reload()
+  await expect(page.getByTestId('row-drop')).toBeVisible()
+  await page.getByRole('link', { name: 'Network', exact: true }).click()
+  await expect(page).toHaveURL(/\/settings\/network$/)
+  await page.goBack()
+  await expect(page).toHaveURL(/\/settings\/storage$/)
+  await expect(page.getByTestId('row-drop')).toBeVisible()
+})
+
+test('database reset requires confirmation and requests a full reset', async ({ page }) => {
+  await stubChrome(page)
+  await stubSettings(page, makeSettings())
+  let resets = 0
+  await page.route('**/api/settings/data?reset=true', (route) => {
+    resets++
+    return jsonResponse(route, { ok: true })
+  })
+  await page.goto('/settings/storage')
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await page.getByRole('button', { name: 'Database reset', exact: true }).click()
+  expect(resets).toBe(0)
+  page.once('dialog', async (dialog) => {
+    expect(dialog.type()).toBe('confirm')
+    expect(dialog.message()).toContain('dashboards')
+    await dialog.accept()
+  })
+  await page.getByRole('button', { name: 'Database reset', exact: true }).click()
+  await expect.poll(() => resets).toBe(1)
+})
+
+test('notification preferences use server defaults and compact, aligned controls', async ({
+  page,
+}) => {
+  await stubChrome(page)
+  const harness = await stubSettings(page, makeSettings({ notification_timezone: 'Local' }))
+  await page.goto('/settings/notifications')
+  const browserToggle = page.getByRole('switch', { name: 'Browser notifications for alerts' })
+  const permissionButton = page.getByRole('button', { name: 'Allow browser notifications' })
+  await expect(browserToggle).toBeVisible()
+  const toggleBox = await browserToggle.boundingBox()
+  const buttonBox = await permissionButton.boundingBox()
+  expect(
+    Math.abs(toggleBox!.y + toggleBox!.height / 2 - buttonBox!.y - buttonBox!.height / 2),
+  ).toBeLessThan(2)
+  const cooldown = await page.getByLabel('Minimum notification cooldown (seconds)').boundingBox()
+  expect(cooldown!.width).toBeLessThan(140)
+  const timezone = page.getByLabel('Notification timezone', { exact: true })
+  await expect(timezone).toHaveValue('Local')
+  expect(await timezone.locator('option').count()).toBeGreaterThan(300)
+  await timezone.selectOption('America/Los_Angeles')
+  await expect.poll(() => harness.current().notification_timezone).toBe('America/Los_Angeles')
+  await page.reload()
+  await expect(timezone).toHaveValue('America/Los_Angeles')
+  await timezone.selectOption('Local')
+  await expect.poll(() => harness.current().notification_timezone).toBe('Local')
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.screenshot({ path: '../bin/notification-settings.png', fullPage: true })
 })

@@ -45,7 +45,9 @@ func (r *Router) DeleteSession(w http.ResponseWriter, req *http.Request, session
 	r.deleteSession(w, req)
 }
 
-func (r *Router) DropAllData(w http.ResponseWriter, req *http.Request) { r.dropAllData(w, req) }
+func (r *Router) DropAllData(w http.ResponseWriter, req *http.Request, _ apigen.DropAllDataParams) {
+	r.dropAllData(w, req)
+}
 
 func (r *Router) ListAlerts(w http.ResponseWriter, req *http.Request, _ apigen.ListAlertsParams) {
 	r.listAlerts(w, req)

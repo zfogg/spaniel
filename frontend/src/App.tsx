@@ -1,7 +1,7 @@
 import { AuthenticationGate } from './components/AuthenticationGate'
 import { usePeriodicRefresh } from './lib/display-preferences'
 import { SERVICE_COLORS_EVENT } from '@/lib/service-color'
-import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Link, Navigate } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { useQuery } from '@tanstack/react-query'
 import { Moon, Sun, Search } from 'lucide-react'
@@ -317,7 +317,7 @@ function AppShell() {
             <Route path="/openapi-docs" element={<OpenAPI />} />
             <Route path="/docs/openapi-spec" element={<OpenAPIJSON />} />
             <Route path="/coverage" element={<Coverage />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
             <Route path="/settings/:section" element={<Settings />} />
             <Route path="/services" element={<ServiceMap />} />
             <Route path="/lint" element={<LintPage />} />

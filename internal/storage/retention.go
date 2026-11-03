@@ -190,22 +190,79 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (res PruneResult, err e
 // The active session pointer in memory is cleared.
 func (d *DB) Reset() error { return d.resetWithCheckpoint((*DB).checkpointWithRetry) }
 
+// ResetDatabase clears application data while retaining schema and migrations.
+func (d *DB) ResetDatabase() error {
+	return d.clearWithCheckpoint(func(isolated *DB) error { return isolated.resetData(true) }, (*DB).checkpointWithRetry)
+}
+
 func (d *DB) resetWithCheckpoint(checkpoint func(*DB) error) error {
+	return d.clearWithCheckpoint(func(isolated *DB) error { return isolated.resetData(false) }, checkpoint)
+}
+
+// DeleteAllSessions deletes sessions and their telemetry, preserving saved definitions.
+func (d *DB) DeleteAllSessions() error {
+	return d.clearWithCheckpoint((*DB).deleteAllSessionData, (*DB).checkpointWithRetry)
+}
+
+func (d *DB) clearWithCheckpoint(clear func(*DB) error, checkpoint func(*DB) error) error {
 	cleared := false
 	err := d.withMaintenance(func(isolated *DB) error {
-		if err := isolated.resetTelemetry(); err != nil {
+		if err := clear(isolated); err != nil {
 			return err
 		}
 		cleared = true
 		isolated.SetActiveSession("", "")
 		return checkpoint(isolated)
 	})
-	// The transaction is durable before checkpoint. Publish even if checkpoint
-	// or appender restoration fails, once SQL leases are released for resync.
+	// Publish durable deletion even if checkpoint or appender restoration fails,
+	// after SQL leases are released so connected clients can resync safely.
 	if cleared {
 		d.changed("reset", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "alerts", "sessions", "stats", "sources", "services", "service-map", "coverage", "active-session", "storage")
 	}
 	return err
+}
+
+func (d *DB) deleteAllSessionData() error {
+	return d.maintenanceTransaction(d.namedGORM("DeleteAllSessions"), func(g *gorm.DB) error {
+		tx := querygen.Use(g)
+		sessions, err := tx.Session.Select(tx.Session.ID).Find()
+		if err != nil {
+			return err
+		}
+		if len(sessions) == 0 {
+			return nil
+		}
+		ids := make([]string, 0, len(sessions))
+		for _, session := range sessions {
+			ids = append(ids, session.ID)
+		}
+		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.LintWarning.Where(tx.LintWarning.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.TraceIssue.Where(tx.TraceIssue.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Log.Where(tx.Log.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Metric.Where(tx.Metric.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.SpanEvent.Where(tx.SpanEvent.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.SpanLink.Where(tx.SpanLink.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Span.Where(tx.Span.SessionID.In(ids...)).Delete(); err != nil {
+			return err
+		}
+		_, err = tx.Session.Where(tx.Session.ID.In(ids...)).Delete()
+		return err
+	})
 }
 
 // Path returns the underlying DuckDB file path (":memory:" for in-memory DBs).
@@ -482,21 +539,59 @@ func (d *DB) protectedSessionIDsOlderThan(cutoffNs int64, activeID string) ([]st
 	return ids, err
 }
 
-func (d *DB) resetTelemetry() error {
+func (d *DB) resetData(all bool) error {
 	// Generated DAOs retain model ownership and the normal instrumentation path;
 	// each predicate makes the intended whole-table maintenance deletion explicit.
 	return d.maintenanceTransaction(d.namedGORM("ResetTelemetry"), func(g *gorm.DB) error {
 		tx := querygen.Use(g)
+		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SeriesKey.IsNotNull()).Delete(); err != nil {
+			return err
+		}
+		if all {
+			if _, err := tx.DashboardVariable.Where(tx.DashboardVariable.DashboardID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.DashboardPanel.Where(tx.DashboardPanel.ID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.Dashboard.Where(tx.Dashboard.ID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.AlertInstanceTarget.Where(tx.AlertInstanceTarget.RuleID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.AlertInstance.Where(tx.AlertInstance.RuleID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.AlertEvent.Where(tx.AlertEvent.ID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.AlertSilence.Where(tx.AlertSilence.ID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.AlertRule.Where(tx.AlertRule.ID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.NotificationRecord.Where(tx.NotificationRecord.ID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.CoverageSpec.Where(tx.CoverageSpec.ID.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+			if _, err := tx.Meta.Where(tx.Meta.Key.IsNotNull()).Delete(); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.LintWarning.Where(tx.LintWarning.SpanID.IsNotNull()).Delete(); err != nil {
 			return fmt.Errorf("truncate lint_warnings: %w", err)
 		}
 		if _, err := tx.TraceIssue.Where(tx.TraceIssue.ID.IsNotNull()).Delete(); err != nil {
 			return fmt.Errorf("truncate trace_issues: %w", err)
 		}
-		if _, err := tx.Log.Where(tx.Log.TimestampNs.Gte(0)).Delete(); err != nil {
+		if _, err := tx.Log.Where(tx.Log.TimestampNs.IsNotNull()).Delete(); err != nil {
 			return fmt.Errorf("truncate logs: %w", err)
 		}
-		if _, err := tx.Metric.Where(tx.Metric.TimestampNs.Gte(0)).Delete(); err != nil {
+		if _, err := tx.Metric.Where(tx.Metric.TimestampNs.IsNotNull()).Delete(); err != nil {
 			return fmt.Errorf("truncate metrics: %w", err)
 		}
 		if _, err := tx.SpanEvent.Where(tx.SpanEvent.SpanID.IsNotNull()).Delete(); err != nil {

@@ -205,3 +205,65 @@ func TestGetStats_IncludesSessionCountAndOldest(t *testing.T) {
 		t.Errorf("OldestSessionAt = %d, want %d", stats.OldestSessionAt, first)
 	}
 }
+
+func TestDatabaseResetAndDeleteAllSessionsScopes(t *testing.T) {
+	for _, reset := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reset=%t", reset), func(t *testing.T) {
+			d := openTestDB(t)
+			seedSession(t, d, "s1", "session", time.Now().UnixNano(), false, 2)
+			d.SetActiveSession("s1", "session")
+			dashboard, err := d.CreateDashboard("Keep unless reset", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := d.CreateAlertRule(&AlertRule{ID: "rule", Name: "Keep unless reset", QuerySQL: "SELECT 1", ConditionJSON: "{}", GroupByJSON: "[]"}); err != nil {
+				t.Fatal(err)
+			}
+			// Unassigned telemetry must survive deleting sessions, but not a full reset.
+			if err := d.InsertLog(&Log{Body: "unassigned", Attributes: "{}", ServiceName: "svc", ReceivedAt: 1}); err != nil {
+				t.Fatal(err)
+			}
+			if reset {
+				err = d.ResetDatabase()
+			} else {
+				err = d.DeleteAllSessions()
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			sessions, err := d.ListSessions()
+			if err != nil || len(sessions) != 0 {
+				t.Fatalf("sessions: %v, %v", sessions, err)
+			}
+			if d.ActiveSessionID() != "" {
+				t.Fatal("active session not cleared")
+			}
+			_, err = d.GetDashboard(dashboard.ID)
+			if (err != nil) != reset {
+				t.Fatalf("dashboard reset=%t err=%v", reset, err)
+			}
+			rules, err := d.ListAlertRules()
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 1
+			if reset {
+				want = 0
+			}
+			if len(rules) != want {
+				t.Fatalf("rules=%d want=%d", len(rules), want)
+			}
+			stats, err := d.GetStats("")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stats.SpanCount != 0 || stats.LogCount != want {
+				t.Fatalf("unexpected remaining telemetry: %+v", stats)
+			}
+			// The schema must remain usable after either operation.
+			if _, err := d.CreateDashboard("After reset", ""); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

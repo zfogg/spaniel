@@ -155,6 +155,7 @@ type SettingsResponse struct {
 
 // SettingsRuntime is everything the UI shows but never writes back.
 type SettingsRuntime struct {
+	Timezone     string `json:"timezone"`
 	PID          int    `json:"pid"`
 	UptimeNs     int64  `json:"uptime_ns"`
 	Version      string `json:"version"`
@@ -273,13 +274,30 @@ func (r *Router) putSettings(w http.ResponseWriter, req *http.Request) {
 	respond(w, r.buildSettings(req.Context()), 1, 1)
 }
 
-// dropAllData wipes the database (DELETE /api/settings/data). Distinct from
-// the existing /api/sessions endpoints which are per-session.
+// dropAllData deletes all sessions, or all database content when reset=true.
 func (r *Router) dropAllData(w http.ResponseWriter, req *http.Request) {
-	if err := r.store.WithContext(req.Context()).Reset(); err != nil {
+	store := r.store.WithContext(req.Context())
+	var err error
+	reset, _ := strconv.ParseBool(req.URL.Query().Get("reset"))
+	if reset {
+		err = store.ResetDatabase()
+	} else {
+		err = store.DeleteAllSessions()
+	}
+	if err != nil {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
+	session, err := store.CreateSession(time.Now().Format("session_2006-01-02_15:04"), false)
+	if err != nil {
+		respondErr(w, req, 500, "create replacement session: "+err.Error())
+		return
+	}
+	if err := r.activateStoredSession(session); err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	r.store.SetFull(false)
 	respond(w, map[string]bool{"ok": true}, 1, 1)
 }
 
@@ -313,7 +331,7 @@ func (r *Router) buildSettings(ctx context.Context) SettingsResponse {
 		NotificationQuietEnabled:    v.GetBool("notification_quiet_enabled"),
 		NotificationQuietStart:      v.GetString("notification_quiet_start"),
 		NotificationQuietEnd:        v.GetString("notification_quiet_end"),
-		NotificationTimezone:        v.GetString("notification_timezone"),
+		NotificationTimezone:        notificationTimezone(v),
 		NotificationCooldownSeconds: v.GetInt("notification_cooldown_seconds"),
 		ForwardBearerTokenSet:       v.GetString("forward_bearer_token") != "",
 		ForwardTlsCaSet:             v.GetString("forward_tls_ca") != "",
@@ -349,6 +367,7 @@ func (r *Router) buildSettings(ctx context.Context) SettingsResponse {
 		AlertsBrowserTemplate:    v.GetString("alerts.browser_template"),
 		AlertsPushoverTemplate:   v.GetString("alerts.pushover_template"),
 		Runtime: SettingsRuntime{
+			Timezone:     time.Now().Format("MST (UTC-07:00)"),
 			PID:          os.Getpid(),
 			UptimeNs:     time.Since(s.StartedAt).Nanoseconds(),
 			Version:      s.Version,

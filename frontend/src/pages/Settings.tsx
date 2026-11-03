@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { NavLink, Navigate, useParams } from 'react-router-dom'
 import { SecuritySettings } from '@/components/SecuritySettings'
 import { Toggle } from '@/components/ui/toggle'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -633,6 +633,8 @@ function StorageSection({
   hidden,
   onPrune,
   onDrop,
+  onReset,
+  deleting,
   breakdown,
   onCompact,
 }: {
@@ -640,6 +642,8 @@ function StorageSection({
   mutate: (patch: SettingsUpdate) => void
   hidden: boolean
   onPrune: () => void
+  deleting: boolean
+  onReset: () => void
   onDrop: () => void
   breakdown: StorageBreakdown | null
   onCompact: () => Promise<void>
@@ -908,16 +912,32 @@ function StorageSection({
 
       <Row
         danger
-        label="Drop all data"
-        hint="Wipe the database and start over. Cannot be undone."
+        label="Delete all sessions"
+        hint="Delete every session and its telemetry, then start a fresh active session. Keeps dashboards and alerts. Cannot be undone."
         testid="row-drop"
       >
         <button
           type="button"
           onClick={onDrop}
-          className="px-3.5 h-[30px] rounded-md cursor-pointer bg-transparent border border-danger text-danger font-sans text-xs font-semibold outline-hidden"
+          disabled={deleting}
+          className="px-3.5 h-[30px] rounded-md cursor-pointer bg-transparent border border-danger text-danger disabled:opacity-60 disabled:cursor-default font-sans text-xs font-semibold outline-hidden"
         >
-          drop &amp; recreate
+          Delete all sessions
+        </button>
+      </Row>
+      <Row
+        danger
+        label="Database reset"
+        hint="Delete all database content, including dashboards and alerts. Config file settings are kept. Cannot be undone."
+        testid="row-reset"
+      >
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={deleting}
+          className="px-3.5 h-[30px] rounded-md cursor-pointer bg-danger border border-danger text-white disabled:opacity-60 disabled:cursor-default font-sans text-xs font-semibold outline-hidden"
+        >
+          Database reset
         </button>
       </Row>
     </Card>
@@ -1324,10 +1344,9 @@ type Section =
 export default function Settings() {
   const queryClient = useQueryClient()
   const [localError, setLocalError] = useState<string | null>(null)
-  const { section: routeSection } = useParams<{ section: Section }>()
-  const section = routeSection ?? 'general'
-  const navigate = useNavigate()
+  const { section = 'general' } = useParams<{ section: Section }>()
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
   const settingsQuery = useQuery({
@@ -1413,16 +1432,41 @@ export default function Settings() {
 
   const onDrop = useCallback(async () => {
     if (
-      !confirm('Drop ALL spans, logs, metrics, sessions, and lint warnings? This cannot be undone.')
+      !confirm(
+        'Delete all sessions and their telemetry, then start a fresh active session? Dashboards and alerts will be kept. This cannot be undone.',
+      )
     )
       return
     try {
+      setDeleting(true)
+      setLocalError(null)
       await api.settings.dropAllData()
       setSavedAt(Date.now())
-      // Everything was wiped — refresh all cached views.
-      queryClient.invalidateQueries()
+      // Refresh sessions, telemetry, and storage usage.
+      await queryClient.invalidateQueries()
     } catch (e) {
       setLocalError(String(e))
+    } finally {
+      setDeleting(false)
+    }
+  }, [queryClient])
+
+  const onReset = useCallback(async () => {
+    if (
+      !confirm(
+        'Reset the entire database, including all telemetry, dashboards, alerts, and saved definitions? This cannot be undone.',
+      )
+    )
+      return
+    try {
+      setDeleting(true)
+      setLocalError(null)
+      await api.settings.resetDatabase()
+      await queryClient.invalidateQueries()
+    } catch (e) {
+      setLocalError(String(e))
+    } finally {
+      setDeleting(false)
     }
   }, [queryClient])
 
@@ -1445,6 +1489,9 @@ export default function Settings() {
     ],
     [],
   )
+
+  if (!sections.some((sec) => sec.id === section))
+    return <Navigate to="/settings/general" replace />
 
   if (error && !data) {
     return (
@@ -1477,14 +1524,13 @@ export default function Settings() {
             {sections.map((sec) => {
               const on = section === sec.id
               return (
-                <button
+                <NavLink
                   key={sec.id}
-                  type="button"
-                  onClick={() => navigate(`/settings/${sec.id}`)}
+                  to={`/settings/${sec.id}`}
                   className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer text-foreground font-mono text-[11px] outline-hidden text-left mb-0.5 ${on ? 'bg-background border border-border' : 'bg-transparent border border-transparent'}`}
                 >
                   {sec.label}
-                </button>
+                </NavLink>
               )
             })}
           </div>
@@ -1563,6 +1609,8 @@ export default function Settings() {
             hidden={section !== 'storage'}
             onPrune={onPrune}
             onDrop={onDrop}
+            onReset={onReset}
+            deleting={deleting}
             breakdown={breakdown}
             onCompact={onCompact}
           />

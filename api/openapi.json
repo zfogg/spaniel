@@ -3639,6 +3639,10 @@
                 "type": "number",
                 "format": "double"
               },
+              "timezone": {
+                "type": "string",
+                "description": "Local timezone of the machine running Spaniel, with its current UTC offset."
+              },
               "uptime_ns": {
                 "type": "integer",
                 "format": "int64"
@@ -3904,6 +3908,10 @@
                 "type": "number",
                 "format": "double"
               },
+              "timezone": {
+                "type": "string",
+                "description": "Local timezone of the machine running Spaniel, with its current UTC offset."
+              },
               "uptime_ns": {
                 "type": "integer",
                 "format": "int64"
@@ -4085,6 +4093,10 @@
           "pid": {
             "type": "number",
             "format": "double"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Local timezone of the machine running Spaniel, with its current UTC offset."
           },
           "uptime_ns": {
             "type": "integer",
@@ -13523,6 +13535,14 @@
     "/api/settings/data": {
       "delete": {
         "operationId": "dropAllData",
+        "parameters": [
+          {
+            "name": "reset",
+            "in": "query",
+            "description": "Clear all database content including dashboards and alerts instead of deleting all sessions.",
+            "schema": { "type": "boolean", "default": false }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

@@ -56,7 +56,7 @@ metrics_retention_days: 7
 notification_quiet_enabled: false
 notification_quiet_start: "22:00"
 notification_quiet_end: "08:00"
-notification_timezone: UTC
+notification_timezone: Local # follows the machine running Spaniel until explicitly changed
 notification_cooldown_seconds: 0
 
 # Path to the DuckDB database file
@@ -178,7 +178,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("notification_quiet_enabled", false)
 	v.SetDefault("notification_quiet_start", "22:00")
 	v.SetDefault("notification_quiet_end", "08:00")
-	v.SetDefault("notification_timezone", "UTC")
+	v.SetDefault("notification_timezone", "Local")
 	v.SetDefault("notification_cooldown_seconds", 0)
 
 	v.SetDefault("port", 8080)

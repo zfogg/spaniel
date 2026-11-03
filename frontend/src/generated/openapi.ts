@@ -2509,6 +2509,8 @@ export interface components {
         otlp_http_port: number
         /** Format: double */
         pid: number
+        /** @description Local timezone of the machine running Spaniel, with its current UTC offset. */
+        timezone?: string
         /** Format: int64 */
         uptime_ns: number
         version: string
@@ -2591,6 +2593,8 @@ export interface components {
         otlp_http_port: number
         /** Format: double */
         pid: number
+        /** @description Local timezone of the machine running Spaniel, with its current UTC offset. */
+        timezone?: string
         /** Format: int64 */
         uptime_ns: number
         version: string
@@ -2641,6 +2645,8 @@ export interface components {
       otlp_http_port: number
       /** Format: double */
       pid: number
+      /** @description Local timezone of the machine running Spaniel, with its current UTC offset. */
+      timezone?: string
       /** Format: int64 */
       uptime_ns: number
       version: string
@@ -7319,7 +7325,10 @@ export interface operations {
   }
   dropAllData: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Clear all database content including dashboards and alerts instead of deleting all sessions. */
+        reset?: boolean
+      }
       header?: never
       path?: never
       cookie?: never

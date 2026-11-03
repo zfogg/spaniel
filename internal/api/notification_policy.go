@@ -16,8 +16,16 @@ type notificationPolicy struct {
 
 var notifications atomic.Pointer[notificationPolicy]
 
+// notificationTimezone keeps an unset preference tied to the server's local zone.
+func notificationTimezone(v *viper.Viper) string {
+	if zone := v.GetString("notification_timezone"); zone != "" {
+		return zone
+	}
+	return "Local"
+}
+
 func ConfigureNotificationPolicy(v *viper.Viper) {
-	zone, e := time.LoadLocation(v.GetString("notification_timezone"))
+	zone, e := time.LoadLocation(notificationTimezone(v))
 	if e != nil {
 		zone = time.UTC
 	}

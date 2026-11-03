@@ -2,11 +2,14 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -413,6 +416,7 @@ func TestDropAllData_WipesStore(t *testing.T) {
 	router, _, store := newSettingsRouter(t)
 	sess, _ := store.CreateSession("doomed", false)
 	store.SetActiveSession(sess.ID, sess.Label)
+	scoped := store.WithContext(context.Background())
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/settings/data", nil))
@@ -420,11 +424,11 @@ func TestDropAllData_WipesStore(t *testing.T) {
 		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
 	sessions, _ := store.ListSessions()
-	if len(sessions) != 0 {
-		t.Errorf("expected sessions wiped, got %d", len(sessions))
+	if len(sessions) != 1 || sessions[0].ID == sess.ID || sessions[0].ID != store.ActiveSessionID() {
+		t.Fatalf("expected one fresh active session, got %+v active=%s", sessions, store.ActiveSessionID())
 	}
-	if store.ActiveSessionID() != "" || store.ActiveSessionLabel() != "" {
-		t.Fatal("request-scoped reset retained deleted active session")
+	if store.ActiveSessionLabel() != sessions[0].Label || scoped.ActiveSessionID() != sessions[0].ID || scoped.ActiveSessionLabel() != sessions[0].Label {
+		t.Fatal("request-scoped reset did not share the replacement active session")
 	}
 }
 
@@ -623,4 +627,74 @@ func (rt *redirectTransport) RoundTrip(req *http.Request) (*http.Response, error
 	}
 	newReq.Header = req.Header
 	return http.DefaultTransport.RoundTrip(newReq)
+}
+
+func TestDatabaseResetScopes(t *testing.T) {
+	for _, reset := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reset=%t", reset), func(t *testing.T) {
+			router, svc, store := newSettingsRouter(t)
+			var persistedID string
+			svc.Viper.Set("advance_session_on_start", false)
+			svc.PersistActiveSession = func(id string) error { persistedID = id; return nil }
+			sess, err := store.CreateSession("doomed", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.SetActiveSession(sess.ID, sess.Label)
+			dashboard, err := store.CreateDashboard("Definition", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/settings/data?reset=%t", reset), nil))
+			if w.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+			if store.ActiveSessionID() == "" || store.ActiveSessionID() == sess.ID {
+				t.Fatal("fresh active session not selected")
+			}
+			sessions, err := store.ListSessions()
+			if err != nil || len(sessions) != 1 || sessions[0].ID != store.ActiveSessionID() {
+				t.Fatalf("replacement sessions=%+v err=%v", sessions, err)
+			}
+			if persistedID != store.ActiveSessionID() {
+				t.Fatal("replacement session not persisted")
+			}
+			_, err = store.GetDashboard(dashboard.ID)
+			if (err != nil) != reset {
+				t.Fatalf("dashboard reset=%t err=%v", reset, err)
+			}
+		})
+	}
+}
+
+func TestCreateAndActivateSessionAfterDeletingAll(t *testing.T) {
+	router, _, store := newSettingsRouter(t)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/settings/data", nil))
+	if w.Code != 200 {
+		t.Fatalf("delete status=%d: %s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader(`{}`)))
+	if w.Code != 200 {
+		t.Fatalf("create status=%d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Data struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if created.Data.ID == "" || created.Data.Label != created.Data.ID {
+		t.Fatalf("invalid automatic session: %+v", created.Data)
+	}
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/sessions/"+created.Data.ID+"/activate", strings.NewReader(`{}`)))
+	if w.Code != 200 || store.ActiveSessionID() != created.Data.ID {
+		t.Fatalf("activate status=%d active=%s: %s", w.Code, store.ActiveSessionID(), w.Body.String())
+	}
 }

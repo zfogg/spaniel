@@ -13,7 +13,7 @@ test('self-monitoring buttons and switch install real bundled definitions', asyn
     'Requires an isolated live collector',
   )
   await page.goto('/settings')
-  await page.getByRole('button', { name: 'Self-monitoring', exact: true }).click()
+  await page.getByRole('link', { name: 'Self-monitoring', exact: true }).click()
   const dashboardsButton = page.getByRole('button', { name: 'Create / refresh Spaniel dashboards' })
   await dashboardsButton.click()
   await expect(page.getByRole('status')).toContainText('3 created')

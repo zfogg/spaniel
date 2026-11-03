@@ -1,3 +1,4 @@
+import { NotificationSettings } from './NotificationSettings'
 import { useEffect, useState } from 'react'
 import type { Settings, SettingsUpdate } from '@/lib/api'
 
@@ -71,9 +72,6 @@ export function AdvancedSettings({ s, mutate, tab, hidden }: Props) {
     forward_tls_cert: '',
     forward_tls_key: '',
   })
-  const [permission, setPermission] = useState(() =>
-    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
-  )
   const text = (
     key: keyof SettingsUpdate,
     label: string,
@@ -299,45 +297,7 @@ export function AdvancedSettings({ s, mutate, tab, hidden }: Props) {
             </div>
           </>
         )}
-        {tab === 'notifications' && (
-          <>
-            {toggle('alerts_browser_enabled', 'Browser notifications for alerts')}
-            <button
-              type="button"
-              disabled={permission === 'unsupported' || permission === 'denied'}
-              onClick={async () => {
-                setPermission(await Notification.requestPermission())
-              }}
-            >
-              Allow browser notifications
-            </button>
-            <p className="text-xs text-muted-foreground">
-              Browser permission: {permission}. Denied permissions must be changed in browser site
-              settings.
-            </p>
-            {toggle('alerts_pushover_enabled', 'Pushover notifications')}
-            {toggle('notification_quiet_enabled', 'Enable quiet hours')}
-            {text(
-              'notification_quiet_start',
-              'Quiet hours start',
-              '22:00',
-              'HH:MM; equal start and end silences the entire day.',
-            )}
-            {text('notification_quiet_end', 'Quiet hours end', '08:00')}
-            {text(
-              'notification_timezone',
-              'Notification timezone',
-              'UTC',
-              'IANA timezone, for example America/New_York.',
-            )}
-            {number(
-              'notification_cooldown_seconds',
-              'Minimum notification cooldown (seconds)',
-              0,
-              'Applies per alert instance and channel. Per-rule cooldowns still apply.',
-            )}
-          </>
-        )}
+        {tab === 'notifications' && <NotificationSettings s={s} mutate={mutate} />}
       </div>
     </section>
   )

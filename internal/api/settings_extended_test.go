@@ -81,3 +81,49 @@ func TestSettingsConcurrentSnapshotsAndSaves(t *testing.T) {
 	}
 	workers.Wait()
 }
+
+func TestNotificationTimezoneDefaultsToServerAndPersistsOverride(t *testing.T) {
+	previous := notifications.Load()
+	defer notifications.Store(previous)
+	v := viper.New()
+	ConfigureNotificationPolicy(v)
+	if notifications.Load().location != time.Local {
+		t.Fatal("unset timezone must use the server timezone")
+	}
+	v.Set("notification_timezone", "UTC")
+	ConfigureNotificationPolicy(v)
+	if notifications.Load().location != time.UTC {
+		t.Fatal("explicit UTC must override server timezone")
+	}
+
+	router, svc, _ := newSettingsRouter(t)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/settings", nil))
+	if !bytes.Contains(w.Body.Bytes(), []byte(`"notification_timezone":"Local"`)) {
+		t.Fatalf("missing server default: %s", w.Body.String())
+	}
+	for _, body := range []string{`{"notification_timezone":"America/New_York"}`, `{"notification_cooldown_seconds":120}`} {
+		w = httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/api/settings", bytes.NewBufferString(body)))
+		if w.Code != 200 {
+			t.Fatalf("status %d: %s", w.Code, w.Body.String())
+		}
+	}
+	persisted := viper.New()
+	persisted.SetConfigFile(svc.ConfigPath)
+	if err := persisted.ReadInConfig(); err != nil {
+		t.Fatal(err)
+	}
+	if persisted.GetString("notification_timezone") != "America/New_York" {
+		t.Fatal("explicit timezone lost after another setting changed")
+	}
+	ConfigureNotificationPolicy(persisted)
+	if notifications.Load().location.String() != "America/New_York" {
+		t.Fatal("saved timezone not applied")
+	}
+	v.Set("notification_timezone", "Local")
+	ConfigureNotificationPolicy(v)
+	if notifications.Load().location != time.Local {
+		t.Fatal("server timezone selection not applied")
+	}
+}

@@ -722,17 +722,25 @@ func (r *Router) activateSession(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 404, "session not found")
 		return
 	}
+	if err := r.activateStoredSession(sess); err != nil {
+		respondErr(w, req, 500, err.Error())
+		return
+	}
+	respond(w, sess, 1, 1)
+}
+
+// activateStoredSession keeps the collector, restart preference, and connected UIs in sync.
+func (r *Router) activateStoredSession(sess *storage.Session) error {
 	if r.settings != nil && !r.settings.Viper.GetBool("advance_session_on_start") && r.settings.PersistActiveSession != nil {
 		if err := r.settings.PersistActiveSession(sess.ID); err != nil {
-			respondErr(w, req, 500, "persist active session: "+err.Error())
-			return
+			return fmt.Errorf("persist active session: %w", err)
 		}
 	}
 	r.store.SetActiveSession(sess.ID, sess.Label)
 	if r.hub != nil {
 		r.hub.Broadcast(ws.NewActiveSessionEvent(&ws.ActiveSessionPayload{ID: sess.ID, Label: sess.Label}))
 	}
-	respond(w, sess, 1, 1)
+	return nil
 }
 
 func (r *Router) baselineSession(w http.ResponseWriter, req *http.Request) {

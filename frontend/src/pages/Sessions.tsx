@@ -1,3 +1,4 @@
+import * as Dialog from '@radix-ui/react-dialog'
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -699,6 +700,10 @@ export default function Sessions() {
   const queryClient = useQueryClient()
   const [compareId, setCompareId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [newLabel, setNewLabel] = useState('')
+  const [newError, setNewError] = useState('')
+  const [newSessionID, setNewSessionID] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [filter, setFilter] = useState<SessionFilter>('all')
   // diff history lives in localStorage (written by the Diff page); read once on
@@ -743,11 +748,19 @@ export default function Sessions() {
 
   async function handleNew() {
     setCreating(true)
+    setNewError('')
     try {
-      const label = prompt('Session label (leave blank for timestamp auto-name):')
-      const res = await api.sessions.create(label ?? undefined)
-      await api.sessions.activate(res.data.id)
-      reload()
+      let id = newSessionID
+      if (!id) {
+        const res = await api.sessions.create(newLabel.trim() || undefined)
+        id = res.data.id
+        setNewSessionID(id)
+      }
+      await api.sessions.activate(id)
+      await queryClient.invalidateQueries()
+      setShowNew(false)
+    } catch (error) {
+      setNewError(error instanceof Error ? error.message : String(error))
     } finally {
       setCreating(false)
     }
@@ -836,6 +849,64 @@ export default function Sessions() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <Dialog.Root
+        open={showNew}
+        onOpenChange={(open) => {
+          if (!creating) setShowNew(open)
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/45" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[min(26rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-line bg-surface p-6 shadow-xl">
+            <Dialog.Title className="text-lg font-semibold">New session</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-ink2">
+              Create a session and make it active for incoming telemetry. Leave the label blank for
+              an automatic name.
+            </Dialog.Description>
+            <form
+              className="mt-4 grid gap-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleNew()
+              }}
+            >
+              <label className="grid gap-1.5 text-sm">
+                Session label
+                <input
+                  aria-label="Session label"
+                  maxLength={200}
+                  disabled={creating || Boolean(newSessionID)}
+                  value={newLabel}
+                  onChange={(event) => setNewLabel(event.target.value)}
+                  className="rounded-md border border-line bg-surface2 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+                />
+              </label>
+              {newError && (
+                <p role="alert" className="text-sm text-danger">
+                  {newError}
+                </p>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={creating}
+                  onClick={() => setShowNew(false)}
+                  className="rounded-md border border-line px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="rounded-md border border-accent bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink disabled:opacity-50"
+                >
+                  {creating ? 'Creating…' : newSessionID ? 'Retry activation' : 'Create session'}
+                </button>
+              </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       {showImport && <ImportModal onClose={() => setShowImport(false)} onImported={reload} />}
       <div className="flex-1 flex min-h-0">
         {/* sidebar */}
@@ -905,7 +976,12 @@ export default function Sessions() {
             <div className="flex flex-col gap-0.5">
               <button
                 type="button"
-                onClick={handleNew}
+                onClick={() => {
+                  setNewLabel('')
+                  setNewError('')
+                  setNewSessionID(null)
+                  setShowNew(true)
+                }}
                 disabled={creating}
                 className="flex w-full appearance-none items-center gap-2 border-0 px-2 py-[5px] rounded-md text-xs text-left text-accent-ink select-none font-semibold cursor-pointer bg-transparent disabled:cursor-default disabled:opacity-70"
               >

@@ -2804,6 +2804,9 @@ components:
                         pid:
                             format: double
                             type: number
+                        timezone:
+                            description: Local timezone of the machine running Spaniel, with its current UTC offset.
+                            type: string
                         uptime_ns:
                             format: int64
                             type: integer
@@ -2998,6 +3001,9 @@ components:
                         pid:
                             format: double
                             type: number
+                        timezone:
+                            description: Local timezone of the machine running Spaniel, with its current UTC offset.
+                            type: string
                         uptime_ns:
                             format: int64
                             type: integer
@@ -3078,6 +3084,9 @@ components:
                 pid:
                     format: double
                     type: number
+                timezone:
+                    description: Local timezone of the machine running Spaniel, with its current UTC offset.
+                    type: string
                 uptime_ns:
                     format: int64
                     type: integer
@@ -9532,6 +9541,13 @@ paths:
     /api/settings/data:
         delete:
             operationId: dropAllData
+            parameters:
+                - description: Clear all database content including dashboards and alerts instead of deleting all sessions.
+                  in: query
+                  name: reset
+                  schema:
+                    default: false
+                    type: boolean
             responses:
                 "200":
                     content:

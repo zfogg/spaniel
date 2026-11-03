@@ -54,6 +54,8 @@ export const settings = {
   get: () => unwrap(openapiClient.GET('/api/settings')),
   update: (patchBody: SettingsUpdate) =>
     unwrap(openapiClient.PUT('/api/settings', { body: patchBody })),
+  resetDatabase: () =>
+    unwrap(openapiClient.DELETE('/api/settings/data', { params: { query: { reset: true } } })),
   dropAllData: () => unwrap(openapiClient.DELETE('/api/settings/data')),
   compact: () => unwrap(openapiClient.POST('/api/settings/compact', { body: {} })),
   prune: () => unwrap(openapiClient.POST('/api/settings/prune', { body: {} })),

@@ -90,7 +90,7 @@ async function stubBackend(
 
   await page.routeWebSocket('**/ws', (ws) => ws.close())
 
-  const activeId = opts.activeId ?? opts.sessions[0]?.id ?? ''
+  let activeId = opts.activeId ?? opts.sessions[0]?.id ?? ''
 
   // Register all API routes with function predicates in a single handler to
   // avoid LIFO ordering surprises. Checked in order: lint → forwarders → sessions.
@@ -120,7 +120,10 @@ async function stubBackend(
       // GET/POST /api/sessions (list / create)
       if (pathname === '/api/sessions') {
         if (method === 'POST') {
-          return jsonResponse(r, makeSession({ id: 'new-id', label: 'new session' }))
+          const body = JSON.parse(r.request().postData() ?? '{}')
+          const session = makeSession({ id: 'new-id', label: body.label || 'session_auto' })
+          opts.sessions.push(session)
+          return jsonResponse(r, session)
         }
         return jsonResponse(
           r,
@@ -130,6 +133,7 @@ async function stubBackend(
 
       // POST /api/sessions/:id/activate
       if (action === 'activate' && method === 'POST') {
+        activeId = id
         callbacks.onActivate?.(id)
         const sess = opts.sessions.find((s) => s.id === id)
         return jsonResponse(r, sess ?? makeSession({ id, label: id }))
@@ -629,4 +633,84 @@ test.describe('Sessions page', () => {
     expect(patched[0].id).toBe('n1')
     expect(patched[0].body.note).toBe('prod snapshot')
   })
+})
+
+test('new session opens an in-page form, creates and activates from an empty list', async ({
+  page,
+}) => {
+  await stubBackend(page, { sessions: [] })
+  await page.goto('/sessions')
+  await page.getByRole('button', { name: '+ new session', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'New session', exact: true })
+  await dialog.getByLabel('Session label').fill('fresh session')
+  await dialog.getByRole('button', { name: 'Create session', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(
+    page.getByTestId('sessions-table-body').getByText('fresh session', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByText('● active', { exact: true })).toBeVisible()
+})
+
+test('new session can be cancelled or created with an automatic name', async ({ page }) => {
+  await stubBackend(page, { sessions: [] })
+  await page.goto('/sessions')
+  const newButton = page.getByRole('button', { name: '+ new session', exact: true })
+  await newButton.click()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  await newButton.click()
+  await page.getByRole('button', { name: 'Create session', exact: true }).click()
+  await expect(
+    page.getByTestId('sessions-table-body').getByText('session_auto', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByText('● active', { exact: true })).toBeVisible()
+})
+
+test('new session shows creation errors and allows retry', async ({ page }) => {
+  await stubBackend(page, { sessions: [] })
+  let fail = true
+  await page.route('**/api/sessions', (route) => {
+    if (route.request().method() === 'POST' && fail) {
+      fail = false
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Could not create session' }),
+      })
+    }
+    return route.fallback()
+  })
+  await page.goto('/sessions')
+  await page.getByRole('button', { name: '+ new session', exact: true }).click()
+  await page.getByRole('button', { name: 'Create session', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Could not create session')
+  await page.getByRole('button', { name: 'Create session', exact: true }).click()
+  await expect(
+    page.getByTestId('sessions-table-body').getByText('session_auto', { exact: true }),
+  ).toBeVisible()
+})
+
+test('activation retry reuses the created session', async ({ page }) => {
+  const sessions: SessionFixture[] = []
+  await stubBackend(page, { sessions })
+  let fail = true
+  await page.route('**/api/sessions/new-id/activate', (route) => {
+    if (fail) {
+      fail = false
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Could not activate session' }),
+      })
+    }
+    return route.fallback()
+  })
+  await page.goto('/sessions')
+  await page.getByRole('button', { name: '+ new session', exact: true }).click()
+  await page.getByRole('button', { name: 'Create session', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Could not activate session')
+  await page.getByRole('button', { name: 'Retry activation', exact: true }).click()
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  expect(sessions).toHaveLength(1)
+  await expect(page.getByText('● active', { exact: true })).toBeVisible()
 })
