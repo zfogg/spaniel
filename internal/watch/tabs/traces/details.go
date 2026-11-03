@@ -228,7 +228,10 @@ func (m *traceModel) View() string {
 		}
 		lines = append(lines, text)
 	} else {
-		lines = append(lines, tui.RenderContent(tui.ContentHeading, fmt.Sprintf("Operation / service · duration · status     Waterfall 0 → %s", duration(end-start))))
+		// Leave room for the waterfall heading, selected row and context below.
+		flameHeight := min(6, max(0, m.height-len(lines)-5))
+		lines = append(lines, renderFlame(rows, m.selected, m.width, flameHeight)...)
+		lines = append(lines, waterfallHeader(m.width, start, end))
 		cursor := 0
 		for i, r := range rows {
 			if spanKey(r.span) == m.selected {

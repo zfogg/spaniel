@@ -14,6 +14,15 @@ import (
 // Render delegates alignment, padding, row heights, wrapping, and border joins
 // to Lipgloss. Callers supply safe cell values, content widths and semantic styles.
 func Render(headers []string, rows [][]string, widths []int, wrap, dividers, headerRule bool, style table.StyleFunc) []string {
+	return render(headers, rows, widths, wrap, dividers, headerRule, 2, style)
+}
+
+// Compact uses one column of padding for tightly bounded charts and timelines.
+func Compact(headers []string, rows [][]string, widths []int, style table.StyleFunc) []string {
+	return render(headers, rows, widths, false, false, false, 1, style)
+}
+
+func render(headers []string, rows [][]string, widths []int, wrap, dividers, headerRule bool, columnGap int, style table.StyleFunc) []string {
 	if len(widths) == 0 {
 		return nil
 	}
@@ -30,7 +39,7 @@ func Render(headers []string, rows [][]string, widths []int, wrap, dividers, hea
 	for _, width := range widths {
 		total += width
 	}
-	gap := 2
+	gap := columnGap
 	if dividers {
 		gap = 3
 	}
@@ -52,7 +61,7 @@ func Render(headers []string, rows [][]string, widths []int, wrap, dividers, hea
 					right = 1
 				}
 			} else if col < len(widths)-1 {
-				right = 2
+				right = columnGap
 			}
 			return s.UnderlineSpaces(false).Width(widths[col] + left + right).PaddingLeft(left).PaddingRight(right)
 		})

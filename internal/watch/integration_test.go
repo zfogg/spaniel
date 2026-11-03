@@ -589,6 +589,38 @@ func TestAllSevenRealAPINavigationRepairAndContextualFooter(t *testing.T) {
 	wait("Missed inventory lookup")
 	capture("late-span-waterfall")
 	send("back")
+	// Additional safe, multi-service nesting exercises the shared flame chart
+	// after the established scope/count/navigation assertions above.
+	for _, sample := range []struct {
+		id, parent, service, name string
+		start, end                int64
+	}{
+		{"d100000000000004", childID, "postgres-store", "Read inventory rows", 30000000, 95000000},
+		{"e100000000000005", rootID, "queue-worker", "Dispatch inventory task", 45000000, 170000000},
+		{"f100000000000006", "d100000000000004", "cache-layer", "Cache hit", 60000000, 60000000},
+	} {
+		begin, finish := now.UnixNano()+sample.start, now.UnixNano()+sample.end
+		if err := db.InsertSpan(&storage.Span{SessionID: selected.ID, SessionLabel: selected.Label, TraceID: traceID, SpanID: sample.id, ParentSpanID: sample.parent, ServiceName: sample.service, Name: sample.name, Kind: 3, StatusCode: 1, StartNs: begin, EndNs: finish, DurationNs: finish - begin, Attributes: `{}`, Resource: `{}`, ReceivedAt: begin}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hub.Broadcast(liveevent.NewResourcesChangedEvent([]liveevent.Resource{"traces", "trace", "spans", "span"}, "nested flame fixture", ""))
+	send("enter")
+	wait("Read inventory rows")
+	footer(wait("Flame chart"), "inspect span")
+	capture("flame-chart")
+	program.Send(tea.KeyMsg{Type: tea.KeyDown})
+	program.Send(tea.KeyMsg{Type: tea.KeyDown})
+	selectedFlame := wait("›     Read inventory rows")
+	if !strings.Contains(selectedFlame, ">Read inventory rows") {
+		t.Fatal("flame and waterfall selection diverged", selectedFlame)
+	}
+	capture("flame-selected")
+	resize(62, 30)
+	wait("Flame chart")
+	capture("flame-narrow")
+	resize(120, 30)
+	send("back")
 	// Safe multi-service fixture demonstrates the same severity policy as linked
 	// dashboard rows without affecting earlier scope/count/navigation assertions.
 	for i, sample := range []struct {

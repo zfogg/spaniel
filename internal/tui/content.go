@@ -94,3 +94,12 @@ func ServiceNameStyle(canonical string) lipgloss.Style {
 	}
 	return style
 }
+
+// ServiceBlockStyle adds a restrained block background for timeline segments.
+func ServiceBlockStyle(canonical string, selected bool) lipgloss.Style {
+	style := ServiceNameStyle(canonical).Background(colorSurface)
+	if selected {
+		style = style.Background(colorSurface2).Bold(true)
+	}
+	return style
+}
