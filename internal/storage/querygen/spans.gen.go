@@ -2299,31 +2299,46 @@ func (s spanDo) ListSourceStats(sessionID string) (result []model.SourceStatsRow
 
 // QueryOccurrences
 //
-// SELECT target.trace_id, target.span_id,
+// WITH target AS (
 //
-//	COUNT(DISTINCT (candidate.trace_id, candidate.span_id)) AS count
+//	SELECT trace_id, span_id, session_id, service_name,
+//	  json_extract_string(attributes, '$."gotel.db.query.fingerprint"') AS fingerprint,
+//	  coalesce(json_extract_string(attributes, '$."db.namespace"'), json_extract_string(attributes, '$."db.name"'), '') AS namespace,
+//	  coalesce(json_extract_string(attributes, '$."server.address"'), json_extract_string(attributes, '$."net.peer.name"'), '') AS address,
+//	  coalesce(json_extract_string(attributes, '$."server.port"'), json_extract_string(attributes, '$."net.peer.port"'), '') AS port
+//	FROM @@table
+//	WHERE span_id IN @spanIDs
+//	  AND regexp_full_match(json_extract_string(attributes, '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
 //
-// FROM @@table target
-// JOIN @@table candidate
+// ), identities AS (
 //
-//	ON candidate.session_id = target.session_id
-//	AND candidate.service_name = target.service_name
-//	AND json_extract_string(candidate.attributes, '$."gotel.db.query.fingerprint"') = json_extract_string(target.attributes, '$."gotel.db.query.fingerprint"')
-//	AND coalesce(json_extract_string(candidate.attributes, '$."db.namespace"'), json_extract_string(candidate.attributes, '$."db.name"'), '') = coalesce(json_extract_string(target.attributes, '$."db.namespace"'), json_extract_string(target.attributes, '$."db.name"'), '')
-//	AND coalesce(json_extract_string(candidate.attributes, '$."server.address"'), json_extract_string(candidate.attributes, '$."net.peer.name"'), '') = coalesce(json_extract_string(target.attributes, '$."server.address"'), json_extract_string(target.attributes, '$."net.peer.name"'), '')
-//	AND coalesce(json_extract_string(candidate.attributes, '$."server.port"'), json_extract_string(candidate.attributes, '$."net.peer.port"'), '') = coalesce(json_extract_string(target.attributes, '$."server.port"'), json_extract_string(target.attributes, '$."net.peer.port"'), '')
+//	SELECT DISTINCT session_id, service_name, fingerprint, namespace, address, port FROM target
 //
-// WHERE target.span_id IN @spanIDs
+// ), counts AS (
 //
-//	AND regexp_full_match(json_extract_string(target.attributes, '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
+//	SELECT identities.session_id, identities.service_name, identities.fingerprint, identities.namespace, identities.address, identities.port,
+//	  COUNT(DISTINCT (candidate.trace_id, candidate.span_id)) AS count
+//	FROM identities
+//	JOIN @@table candidate ON candidate.session_id = identities.session_id
+//	  AND candidate.service_name = identities.service_name
+//	  AND json_extract_string(candidate.attributes, '$."gotel.db.query.fingerprint"') = identities.fingerprint
+//	  AND coalesce(json_extract_string(candidate.attributes, '$."db.namespace"'), json_extract_string(candidate.attributes, '$."db.name"'), '') = identities.namespace
+//	  AND coalesce(json_extract_string(candidate.attributes, '$."server.address"'), json_extract_string(candidate.attributes, '$."net.peer.name"'), '') = identities.address
+//	  AND coalesce(json_extract_string(candidate.attributes, '$."server.port"'), json_extract_string(candidate.attributes, '$."net.peer.port"'), '') = identities.port
+//	GROUP BY identities.session_id, identities.service_name, identities.fingerprint, identities.namespace, identities.address, identities.port
 //
-// GROUP BY target.trace_id, target.span_id
+// )
+// SELECT target.trace_id, target.span_id, counts.count
+// FROM target JOIN counts ON target.session_id = counts.session_id
+//
+//	AND target.service_name = counts.service_name AND target.fingerprint = counts.fingerprint
+//	AND target.namespace = counts.namespace AND target.address = counts.address AND target.port = counts.port
 func (s spanDo) QueryOccurrences(spanIDs []string) (result []model.QueryOccurrence, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
 	params = append(params, spanIDs)
-	generateSQL.WriteString("SELECT target.trace_id, target.span_id, COUNT(DISTINCT (candidate.trace_id, candidate.span_id)) AS count FROM spans target JOIN spans candidate ON candidate.session_id = target.session_id AND candidate.service_name = target.service_name AND json_extract_string(candidate.attributes, '$.\"gotel.db.query.fingerprint\"') = json_extract_string(target.attributes, '$.\"gotel.db.query.fingerprint\"') AND coalesce(json_extract_string(candidate.attributes, '$.\"db.namespace\"'), json_extract_string(candidate.attributes, '$.\"db.name\"'), '') = coalesce(json_extract_string(target.attributes, '$.\"db.namespace\"'), json_extract_string(target.attributes, '$.\"db.name\"'), '') AND coalesce(json_extract_string(candidate.attributes, '$.\"server.address\"'), json_extract_string(candidate.attributes, '$.\"net.peer.name\"'), '') = coalesce(json_extract_string(target.attributes, '$.\"server.address\"'), json_extract_string(target.attributes, '$.\"net.peer.name\"'), '') AND coalesce(json_extract_string(candidate.attributes, '$.\"server.port\"'), json_extract_string(candidate.attributes, '$.\"net.peer.port\"'), '') = coalesce(json_extract_string(target.attributes, '$.\"server.port\"'), json_extract_string(target.attributes, '$.\"net.peer.port\"'), '') WHERE target.span_id IN ? AND regexp_full_match(json_extract_string(target.attributes, '$.\"gotel.db.query.fingerprint\"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}') GROUP BY target.trace_id, target.span_id ")
+	generateSQL.WriteString("WITH target AS ( SELECT trace_id, span_id, session_id, service_name, json_extract_string(attributes, '$.\"gotel.db.query.fingerprint\"') AS fingerprint, coalesce(json_extract_string(attributes, '$.\"db.namespace\"'), json_extract_string(attributes, '$.\"db.name\"'), '') AS namespace, coalesce(json_extract_string(attributes, '$.\"server.address\"'), json_extract_string(attributes, '$.\"net.peer.name\"'), '') AS address, coalesce(json_extract_string(attributes, '$.\"server.port\"'), json_extract_string(attributes, '$.\"net.peer.port\"'), '') AS port FROM spans WHERE span_id IN ? AND regexp_full_match(json_extract_string(attributes, '$.\"gotel.db.query.fingerprint\"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}') ), identities AS ( SELECT DISTINCT session_id, service_name, fingerprint, namespace, address, port FROM target ), counts AS ( SELECT identities.session_id, identities.service_name, identities.fingerprint, identities.namespace, identities.address, identities.port, COUNT(DISTINCT (candidate.trace_id, candidate.span_id)) AS count FROM identities JOIN spans candidate ON candidate.session_id = identities.session_id AND candidate.service_name = identities.service_name AND json_extract_string(candidate.attributes, '$.\"gotel.db.query.fingerprint\"') = identities.fingerprint AND coalesce(json_extract_string(candidate.attributes, '$.\"db.namespace\"'), json_extract_string(candidate.attributes, '$.\"db.name\"'), '') = identities.namespace AND coalesce(json_extract_string(candidate.attributes, '$.\"server.address\"'), json_extract_string(candidate.attributes, '$.\"net.peer.name\"'), '') = identities.address AND coalesce(json_extract_string(candidate.attributes, '$.\"server.port\"'), json_extract_string(candidate.attributes, '$.\"net.peer.port\"'), '') = identities.port GROUP BY identities.session_id, identities.service_name, identities.fingerprint, identities.namespace, identities.address, identities.port ) SELECT target.trace_id, target.span_id, counts.count FROM target JOIN counts ON target.session_id = counts.session_id AND target.service_name = counts.service_name AND target.fingerprint = counts.fingerprint AND target.namespace = counts.namespace AND target.address = counts.address AND target.port = counts.port ")
 
 	var executeSQL *gorm.DB
 	executeSQL = s.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
