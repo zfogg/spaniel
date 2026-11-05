@@ -303,6 +303,7 @@ const ISSUE_KIND_LABELS: Record<string, string> = {
   tracing_gap: 'tracing gap',
   error_chain: 'error chain',
   serial_promise: 'serial promises',
+  retry_storm: 'retry storm',
   synchronous_io: 'synchronous I/O',
 }
 
