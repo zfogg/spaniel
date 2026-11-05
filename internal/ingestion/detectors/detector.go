@@ -10,7 +10,7 @@ type Detector interface {
 
 // Registry returns the trace detectors in evaluation order.
 func Registry() []Detector {
-	return []Detector{&N1Detector{}, &SlowDBDetector{}, &ChattyHTTPDetector{}, &LargePayloadDetector{}, &CacheMissStormDetector{}, &TracingGapDetector{}, &ErrorChainDetector{}, &SerialPromiseDetector{}, &RetryStormDetector{}, &FanoutDetector{}, &TimeoutDetector{}}
+	return []Detector{&N1Detector{}, &SlowDBDetector{}, &ChattyHTTPDetector{}, &LargePayloadDetector{}, &CacheMissStormDetector{}, &TracingGapDetector{}, &ErrorChainDetector{}, &SerialPromiseDetector{}, &RetryStormDetector{}, &FanoutDetector{}, &PoolSaturationDetector{}, &TimeoutDetector{}}
 }
 
 // SupportsTrace applies the partial-trace policy. Complete-tree heuristics cannot infer missing work or total repetition from

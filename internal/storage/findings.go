@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/zfogg/spaniel/internal/model"
 	"gorm.io/gorm/clause"
@@ -10,6 +11,32 @@ import (
 type LintWarning = model.LintWarning
 
 type TraceIssue = model.TraceIssue
+
+// RecordPoolMetricFinding stores a metric-backed finding without inventing a
+// trace or span identity. The message is its immutable window identity.
+func (d *DB) RecordPoolMetricFinding(session, service, pool, metric string, window int64) error {
+	evidence := "cumulative timeout counter increased"
+	if metric == "db.client.connection.pending_requests" {
+		evidence = "pending requests remained positive"
+	}
+	message := fmt.Sprintf("service=%s pool=%s metric=%s window_start_ns=%d: %s", service, pool, metric, window, evidence)
+	d.traceLintMu.Lock()
+	defer d.traceLintMu.Unlock()
+	q := d.namedQuery("PoolMetricFinding")
+	count, err := q.LintWarning.Where(q.LintWarning.SessionID.Eq(session), q.LintWarning.RuleID.Eq("pool_saturation_metric"), q.LintWarning.Message.Eq(message)).Count()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		w := &LintWarning{SessionID: session, RuleID: "pool_saturation_metric", Message: message, Severity: "warning", CreatedAt: window}
+		if err := q.LintWarning.Create(w); err != nil {
+			return err
+		}
+		d.changed("lint", "lint")
+	}
+	link := "/metrics?metric=" + url.QueryEscape(metric) + "&service=" + url.QueryEscape(service) + "&session=" + url.QueryEscape(session)
+	return d.RecordNotification(&NotificationRecord{Source: "issue", SourceID: message, Severity: "warning", Title: "Connection pool saturation", Body: message, Link: link, DedupeKey: "pool-metric:" + session + ":" + message})
+}
 
 func (d *DB) InsertLintWarning(w *LintWarning) error {
 	if err := d.namedQuery("InsertLintWarning").LintWarning.Create(w); err != nil {
