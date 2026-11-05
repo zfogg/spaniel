@@ -7,7 +7,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -27,10 +29,12 @@ func (r *Router) listMetrics(w http.ResponseWriter, req *http.Request) {
 // MetricCardinalityStream is the durable admission-budget state for one
 // metric stream. Arbitrary point attributes never appear here.
 type MetricCardinalityStream struct {
-	ServiceName string `json:"service_name"`
-	Name        string `json:"name"`
-	Active      int    `json:"active_series"`
-	Limit       int    `json:"limit"`
+	ServiceName   string `json:"service_name"`
+	Name          string `json:"name"`
+	Active        int    `json:"active_series"`
+	Limit         int    `json:"limit"`
+	HistoryStatus string `json:"history_status"`
+	NewSeries     int    `json:"new_series"`
 }
 
 // GET /api/metrics/cardinality?sessionId=
@@ -43,6 +47,18 @@ func (r *Router) getMetricCardinality(w http.ResponseWriter, req *http.Request) 
 		respondErr(w, req, http.StatusInternalServerError, err.Error())
 		return
 	}
+	observations, err := r.store.WithContext(req.Context()).MetricAdmissionObservations()
+	if err != nil {
+		respondErr(w, req, http.StatusInternalServerError, err.Error())
+		return
+	}
+	starts := make(map[string]int64, len(observations))
+	for _, o := range observations {
+		starts[o.SessionID+"\x00"+o.ServiceName+"\x00"+o.Name] = o.StartedAtNs
+	}
+	now := time.Now().UnixNano()
+	evidence := map[string]*detectors.CardinalityEvidence{}
+	sessions := map[string]string{}
 	byStream := map[string]*MetricCardinalityStream{}
 	for _, row := range rows {
 		if sessionID != "" && row.SessionID != sessionID {
@@ -51,13 +67,31 @@ func (r *Router) getMetricCardinality(w http.ResponseWriter, req *http.Request) 
 		key := row.Service + "\x00" + row.Name
 		stream := byStream[key]
 		if stream == nil {
-			stream = &MetricCardinalityStream{ServiceName: row.Service, Name: row.Name, Limit: 2000}
+			stream = &MetricCardinalityStream{ServiceName: row.Service, Name: row.Name, Limit: storage.MetricSeriesLimit}
 			byStream[key] = stream
+			evidence[key] = &detectors.CardinalityEvidence{Limit: storage.MetricSeriesLimit, Now: now, StartedAt: starts[row.SessionID+"\x00"+key]}
+			sessions[key] = row.SessionID
 		}
 		stream.Active++
+		e := evidence[key]
+		e.Active++
+		if sessions[key] != row.SessionID {
+			e.StartedAt = 0
+		}
+		if row.AdmittedAtNs != nil {
+			t := *row.AdmittedAtNs
+			if t >= now-int64(time.Hour) && t < now-int64(30*time.Minute) {
+				e.OlderHalf++
+			}
+			if t >= now-int64(30*time.Minute) && t <= now {
+				e.NewerHalf++
+			}
+		}
 	}
 	out := make([]MetricCardinalityStream, 0, len(byStream))
-	for _, stream := range byStream {
+	for key, stream := range byStream {
+		result := detectors.EvaluateCardinality(*evidence[key])
+		stream.HistoryStatus, stream.NewSeries = result.Status, result.Growth
 		out = append(out, *stream)
 	}
 	sort.Slice(out, func(i, j int) bool {

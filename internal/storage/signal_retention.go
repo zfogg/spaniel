@@ -38,6 +38,11 @@ func (d *DB) PruneSignals(policy SignalRetention) error {
 			}{{"logs", policy.LogsDays}, {"metrics", policy.MetricsDays}} {
 				if s.days > 0 {
 					cutoff := time.Now().Add(-time.Duration(s.days) * 24 * time.Hour).UnixNano()
+					if s.table == "metrics" {
+						if e := tx.Exec(`DELETE FROM metric_admission_observations WHERE session_id IN (SELECT DISTINCT session_id FROM metrics WHERE timestamp_ns < ? AND session_id NOT IN (SELECT id FROM sessions WHERE is_baseline))`, cutoff).Error; e != nil {
+							return e
+						}
+					}
 					if e := tx.Exec("DELETE FROM "+s.table+" WHERE timestamp_ns < ? AND session_id NOT IN (SELECT id FROM sessions WHERE is_baseline)", cutoff).Error; e != nil {
 						return e
 					}

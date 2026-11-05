@@ -16,27 +16,28 @@ import (
 )
 
 var (
-	Q                   = new(Query)
-	AlertEvent          *alertEvent
-	AlertInstance       *alertInstance
-	AlertInstanceTarget *alertInstanceTarget
-	AlertRule           *alertRule
-	AlertSilence        *alertSilence
-	CoverageSpec        *coverageSpec
-	Dashboard           *dashboard
-	DashboardPanel      *dashboardPanel
-	DashboardVariable   *dashboardVariable
-	LintWarning         *lintWarning
-	Log                 *log
-	Meta                *meta
-	Metric              *metric
-	MetricSeriesCatalog *metricSeriesCatalog
-	NotificationRecord  *notificationRecord
-	Session             *session
-	Span                *span
-	SpanEvent           *spanEvent
-	SpanLink            *spanLink
-	TraceIssue          *traceIssue
+	Q                          = new(Query)
+	AlertEvent                 *alertEvent
+	AlertInstance              *alertInstance
+	AlertInstanceTarget        *alertInstanceTarget
+	AlertRule                  *alertRule
+	AlertSilence               *alertSilence
+	CoverageSpec               *coverageSpec
+	Dashboard                  *dashboard
+	DashboardPanel             *dashboardPanel
+	DashboardVariable          *dashboardVariable
+	LintWarning                *lintWarning
+	Log                        *log
+	Meta                       *meta
+	Metric                     *metric
+	MetricAdmissionObservation *metricAdmissionObservation
+	MetricSeriesCatalog        *metricSeriesCatalog
+	NotificationRecord         *notificationRecord
+	Session                    *session
+	Span                       *span
+	SpanEvent                  *spanEvent
+	SpanLink                   *spanLink
+	TraceIssue                 *traceIssue
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
@@ -54,6 +55,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	Log = &Q.Log
 	Meta = &Q.Meta
 	Metric = &Q.Metric
+	MetricAdmissionObservation = &Q.MetricAdmissionObservation
 	MetricSeriesCatalog = &Q.MetricSeriesCatalog
 	NotificationRecord = &Q.NotificationRecord
 	Session = &Q.Session
@@ -65,53 +67,55 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:                  db,
-		AlertEvent:          newAlertEvent(db, opts...),
-		AlertInstance:       newAlertInstance(db, opts...),
-		AlertInstanceTarget: newAlertInstanceTarget(db, opts...),
-		AlertRule:           newAlertRule(db, opts...),
-		AlertSilence:        newAlertSilence(db, opts...),
-		CoverageSpec:        newCoverageSpec(db, opts...),
-		Dashboard:           newDashboard(db, opts...),
-		DashboardPanel:      newDashboardPanel(db, opts...),
-		DashboardVariable:   newDashboardVariable(db, opts...),
-		LintWarning:         newLintWarning(db, opts...),
-		Log:                 newLog(db, opts...),
-		Meta:                newMeta(db, opts...),
-		Metric:              newMetric(db, opts...),
-		MetricSeriesCatalog: newMetricSeriesCatalog(db, opts...),
-		NotificationRecord:  newNotificationRecord(db, opts...),
-		Session:             newSession(db, opts...),
-		Span:                newSpan(db, opts...),
-		SpanEvent:           newSpanEvent(db, opts...),
-		SpanLink:            newSpanLink(db, opts...),
-		TraceIssue:          newTraceIssue(db, opts...),
+		db:                         db,
+		AlertEvent:                 newAlertEvent(db, opts...),
+		AlertInstance:              newAlertInstance(db, opts...),
+		AlertInstanceTarget:        newAlertInstanceTarget(db, opts...),
+		AlertRule:                  newAlertRule(db, opts...),
+		AlertSilence:               newAlertSilence(db, opts...),
+		CoverageSpec:               newCoverageSpec(db, opts...),
+		Dashboard:                  newDashboard(db, opts...),
+		DashboardPanel:             newDashboardPanel(db, opts...),
+		DashboardVariable:          newDashboardVariable(db, opts...),
+		LintWarning:                newLintWarning(db, opts...),
+		Log:                        newLog(db, opts...),
+		Meta:                       newMeta(db, opts...),
+		Metric:                     newMetric(db, opts...),
+		MetricAdmissionObservation: newMetricAdmissionObservation(db, opts...),
+		MetricSeriesCatalog:        newMetricSeriesCatalog(db, opts...),
+		NotificationRecord:         newNotificationRecord(db, opts...),
+		Session:                    newSession(db, opts...),
+		Span:                       newSpan(db, opts...),
+		SpanEvent:                  newSpanEvent(db, opts...),
+		SpanLink:                   newSpanLink(db, opts...),
+		TraceIssue:                 newTraceIssue(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	AlertEvent          alertEvent
-	AlertInstance       alertInstance
-	AlertInstanceTarget alertInstanceTarget
-	AlertRule           alertRule
-	AlertSilence        alertSilence
-	CoverageSpec        coverageSpec
-	Dashboard           dashboard
-	DashboardPanel      dashboardPanel
-	DashboardVariable   dashboardVariable
-	LintWarning         lintWarning
-	Log                 log
-	Meta                meta
-	Metric              metric
-	MetricSeriesCatalog metricSeriesCatalog
-	NotificationRecord  notificationRecord
-	Session             session
-	Span                span
-	SpanEvent           spanEvent
-	SpanLink            spanLink
-	TraceIssue          traceIssue
+	AlertEvent                 alertEvent
+	AlertInstance              alertInstance
+	AlertInstanceTarget        alertInstanceTarget
+	AlertRule                  alertRule
+	AlertSilence               alertSilence
+	CoverageSpec               coverageSpec
+	Dashboard                  dashboard
+	DashboardPanel             dashboardPanel
+	DashboardVariable          dashboardVariable
+	LintWarning                lintWarning
+	Log                        log
+	Meta                       meta
+	Metric                     metric
+	MetricAdmissionObservation metricAdmissionObservation
+	MetricSeriesCatalog        metricSeriesCatalog
+	NotificationRecord         notificationRecord
+	Session                    session
+	Span                       span
+	SpanEvent                  spanEvent
+	SpanLink                   spanLink
+	TraceIssue                 traceIssue
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -120,27 +124,28 @@ func (q *Query) UnderlyingDB() *gorm.DB { return q.db }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:                  db,
-		AlertEvent:          q.AlertEvent.clone(db),
-		AlertInstance:       q.AlertInstance.clone(db),
-		AlertInstanceTarget: q.AlertInstanceTarget.clone(db),
-		AlertRule:           q.AlertRule.clone(db),
-		AlertSilence:        q.AlertSilence.clone(db),
-		CoverageSpec:        q.CoverageSpec.clone(db),
-		Dashboard:           q.Dashboard.clone(db),
-		DashboardPanel:      q.DashboardPanel.clone(db),
-		DashboardVariable:   q.DashboardVariable.clone(db),
-		LintWarning:         q.LintWarning.clone(db),
-		Log:                 q.Log.clone(db),
-		Meta:                q.Meta.clone(db),
-		Metric:              q.Metric.clone(db),
-		MetricSeriesCatalog: q.MetricSeriesCatalog.clone(db),
-		NotificationRecord:  q.NotificationRecord.clone(db),
-		Session:             q.Session.clone(db),
-		Span:                q.Span.clone(db),
-		SpanEvent:           q.SpanEvent.clone(db),
-		SpanLink:            q.SpanLink.clone(db),
-		TraceIssue:          q.TraceIssue.clone(db),
+		db:                         db,
+		AlertEvent:                 q.AlertEvent.clone(db),
+		AlertInstance:              q.AlertInstance.clone(db),
+		AlertInstanceTarget:        q.AlertInstanceTarget.clone(db),
+		AlertRule:                  q.AlertRule.clone(db),
+		AlertSilence:               q.AlertSilence.clone(db),
+		CoverageSpec:               q.CoverageSpec.clone(db),
+		Dashboard:                  q.Dashboard.clone(db),
+		DashboardPanel:             q.DashboardPanel.clone(db),
+		DashboardVariable:          q.DashboardVariable.clone(db),
+		LintWarning:                q.LintWarning.clone(db),
+		Log:                        q.Log.clone(db),
+		Meta:                       q.Meta.clone(db),
+		Metric:                     q.Metric.clone(db),
+		MetricAdmissionObservation: q.MetricAdmissionObservation.clone(db),
+		MetricSeriesCatalog:        q.MetricSeriesCatalog.clone(db),
+		NotificationRecord:         q.NotificationRecord.clone(db),
+		Session:                    q.Session.clone(db),
+		Span:                       q.Span.clone(db),
+		SpanEvent:                  q.SpanEvent.clone(db),
+		SpanLink:                   q.SpanLink.clone(db),
+		TraceIssue:                 q.TraceIssue.clone(db),
 	}
 }
 
@@ -154,75 +159,78 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:                  db,
-		AlertEvent:          q.AlertEvent.replaceDB(db),
-		AlertInstance:       q.AlertInstance.replaceDB(db),
-		AlertInstanceTarget: q.AlertInstanceTarget.replaceDB(db),
-		AlertRule:           q.AlertRule.replaceDB(db),
-		AlertSilence:        q.AlertSilence.replaceDB(db),
-		CoverageSpec:        q.CoverageSpec.replaceDB(db),
-		Dashboard:           q.Dashboard.replaceDB(db),
-		DashboardPanel:      q.DashboardPanel.replaceDB(db),
-		DashboardVariable:   q.DashboardVariable.replaceDB(db),
-		LintWarning:         q.LintWarning.replaceDB(db),
-		Log:                 q.Log.replaceDB(db),
-		Meta:                q.Meta.replaceDB(db),
-		Metric:              q.Metric.replaceDB(db),
-		MetricSeriesCatalog: q.MetricSeriesCatalog.replaceDB(db),
-		NotificationRecord:  q.NotificationRecord.replaceDB(db),
-		Session:             q.Session.replaceDB(db),
-		Span:                q.Span.replaceDB(db),
-		SpanEvent:           q.SpanEvent.replaceDB(db),
-		SpanLink:            q.SpanLink.replaceDB(db),
-		TraceIssue:          q.TraceIssue.replaceDB(db),
+		db:                         db,
+		AlertEvent:                 q.AlertEvent.replaceDB(db),
+		AlertInstance:              q.AlertInstance.replaceDB(db),
+		AlertInstanceTarget:        q.AlertInstanceTarget.replaceDB(db),
+		AlertRule:                  q.AlertRule.replaceDB(db),
+		AlertSilence:               q.AlertSilence.replaceDB(db),
+		CoverageSpec:               q.CoverageSpec.replaceDB(db),
+		Dashboard:                  q.Dashboard.replaceDB(db),
+		DashboardPanel:             q.DashboardPanel.replaceDB(db),
+		DashboardVariable:          q.DashboardVariable.replaceDB(db),
+		LintWarning:                q.LintWarning.replaceDB(db),
+		Log:                        q.Log.replaceDB(db),
+		Meta:                       q.Meta.replaceDB(db),
+		Metric:                     q.Metric.replaceDB(db),
+		MetricAdmissionObservation: q.MetricAdmissionObservation.replaceDB(db),
+		MetricSeriesCatalog:        q.MetricSeriesCatalog.replaceDB(db),
+		NotificationRecord:         q.NotificationRecord.replaceDB(db),
+		Session:                    q.Session.replaceDB(db),
+		Span:                       q.Span.replaceDB(db),
+		SpanEvent:                  q.SpanEvent.replaceDB(db),
+		SpanLink:                   q.SpanLink.replaceDB(db),
+		TraceIssue:                 q.TraceIssue.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	AlertEvent          IAlertEventDo
-	AlertInstance       IAlertInstanceDo
-	AlertInstanceTarget IAlertInstanceTargetDo
-	AlertRule           IAlertRuleDo
-	AlertSilence        IAlertSilenceDo
-	CoverageSpec        ICoverageSpecDo
-	Dashboard           IDashboardDo
-	DashboardPanel      IDashboardPanelDo
-	DashboardVariable   IDashboardVariableDo
-	LintWarning         ILintWarningDo
-	Log                 ILogDo
-	Meta                IMetaDo
-	Metric              IMetricDo
-	MetricSeriesCatalog IMetricSeriesCatalogDo
-	NotificationRecord  INotificationRecordDo
-	Session             ISessionDo
-	Span                ISpanDo
-	SpanEvent           ISpanEventDo
-	SpanLink            ISpanLinkDo
-	TraceIssue          ITraceIssueDo
+	AlertEvent                 IAlertEventDo
+	AlertInstance              IAlertInstanceDo
+	AlertInstanceTarget        IAlertInstanceTargetDo
+	AlertRule                  IAlertRuleDo
+	AlertSilence               IAlertSilenceDo
+	CoverageSpec               ICoverageSpecDo
+	Dashboard                  IDashboardDo
+	DashboardPanel             IDashboardPanelDo
+	DashboardVariable          IDashboardVariableDo
+	LintWarning                ILintWarningDo
+	Log                        ILogDo
+	Meta                       IMetaDo
+	Metric                     IMetricDo
+	MetricAdmissionObservation IMetricAdmissionObservationDo
+	MetricSeriesCatalog        IMetricSeriesCatalogDo
+	NotificationRecord         INotificationRecordDo
+	Session                    ISessionDo
+	Span                       ISpanDo
+	SpanEvent                  ISpanEventDo
+	SpanLink                   ISpanLinkDo
+	TraceIssue                 ITraceIssueDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		AlertEvent:          q.AlertEvent.WithContext(ctx),
-		AlertInstance:       q.AlertInstance.WithContext(ctx),
-		AlertInstanceTarget: q.AlertInstanceTarget.WithContext(ctx),
-		AlertRule:           q.AlertRule.WithContext(ctx),
-		AlertSilence:        q.AlertSilence.WithContext(ctx),
-		CoverageSpec:        q.CoverageSpec.WithContext(ctx),
-		Dashboard:           q.Dashboard.WithContext(ctx),
-		DashboardPanel:      q.DashboardPanel.WithContext(ctx),
-		DashboardVariable:   q.DashboardVariable.WithContext(ctx),
-		LintWarning:         q.LintWarning.WithContext(ctx),
-		Log:                 q.Log.WithContext(ctx),
-		Meta:                q.Meta.WithContext(ctx),
-		Metric:              q.Metric.WithContext(ctx),
-		MetricSeriesCatalog: q.MetricSeriesCatalog.WithContext(ctx),
-		NotificationRecord:  q.NotificationRecord.WithContext(ctx),
-		Session:             q.Session.WithContext(ctx),
-		Span:                q.Span.WithContext(ctx),
-		SpanEvent:           q.SpanEvent.WithContext(ctx),
-		SpanLink:            q.SpanLink.WithContext(ctx),
-		TraceIssue:          q.TraceIssue.WithContext(ctx),
+		AlertEvent:                 q.AlertEvent.WithContext(ctx),
+		AlertInstance:              q.AlertInstance.WithContext(ctx),
+		AlertInstanceTarget:        q.AlertInstanceTarget.WithContext(ctx),
+		AlertRule:                  q.AlertRule.WithContext(ctx),
+		AlertSilence:               q.AlertSilence.WithContext(ctx),
+		CoverageSpec:               q.CoverageSpec.WithContext(ctx),
+		Dashboard:                  q.Dashboard.WithContext(ctx),
+		DashboardPanel:             q.DashboardPanel.WithContext(ctx),
+		DashboardVariable:          q.DashboardVariable.WithContext(ctx),
+		LintWarning:                q.LintWarning.WithContext(ctx),
+		Log:                        q.Log.WithContext(ctx),
+		Meta:                       q.Meta.WithContext(ctx),
+		Metric:                     q.Metric.WithContext(ctx),
+		MetricAdmissionObservation: q.MetricAdmissionObservation.WithContext(ctx),
+		MetricSeriesCatalog:        q.MetricSeriesCatalog.WithContext(ctx),
+		NotificationRecord:         q.NotificationRecord.WithContext(ctx),
+		Session:                    q.Session.WithContext(ctx),
+		Span:                       q.Span.WithContext(ctx),
+		SpanEvent:                  q.SpanEvent.WithContext(ctx),
+		SpanLink:                   q.SpanLink.WithContext(ctx),
+		TraceIssue:                 q.TraceIssue.WithContext(ctx),
 	}
 }
 

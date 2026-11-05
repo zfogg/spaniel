@@ -225,6 +225,12 @@ func (d *DB) clearWithCheckpoint(clear func(*DB) error, checkpoint func(*DB) err
 func (d *DB) deleteAllSessionData() error {
 	return d.maintenanceTransaction(d.namedGORM("DeleteAllSessions"), func(g *gorm.DB) error {
 		tx := querygen.Use(g)
+		if _, err := tx.MetricAdmissionObservation.Where(tx.MetricAdmissionObservation.SessionID.IsNotNull()).Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SeriesKey.IsNotNull()).Delete(); err != nil {
+			return err
+		}
 		sessions, err := tx.Session.Select(tx.Session.ID).Find()
 		if err != nil {
 			return err
@@ -235,9 +241,6 @@ func (d *DB) deleteAllSessionData() error {
 		ids := make([]string, 0, len(sessions))
 		for _, session := range sessions {
 			ids = append(ids, session.ID)
-		}
-		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SessionID.In(ids...)).Delete(); err != nil {
-			return err
 		}
 		if _, err := tx.LintWarning.Where(tx.LintWarning.SessionID.In(ids...)).Delete(); err != nil {
 			return err
@@ -491,6 +494,9 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64
 
 	deleted := 0
 	err := d.maintenanceTransaction(d.namedGORM("DeleteOldestTelemetryBatch"), func(tx *gorm.DB) error {
+		if err := tx.Exec(`DELETE FROM metric_admission_observations WHERE session_id IN (SELECT session_id FROM retention_trace_batch WHERE kind = 'metric')`).Error; err != nil {
+			return err
+		}
 		for _, table := range []string{"lint_warnings", "trace_issues", "logs", "span_events", "span_links"} {
 			if err := tx.Exec(`DELETE FROM ` + table + ` WHERE ` + traceMatch(table)).Error; err != nil {
 				return fmt.Errorf("delete old trace %s: %w", table, err)
@@ -544,6 +550,9 @@ func (d *DB) resetData(all bool) error {
 	// each predicate makes the intended whole-table maintenance deletion explicit.
 	return d.maintenanceTransaction(d.namedGORM("ResetTelemetry"), func(g *gorm.DB) error {
 		tx := querygen.Use(g)
+		if _, err := tx.MetricAdmissionObservation.Where(tx.MetricAdmissionObservation.SessionID.IsNotNull()).Delete(); err != nil {
+			return err
+		}
 		if _, err := tx.MetricSeriesCatalog.Where(tx.MetricSeriesCatalog.SeriesKey.IsNotNull()).Delete(); err != nil {
 			return err
 		}

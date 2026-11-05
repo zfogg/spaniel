@@ -82,6 +82,9 @@ func TestGetMetricCardinality_UsesDurableAdmittedSeries(t *testing.T) {
 	if len(resp.Data) != 1 || resp.Data[0].Active != 2 || resp.Data[0].Limit != 2000 {
 		t.Fatalf("cardinality = %+v, want one stream with two identities", resp.Data)
 	}
+	if resp.Data[0].HistoryStatus != "insufficient_history" {
+		t.Fatalf("new catalog history status = %q", resp.Data[0].HistoryStatus)
+	}
 }
 
 func TestGetMetricSeries_MissingName(t *testing.T) {

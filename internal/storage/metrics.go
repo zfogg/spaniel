@@ -3,12 +3,16 @@ package storage
 import (
 	"crypto/sha256"
 	"fmt"
+	"time"
 
 	"github.com/zfogg/spaniel/internal/model"
 	"gorm.io/gorm/clause"
 )
 
 type Metric = model.Metric
+
+// MetricSeriesLimit is the ingestion admission budget per session and stream.
+const MetricSeriesLimit = 2000
 
 // MetricCatalogEntry summarizes one (name, service) metric stream.
 type MetricCatalogEntry = model.MetricCatalogEntry
@@ -18,18 +22,21 @@ func (d *DB) AppendMetric(m *Metric) error { return d.batcher.AppendMetric(m) }
 
 // MetricSeriesCatalog is the ingestion-facing view of durable admitted series.
 type MetricSeriesCatalog struct {
-	SessionID  string
-	Service    string
-	Name       string
-	Attributes string
+	SessionID    string
+	Service      string
+	Name         string
+	Attributes   string
+	AdmittedAtNs *int64
 }
 
 func (d *DB) RecordMetricSeries(sessionID, service, name, attrs string, timestampNs int64) (bool, error) {
 	seriesKey := sha256.Sum256([]byte(name + "\x00" + service + "\x00" + attrs))
+	admittedAt := time.Now().UnixNano()
 	entry := &model.MetricSeriesCatalog{
 		SessionID: sessionID, ServiceName: service, Name: name,
 		SeriesKey: fmt.Sprintf("%x", seriesKey[:]), SeriesAttributes: attrs,
 		FirstTimestampNs: timestampNs, LastTimestampNs: timestampNs, PointCount: 1,
+		AdmittedAtNs: &admittedAt,
 	}
 	if err := d.namedQuery("RecordMetricSeries").MetricSeriesCatalog.Clauses(clause.OnConflict{DoNothing: true}).Create(entry); err != nil {
 		return false, err
@@ -44,7 +51,7 @@ func (d *DB) MetricSeriesCatalog() ([]MetricSeriesCatalog, error) {
 	}
 	out := make([]MetricSeriesCatalog, len(rows))
 	for i, row := range rows {
-		out[i] = MetricSeriesCatalog{SessionID: row.SessionID, Service: row.ServiceName, Name: row.Name, Attributes: row.SeriesAttributes}
+		out[i] = MetricSeriesCatalog{SessionID: row.SessionID, Service: row.ServiceName, Name: row.Name, Attributes: row.SeriesAttributes, AdmittedAtNs: row.AdmittedAtNs}
 	}
 	return out, nil
 }

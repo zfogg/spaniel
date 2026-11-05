@@ -26,9 +26,10 @@ type DB struct {
 	batcher                  *Batcher
 	path                     string
 	activeSession            *atomic.Pointer[activeSessionState]
-	full                     *atomic.Bool   // writes rejected when true (see full.go); shared across WithContext copies
-	notificationMu           *sync.Mutex    // shared by WithContext copies; serializes inbox deduplication
-	traceLintMu              *sync.Mutex    // shared by WithContext copies; serializes incremental trace lint insertion
+	full                     *atomic.Bool // writes rejected when true (see full.go); shared across WithContext copies
+	notificationMu           *sync.Mutex  // shared by WithContext copies; serializes inbox deduplication
+	traceLintMu              *sync.Mutex  // shared by WithContext copies; serializes incremental trace lint insertion
+	metricCatalogEpoch       *atomic.Uint64
 	retentionFloor           *atomic.Int64  // failed reclamation floor; prevents repeated destructive retries
 	retentionRetry           *atomic.Int64  // automatic size reclamation retry time, Unix nanoseconds
 	retentionCheckpointReady *atomic.Bool   // next automatic size pass may rebuild or evict after a separate checkpoint pass
@@ -116,7 +117,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{activeSession: &atomic.Pointer[activeSessionState]{}, gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, notificationMu: &sync.Mutex{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalLast: &atomic.Int64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}}
+	d := &DB{activeSession: &atomic.Pointer[activeSessionState]{}, gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, notificationMu: &sync.Mutex{}, metricCatalogEpoch: &atomic.Uint64{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalLast: &atomic.Int64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}}
 	if err := d.recoverReclaimIndexes(); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("recover interrupted reclamation: %w", err)
@@ -233,7 +234,12 @@ func (d *DB) Close() error {
 // requests. WithContext copies inherit it. It must not read the database.
 func (d *DB) SetChangeNotifier(fn func([]string, string)) { d.changeNotify = fn }
 func (d *DB) changed(reason string, resources ...string) {
+	if reason == "reset" || reason == "DeleteSession" {
+		d.metricCatalogEpoch.Add(1)
+	}
 	if d.changeNotify != nil {
 		d.changeNotify(resources, reason)
 	}
 }
+
+func (d *DB) MetricCatalogEpoch() uint64 { return d.metricCatalogEpoch.Load() }

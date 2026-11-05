@@ -168,9 +168,21 @@ type MetricSeriesCatalog struct {
 	FirstTimestampNs int64
 	LastTimestampNs  int64
 	PointCount       int64
+	AdmittedAtNs     *int64
 }
 
 func (MetricSeriesCatalog) TableName() string { return "metric_series_catalog" }
+
+// MetricAdmissionObservation marks when continuous admission observation began.
+// Existing catalogs deliberately have no marker after migration.
+type MetricAdmissionObservation struct {
+	SessionID   string `gorm:"primaryKey"`
+	ServiceName string `gorm:"primaryKey"`
+	Name        string `gorm:"primaryKey"`
+	StartedAtNs int64
+}
+
+func (MetricAdmissionObservation) TableName() string { return "metric_admission_observations" }
 
 type P95Value struct{ P95Ns int64 }
 
