@@ -229,8 +229,10 @@ setup:
 # Focused protocol-lint regression check, using the same Windows CGO toolchain.
 test-ingestion:
 	mkdir -p $(BIN_DIR)
+	go test -c -o $(BIN_DIR)/detectors.test$(EXE) ./internal/ingestion/detectors
+	./$(BIN_DIR)/detectors.test$(EXE) -test.run 'TestRedelivery' -test.v
 	go test -c -o $(BIN_DIR)/ingestion.test$(EXE) ./internal/ingestion
-	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestChildStartingBeforeParent|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration' -test.v
+	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestChildStartingBeforeParent|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration|TestRedelivery' -test.v
 
 .PHONY: test-query-diagnostics
 .PHONY: test-query-analysis
