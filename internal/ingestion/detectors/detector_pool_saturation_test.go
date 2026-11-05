@@ -40,3 +40,26 @@ func TestPoolSaturationEvidence(t *testing.T) {
 		t.Fatal("slow queries are not pool waits", got)
 	}
 }
+
+func TestPoolSaturationWindowAndLateSession(t *testing.T) {
+	d := &PoolSaturationDetector{}
+	spans := []*storage.Span{}
+	for _, id := range []string{"a", "b", "c"} {
+		spans = append(spans, &storage.Span{SpanID: id, SessionID: "old", ServiceName: "api", Attributes: `{"db.operation.name":"connection.wait","db.client.connection.pool.name":"orders"}`, EndNs: int64(200 * time.Millisecond)})
+	}
+	spans[2].StartNs = int64(5 * time.Minute)
+	spans[2].EndNs = spans[2].StartNs + int64(200*time.Millisecond)
+	if got := d.Analyze("trace", "new", spans, 1); len(got) != 0 {
+		t.Fatal("cross-window waits", got)
+	}
+	spans[2].StartNs = 0
+	spans[2].EndNs = int64(200 * time.Millisecond)
+	got := d.Analyze("trace", "new", spans, 2)
+	if len(got) != 1 || got[0].SessionID != "old" {
+		t.Fatal("late session evidence", got)
+	}
+	spans = append(spans, spans[2])
+	if got = d.Analyze("trace", "new", spans, 3); len(got) != 1 || got[0].Count != 3 {
+		t.Fatal("duplicate span", got)
+	}
+}

@@ -21,11 +21,22 @@ func (*PoolSaturationDetector) Analyze(traceID, sessionID string, spans []*stora
 		timeout bool
 		wait    int64
 	}
-	groups := map[string]*group{}
+	type groupKey struct {
+		session, service, pool string
+		window                 int64
+	}
+	groups := map[groupKey]*group{}
+	seen := map[string]bool{}
 	for _, s := range spans {
-		if s.SessionID != "" && s.SessionID != sessionID {
+		session := s.SessionID
+		if session == "" {
+			session = sessionID
+		}
+		identity := session + "\x00" + s.SpanID
+		if seen[identity] {
 			continue
 		}
+		seen[identity] = true
 		operation := strings.ToLower(extractAttrString(s.Attributes, "db.operation.name"))
 		if operation != "connection.acquire" && operation != "connection.wait" {
 			continue
@@ -34,7 +45,7 @@ func (*PoolSaturationDetector) Analyze(traceID, sessionID string, spans []*stora
 		if pool == "" || s.ServiceName == "" || s.SpanID == "" {
 			continue
 		}
-		key := s.ServiceName + "\x00" + pool
+		key := groupKey{session, s.ServiceName, pool, s.StartNs / int64(5*time.Minute)}
 		g := groups[key]
 		if g == nil {
 			g = &group{}
@@ -51,11 +62,23 @@ func (*PoolSaturationDetector) Analyze(traceID, sessionID string, spans []*stora
 			}
 		}
 	}
-	keys := make([]string, 0, len(groups))
+	keys := make([]groupKey, 0, len(groups))
 	for key := range groups {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := keys[i], keys[j]
+		if a.session != b.session {
+			return a.session < b.session
+		}
+		if a.service != b.service {
+			return a.service < b.service
+		}
+		if a.pool != b.pool {
+			return a.pool < b.pool
+		}
+		return a.window < b.window
+	})
 	var issues []*storage.TraceIssue
 	for _, key := range keys {
 		g := groups[key]
@@ -63,12 +86,11 @@ func (*PoolSaturationDetector) Analyze(traceID, sessionID string, spans []*stora
 			continue
 		}
 		sort.Slice(g.spans, func(i, j int) bool { return g.spans[i].SpanID < g.spans[j].SpanID })
-		parts := strings.SplitN(key, "\x00", 2)
 		evidence := "repeated waits >=100ms"
 		if g.timeout {
 			evidence = "acquire timeout"
 		}
-		hash := sha256.Sum256([]byte(sessionID + "\x00" + traceID + "\x00" + key))
+		hash := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d", key.session, traceID, key.service, key.pool, key.window)))
 		s := g.spans[0]
 		if g.timeout {
 			for _, candidate := range g.spans {
@@ -79,7 +101,7 @@ func (*PoolSaturationDetector) Analyze(traceID, sessionID string, spans []*stora
 				}
 			}
 		}
-		issues = append(issues, &storage.TraceIssue{ID: fmt.Sprintf("pool-%x", hash), TraceID: traceID, SessionID: sessionID, Kind: "pool_saturation", Fingerprint: fmt.Sprintf("service=%s pool=%s; %s", parts[0], parts[1], evidence), Count: len(g.spans), WastedNs: g.wait, ParentSpanID: s.ParentSpanID, ExampleSpanID: s.SpanID, CreatedAt: now})
+		issues = append(issues, &storage.TraceIssue{ID: fmt.Sprintf("pool-%x", hash), TraceID: traceID, SessionID: key.session, Kind: "pool_saturation", Fingerprint: fmt.Sprintf("service=%s pool=%s; %s", key.service, key.pool, evidence), Count: len(g.spans), WastedNs: g.wait, ParentSpanID: s.ParentSpanID, ExampleSpanID: s.SpanID, CreatedAt: now})
 	}
 	return issues
 }
