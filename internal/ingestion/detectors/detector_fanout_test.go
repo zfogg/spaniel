@@ -76,3 +76,42 @@ func TestFanoutLargeRPCAndLateEvidence(t *testing.T) {
 		t.Fatalf("late evidence: %+v", next)
 	}
 }
+
+func TestFanoutLateEvidencePersists(t *testing.T) {
+	db, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	// Retained databases may carry this legacy index.
+	if _, err := db.SQL().Exec("CREATE INDEX IF NOT EXISTS idx_trace_issues_trace_id ON trace_issues(trace_id)"); err != nil {
+		t.Fatal(err)
+	}
+	spans := []*storage.Span{{SpanID: "p", Name: "parent", EndNs: 100}}
+	for i := 0; i < 5; i++ {
+		spans = append(spans, &storage.Span{SpanID: string(rune('a' + i)), ParentSpanID: "p", Kind: 3, Name: string(rune('A' + i%3)), Attributes: `{"server.address":"backend"}`, StartNs: int64(i * 10), EndNs: int64(i*10 + 10)})
+	}
+	d := &FanoutDetector{}
+	initial := d.Analyze("trace", "session", spans, 1)
+	if len(initial) != 1 {
+		t.Fatalf("initial: %+v", initial)
+	}
+	if err := db.UpsertTraceIssue(initial[0]); err != nil {
+		t.Fatal(err)
+	}
+	spans = append(spans, &storage.Span{SpanID: "z", ParentSpanID: "p", Kind: 3, Name: "A", Attributes: `{"server.address":"backend"}`, StartNs: 50, EndNs: 60})
+	updated := d.Analyze("trace", "session", spans, 2)
+	if len(updated) != 1 || updated[0].ID != initial[0].ID {
+		t.Fatalf("updated: %+v", updated)
+	}
+	if err := db.UpsertTraceIssue(updated[0]); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := db.GetTraceIssues("trace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || stored[0].Count != 6 || stored[0].Fingerprint != updated[0].Fingerprint || !strings.Contains(stored[0].Fingerprint, "covered 60ns") || !strings.Contains(stored[0].Fingerprint, "backend / A (3;") {
+		t.Fatalf("persisted evidence: %+v", stored)
+	}
+}
