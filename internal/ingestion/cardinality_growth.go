@@ -59,17 +59,18 @@ func (p *Pipeline) scheduleMetricCardinality(ctx context.Context, session, servi
 	epoch := p.store.MetricCatalogEpoch()
 	p.afterPersist(ctx, func() {
 		if p.store.MetricCatalogEpoch() == epoch {
-			p.evaluateMetricCardinality(session, service, name, now)
+			p.evaluateMetricCardinality(ctx, session, service, name, now)
 		}
 	})
 }
 
-func (p *Pipeline) evaluateMetricCardinality(session, service, name string, now int64) {
-	p.evaluateMetricCardinalityWithLimit(session, service, name, now, metricSeriesLimit)
+func (p *Pipeline) evaluateMetricCardinality(ctx context.Context, session, service, name string, now int64) {
+	p.evaluateMetricCardinalityWithLimit(ctx, session, service, name, now, metricSeriesLimit)
 }
 
-func (p *Pipeline) evaluateMetricCardinalityWithLimit(session, service, name string, now int64, limit int) {
-	history, err := p.store.ObserveMetricAdmissions(session, service, name, now, limit)
+func (p *Pipeline) evaluateMetricCardinalityWithLimit(ctx context.Context, session, service, name string, now int64, limit int) {
+	store := p.store.WithContext(ctx)
+	history, err := store.ObserveMetricAdmissions(session, service, name, now, limit)
 	if err != nil {
 		slog.Warn("metric cardinality history read failed", "error", err)
 		return
@@ -107,7 +108,7 @@ func (p *Pipeline) evaluateMetricCardinalityWithLimit(session, service, name str
 	sort.Strings(keyList)
 	id := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d", session, service, name, result.Status, history.StartedAtNs)))
 	query := url.Values{"session": {session}, "service": {service}, "metric": {name}}
-	err = p.store.RecordNotification(&storage.NotificationRecord{Source: "issue", SourceID: fmt.Sprintf("%x", id), Severity: "warning", Title: "Metric cardinality " + strings.ReplaceAll(result.Status, "_", " "), Body: fmt.Sprintf("%s / %s: %d series, %d admitted in the last hour (%d then %d); limit %d. Attribute keys: %s", service, name, e.Active, result.Growth, e.OlderHalf, e.NewerHalf, e.Limit, strings.Join(keyList, ", ")), Link: "/metrics?" + query.Encode(), DedupeKey: fmt.Sprintf("metric-cardinality:%x", id), CreatedAt: now})
+	err = store.RecordNotification(&storage.NotificationRecord{Source: "issue", SourceID: fmt.Sprintf("%x", id), Severity: "warning", Title: "Metric cardinality " + strings.ReplaceAll(result.Status, "_", " "), Body: fmt.Sprintf("%s / %s: %d series, %d admitted in the last hour (%d then %d); limit %d. Attribute keys: %s", service, name, e.Active, result.Growth, e.OlderHalf, e.NewerHalf, e.Limit, strings.Join(keyList, ", ")), Link: "/metrics?" + query.Encode(), DedupeKey: fmt.Sprintf("metric-cardinality:%x", id), CreatedAt: now})
 	if err != nil {
 		slog.Warn("metric cardinality finding write failed", "error", err)
 	}
