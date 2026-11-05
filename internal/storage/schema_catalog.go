@@ -98,6 +98,7 @@ var columnHints = map[string]struct{ description, use, sensitivity string }{
 	"series_attributes":       {"Canonical serialized attributes that identify a metric series.", "Filtering or labeling a bounded metric stream.", "may contain user data"},
 	"series_key":              {"Stable hash-like key for the bounded metric series.", "Joining metric points to telemetry_metric_series.", "identifier"},
 	"first_timestamp_ns":      {"Earliest metric point time observed for the series, in Unix nanoseconds.", "Finding when a metric stream first appeared.", "none"},
+	"admitted_at_ns":          {"Server time when the series was admitted, in Unix nanoseconds; unknown for older catalog entries.", "Analyzing indexed series growth independently of point time.", "none"},
 	"last_timestamp_ns":       {"Most recent metric point time observed for the series, in Unix nanoseconds.", "Finding stale or recently active metric streams.", "none"},
 	"point_count":             {"Number of metric points admitted for the series.", "Comparing stream volume and cardinality.", "none"},
 	"scope_name":              {"Instrumentation scope name that emitted the metric.", "Separating library and application instrumentation.", "none"},

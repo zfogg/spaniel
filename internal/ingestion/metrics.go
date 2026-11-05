@@ -68,12 +68,16 @@ func metricDataPointCount(m pmetric.Metric) int {
 }
 
 func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resource, scopeName, scopeVersion, scopeSchemaURL, scopeAttributes, sessionID string, catalogOnly bool) error {
+	limiter, err := p.currentMetricSeriesLimiter()
+	if err != nil {
+		return err
+	}
 	// Keep both the ingest parent and the self-telemetry suppression marker.
 	storeDB := p.store.WithContext(ctx)
 	base := func(metricType string, attrs pcommon.Map, start, timestamp pcommon.Timestamp, flags pmetric.DataPointFlags, exemplars pmetric.ExemplarSlice) *storage.Metric {
 		attrsJSON, seriesAttrs, limitedAttrs := metricAttributes(attrs)
 		stream := sessionID + "\x00" + svc + "\x00" + m.Name()
-		admitted, fresh := p.metricSeries.Admit(stream, seriesAttrs)
+		admitted, fresh := limiter.Admit(stream, seriesAttrs)
 		if !admitted {
 			seriesAttrs = "{}"
 			telemetry.Catalog().RecordCardinalityLimited(ctx, "new_series_budget", 1)
@@ -95,6 +99,7 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 			// Raw point attributes remain in metrics regardless of this decision.
 			inserted, err := storeDB.RecordMetricSeries(row.SessionID, row.ServiceName, row.Name, row.SeriesAttributes, row.TimestampNs)
 			if err != nil {
+				limiter.Forget(row.SessionID+"\x00"+row.ServiceName+"\x00"+row.Name, row.SeriesAttributes)
 				return err
 			}
 			if inserted {
@@ -105,6 +110,9 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 		}
 		if err := p.store.AppendMetric(row); err != nil {
 			return err
+		}
+		if !catalogOnly {
+			p.scheduleMetricCardinality(ctx, row.SessionID, row.ServiceName, row.Name)
 		}
 		if !catalogOnly && (row.Name == "db.client.connection.pending_requests" || row.Name == "db.client.connection.timeouts") {
 			point := *row

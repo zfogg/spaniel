@@ -36,6 +36,7 @@ func newMetricSeriesCatalog(db *gorm.DB, opts ...gen.DOOption) metricSeriesCatal
 	_metricSeriesCatalog.FirstTimestampNs = field.NewInt64(tableName, "first_timestamp_ns")
 	_metricSeriesCatalog.LastTimestampNs = field.NewInt64(tableName, "last_timestamp_ns")
 	_metricSeriesCatalog.PointCount = field.NewInt64(tableName, "point_count")
+	_metricSeriesCatalog.AdmittedAtNs = field.NewInt64(tableName, "admitted_at_ns")
 
 	_metricSeriesCatalog.fillFieldMap()
 
@@ -54,6 +55,7 @@ type metricSeriesCatalog struct {
 	FirstTimestampNs field.Int64
 	LastTimestampNs  field.Int64
 	PointCount       field.Int64
+	AdmittedAtNs     field.Int64
 
 	fieldMap map[string]field.Expr
 }
@@ -78,6 +80,7 @@ func (m *metricSeriesCatalog) updateTableName(table string) *metricSeriesCatalog
 	m.FirstTimestampNs = field.NewInt64(table, "first_timestamp_ns")
 	m.LastTimestampNs = field.NewInt64(table, "last_timestamp_ns")
 	m.PointCount = field.NewInt64(table, "point_count")
+	m.AdmittedAtNs = field.NewInt64(table, "admitted_at_ns")
 
 	m.fillFieldMap()
 
@@ -94,7 +97,7 @@ func (m *metricSeriesCatalog) GetFieldByName(fieldName string) (field.OrderExpr,
 }
 
 func (m *metricSeriesCatalog) fillFieldMap() {
-	m.fieldMap = make(map[string]field.Expr, 8)
+	m.fieldMap = make(map[string]field.Expr, 9)
 	m.fieldMap["session_id"] = m.SessionID
 	m.fieldMap["service_name"] = m.ServiceName
 	m.fieldMap["name"] = m.Name
@@ -103,6 +106,7 @@ func (m *metricSeriesCatalog) fillFieldMap() {
 	m.fieldMap["first_timestamp_ns"] = m.FirstTimestampNs
 	m.fieldMap["last_timestamp_ns"] = m.LastTimestampNs
 	m.fieldMap["point_count"] = m.PointCount
+	m.fieldMap["admitted_at_ns"] = m.AdmittedAtNs
 }
 
 func (m metricSeriesCatalog) clone(db *gorm.DB) metricSeriesCatalog {

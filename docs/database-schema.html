@@ -1,6 +1,6 @@
 <!doctype html><meta charset=utf-8><title>Spaniel database schema</title><pre># Spaniel database schema
 
-Catalog version `1`; schema fingerprint `a4ca9b130e795e9d76d0677065c83a764b664a5e00b1da7daf8d8f4636ba0f94`.
+Catalog version `1`; schema fingerprint `a67abde0d6db5ffa78db5f479b5344bac1ccb1d9ae15dd67b6f77db16b4d5a9e`.
 
 ## `telemetry_spans`
 
@@ -255,6 +255,7 @@ Bounded directory of observed metric streams.
 | `first_timestamp_ns` | `BIGINT` | Finding when a metric stream first appeared. |
 | `last_timestamp_ns` | `BIGINT` | Finding stale or recently active metric streams. |
 | `point_count` | `BIGINT` | Comparing stream volume and cardinality. |
+| `admitted_at_ns` | `BIGINT` | Analyzing indexed series growth independently of point time. |
 
 ### Busiest metric series
 

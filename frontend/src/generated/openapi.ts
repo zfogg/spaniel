@@ -2071,6 +2071,9 @@ export interface components {
       [key: string]: unknown
     }
     MetricCardinalityStream: {
+      /** @enum {string} */
+      history_status: 'insufficient_history' | 'stable' | 'growth' | 'approaching_limit'
+      new_series: number
       /** Format: double */
       active_series: number
       /** Format: double */

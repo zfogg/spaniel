@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "fingerprint": "a4ca9b130e795e9d76d0677065c83a764b664a5e00b1da7daf8d8f4636ba0f94",
+  "fingerprint": "a67abde0d6db5ffa78db5f479b5344bac1ccb1d9ae15dd67b6f77db16b4d5a9e",
   "views": [
     {
       "name": "telemetry_spans",
@@ -829,6 +829,13 @@
           "type": "BIGINT",
           "description": "Number of metric points admitted for the series.",
           "use_it_for": "Comparing stream volume and cardinality.",
+          "sensitivity": "none"
+        },
+        {
+          "name": "admitted_at_ns",
+          "type": "BIGINT",
+          "description": "Server time when the series was admitted, in Unix nanoseconds; unknown for older catalog entries.",
+          "use_it_for": "Analyzing indexed series growth independently of point time.",
           "sensitivity": "none"
         }
       ],

@@ -51,10 +51,14 @@ type Pipeline struct {
 	// selfService is the service.name Spaniel uses for its own self-telemetry.
 	// Batches from it are stored "quietly" (no instrumentation spans, linter, or
 	// detectors) so self-monitoring doesn't feed back on itself. Empty disables.
-	selfService  string
-	metricSeries *metricSeriesLimiter
-	poolMetrics  poolMetricQueue
-	liveNotify   func()
+	selfService        string
+	metricSeries       *metricSeriesLimiter
+	metricSeriesMu     sync.Mutex
+	metricSeriesEpoch  uint64
+	metricEvaluationMu sync.Mutex
+	metricEvaluation   [4096]metricEvaluationSlot
+	poolMetrics        poolMetricQueue
+	liveNotify         func()
 }
 
 const (
@@ -147,7 +151,7 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		debounce:     make(map[detectorKey]*time.Timer),
 		lintSlots:    make(chan struct{}, maxConcurrentLinters),
 		tracer:       telemetry.Tracer("ingestion"),
-		metricSeries: newMetricSeriesLimiter(2000),
+		metricSeries: newMetricSeriesLimiter(storage.MetricSeriesLimit),
 	}
 	if persisted, err := store.MetricSeriesCatalog(); err == nil {
 		for _, row := range persisted {

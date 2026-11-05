@@ -1635,14 +1635,26 @@ components:
                 active_series:
                     format: double
                     type: number
+                history_status:
+                    enum:
+                        - insufficient_history
+                        - stable
+                        - growth
+                        - approaching_limit
+                    type: string
                 limit:
                     format: double
                     type: number
                 name:
                     type: string
+                new_series:
+                    minimum: 0
+                    type: integer
                 service_name:
                     type: string
             required:
+                - history_status
+                - new_series
                 - service_name
                 - name
                 - active_series

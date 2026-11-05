@@ -2209,6 +2209,14 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "history_status": {
+            "type": "string",
+            "enum": ["insufficient_history", "stable", "growth", "approaching_limit"]
+          },
+          "new_series": {
+            "type": "integer",
+            "minimum": 0
+          },
           "active_series": {
             "type": "number",
             "format": "double"
@@ -2225,6 +2233,8 @@
           }
         },
         "required": [
+          "history_status",
+          "new_series",
           "service_name",
           "name",
           "active_series",
