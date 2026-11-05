@@ -818,7 +818,7 @@ export default function Metrics() {
               {!selectedCardinality.history_status ||
               selectedCardinality.history_status === 'insufficient_history'
                 ? 'insufficient history'
-                : `${selectedCardinality.new_series} new / 1h · ${selectedCardinality.history_status.replaceAll('_', ' ')}`}
+                : `${selectedCardinality.new_series} new / 1h · ${selectedCardinality.history_status.replace(/_/g, ' ')}`}
             </span>
           )}
         </div>
