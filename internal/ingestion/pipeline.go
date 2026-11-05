@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/querydiagnostics"
 	"github.com/zfogg/spaniel/internal/storage"
@@ -728,7 +729,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	sessionID := p.store.ActiveSessionID()
 	now := time.Now().UnixNano()
 	// Run N+1 detection inline (pre-storage) to inform the sampler.
-	issues := new(N1Detector).Analyze(traceID, sessionID, spans, now)
+	issues := new(detectors.N1Detector).Analyze(traceID, sessionID, spans, now)
 
 	serviceP95 := map[string]int64{}
 	if p.sampler.alwaysKeep&KeepSlow != 0 {

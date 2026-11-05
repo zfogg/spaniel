@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"fmt"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestSerialPromise_SerialCallsFire(t *testing.T) {
 	for i := range 4 {
 		spans = append(spans, clientSpan(fmt.Sprintf("c%d", i), "parent", i*90, i*90+80))
 	}
-	d := &SerialPromiseDetector{}
+	d := &detectors.SerialPromiseDetector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue for serial calls, got %d", len(got))
@@ -50,7 +51,7 @@ func TestSerialPromise_TooFewChildren(t *testing.T) {
 		clientSpan("c0", "parent", 0, 100),
 		clientSpan("c1", "parent", 100, 200),
 	}
-	d := &SerialPromiseDetector{}
+	d := &detectors.SerialPromiseDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("2 children below min, got %d issues", len(got))
 	}
@@ -67,7 +68,7 @@ func TestSerialPromise_OverlappingChildren_NoFire(t *testing.T) {
 		clientSpan("c1", "parent", 50, 250),  // overlaps c0
 		clientSpan("c2", "parent", 100, 300), // overlaps c1
 	}
-	d := &SerialPromiseDetector{}
+	d := &detectors.SerialPromiseDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("overlapping children should not fire, got %d issues", len(got))
 	}
@@ -81,7 +82,7 @@ func TestSerialPromise_SequentialSQLDoesNotRecommendParallelism(t *testing.T) {
 		s.Attributes = `{"db.system.name":"postgresql","db.operation.name":"UPDATE","db.query.text":"UPDATE orders SET status = ?"}`
 		spans = append(spans, s)
 	}
-	if got := (&SerialPromiseDetector{}).Analyze("sql-trace", "session", spans, 0); len(got) != 0 {
+	if got := (&detectors.SerialPromiseDetector{}).Analyze("sql-trace", "session", spans, 0); len(got) != 0 {
 		t.Fatalf("transaction SQL labelled parallelisable: %+v", got)
 	}
 }

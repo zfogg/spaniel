@@ -9,30 +9,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zfogg/spaniel/internal/goroutine"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
 )
-
-// Detector analyzes a trace's spans and returns any detected issues.
-// Each implementation lives in its own detector_*.go file.
-type Detector interface {
-	Kind() string
-	Analyze(traceID, sessionID string, spans []*storage.Span, now int64) []*storage.TraceIssue
-}
-
-// registry is the ordered list of detectors run on every trace.
-var registry = []Detector{
-	&N1Detector{},
-	&SlowDBDetector{},
-	&ChattyHTTPDetector{},
-	&LargePayloadDetector{},
-	&CacheMissStormDetector{},
-	&TracingGapDetector{},
-	&ErrorChainDetector{},
-	&SerialPromiseDetector{},
-}
 
 // runDetectors runs all registered detectors on the trace identified by traceID,
 // persists any issues, and broadcasts WS events for each new finding.
@@ -55,8 +37,8 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 	linter.PersistDuplicateSpanLints(traceID, store, spans, now)
 	linter.PersistChildStartsBeforeParentLints(traceID, store, spans, now)
 
-	for _, d := range registry {
-		if !detectorSupportsTrace(d, spans) {
+	for _, d := range detectors.Registry() {
+		if !detectors.SupportsTrace(d, spans) {
 			continue
 		}
 		for _, issue := range d.Analyze(traceID, sessID, spans, now) {
@@ -76,19 +58,4 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 			}
 		}
 	}
-}
-
-// Complete-tree heuristics cannot infer missing work or total repetition from
-// representative span samples. Error/slow-span checks still use the evidence
-// actually received. Clients opt in with a boolean on their operation root.
-func detectorSupportsTrace(d Detector, spans []*storage.Span) bool {
-	for _, s := range spans {
-		if partial, ok := extractAttrBool(s.Attributes, "spaniel.trace.partial"); ok && partial {
-			switch d.Kind() {
-			case "n_plus_one", "tracing_gap", "serial_promise":
-				return false
-			}
-		}
-	}
-	return true
 }

@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 
 	"github.com/zfogg/spaniel/internal/storage"
@@ -11,7 +12,7 @@ func TestErrorChain_ChildErrorParentOK(t *testing.T) {
 		{SpanID: "root", ParentSpanID: "", StatusCode: 1, SessionID: "sess"},
 		{SpanID: "child", ParentSpanID: "root", StatusCode: 2, SessionID: "sess"},
 	}
-	d := &ErrorChainDetector{}
+	d := &detectors.ErrorChainDetector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(got))
@@ -30,7 +31,7 @@ func TestErrorChain_BothError_NoFire(t *testing.T) {
 		{SpanID: "root", ParentSpanID: "", StatusCode: 2, SessionID: "sess"},
 		{SpanID: "child", ParentSpanID: "root", StatusCode: 2, SessionID: "sess"},
 	}
-	d := &ErrorChainDetector{}
+	d := &detectors.ErrorChainDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("both-error should not fire, got %d", len(got))
 	}
@@ -41,7 +42,7 @@ func TestErrorChain_AllOK_NoFire(t *testing.T) {
 		{SpanID: "root", ParentSpanID: "", StatusCode: 1, SessionID: "sess"},
 		{SpanID: "child", ParentSpanID: "root", StatusCode: 1, SessionID: "sess"},
 	}
-	d := &ErrorChainDetector{}
+	d := &detectors.ErrorChainDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("all-OK should not fire, got %d", len(got))
 	}
@@ -54,7 +55,7 @@ func TestErrorChain_MultipleChildren(t *testing.T) {
 		{SpanID: "c1", ParentSpanID: "root", StatusCode: 2, SessionID: "sess"},
 		{SpanID: "c2", ParentSpanID: "root", StatusCode: 2, SessionID: "sess"},
 	}
-	d := &ErrorChainDetector{}
+	d := &detectors.ErrorChainDetector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 2 {
 		t.Errorf("expected 2 issues, got %d", len(got))
@@ -80,7 +81,7 @@ func TestErrorChainExplicitCallerTerminationOnlyExemptsThatBoundary(t *testing.T
 			{SpanID: "inside", ParentSpanID: "boundary", StatusCode: 0},
 			{SpanID: "failed_descendant", ParentSpanID: "inside", StatusCode: 2},
 		}
-		got := (&ErrorChainDetector{}).Analyze("trace", "session", spans, 0)
+		got := (&detectors.ErrorChainDetector{}).Analyze("trace", "session", spans, 0)
 		if len(got) != attrs.expected+2 {
 			t.Fatalf("attrs=%s issues=%+v", attrs.value, got)
 		}

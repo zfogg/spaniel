@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"encoding/json"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 
 	"github.com/zfogg/spaniel/internal/storage"
@@ -39,7 +40,7 @@ func TestN1LifecycleBoundariesAndPrepareAreNotDataLoops(t *testing.T) {
 				span.Attributes = string(raw)
 				spans = append(spans, span)
 			}
-			if got := (&N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 0 {
+			if got := (&detectors.N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 0 {
 				t.Fatalf("driver lifecycle classified as N+1: %+v", got)
 			}
 		})
@@ -58,7 +59,7 @@ func TestN1LifecycleFilterPreservesRealQueriesAndAdvisoryLocks(t *testing.T) {
 		for _, span := range spans {
 			span.Name = "app.storage.prepare"
 		}
-		if got := (&N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 1 || got[0].Count != 3 {
+		if got := (&detectors.N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 1 || got[0].Count != 3 {
 			t.Fatalf("real repeated query hidden: %s %+v", sql, got)
 		}
 	}
@@ -69,10 +70,10 @@ func TestN1LifecycleFilterDoesNotSuppressSlowDatabaseFindings(t *testing.T) {
 	for _, span := range spans {
 		span.EndNs = 1_000_000_000
 	}
-	if got := (&N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 0 {
+	if got := (&detectors.N1Detector{}).Analyze("trace", "session", spans, 0); len(got) != 0 {
 		t.Fatalf("transaction classified as N+1: %+v", got)
 	}
-	if got := (&SlowDBDetector{}).Analyze("trace", "session", spans, 0); len(got) != 2 {
+	if got := (&detectors.SlowDBDetector{}).Analyze("trace", "session", spans, 0); len(got) != 2 {
 		t.Fatalf("slow transaction findings hidden: %+v", got)
 	}
 }

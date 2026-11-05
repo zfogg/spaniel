@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ func TestN1DetectorRatioNotificationChannels(t *testing.T) {
 	for i := range 6 {
 		spans = append(spans, &storage.Span{SpanID: itoa(i), ParentSpanID: "request", Attributes: `{"db.system.name":"postgresql","db.query.text":"SELECT * FROM \\\"notification_channels\\\" WHERE user_id=? AND provider=?"}`, StartNs: int64(i) * 100, EndNs: int64(i)*100 + 50})
 	}
-	issues := (&N1Detector{}).Analyze("ratio-trace", "session", spans, 1)
+	issues := (&detectors.N1Detector{}).Analyze("ratio-trace", "session", spans, 1)
 	if len(issues) != 1 || issues[0].Count != 6 {
 		t.Fatalf("expected six repeated provider reads, got %+v", issues)
 	}
@@ -27,7 +28,7 @@ func TestN1DetectorDistinctIssuesForSharedSQLPrefixAndParents(t *testing.T) {
 	for i := range 3 {
 		spans = append(spans, makeDBSpan("users"+itoa(i), "p", "SELECT * FROM users WHERE id=1", 0), makeDBSpan("orders"+itoa(i), "p", "SELECT * FROM orders WHERE id=1", 0), makeDBSpan("other"+itoa(i), "q", "SELECT * FROM users WHERE id=1", 0))
 	}
-	got := (&N1Detector{}).Analyze("trace1", "session", spans, 1)
+	got := (&detectors.N1Detector{}).Analyze("trace1", "session", spans, 1)
 	ids := map[string]bool{}
 	for _, issue := range got {
 		ids[issue.ID] = true
@@ -39,7 +40,7 @@ func TestN1DetectorDistinctIssuesForSharedSQLPrefixAndParents(t *testing.T) {
 
 func TestN1DetectorIgnoresRetransmittedSpan(t *testing.T) {
 	span := makeDBSpan("same", "parent", "SELECT * FROM users WHERE id=1", 0)
-	if got := (&N1Detector{}).Analyze("trace1", "session", []*storage.Span{span, span}, 1); len(got) != 0 {
+	if got := (&detectors.N1Detector{}).Analyze("trace1", "session", []*storage.Span{span, span}, 1); len(got) != 0 {
 		t.Fatalf("retransmission counted as N+1: %+v", got)
 	}
 }

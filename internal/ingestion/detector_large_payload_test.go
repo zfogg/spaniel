@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"fmt"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 
 	"github.com/zfogg/spaniel/internal/storage"
@@ -16,7 +17,7 @@ func payloadSpan(id string, bytes int) *storage.Span {
 }
 
 func TestLargePayload_BelowThreshold(t *testing.T) {
-	d := &LargePayloadDetector{}
+	d := &detectors.LargePayloadDetector{}
 	spans := []*storage.Span{payloadSpan("s1", 500_000)} // 500 KB
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("500 KB should not fire, got %d", len(got))
@@ -24,7 +25,7 @@ func TestLargePayload_BelowThreshold(t *testing.T) {
 }
 
 func TestLargePayload_AtThreshold_NoFire(t *testing.T) {
-	d := &LargePayloadDetector{}
+	d := &detectors.LargePayloadDetector{}
 	spans := []*storage.Span{payloadSpan("s1", 1<<20)} // exactly 1 MB
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("exactly 1 MB should not fire, got %d", len(got))
@@ -32,7 +33,7 @@ func TestLargePayload_AtThreshold_NoFire(t *testing.T) {
 }
 
 func TestLargePayload_AboveThreshold(t *testing.T) {
-	d := &LargePayloadDetector{}
+	d := &detectors.LargePayloadDetector{}
 	spans := []*storage.Span{payloadSpan("s1", 2_000_000)} // 2 MB
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
@@ -44,7 +45,7 @@ func TestLargePayload_AboveThreshold(t *testing.T) {
 }
 
 func TestLargePayload_AlternativeAttr(t *testing.T) {
-	d := &LargePayloadDetector{}
+	d := &detectors.LargePayloadDetector{}
 	spans := []*storage.Span{{
 		SpanID:     "s1",
 		Attributes: `{"http.response_body_size":5000000}`,

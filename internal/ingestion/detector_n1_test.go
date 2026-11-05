@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ func makeDBSpan(spanID, parentID, stmt string, startNs int64) *storage.Span {
 
 func TestN1Detector_SingleQueryIsNotNPlusOne(t *testing.T) {
 	spans := []*storage.Span{makeDBSpan("one", "parent", "SELECT * FROM users WHERE id = 1", 0)}
-	d := &N1Detector{}
+	d := &detectors.N1Detector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("expected 0 issues for one span, got %d", len(got))
 	}
@@ -30,7 +31,7 @@ func TestN1Detector_RepeatedQueryIsNPlusOne(t *testing.T) {
 	for i := range 3 {
 		spans = append(spans, makeDBSpan(itoa(i), "parent", "SELECT * FROM users WHERE id = 1", int64(i)*int64(time.Millisecond)))
 	}
-	d := &N1Detector{}
+	d := &detectors.N1Detector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue for 3 spans, got %d", len(got))
@@ -48,7 +49,7 @@ func TestN1Detector_DoesNotCombineIndependentParents(t *testing.T) {
 		makeDBSpan("one", "parent-a", "SELECT * FROM users WHERE id = 1", 0),
 		makeDBSpan("two", "parent-b", "SELECT * FROM users WHERE id = 1", int64(time.Millisecond)),
 	}
-	if got := (&N1Detector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
+	if got := (&detectors.N1Detector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("expected independent parents not to be combined, got %d issues", len(got))
 	}
 }
@@ -59,7 +60,7 @@ func TestN1Detector_TwoFingerprintsIndependent(t *testing.T) {
 		spans = append(spans, makeDBSpan("a"+itoa(i), "p", "SELECT * FROM users WHERE id = 1", int64(i)*int64(time.Millisecond)))
 		spans = append(spans, makeDBSpan("b"+itoa(i), "p", "SELECT * FROM orders WHERE id = 1", int64(i)*int64(time.Millisecond)))
 	}
-	d := &N1Detector{}
+	d := &detectors.N1Detector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 2 {
 		t.Errorf("expected 2 issues for 2 distinct repeated fingerprints, got %d", len(got))
@@ -74,7 +75,7 @@ func TestN1Detector_IgnoresWritesAndAlreadyBatchedReads(t *testing.T) {
 		spans = append(spans, write)
 		spans = append(spans, makeDBSpan("batch"+itoa(i), "parent", "SELECT * FROM users JOIN unnest(ARRAY[1,2]) ids(id) USING (id)", int64(i)*int64(time.Millisecond)))
 	}
-	if got := (&N1Detector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
+	if got := (&detectors.N1Detector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Fatalf("writes or batched reads reported as N+1: %+v", got)
 	}
 }
@@ -84,7 +85,7 @@ func TestN1Detector_NonDBSpansIgnored(t *testing.T) {
 		{SpanID: "s1", Attributes: `{"http.url":"https://api.example.com"}`, SessionID: "sess"},
 		{SpanID: "s2", Attributes: `{}`, SessionID: "sess"},
 	}
-	d := &N1Detector{}
+	d := &detectors.N1Detector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("expected 0 issues for non-DB spans, got %d", len(got))
 	}
