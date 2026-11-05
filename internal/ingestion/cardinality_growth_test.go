@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -25,8 +26,8 @@ func TestCardinalityFindingDeduplicatesAndOmitsLabelValues(t *testing.T) {
 		}
 	}
 	p := &Pipeline{store: db}
-	p.evaluateMetricCardinalityWithLimit("s", "api", "requests", now, 2)
-	p.evaluateMetricCardinalityWithLimit("s", "api", "requests", now+int64(time.Minute), 2)
+	p.evaluateMetricCardinalityWithLimit(context.Background(), "s", "api", "requests", now, 2)
+	p.evaluateMetricCardinalityWithLimit(context.Background(), "s", "api", "requests", now+int64(time.Minute), 2)
 	items, _, err := db.ListNotifications("issue", 1, 10)
 	if err != nil || len(items) != 1 {
 		t.Fatalf("notifications = %+v, %v", items, err)
@@ -60,7 +61,7 @@ func TestCardinalityGrowthUsesAdmissionTimeForLatePoints(t *testing.T) {
 		}
 	}
 	p := &Pipeline{store: db}
-	p.evaluateMetricCardinality("s", "api", "requests", now)
+	p.evaluateMetricCardinality(context.Background(), "s", "api", "requests", now)
 	items, _, err := db.ListNotifications("issue", 1, 10)
 	if err != nil || len(items) != 1 || !strings.Contains(items[0].Title, "growth") || strings.Contains(items[0].Body, "private-") {
 		t.Fatalf("growth notifications = %+v, %v", items, err)
