@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
@@ -190,18 +191,25 @@ func TestStorageQueryNameBufferedSamplerAuditsLateSpans(t *testing.T) {
 	late.SessionID = session.ID
 	p.bufferSpan("buffered", late, nil, nil)
 	p.flushBuffer("buffered", session.ID)
-	warnings, err := db.ListLintWarnings(session.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := 0
-	for _, w := range warnings {
-		if w.RuleID == linter.StorageQueryNameRule {
-			count++
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		warnings, err := db.ListLintWarnings(session.ID)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if count != 3 {
-		t.Fatalf("buffered sampling lost query-name lints: got %d want 3", count)
+		count := 0
+		for _, w := range warnings {
+			if w.RuleID == linter.StorageQueryNameRule {
+				count++
+			}
+		}
+		if count == 3 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("buffered sampling lost query-name lints: got %d want 3", count)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 

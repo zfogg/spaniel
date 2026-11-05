@@ -35,9 +35,10 @@ type Pipeline struct {
 	sampler  *Sampler
 	limiter  *SourceLimiter
 
-	debounce     map[detectorKey]*time.Timer
-	debounceMu   sync.Mutex
-	traceBuffers sync.Map
+	debounce      map[detectorKey]*time.Timer
+	debounceMu    sync.Mutex
+	traceBuffers  sync.Map
+	traceBufferMu sync.Mutex
 	// Linting and post-ingest detectors are best-effort diagnostics. Bound
 	// their concurrency so an OTLP burst cannot create one DB-blocked goroutine
 	// per span/trace and retain gigabytes of request state.
@@ -659,20 +660,26 @@ func (p *Pipeline) scheduleDetectors(traceID, sessionID string) {
 	key := detectorKey{traceID, sessionID}
 	p.debounceMu.Lock()
 	defer p.debounceMu.Unlock()
-	if t, ok := p.debounce[key]; ok {
-		t.Reset(500 * time.Millisecond)
-		return
+	if old := p.debounce[key]; old != nil {
+		old.Stop()
 	}
-	p.debounce[key] = time.AfterFunc(500*time.Millisecond, func() {
+	// A timer that has already fired must not delete or run a newer timer.
+	var timer *time.Timer
+	timer = time.AfterFunc(500*time.Millisecond, func() {
+		p.debounceMu.Lock()
+		if p.debounce[key] != timer {
+			p.debounceMu.Unlock()
+			return
+		}
+		delete(p.debounce, key)
+		p.debounceMu.Unlock()
 		if p.sampler.NeedsBuffer() {
 			p.flushBuffer(traceID, sessionID)
 		} else {
 			p.scheduleDetectorRun(traceID, sessionID)
 		}
-		p.debounceMu.Lock()
-		delete(p.debounce, key)
-		p.debounceMu.Unlock()
 	})
+	p.debounce[key] = timer
 }
 
 const maxBufferSpansPerTrace = 10_000
@@ -698,6 +705,8 @@ type traceBuffer struct {
 }
 
 func (p *Pipeline) bufferSpan(traceID string, s *storage.Span, events []*storage.SpanEvent, links []*storage.SpanLink) {
+	p.traceBufferMu.Lock()
+	defer p.traceBufferMu.Unlock()
 	val, _ := p.traceBuffers.LoadOrStore(detectorKey{traceID, s.SessionID}, &traceBuffer{services: map[string]struct{}{}})
 	buf := val.(*traceBuffer)
 	buf.mu.Lock()
@@ -710,8 +719,10 @@ func (p *Pipeline) bufferSpan(traceID string, s *storage.Span, events []*storage
 }
 
 func (p *Pipeline) flushBuffer(traceID, sessionID string) {
+	p.traceBufferMu.Lock()
 	val, ok := p.traceBuffers.LoadAndDelete(detectorKey{traceID, sessionID})
 	if !ok {
+		p.traceBufferMu.Unlock()
 		return
 	}
 	buf := val.(*traceBuffer)
@@ -719,6 +730,7 @@ func (p *Pipeline) flushBuffer(traceID, sessionID string) {
 	entries := buf.entries
 	services := buf.services
 	buf.mu.Unlock()
+	p.traceBufferMu.Unlock()
 
 	if len(entries) == 0 {
 		return
@@ -803,25 +815,10 @@ func (p *Pipeline) flushBuffer(traceID, sessionID string) {
 		}))
 	}
 	p.notifyLiveState()
-	// Buffered sampling bypasses runDetectors. Audit the persisted tree here
-	// too, including earlier batches of this trace, after accepted spans flush.
-	if persisted, err := p.store.GetTraceInSession(traceID, sessionID); err == nil {
-		linter.PersistStorageQueryNameLints(traceID, p.store, persisted, time.Now().UnixNano())
-		linter.PersistDuplicateSpanLints(traceID, p.store, persisted, time.Now().UnixNano())
-		linter.PersistChildStartsBeforeParentLints(traceID, p.store, persisted, time.Now().UnixNano())
-	}
-
-	// Store N+1 issues and broadcast.
-	for _, issue := range issues {
-		if err := p.store.UpsertTraceIssue(issue); err == nil {
-			p.hub.Broadcast(ws.NewIssueEvent(&ws.IssuePayload{
-				TraceID:     issue.TraceID,
-				Kind:        issue.Kind,
-				Fingerprint: issue.Fingerprint,
-				Count:       issue.Count,
-				WastedNs:    issue.WastedNs,
-			}))
-		}
+	// The inline N+1 result only decides sampling. Analyze the persisted tree
+	// once for all findings, including across earlier accepted batches.
+	if len(accepted) > 0 {
+		p.scheduleDetectorRun(traceID, sessionID)
 	}
 }
 
