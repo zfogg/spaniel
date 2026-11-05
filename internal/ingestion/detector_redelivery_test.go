@@ -115,6 +115,27 @@ func TestRedeliveryPersistsAcrossTraces(t *testing.T) {
 	if err != nil || len(issues) != 1 || issues[0].Count != 4 || !strings.Contains(issues[0].Fingerprint, "trace-3/span-3") {
 		t.Fatalf("updated evidence: %+v %v", issues, err)
 	}
+	original := *issues[0]
+	// Reconstruct in a different arrival order after a restart. Existing
+	// evidence and the original trace association must remain intact.
+	restarted := &Pipeline{store: db}
+	for _, id := range []string{"trace-3", "trace-2", "trace-1"} {
+		restarted.runRedeliveryDetector(id)
+	}
+	issues, err = db.ListTraceIssuesBySession(session.ID)
+	if err != nil || len(issues) != 1 || issues[0].ID != original.ID || issues[0].Count != 4 || issues[0].TraceID != original.TraceID || issues[0].ExampleSpanID != original.ExampleSpanID {
+		t.Fatalf("restart deduplication: %+v %v", issues, err)
+	}
+	for _, group := range restarted.redeliveries.groups {
+		group.touched = time.Now().UnixNano() - redeliveryWindow - 1
+	}
+	for _, id := range []string{"trace-2", "trace-1", "trace-0"} {
+		restarted.runRedeliveryDetector(id)
+	}
+	issues, err = db.ListTraceIssuesBySession(session.ID)
+	if err != nil || len(issues) != 1 || issues[0].ID != original.ID || issues[0].Count != 4 || issues[0].ExampleSpanID != original.ExampleSpanID {
+		t.Fatalf("expiry deduplication: %+v %v", issues, err)
+	}
 	trace, err := db.GetTrace(issues[0].TraceID, session.ID)
 	if err != nil || len(trace) != 1 || trace[0].SpanID != issues[0].ExampleSpanID {
 		t.Fatalf("correlation: %+v %v", trace, err)

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -17,6 +18,7 @@ import (
 	"github.com/zfogg/spaniel/internal/storage"
 	"github.com/zfogg/spaniel/internal/telemetry"
 	"github.com/zfogg/spaniel/internal/ws"
+	"gorm.io/gorm"
 )
 
 const redeliveryWindow = int64(10 * time.Minute)
@@ -106,11 +108,7 @@ func (d *redeliveryDetector) analyze(spans []*storage.Span, now int64) []*storag
 			if len(d.groups) >= redeliveryMaxGroups {
 				continue
 			}
-			var nonce [16]byte
-			if _, err := rand.Read(nonce[:]); err != nil {
-				continue
-			}
-			g = &deliveryGroup{session: s.SessionID, destination: destination, issueID: "messaging_redelivery-" + hex.EncodeToString(nonce[:]), evidence: make(map[string]deliveryEvidence)}
+			g = &deliveryGroup{session: s.SessionID, destination: destination, issueID: "messaging_redelivery-" + key, evidence: make(map[string]deliveryEvidence)}
 			d.groups[key] = g
 		}
 		evKey := s.TraceID + ":" + s.SpanID
@@ -194,7 +192,30 @@ func (p *Pipeline) runRedeliveryDetector(traceID string) {
 	}
 	p.redeliveries.mu.Lock()
 	defer p.redeliveries.mu.Unlock()
+	if !p.redeliveries.initialized {
+		key, err := p.store.RedeliveryKey()
+		if err != nil {
+			slog.Warn("redelivery key unavailable", "error", err)
+			return
+		}
+		p.redeliveries.key = key
+		p.redeliveries.initialized = true
+		p.redeliveries.groups = make(map[string]*deliveryGroup)
+	}
 	for _, issue := range p.redeliveries.analyze(spans, time.Now().UnixNano()) {
+		existing, err := p.store.GetTraceIssue(issue.ID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("redelivery finding lookup failed", "error", err)
+			continue
+		}
+		if existing != nil {
+			// Trace identity is immutable in the store. Preserve its span as well
+			// when evidence is reconstructed after a restart or idle expiry.
+			issue.TraceID, issue.ExampleSpanID, issue.ParentSpanID = existing.TraceID, existing.ExampleSpanID, existing.ParentSpanID
+			if existing.Count > issue.Count {
+				issue.Count, issue.Fingerprint = existing.Count, existing.Fingerprint
+			}
+		}
 		if err := p.store.UpsertTraceIssue(issue); err != nil {
 			slog.Warn("redelivery finding write failed", "error", err)
 		} else {

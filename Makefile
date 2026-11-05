@@ -230,7 +230,7 @@ setup:
 test-ingestion:
 	mkdir -p $(BIN_DIR)
 	go test -c -o $(BIN_DIR)/ingestion.test$(EXE) ./internal/ingestion
-	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestChildStartingBeforeParent|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration' -test.v
+	./$(BIN_DIR)/ingestion.test$(EXE) -test.run 'TestHTTP|TestDB|TestSerialPromise|TestPartialTrace|TestStorageQueryName|TestChildStartingBeforeParent|TestNegativeDuration|TestPipelineIngestTraces_LintsNegativeTemporalSchedulingDuration|TestRedelivery' -test.v
 
 .PHONY: test-query-diagnostics
 .PHONY: test-query-analysis
