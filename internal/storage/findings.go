@@ -78,11 +78,11 @@ func (d *DB) ListLintWarnings(sessionID string) ([]*LintWarning, error) {
 
 func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
 	// DuckDB rejects ON CONFLICT assignments to indexed columns even when
-	// their values do not change. A finding's identity is immutable; only its
-	// accumulated evidence changes when late spans trigger another analysis.
+	// their values do not change. A finding's identity is immutable; its
+	// fingerprint and other evidence can change when late spans arrive.
 	if err := d.namedQuery("UpsertTraceIssue").TraceIssue.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"fingerprint", "count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
 	}).Create(issue); err != nil {
 		return err
 	}
