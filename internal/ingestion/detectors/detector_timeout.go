@@ -143,7 +143,7 @@ func (*TimeoutDetector) Analyze(traceID, sessionID string, spans []*storage.Span
 				summary += fmt.Sprintf("; representative deadline budget %d ns, remaining %d ns", deadline-representative.StartNs, deadline-representative.EndNs)
 			}
 		}
-		issues = append(issues, &storage.TraceIssue{ID: traceID + "-timeout-" + representative.SpanID, TraceID: traceID, SessionID: sessionID, Kind: "timeout", Fingerprint: summary, Count: len(group), ParentSpanID: representative.ParentSpanID, ExampleSpanID: representative.SpanID, CreatedAt: now})
+		issues = append(issues, &storage.TraceIssue{ID: fmt.Sprintf("%d:%s:%s-timeout-%s", len(sessionID), sessionID, traceID, representative.SpanID), TraceID: traceID, SessionID: sessionID, Kind: "timeout", Fingerprint: summary, Count: len(group), ParentSpanID: representative.ParentSpanID, ExampleSpanID: representative.SpanID, CreatedAt: now})
 	}
 	sort.Slice(issues, func(i, j int) bool { return issues[i].ID < issues[j].ID })
 	return issues

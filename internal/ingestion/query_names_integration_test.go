@@ -101,12 +101,12 @@ func TestStorageQueryNameLateSpansPersistWithoutDuplicateWarnings(t *testing.T) 
 	hub := ws.NewHub()
 	tracer := otel.Tracer("query-name-test")
 	add("first", "SELECT id FROM accounts")
-	runDetectors("late", db, hub, tracer)
+	runDetectors("late", session.ID, db, hub, tracer)
 	add("second", "SELECT id FROM pairs")
-	runDetectors("late", db, hub, tracer)
+	runDetectors("late", session.ID, db, hub, tracer)
 	add("third", "SELECT id FROM accounts")
-	runDetectors("late", db, hub, tracer)
-	runDetectors("late", db.WithContext(t.Context()), hub, tracer)
+	runDetectors("late", session.ID, db, hub, tracer)
+	runDetectors("late", session.ID, db.WithContext(t.Context()), hub, tracer)
 	warnings, err := db.ListLintWarnings(session.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -146,8 +146,8 @@ func TestChildStartingBeforeParentPersistsOnce(t *testing.T) {
 	}
 	hub := ws.NewHub()
 	tracer := otel.Tracer("child-start-order-test")
-	runDetectors("temporal", db, hub, tracer)
-	runDetectors("temporal", db, hub, tracer)
+	runDetectors("temporal", session.ID, db, hub, tracer)
+	runDetectors("temporal", session.ID, db, hub, tracer)
 
 	warnings, err := db.ListLintWarnings(session.ID)
 	if err != nil {
@@ -185,11 +185,11 @@ func TestStorageQueryNameBufferedSamplerAuditsLateSpans(t *testing.T) {
 		s.SessionID = session.ID
 		p.bufferSpan("buffered", s, nil, nil)
 	}
-	p.flushBuffer("buffered")
+	p.flushBuffer("buffered", session.ID)
 	late := queryNameSpan("c", "buffered", "ratio.storage.Shared", "SELECT cash FROM accounts")
 	late.SessionID = session.ID
 	p.bufferSpan("buffered", late, nil, nil)
-	p.flushBuffer("buffered")
+	p.flushBuffer("buffered", session.ID)
 	warnings, err := db.ListLintWarnings(session.ID)
 	if err != nil {
 		t.Fatal(err)

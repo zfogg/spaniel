@@ -22,7 +22,7 @@ var detectorTraceLocks [64]sync.Mutex
 
 // runDetectors runs all registered detectors on the trace identified by traceID,
 // persists any issues, and broadcasts WS events for each new finding.
-func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.Tracer) {
+func runDetectors(traceID, sessionID string, store *storage.DB, hub *ws.Hub, tracer trace.Tracer) {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(traceID))
 	lock := &detectorTraceLocks[h.Sum32()%uint32(len(detectorTraceLocks))]
@@ -32,7 +32,7 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 		trace.WithAttributes(attribute.String("trace_id", traceID)))
 	defer dspan.End()
 
-	spans, err := store.GetTrace(traceID)
+	spans, err := store.GetTraceInSession(traceID, sessionID)
 	if err != nil {
 		slog.Warn("trace detector read failed", "trace_id", traceID, "error", err)
 		return
@@ -40,7 +40,7 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 	if len(spans) == 0 {
 		return
 	}
-	sessID := store.ActiveSessionID()
+	sessID := sessionID
 	now := time.Now().UnixNano()
 	linter.PersistStorageQueryNameLints(traceID, store, spans, now)
 	linter.PersistDuplicateSpanLints(traceID, store, spans, now)
@@ -74,7 +74,7 @@ func runDetectors(traceID string, store *storage.DB, hub *ws.Hub, tracer trace.T
 			for _, issue := range issues {
 				ids = append(ids, issue.ID)
 			}
-			if err := store.DeleteObsoleteTraceIssues(traceID, d.Kind(), ids); err != nil {
+			if err := store.DeleteObsoleteTraceIssues(traceID, sessionID, d.Kind(), ids); err != nil {
 				slog.Warn("trace detector reconciliation failed", "trace_id", traceID, "kind", d.Kind(), "error", err)
 			}
 		}

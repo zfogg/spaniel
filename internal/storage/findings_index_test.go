@@ -36,7 +36,7 @@ func TestDeleteObsoleteTraceIssues(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := db.DeleteObsoleteTraceIssues("trace", "timeout", []string{"keep"}); err != nil {
+	if err := db.DeleteObsoleteTraceIssues("trace", "", "timeout", []string{"keep"}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := db.GetTraceIssues("trace")

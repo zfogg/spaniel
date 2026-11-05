@@ -35,7 +35,7 @@ type Pipeline struct {
 	sampler  *Sampler
 	limiter  *SourceLimiter
 
-	debounce     map[string]*time.Timer
+	debounce     map[detectorKey]*time.Timer
 	debounceMu   sync.Mutex
 	traceBuffers sync.Map
 	// Linting and post-ingest detectors are best-effort diagnostics. Bound
@@ -141,7 +141,7 @@ func NewPipelineFull(store *storage.DB, hub *ws.Hub, s *Sampler, lim *SourceLimi
 		tp:           newThroughputCounter(),
 		sampler:      s,
 		limiter:      lim,
-		debounce:     make(map[string]*time.Timer),
+		debounce:     make(map[detectorKey]*time.Timer),
 		lintSlots:    make(chan struct{}, maxConcurrentLinters),
 		tracer:       telemetry.Tracer("ingestion"),
 		metricSeries: newMetricSeriesLimiter(2000),
@@ -366,7 +366,7 @@ func (p *Pipeline) ingestTraces(ctx context.Context, traces ptrace.Traces) error
 
 				if !self && p.sampler.NeedsBuffer() {
 					p.bufferSpan(s.TraceID, s, events, links)
-					p.afterPersist(ctx, func() { p.scheduleDetectors(s.TraceID) })
+					p.afterPersist(ctx, func() { p.scheduleDetectors(s.TraceID, s.SessionID) })
 					continue
 				}
 
@@ -482,7 +482,7 @@ func (p *Pipeline) ingestTraces(ctx context.Context, traces ptrace.Traces) error
 					}))
 				}
 				if !self {
-					p.afterPersist(ctx, func() { p.scheduleDetectors(s.TraceID) })
+					p.afterPersist(ctx, func() { p.scheduleDetectors(s.TraceID, s.SessionID) })
 				}
 			}
 		}
@@ -653,21 +653,22 @@ func (p *Pipeline) ingestMetrics(ctx context.Context, md pmetric.Metrics) error 
 	return err
 }
 
-func (p *Pipeline) scheduleDetectors(traceID string) {
+func (p *Pipeline) scheduleDetectors(traceID, sessionID string) {
+	key := detectorKey{traceID, sessionID}
 	p.debounceMu.Lock()
 	defer p.debounceMu.Unlock()
-	if t, ok := p.debounce[traceID]; ok {
+	if t, ok := p.debounce[key]; ok {
 		t.Reset(500 * time.Millisecond)
 		return
 	}
-	p.debounce[traceID] = time.AfterFunc(500*time.Millisecond, func() {
+	p.debounce[key] = time.AfterFunc(500*time.Millisecond, func() {
 		if p.sampler.NeedsBuffer() {
-			p.flushBuffer(traceID)
+			p.flushBuffer(traceID, sessionID)
 		} else {
-			p.scheduleDetectorRun(traceID)
+			p.scheduleDetectorRun(traceID, sessionID)
 		}
 		p.debounceMu.Lock()
-		delete(p.debounce, traceID)
+		delete(p.debounce, key)
 		p.debounceMu.Unlock()
 	})
 }
@@ -695,7 +696,7 @@ type traceBuffer struct {
 }
 
 func (p *Pipeline) bufferSpan(traceID string, s *storage.Span, events []*storage.SpanEvent, links []*storage.SpanLink) {
-	val, _ := p.traceBuffers.LoadOrStore(traceID, &traceBuffer{services: map[string]struct{}{}})
+	val, _ := p.traceBuffers.LoadOrStore(detectorKey{traceID, s.SessionID}, &traceBuffer{services: map[string]struct{}{}})
 	buf := val.(*traceBuffer)
 	buf.mu.Lock()
 	defer buf.mu.Unlock()
@@ -706,8 +707,8 @@ func (p *Pipeline) bufferSpan(traceID string, s *storage.Span, events []*storage
 	buf.services[s.ServiceName] = struct{}{}
 }
 
-func (p *Pipeline) flushBuffer(traceID string) {
-	val, ok := p.traceBuffers.LoadAndDelete(traceID)
+func (p *Pipeline) flushBuffer(traceID, sessionID string) {
+	val, ok := p.traceBuffers.LoadAndDelete(detectorKey{traceID, sessionID})
 	if !ok {
 		return
 	}
@@ -726,7 +727,6 @@ func (p *Pipeline) flushBuffer(traceID string) {
 		spans[i] = e.span
 	}
 
-	sessionID := p.store.ActiveSessionID()
 	now := time.Now().UnixNano()
 	// Run N+1 detection inline (pre-storage) to inform the sampler.
 	issues := new(detectors.N1Detector).Analyze(traceID, sessionID, spans, now)
@@ -803,7 +803,7 @@ func (p *Pipeline) flushBuffer(traceID string) {
 	p.notifyLiveState()
 	// Buffered sampling bypasses runDetectors. Audit the persisted tree here
 	// too, including earlier batches of this trace, after accepted spans flush.
-	if persisted, err := p.store.GetTrace(traceID); err == nil {
+	if persisted, err := p.store.GetTraceInSession(traceID, sessionID); err == nil {
 		linter.PersistStorageQueryNameLints(traceID, p.store, persisted, time.Now().UnixNano())
 		linter.PersistDuplicateSpanLints(traceID, p.store, persisted, time.Now().UnixNano())
 		linter.PersistChildStartsBeforeParentLints(traceID, p.store, persisted, time.Now().UnixNano())
@@ -835,9 +835,9 @@ func (p *Pipeline) scheduleLint(s *storage.Span) {
 	}
 }
 
-func (p *Pipeline) scheduleDetectorRun(traceID string) {
-	p.detectors.enqueue(traceID, func(id string) {
-		runDetectors(id, p.store, p.hub, p.tracer)
+func (p *Pipeline) scheduleDetectorRun(traceID, sessionID string) {
+	p.detectors.enqueue(detectorKey{traceID, sessionID}, func(key detectorKey) {
+		runDetectors(key.traceID, key.sessionID, p.store, p.hub, p.tracer)
 	})
 }
 

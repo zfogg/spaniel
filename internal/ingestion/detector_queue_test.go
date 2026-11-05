@@ -7,26 +7,26 @@ import (
 
 func TestDetectorQueueRetainsAndCoalescesWhileBusy(t *testing.T) {
 	var q detectorQueue
-	started := make(chan string, 10)
+	started := make(chan detectorKey, 10)
 	release := make(chan struct{})
 	defer close(release)
-	run := func(id string) { started <- id; <-release }
-	wait := func() string {
+	run := func(id detectorKey) { started <- id; <-release }
+	wait := func() detectorKey {
 		t.Helper()
 		select {
 		case id := <-started:
 			return id
 		case <-time.After(5 * time.Second):
 			t.Fatal("pending detection was lost")
-			return ""
+			return detectorKey{}
 		}
 	}
-	q.enqueue("first", run)
+	q.enqueue(detectorKey{"first", "s"}, run)
 	wait()
-	q.enqueue("second", run)
+	q.enqueue(detectorKey{"second", "s"}, run)
 	wait()
 	for range 20 {
-		q.enqueue("pending", run)
+		q.enqueue(detectorKey{"pending", "s"}, run)
 	}
 	q.mu.Lock()
 	pending, workers := len(q.pending), q.running
@@ -35,7 +35,7 @@ func TestDetectorQueueRetainsAndCoalescesWhileBusy(t *testing.T) {
 		t.Fatalf("pending=%d workers=%d", pending, workers)
 	}
 	release <- struct{}{}
-	if id := wait(); id != "pending" {
+	if id := wait(); id.traceID != "pending" {
 		t.Fatalf("got %s", id)
 	}
 }

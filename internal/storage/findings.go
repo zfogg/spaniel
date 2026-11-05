@@ -112,9 +112,9 @@ func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
 }
 
 // DeleteObsoleteTraceIssues removes superseded findings after a complete analysis.
-func (d *DB) DeleteObsoleteTraceIssues(traceID, kind string, keep []string) error {
+func (d *DB) DeleteObsoleteTraceIssues(traceID, sessionID, kind string, keep []string) error {
 	q := d.namedQuery("DeleteObsoleteTraceIssues")
-	rows := q.TraceIssue.Where(q.TraceIssue.TraceID.Eq(traceID), q.TraceIssue.Kind.Eq(kind))
+	rows := q.TraceIssue.Where(q.TraceIssue.TraceID.Eq(traceID), q.TraceIssue.SessionID.Eq(sessionID), q.TraceIssue.Kind.Eq(kind))
 	if len(keep) > 0 {
 		rows = rows.Where(q.TraceIssue.ID.NotIn(keep...))
 	}
