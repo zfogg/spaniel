@@ -13,6 +13,25 @@ import (
 func delivery(trace, span, id, destination string, at int64, status int, extra string) *storage.Span {
 	return &storage.Span{TraceID: trace, SpanID: span, SessionID: "session", ServiceName: "consumer", StartNs: at, StatusCode: status, Attributes: fmt.Sprintf(`{"messaging.system":"rabbitmq","messaging.operation.name":"process","messaging.destination.name":%q,"messaging.message.id":%q%s}`, destination, id, extra)}
 }
+
+func TestRedeliveryIgnoresNonMessagingTrace(t *testing.T) {
+	db := openTestDB(t)
+	session, err := db.CreateSession("ordinary", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.InsertSpan(&storage.Span{TraceID: "ordinary", SpanID: "span", SessionID: session.ID, ServiceName: "api", StartNs: 1, EndNs: 2, Attributes: `{}`}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.FlushBatch(); err != nil {
+		t.Fatal(err)
+	}
+	p := &Pipeline{store: db}
+	p.runRedeliveryDetector("ordinary", session.ID)
+	if p.redeliveries.detector != nil {
+		t.Fatal("non-messaging trace initialized redelivery state")
+	}
+}
 func TestRedeliveryPersistsAcrossTraces(t *testing.T) {
 	db := openTestDB(t)
 	session, err := db.CreateSession("redelivery", false)
