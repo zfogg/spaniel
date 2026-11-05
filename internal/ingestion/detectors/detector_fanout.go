@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/zfogg/spaniel/internal/ingestion/linter"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -71,18 +72,31 @@ func (*FanoutDetector) Analyze(traceID, sessionID string, spans []*storage.Span,
 		var children []*storage.Span
 		var labels []string
 		for _, g := range groups {
-			// The repeated HTTP detector already explains groups of five.
-			if len(g.spans) >= chattyHTTPThreshold {
+			// Suppress only client HTTP calls that the chatty detector can report.
+			httpCounts := map[string]int{}
+			for _, span := range g.spans {
+				if span.Kind == 3 && linter.IsHTTPSpan(span) && httpHost(span.Attributes) != "" {
+					httpCounts[httpHost(span.Attributes)]++
+				}
+			}
+			var eligible []*storage.Span
+			for _, span := range g.spans {
+				if span.Kind == 3 && linter.IsHTTPSpan(span) && httpCounts[httpHost(span.Attributes)] >= chattyHTTPThreshold {
+					continue
+				}
+				eligible = append(eligible, span)
+			}
+			if len(eligible) == 0 {
 				continue
 			}
-			children = append(children, g.spans...)
-			example := g.spans[0].SpanID
-			for _, span := range g.spans[1:] {
+			children = append(children, eligible...)
+			example := eligible[0].SpanID
+			for _, span := range eligible[1:] {
 				if span.SpanID < example {
 					example = span.SpanID
 				}
 			}
-			labels = append(labels, fmt.Sprintf("%s (%d; example %s)", g.label, len(g.spans), example))
+			labels = append(labels, fmt.Sprintf("%s (%d; example %s)", g.label, len(eligible), example))
 		}
 		if len(children) < 5 || len(labels) < 3 {
 			continue

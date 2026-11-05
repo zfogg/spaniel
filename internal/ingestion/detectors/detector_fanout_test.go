@@ -57,3 +57,22 @@ func TestFanoutExcludesRepetitionAndPartial(t *testing.T) {
 		t.Fatal("partial trace must be skipped")
 	}
 }
+
+func TestFanoutLargeRPCAndLateEvidence(t *testing.T) {
+	p := &storage.Span{SpanID: "p", Name: "parent", EndNs: 100}
+	spans := []*storage.Span{p}
+	for i := 0; i < 5; i++ {
+		spans = append(spans, &storage.Span{SpanID: string(rune('a' + i)), ParentSpanID: "p", Kind: 3, Name: "RPC", Attributes: `{"server.address":"rpc","rpc.system":"grpc"}`, StartNs: int64(i * 10), EndNs: int64(i*10 + 10)})
+	}
+	spans = append(spans, &storage.Span{SpanID: "x", ParentSpanID: "p", Kind: 4, Name: "publish", Attributes: `{"messaging.destination.name":"queue"}`, StartNs: 50, EndNs: 60}, &storage.Span{SpanID: "y", ParentSpanID: "p", Kind: 3, Name: "other", Attributes: `{"server.address":"other"}`, StartNs: 60, EndNs: 70})
+	d := &FanoutDetector{}
+	first := d.Analyze("t", "s", spans, 1)
+	if len(first) != 1 || first[0].Count != 7 || !strings.Contains(first[0].Fingerprint, "rpc / RPC (5;") {
+		t.Fatalf("large RPC group: %+v", first)
+	}
+	spans = append(spans, &storage.Span{SpanID: "z", ParentSpanID: "p", Kind: 3, Name: "RPC", Attributes: `{"server.address":"rpc","rpc.system":"grpc"}`, StartNs: 70, EndNs: 80})
+	next := d.Analyze("t", "s", spans, 2)
+	if len(next) != 1 || next[0].ID != first[0].ID || next[0].Count != 8 || !strings.Contains(next[0].Fingerprint, "rpc / RPC (6;") || !strings.Contains(next[0].Fingerprint, "covered 80ns") {
+		t.Fatalf("late evidence: %+v", next)
+	}
+}
