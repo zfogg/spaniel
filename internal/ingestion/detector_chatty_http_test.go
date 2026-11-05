@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"fmt"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func TestChattyHTTP_BelowThreshold(t *testing.T) {
 	for i := range 4 {
 		spans = append(spans, httpSpan(fmt.Sprintf("s%d", i), "api.example.com"))
 	}
-	d := &ChattyHTTPDetector{}
+	d := &detectors.ChattyHTTPDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("4 calls should not fire, got %d", len(got))
 	}
@@ -34,7 +35,7 @@ func TestChattyHTTP_AtThreshold(t *testing.T) {
 	for i := range 5 {
 		spans = append(spans, httpSpan(fmt.Sprintf("s%d", i), "api.example.com"))
 	}
-	d := &ChattyHTTPDetector{}
+	d := &detectors.ChattyHTTPDetector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue for 5 calls, got %d", len(got))
@@ -52,7 +53,7 @@ func TestChattyHTTP_DifferentHosts(t *testing.T) {
 	for i := range 5 {
 		spans = append(spans, httpSpan(fmt.Sprintf("s%d", i), fmt.Sprintf("host%d.example.com", i)))
 	}
-	d := &ChattyHTTPDetector{}
+	d := &detectors.ChattyHTTPDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("5 distinct hosts should not fire, got %d", len(got))
 	}
@@ -67,7 +68,7 @@ func TestChattyHTTP_IndependentParentOperationsDoNotAccumulate(t *testing.T) {
 			spans = append(spans, span)
 		}
 	}
-	if got := (&ChattyHTTPDetector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
+	if got := (&detectors.ChattyHTTPDetector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Fatalf("independent operations were combined into one chatty group: %+v", got)
 	}
 }
@@ -79,7 +80,7 @@ func TestChattyHTTP_DifferentOperationsOnOneHostDoNotAccumulate(t *testing.T) {
 		span.Name = fmt.Sprintf("GET /resources/%d", i)
 		spans = append(spans, span)
 	}
-	if got := (&ChattyHTTPDetector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
+	if got := (&detectors.ChattyHTTPDetector{}).Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Fatalf("different HTTP operations were combined into one chatty group: %+v", got)
 	}
 }
@@ -94,7 +95,7 @@ func TestChattyHTTP_URLFullAttribute(t *testing.T) {
 			StartNs:    0, EndNs: int64(5 * time.Millisecond), SessionID: "sess",
 		})
 	}
-	d := &ChattyHTTPDetector{}
+	d := &detectors.ChattyHTTPDetector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue via url.full, got %d", len(got))
@@ -110,7 +111,7 @@ func TestChattyHTTP_IgnoresDatabaseAndIncomingRequests(t *testing.T) {
 		incoming.Kind = 2
 		spans = append(spans, incoming)
 	}
-	d := &ChattyHTTPDetector{}
+	d := &detectors.ChattyHTTPDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Fatalf("non-outbound HTTP produced issues: %+v", got)
 	}

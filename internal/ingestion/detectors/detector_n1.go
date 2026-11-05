@@ -1,4 +1,4 @@
-package ingestion
+package detectors
 
 import (
 	"crypto/sha256"

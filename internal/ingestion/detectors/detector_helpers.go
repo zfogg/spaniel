@@ -1,4 +1,4 @@
-package ingestion
+package detectors
 
 import (
 	"fmt"
@@ -177,4 +177,13 @@ func areSerial(spans []*storage.Span) bool {
 		}
 	}
 	return true
+}
+
+func extractAttrString(attrsJSON, key string) string {
+	var m map[string]any
+	if json.Unmarshal([]byte(attrsJSON), &m) != nil {
+		return ""
+	}
+	v, _ := m[key].(string)
+	return v
 }

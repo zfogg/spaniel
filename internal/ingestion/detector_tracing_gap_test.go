@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ func TestTracingGap_FullyCovered(t *testing.T) {
 		gapSpan("root", "", 0, 100),
 		gapSpan("child", "root", 0, 100),
 	}
-	d := &TracingGapDetector{}
+	d := &detectors.TracingGapDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("fully covered parent should not fire, got %d", len(got))
 	}
@@ -37,7 +38,7 @@ func TestTracingGap_SmallGap_NoFire(t *testing.T) {
 		gapSpan("root", "", 0, 100),
 		gapSpan("child", "root", 60, 100),
 	}
-	d := &TracingGapDetector{}
+	d := &detectors.TracingGapDetector{}
 	// uncovered = 60ms; threshold = 50ms → should fire.
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
@@ -51,7 +52,7 @@ func TestTracingGap_BelowThreshold(t *testing.T) {
 		gapSpan("root", "", 0, 100),
 		gapSpan("child", "root", 40, 100),
 	}
-	d := &TracingGapDetector{}
+	d := &detectors.TracingGapDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("40ms gap should not fire, got %d", len(got))
 	}
@@ -63,7 +64,7 @@ func TestTracingGap_LargeGap(t *testing.T) {
 		gapSpan("root", "", 0, 500),
 		gapSpan("child", "root", 100, 200),
 	}
-	d := &TracingGapDetector{}
+	d := &detectors.TracingGapDetector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue for 400ms gap, got %d", len(got))
@@ -79,7 +80,7 @@ func TestTracingGap_LargeGap(t *testing.T) {
 
 func TestTracingGap_NoChildren(t *testing.T) {
 	spans := []*storage.Span{gapSpan("root", "", 0, 500)}
-	d := &TracingGapDetector{}
+	d := &detectors.TracingGapDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("leaf span should not fire, got %d", len(got))
 	}
@@ -92,7 +93,7 @@ func TestTracingGap_UpgradedConnectionIdleDoesNotHideChildGaps(t *testing.T) {
 			connection.Name, connection.Kind, connection.Attributes = "GET", 2, attrs
 			operation := gapSpan("message", "connection", 100, 500)
 			query := gapSpan("query", "message", 200, 250)
-			got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{connection, operation, query}, 0)
+			got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{connection, operation, query}, 0)
 			if len(got) != 1 || got[0].ExampleSpanID != "message" || got[0].WastedNs != int64(350*time.Millisecond) {
 				t.Fatalf("expected only the real child operation gap, got %+v", got)
 			}
@@ -103,7 +104,7 @@ func TestTracingGap_UpgradedConnectionIdleDoesNotHideChildGaps(t *testing.T) {
 func TestTracingGap_OrdinaryHTTPRequestStillReportsUncoveredTime(t *testing.T) {
 	request := gapSpan("request", "", 0, 10000)
 	request.Name, request.Kind, request.Attributes = "GET", 2, `{"http.response.status_code":200}`
-	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{request, gapSpan("work", "request", 100, 500)}, 0)
+	got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{request, gapSpan("work", "request", 100, 500)}, 0)
 	if len(got) != 1 || got[0].ExampleSpanID != "request" {
 		t.Fatalf("ordinary HTTP request gap was hidden: %+v", got)
 	}
@@ -116,7 +117,7 @@ func TestTracingGap_ClientTransportTimeIsNotMissingApplicationWork(t *testing.T)
 			client.Kind, client.Name, client.ServiceName = int(trace.SpanKindClient), protocol, "caller"
 			server := gapSpan("server", "client", 70, 294)
 			server.Kind, server.ServiceName = int(trace.SpanKindServer), "remote"
-			if got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{client, server}, 0); len(got) != 0 {
+			if got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{client, server}, 0); len(got) != 0 {
 				t.Fatalf("normal transport/remote latency reported as a gap: %+v", got)
 			}
 		})
@@ -129,7 +130,7 @@ func TestTracingGap_TemporalWorkflowWaitIsNotMissingApplicationWork(t *testing.T
 	workflow.Attributes = `{"temporalWorkflowID":"notifications"}`
 	activity := gapSpan("activity", "workflow", 100, 200)
 
-	if got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{workflow, activity}, 0); len(got) != 0 {
+	if got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{workflow, activity}, 0); len(got) != 0 {
 		t.Fatalf("durable workflow wait reported as tracing gap: %+v", got)
 	}
 }
@@ -142,7 +143,7 @@ func TestTracingGap_ClientDoesNotHideRealServerWorkWithClockSkew(t *testing.T) {
 	server.Kind, server.ServiceName = int(trace.SpanKindServer), "remote"
 	work := gapSpan("work", "server", 5200, 5250)
 	work.Kind, work.ServiceName = int(trace.SpanKindInternal), "remote"
-	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{client, server, work}, 0)
+	got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{client, server, work}, 0)
 	if len(got) != 1 || got[0].ExampleSpanID != "server" || got[0].WastedNs != int64(350*time.Millisecond) {
 		t.Fatalf("expected only the real server gap, got %+v", got)
 	}
@@ -153,7 +154,7 @@ func TestTracingGap_InternalOperationIsAlreadyExplicitCoverage(t *testing.T) {
 	operation.Kind = int(trace.SpanKindInternal)
 	client := gapSpan("client", "operation", 100, 200)
 	client.Kind = int(trace.SpanKindClient)
-	if got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, client}, 0); len(got) != 0 {
+	if got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, client}, 0); len(got) != 0 {
 		t.Fatalf("named internal operation was treated as missing coverage: %+v", got)
 	}
 }
@@ -167,7 +168,7 @@ func TestTracingGap_ShutdownCancellationDoesNotReportObserverWait(t *testing.T) 
 	cancelledHealth := gapSpan("health", "operation", 2303, 2305)
 	cancelledHealth.StatusCode, cancelledHealth.Attributes = 2, `{"error.type":"context_canceled"}`
 
-	got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{
+	got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{
 		operation, initialCheck, cancelledSignal, cancelledHealth,
 	}, 0)
 	if len(got) != 0 {
@@ -190,7 +191,7 @@ func TestTracingGap_CancellationDoesNotHideUnrelatedParentGap(t *testing.T) {
 			cancelled := gapSpan("cancelled", "operation", 100, test.childEndMs)
 			cancelled.StatusCode, cancelled.StatusMessage = 2, "context canceled"
 
-			got := (&TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, cancelled}, 0)
+			got := (&detectors.TracingGapDetector{}).Analyze("trace", "sess", []*storage.Span{operation, cancelled}, 0)
 			if len(got) != 1 || got[0].ExampleSpanID != "operation" {
 				t.Fatalf("real parent gap was hidden: %+v", got)
 			}

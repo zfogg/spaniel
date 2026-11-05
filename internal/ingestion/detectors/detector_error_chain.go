@@ -1,4 +1,4 @@
-package ingestion
+package detectors
 
 import (
 	"github.com/zfogg/spaniel/internal/storage"

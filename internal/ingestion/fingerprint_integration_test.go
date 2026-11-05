@@ -3,6 +3,7 @@ package ingestion
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"strings"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestN1VersionedFingerprintOmittedTextAndDatabaseScope(t *testing.T) {
 		}
 	}
 	spans = append(spans, spans[0]) // retransmission must not inflate a loop
-	issues := (&N1Detector{}).Analyze("trace", "session", spans, 0)
+	issues := (&detectors.N1Detector{}).Analyze("trace", "session", spans, 0)
 	if len(issues) != 3 {
 		t.Fatalf("database/service scopes combined: %+v", issues)
 	}

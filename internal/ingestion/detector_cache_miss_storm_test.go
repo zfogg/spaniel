@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"fmt"
+	"github.com/zfogg/spaniel/internal/ingestion/detectors"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func TestCacheMissStorm_BelowThreshold(t *testing.T) {
 	for i := range 9 {
 		spans = append(spans, cacheMissSpan(fmt.Sprintf("s%d", i), i))
 	}
-	d := &CacheMissStormDetector{}
+	d := &detectors.CacheMissStormDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("9 misses should not fire, got %d", len(got))
 	}
@@ -36,7 +37,7 @@ func TestCacheMissStorm_TenWithinWindow(t *testing.T) {
 	for i := range 10 {
 		spans = append(spans, cacheMissSpan(fmt.Sprintf("s%d", i), i*3))
 	}
-	d := &CacheMissStormDetector{}
+	d := &detectors.CacheMissStormDetector{}
 	got := d.Analyze("t", "s", spans, 0)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 issue for 10 misses in 30ms, got %d", len(got))
@@ -52,7 +53,7 @@ func TestCacheMissStorm_SpreadBeyondWindow(t *testing.T) {
 	for i := range 10 {
 		spans = append(spans, cacheMissSpan(fmt.Sprintf("s%d", i), i*20))
 	}
-	d := &CacheMissStormDetector{}
+	d := &detectors.CacheMissStormDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("misses spread >50ms should not fire, got %d", len(got))
 	}
@@ -69,7 +70,7 @@ func TestCacheMissStorm_NonCacheSpansIgnored(t *testing.T) {
 			SessionID:  "sess",
 		})
 	}
-	d := &CacheMissStormDetector{}
+	d := &detectors.CacheMissStormDetector{}
 	if got := d.Analyze("t", "s", spans, 0); len(got) != 0 {
 		t.Errorf("non-cache spans should be ignored, got %d", len(got))
 	}
