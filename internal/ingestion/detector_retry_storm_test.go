@@ -107,10 +107,38 @@ func TestRetryStormRejectsAmbiguousSequences(t *testing.T) {
 	}
 	partial := retrySpans(false)
 	partial[0].Attributes = `{"spaniel.trace.partial":true}`
-	if detectors.SupportsTrace(&detectors.RetryStormDetector{}, partial) {
-		t.Fatal("partial trace accepted")
+	if !detectors.SupportsTrace(&detectors.RetryStormDetector{}, partial) || len((&detectors.RetryStormDetector{}).Analyze("trace", "session", partial, 0)) != 0 {
+		t.Fatal("partial trace should allow explicit evidence only")
 	}
 	if got := (&detectors.RetryStormDetector{}).Analyze("trace", "session", make([]*storage.Span, 10001), 0); len(got) != 0 {
 		t.Fatal("oversized trace accepted")
+	}
+}
+
+func TestRetryStormExplicitResendsWithMissingAttempts(t *testing.T) {
+	d := &detectors.RetryStormDetector{}
+	spans := retrySpans(true)
+	spans[0].Attributes = `{"spaniel.trace.partial":true}`
+	spans[3].StatusCode = 2
+	spans = []*storage.Span{spans[0], spans[3]}
+	got := d.Analyze("trace", "session", spans, 0)
+	if len(got) != 1 || got[0].Count != 1 || !strings.Contains(got[0].Fingerprint, "3 attempts indicated (2 resends); 1 matching spans observed") || !strings.Contains(got[0].Fingerprint, "redirects may be included") {
+		t.Fatalf("unexpected explicit evidence: %+v", got)
+	}
+	redirect := *spans[1]
+	redirect.SpanID = "redirect"
+	redirect.StartNs, redirect.EndNs = 1, 11
+	redirect.Attributes = strings.Replace(redirect.Attributes, `"http.request.resend_count":2`, `"http.request.resend_count":1,"http.response.status_code":302`, 1)
+	if got := d.Analyze("trace", "session", append(spans, &redirect), 0); len(got) != 0 {
+		t.Fatalf("observed redirect reported as retry: %+v", got)
+	}
+	spans[1].Attributes = strings.Replace(spans[1].Attributes, `"http.request.resend_count":2`, `"http.request.resend_count":2,"http.response.status_code":302`, 1)
+	if got := d.Analyze("trace", "session", spans, 0); len(got) != 0 {
+		t.Fatalf("redirect reported: %+v", got)
+	}
+	spans[1].Attributes = strings.Replace(spans[1].Attributes, `,"http.response.status_code":302`, "", 1)
+	spans[1].StatusCode = 1
+	if got := d.Analyze("trace", "session", spans, 0); len(got) != 0 {
+		t.Fatalf("unexplained successful resend reported: %+v", got)
 	}
 }

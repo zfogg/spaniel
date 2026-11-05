@@ -20,7 +20,7 @@ func SupportsTrace(d Detector, spans []*storage.Span) bool {
 	for _, s := range spans {
 		if partial, ok := extractAttrBool(s.Attributes, "spaniel.trace.partial"); ok && partial {
 			switch d.Kind() {
-			case "n_plus_one", "tracing_gap", "serial_promise", "retry_storm":
+			case "n_plus_one", "tracing_gap", "serial_promise":
 				return false
 			}
 		}
