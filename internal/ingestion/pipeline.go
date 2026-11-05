@@ -51,6 +51,7 @@ type Pipeline struct {
 	// detectors) so self-monitoring doesn't feed back on itself. Empty disables.
 	selfService  string
 	metricSeries *metricSeriesLimiter
+	poolMetrics  poolMetricQueue
 	liveNotify   func()
 }
 

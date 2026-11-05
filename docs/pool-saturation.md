@@ -13,8 +13,16 @@ IDs control grouping even if the active session has since changed.
 Partial traces can provide positive evidence, but absence of a finding is not
 evidence of health. Slow database queries alone are not pool evidence.
 
-This initial detector does not evaluate utilization, pending-request or timeout
-counter metrics. In particular it cannot detect saturation without supported
-spans, or infer health from missing or stale metrics. Metric windows, resets,
-and metric-only evidence need a separate session-scoped evaluation lifecycle and
-telemetry links; the trace issue storage currently cannot represent such links.
+Metric evidence is evaluated after its ingestion batch commits. For a named
+pool and service in one session and fixed five-minute event-time window, two
+positive `db.client.connection.pending_requests` gauge points at least ten
+seconds apart indicate sustained pending requests. An increase between two
+`db.client.connection.timeouts` cumulative monotonic sum points with the same
+stream and start timestamp indicates timeouts. Counter decreases and changed
+start times are not treated as increments. Only points from the preceding two
+minutes are considered; late points within that horizon cause re-evaluation.
+The query reads at most 256 points, and a single worker coalesces up to 256
+pending pool/window identities; additional work is dropped during overload.
+Findings appear in lint results and their inbox notification links to the metric
+series. Missing or stale metrics are not evidence of health. Utilization and
+delta counters are not currently evaluated.
