@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,37 @@ func TestCardinalityFindingDeduplicatesAndOmitsLabelValues(t *testing.T) {
 	}
 	if !strings.Contains(items[0].Body, "http.route") || strings.Contains(items[0].Body, "secret-") || !strings.Contains(items[0].Link, "metric=requests") {
 		t.Fatalf("unsafe or incomplete finding: %+v", items[0])
+	}
+}
+
+func TestCardinalityGrowthUsesAdmissionTimeForLatePoints(t *testing.T) {
+	db, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	now := time.Now().UnixNano()
+	if _, err := db.ObserveMetricAdmissions("s", "api", "requests", now-int64(2*time.Hour), 2000); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 50; i++ {
+		attrs := fmt.Sprintf(`{"http.route":"private-%d"}`, i)
+		if _, err := db.RecordMetricSeries("s", "api", "requests", attrs, 1); err != nil {
+			t.Fatal(err)
+		}
+		age := 15 * time.Minute
+		if i < 25 {
+			age = 45 * time.Minute
+		}
+		if _, err := db.SQL().Exec(`UPDATE metric_series_catalog SET admitted_at_ns = ? WHERE series_attributes = ?`, now-int64(age), attrs); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := &Pipeline{store: db}
+	p.evaluateMetricCardinality("s", "api", "requests", now)
+	items, _, err := db.ListNotifications("issue", 1, 10)
+	if err != nil || len(items) != 1 || !strings.Contains(items[0].Title, "growth") || strings.Contains(items[0].Body, "private-") {
+		t.Fatalf("growth notifications = %+v, %v", items, err)
 	}
 }
 
