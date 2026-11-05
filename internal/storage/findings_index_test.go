@@ -13,6 +13,7 @@ func TestUpsertTraceIssueWithTraceIndex(t *testing.T) {
 	if err := db.UpsertTraceIssue(issue); err != nil {
 		t.Fatalf("insert with trace index: %v", err)
 	}
+	issue.Fingerprint = "updated evidence"
 	issue.Count = 7
 	issue.WastedNs = 40000000
 	issue.ExampleSpanID = "late"
@@ -23,7 +24,28 @@ func TestUpsertTraceIssueWithTraceIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Count != 7 || got[0].WastedNs != 40000000 || got[0].ExampleSpanID != "late" || got[0].SessionID != "session" || got[0].Kind != "n_plus_one" {
+	if len(got) != 1 || got[0].Fingerprint != "updated evidence" || got[0].Count != 7 || got[0].WastedNs != 40000000 || got[0].ExampleSpanID != "late" || got[0].SessionID != "session" || got[0].Kind != "n_plus_one" {
 		t.Fatalf("finding not updated correctly: %+v", got)
+	}
+}
+
+func TestDeleteObsoleteTraceIssues(t *testing.T) {
+	db := openTestDB(t)
+	for _, issue := range []*TraceIssue{{ID: "old", TraceID: "trace", Kind: "timeout"}, {ID: "keep", TraceID: "trace", Kind: "timeout"}, {ID: "other", TraceID: "trace", Kind: "slow_db"}, {ID: "different", TraceID: "other", Kind: "timeout"}} {
+		if err := db.UpsertTraceIssue(issue); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.DeleteObsoleteTraceIssues("trace", "timeout", []string{"keep"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.GetTraceIssues("trace")
+	if err != nil || len(got) != 2 {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	for _, issue := range got {
+		if issue.ID == "old" {
+			t.Fatal("superseded finding remains")
+		}
 	}
 }

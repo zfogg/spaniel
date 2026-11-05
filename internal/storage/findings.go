@@ -82,7 +82,7 @@ func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
 	// accumulated evidence changes when late spans trigger another analysis.
 	if err := d.namedQuery("UpsertTraceIssue").TraceIssue.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"fingerprint", "count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
 	}).Create(issue); err != nil {
 		return err
 	}
@@ -109,4 +109,15 @@ func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
 func (d *DB) ListTraceIssuesBySession(sessionID string) ([]*TraceIssue, error) {
 	return d.query.TraceIssue.Where(d.query.TraceIssue.SessionID.Eq(sessionID)).
 		Order(d.query.TraceIssue.WastedNs.Desc()).Find()
+}
+
+// DeleteObsoleteTraceIssues removes superseded findings after a complete analysis.
+func (d *DB) DeleteObsoleteTraceIssues(traceID, kind string, keep []string) error {
+	q := d.namedQuery("DeleteObsoleteTraceIssues")
+	rows := q.TraceIssue.Where(q.TraceIssue.TraceID.Eq(traceID), q.TraceIssue.Kind.Eq(kind))
+	if len(keep) > 0 {
+		rows = rows.Where(q.TraceIssue.ID.NotIn(keep...))
+	}
+	_, err := rows.Delete()
+	return err
 }
