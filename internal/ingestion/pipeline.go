@@ -41,8 +41,9 @@ type Pipeline struct {
 	// Linting and post-ingest detectors are best-effort diagnostics. Bound
 	// their concurrency so an OTLP burst cannot create one DB-blocked goroutine
 	// per span/trace and retain gigabytes of request state.
-	lintSlots chan struct{}
-	detectors detectorQueue
+	lintSlots    chan struct{}
+	detectors    detectorQueue
+	redeliveries redeliveryDetector
 
 	tracer trace.Tracer
 
@@ -842,6 +843,7 @@ func (p *Pipeline) scheduleLint(s *storage.Span) {
 func (p *Pipeline) scheduleDetectorRun(traceID string) {
 	p.detectors.enqueue(traceID, func(id string) {
 		runDetectors(id, p.store, p.hub, p.tracer)
+		p.runRedeliveryDetector(id)
 	})
 }
 

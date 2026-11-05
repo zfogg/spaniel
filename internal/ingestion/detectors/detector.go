@@ -10,7 +10,7 @@ type Detector interface {
 
 // Registry returns the trace detectors in evaluation order.
 func Registry() []Detector {
-	return []Detector{&N1Detector{}, &SlowDBDetector{}, &ChattyHTTPDetector{}, &LargePayloadDetector{}, &CacheMissStormDetector{}, &TracingGapDetector{}, &ErrorChainDetector{}, &SerialPromiseDetector{}}
+	return []Detector{&N1Detector{}, &SlowDBDetector{}, &ChattyHTTPDetector{}, &LargePayloadDetector{}, &CacheMissStormDetector{}, &TracingGapDetector{}, &ErrorChainDetector{}, &SerialPromiseDetector{}, &RetryStormDetector{}, &FanoutDetector{}}
 }
 
 // SupportsTrace applies the partial-trace policy. Complete-tree heuristics cannot infer missing work or total repetition from
@@ -20,7 +20,7 @@ func SupportsTrace(d Detector, spans []*storage.Span) bool {
 	for _, s := range spans {
 		if partial, ok := extractAttrBool(s.Attributes, "spaniel.trace.partial"); ok && partial {
 			switch d.Kind() {
-			case "n_plus_one", "tracing_gap", "serial_promise":
+			case "n_plus_one", "tracing_gap", "serial_promise", "fanout_amplification":
 				return false
 			}
 		}
