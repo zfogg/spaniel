@@ -43,6 +43,21 @@ func NewRedeliveryDetector(key [32]byte) *RedeliveryDetector {
 	return &RedeliveryDetector{key: key, groups: make(map[string]*deliveryGroup)}
 }
 
+// HasRedeliveryCandidates avoids initializing persistent correlation state for
+// traces that have no message-processing spans.
+func HasRedeliveryCandidates(spans []*storage.Span) bool {
+	for _, span := range spans {
+		op := extractAttrString(span.Attributes, "messaging.operation.name")
+		if op == "" {
+			op = extractAttrString(span.Attributes, "messaging.operation")
+		}
+		if strings.TrimSpace(op) == "process" {
+			return true
+		}
+	}
+	return false
+}
+
 // Analyze retains bounded, process-local evidence.
 func (d *RedeliveryDetector) Analyze(spans []*storage.Span, now int64) []*storage.TraceIssue {
 	for key, g := range d.groups {

@@ -24,6 +24,9 @@ func (p *Pipeline) runRedeliveryDetector(traceID, sessionID string) {
 		slog.Warn("redelivery detector read failed", "trace_id", traceID, "error", err)
 		return
 	}
+	if !detectors.HasRedeliveryCandidates(spans) {
+		return
+	}
 	p.redeliveries.mu.Lock()
 	defer p.redeliveries.mu.Unlock()
 	if p.redeliveries.detector == nil {
