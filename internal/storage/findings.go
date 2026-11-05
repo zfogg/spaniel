@@ -109,7 +109,7 @@ func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
 	// accumulated evidence changes when late spans trigger another analysis.
 	if err := d.namedQuery("UpsertTraceIssue").TraceIssue.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"fingerprint", "count", "wasted_ns", "parent_span_id", "example_span_id", "created_at"}),
 	}).Create(issue); err != nil {
 		return err
 	}
