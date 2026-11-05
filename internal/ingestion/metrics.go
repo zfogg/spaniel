@@ -19,7 +19,7 @@ import (
 var indexedMetricAttributes = map[string]struct{}{
 	"http.request.method": {}, "http.response.status_code": {}, "http.route": {},
 	"rpc.method": {}, "rpc.service": {}, "db.system.name": {}, "db.system": {},
-	"db.operation.name": {}, "messaging.system": {},
+	"db.operation.name": {}, "db.client.connection.pool.name": {}, "messaging.system": {},
 	"signal": {}, "result": {}, "reason": {}, "operation": {},
 }
 
@@ -113,6 +113,10 @@ func (p *Pipeline) storeMetric(ctx context.Context, m pmetric.Metric, svc, resou
 		}
 		if !catalogOnly {
 			p.scheduleMetricCardinality(ctx, row.SessionID, row.ServiceName, row.Name)
+		}
+		if !catalogOnly && (row.Name == "db.client.connection.pending_requests" || row.Name == "db.client.connection.timeouts") {
+			point := *row
+			p.afterPersist(ctx, func() { p.schedulePoolMetric(point) })
 		}
 		value := row.Value
 		if row.HistogramSum != nil {

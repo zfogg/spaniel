@@ -56,6 +56,7 @@ type Pipeline struct {
 	metricSeriesEpoch  uint64
 	metricEvaluationMu sync.Mutex
 	metricEvaluation   [4096]metricEvaluationSlot
+	poolMetrics        poolMetricQueue
 	liveNotify         func()
 }
 
