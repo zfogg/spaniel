@@ -31,9 +31,9 @@ func TestRedeliveryPersistsAcrossTraces(t *testing.T) {
 		if err := db.FlushBatch(); err != nil {
 			t.Fatal(err)
 		}
-		p.runRedeliveryDetector(trace)
+		p.runRedeliveryDetector(trace, session.ID)
 	}
-	p.runRedeliveryDetector("trace-0")
+	p.runRedeliveryDetector("trace-0", session.ID)
 	issues, err := db.ListTraceIssuesBySession(session.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +49,7 @@ func TestRedeliveryPersistsAcrossTraces(t *testing.T) {
 	if err := db.FlushBatch(); err != nil {
 		t.Fatal(err)
 	}
-	p.runRedeliveryDetector(last.TraceID)
+	p.runRedeliveryDetector(last.TraceID, session.ID)
 	issues, err = db.ListTraceIssuesBySession(session.ID)
 	if err != nil || len(issues) != 1 || issues[0].Count != 4 || !strings.Contains(issues[0].Fingerprint, "trace-3/span-3") {
 		t.Fatalf("updated evidence: %+v %v", issues, err)
@@ -59,7 +59,7 @@ func TestRedeliveryPersistsAcrossTraces(t *testing.T) {
 	// evidence and the original trace association must remain intact.
 	restarted := &Pipeline{store: db}
 	for _, id := range []string{"trace-3", "trace-2", "trace-1"} {
-		restarted.runRedeliveryDetector(id)
+		restarted.runRedeliveryDetector(id, session.ID)
 	}
 	issues, err = db.ListTraceIssuesBySession(session.ID)
 	if err != nil || len(issues) != 1 || issues[0].ID != original.ID || issues[0].Count != 4 || issues[0].TraceID != original.TraceID || issues[0].ExampleSpanID != original.ExampleSpanID {
@@ -71,7 +71,7 @@ func TestRedeliveryPersistsAcrossTraces(t *testing.T) {
 	}
 	restarted.redeliveries.detector = detectors.NewRedeliveryDetector(key)
 	for _, id := range []string{"trace-2", "trace-1", "trace-0"} {
-		restarted.runRedeliveryDetector(id)
+		restarted.runRedeliveryDetector(id, session.ID)
 	}
 	issues, err = db.ListTraceIssuesBySession(session.ID)
 	if err != nil || len(issues) != 1 || issues[0].ID != original.ID || issues[0].Count != 4 || issues[0].ExampleSpanID != original.ExampleSpanID {

@@ -165,6 +165,19 @@ func (d *DB) ListTracesInWindow(f TraceOverlayFilter) ([]*TraceOverlay, error) {
 	return out, nil
 }
 
+// GetTraceInSession always restricts the trace to its recorded session, including an empty session ID.
+func (d *DB) GetTraceInSession(traceID, sessionID string) ([]*Span, error) {
+	q := d.query.Span
+	spans, err := q.Where(q.TraceID.Eq(traceID), q.SessionID.Eq(sessionID)).Order(q.StartNs).Find()
+	if err != nil {
+		return nil, err
+	}
+	if err = d.attachQueryOccurrences(spans); err != nil {
+		return nil, err
+	}
+	return spans, nil
+}
+
 func (d *DB) GetTrace(traceID string, scope ...string) ([]*Span, error) {
 	q := d.query.Span.Where(d.query.Span.TraceID.Eq(traceID))
 	if session := optionalScope(scope, 0); session != "" {

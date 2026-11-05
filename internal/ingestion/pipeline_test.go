@@ -248,13 +248,22 @@ func TestPipelineScheduleDetectors_DebouncesRapidArrivals(t *testing.T) {
 	// Fire scheduleDetectors many times rapidly for the same trace; expect
 	// a single pending timer (subsequent calls reset the timer rather than queue).
 	for range 50 {
-		p.scheduleDetectors("trace-x")
+		p.scheduleDetectors("trace-x", "session-a")
 	}
 	p.debounceMu.Lock()
 	count := len(p.debounce)
 	p.debounceMu.Unlock()
 	if count != 1 {
 		t.Errorf("expected 1 debounced timer for trace, got %d", count)
+	}
+	p.scheduleDetectors("trace-x", "session-b")
+	p.debounceMu.Lock()
+	defer p.debounceMu.Unlock()
+	if len(p.debounce) != 2 {
+		t.Fatalf("session keys were coalesced: %d", len(p.debounce))
+	}
+	for _, timer := range p.debounce {
+		timer.Stop()
 	}
 }
 

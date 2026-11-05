@@ -91,12 +91,12 @@ func TestStorageQueryNamePrepareOTLPAndLateRealQueries(t *testing.T) {
 		}
 		// Run the normal detector synchronously rather than sleeping for debounce.
 		pipeline.debounceMu.Lock()
-		if timer := pipeline.debounce[traceID]; timer != nil {
+		if timer := pipeline.debounce[detectorKey{traceID, session.ID}]; timer != nil {
 			timer.Stop()
-			delete(pipeline.debounce, traceID)
+			delete(pipeline.debounce, detectorKey{traceID, session.ID})
 		}
 		pipeline.debounceMu.Unlock()
-		runDetectors(traceID, store, hub, tracer)
+		runDetectors(traceID, session.ID, store, hub, tracer)
 	}
 	warnings := func() map[string]bool {
 		t.Helper()
