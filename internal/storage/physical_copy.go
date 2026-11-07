@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
 
-func copyPhysicalDatabase(source, candidate string) error {
+func copyPhysicalDatabase(source, candidate string, dataBytes ...*int64) error {
 	copyDB, e := sql.Open("duckdb", source+"?threads=4&memory_limit=2GB&storage_compatibility_version=latest")
 	if e != nil {
 		return e
@@ -69,6 +70,14 @@ func copyPhysicalDatabase(source, candidate string) error {
 	e = errors.Join(e, copyDB.Close())
 	if e != nil {
 		return fmt.Errorf("copy physical rewrite: %w", e)
+	}
+	// This snapshot excludes secondary indexes, which are restored below. It is
+	// meaningful only for the native copy path; the portable sequence path does
+	// not expose a comparable intermediate size.
+	if len(dataBytes) > 0 && dataBytes[0] != nil {
+		if fi, err := os.Stat(candidate); err == nil {
+			*dataBytes[0] = fi.Size()
+		}
 	}
 	copyDB, e = sql.Open("duckdb", candidate+"?threads=4&memory_limit=2GB&storage_compatibility_version=latest")
 	if e != nil {
