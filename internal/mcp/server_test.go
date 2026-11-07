@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -223,5 +224,41 @@ func TestToolOutputSchemaAndStructuredContent(t *testing.T) {
 	}
 	if _, ok := result.Content[0].(*mcpsdk.TextContent); !ok {
 		t.Fatalf("missing compact text: %#v", result.Content)
+	}
+}
+
+func TestIngestionHealthExplainsUnknownAndStoragePolicy(t *testing.T) {
+	limit := int64(1 << 30)
+	cs, _ := connect(t, Options{MaxDBSizeBytes: func() int64 { return limit }, AutoPrune: func() bool { return true }})
+	out := callStructured[IngestionHealthOutput](t, cs, "get_ingestion_health", nil)
+	if out.Status != "unknown" || len(out.Reasons) == 0 || out.EvaluatedAtNs == 0 {
+		t.Fatalf("missing uncertainty: %#v", out)
+	}
+	if out.AutoPrune == nil || !*out.AutoPrune || out.StorageRemainingBytes == nil || *out.StorageRemainingBytes != limit-out.DBSizeBytes || out.StorageUtilizationPercent == nil {
+		t.Fatalf("storage policy: %#v", out)
+	}
+}
+
+type fixedHealthSources []storage.SourceStats
+
+func (s fixedHealthSources) Sources() []storage.SourceStats { return s }
+func TestIngestionHealthSourceFreshness(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		seen     int64
+		rejected float64
+		want     string
+	}{
+		{"fresh", time.Now().UnixNano(), 0, "healthy"},
+		{"stale", time.Now().Add(-10 * time.Minute).UnixNano(), 0, "unknown"},
+		{"rejected", time.Now().UnixNano(), 1, "degraded"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cs, _ := connect(t, Options{Sources: fixedHealthSources{{LastSeenNs: tc.seen, RejectedPerSec: tc.rejected}}})
+			out := callStructured[IngestionHealthOutput](t, cs, "get_ingestion_health", nil)
+			if out.Status != tc.want || out.LastSourceSeenNs != tc.seen {
+				t.Fatalf("status = %#v, want %s", out, tc.want)
+			}
+		})
 	}
 }

@@ -54,6 +54,8 @@ type Options struct {
 	Sources    SourcesProvider
 	// MaxDBSizeBytes returns the current telemetry database limit; zero means unlimited.
 	MaxDBSizeBytes func() int64
+	// AutoPrune returns the live telemetry storage policy, when available.
+	AutoPrune func() bool
 }
 
 type ThroughputProvider interface{ Throughput() storage.Throughput }

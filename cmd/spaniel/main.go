@@ -913,6 +913,7 @@ func run(cfg runConfig) error {
 			Drops:          pipeline.DropCounters(),
 			Sources:        pipeline,
 			MaxDBSizeBytes: storagePolicy.maxBytes.Load,
+			AutoPrune:      storagePolicy.autoPrune.Load,
 		})
 	}
 	// Include the effective CLI token in settings persistence as well.
