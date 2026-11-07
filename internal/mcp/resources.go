@@ -107,7 +107,7 @@ func (h *handler) readSchemaResource(ctx context.Context, _ *mcpsdk.ReadResource
 	}, nil
 }
 
-const agentInstructions = `Spaniel dashboard and alert SQL supports $session_id, bound to the active telemetry session. Dashboard SQL can also bind declared dashboard variables by name (for example $service); pass overrides as values, never interpolate SQL. Read spaniel://guide for workflows, query contracts, and write semantics.`
+const agentInstructions = `Signal queries use terms, field:value (contains), field=value, !=, <, >, parentheses and AND/OR/NOT (or &&/||/!); attributes.KEY and resource.KEY address attributes. Spaniel dashboard and alert SQL supports $session_id, bound to the active telemetry session. Dashboard SQL can also bind declared dashboard variables by name (for example $service); pass overrides as values, never interpolate SQL. Read spaniel://guide for workflows, query contracts, and write semantics.`
 
 const spanielGuide = `# Using Spaniel via MCP
 
@@ -148,8 +148,8 @@ session. Explicit session IDs preserve scope across drill-downs. Clients can att
 
 ## Agent summaries and attribute filters
 - get_service_summary gives one service's span counts/latency/errors, top operations/findings, dependencies, and signal freshness. Coverage is explicitly session-wide.
-- list_attribute_keys / list_attribute_values discover keys and values by session, service, time, signal, and scope. Logs store only attributes. Pages return has_more.
-- attributes and resource_attributes maps filter list_traces, list_slow_spans, and get_metric_series before limits. query_logs supports attributes only. All pairs match on the same record; trace filters may match any one span. Root filters retain their existing meaning.
+- list_attribute_keys / list_attribute_values discover keys and values by session, service, time, signal, and scope. Log discovery currently covers record attributes. Pages return has_more.
+- attributes and resource_attributes maps filter list_traces, list_slow_spans, and get_metric_series before limits. query_logs also accepts resource_attributes; only newly ingested logs contain resource data. All pairs match on the same record; trace filters may match any one span. Root filters retain their existing meaning.
 - Top-level keys are literal (including dots); scalar values compare as text. Empty strings differ from missing keys. Discovery values include JSON types and counts.
 
 ## Escape hatch

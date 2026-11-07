@@ -6,6 +6,8 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"encoding/json"
+	"github.com/zfogg/spaniel/internal/querydsl"
 	"github.com/zfogg/spaniel/internal/storage"
 )
 
@@ -29,7 +31,9 @@ func (h *handler) registerLogTools(s *mcpsdk.Server) {
 // ---- query_logs ----
 
 type QueryLogsInput struct {
-	Attributes map[string]string `json:"attributes,omitempty" jsonschema:"exact top-level attribute key/value filters; AND; scalar values compared as text; applied before pagination"`
+	Query              string            `json:"query,omitempty"`
+	ResourceAttributes map[string]string `json:"resource_attributes,omitempty"`
+	Attributes         map[string]string `json:"attributes,omitempty" jsonschema:"exact top-level attribute key/value filters; AND; scalar values compared as text; applied before pagination"`
 
 	SessionID   string    `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
 	TraceID     string    `json:"trace_id,omitempty" jsonschema:"only logs correlated with this trace"`
@@ -44,12 +48,14 @@ type QueryLogsInput struct {
 }
 
 type LogOut struct {
-	TimestampNs int64  `json:"timestamp_ns"`
-	Severity    string `json:"severity"`
-	Body        string `json:"body"`
-	Service     string `json:"service,omitempty"`
-	TraceID     string `json:"trace_id,omitempty"`
-	SpanID      string `json:"span_id,omitempty"`
+	Attributes  map[string]any `json:"attributes,omitempty"`
+	Resource    map[string]any `json:"resource,omitempty"`
+	TimestampNs int64          `json:"timestamp_ns"`
+	Severity    string         `json:"severity"`
+	Body        string         `json:"body"`
+	Service     string         `json:"service,omitempty"`
+	TraceID     string         `json:"trace_id,omitempty"`
+	SpanID      string         `json:"span_id,omitempty"`
 }
 
 type QueryLogsOutput struct {
@@ -94,6 +100,27 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
+	if in.Query != "" || len(in.ResourceAttributes) > 0 {
+		expr, err := querydsl.Parse(in.Query)
+		if err != nil {
+			return nil, QueryLogsOutput{}, err
+		}
+		expr = addAttributeFilters(expr, in.Attributes, in.ResourceAttributes)
+		result, err := h.store.WithContext(ctx).SearchSignals(storage.SignalSearch{Signal: "logs", SessionID: sessionID, Expr: expr, Limit: limit, Page: filter.Page, LogFilter: &filter})
+		if err != nil {
+			return nil, QueryLogsOutput{}, err
+		}
+		logs := result.Rows.([]*storage.Log)
+		out := QueryLogsOutput{Page: filter.Page, Limit: limit, Total: int(result.Total), HasMore: int64(filter.Page)*int64(limit) < result.Total, SessionID: sessionID, Logs: []LogOut{}}
+		for _, l := range logs {
+			row := LogOut{TimestampNs: l.TimestampNs, Severity: severityString(l.Severity), Body: l.Body, Service: l.ServiceName, TraceID: l.TraceID, SpanID: l.SpanID}
+			_ = json.Unmarshal([]byte(l.Attributes), &row.Attributes)
+			_ = json.Unmarshal([]byte(l.Resource), &row.Resource)
+			out.Logs = append(out.Logs, row)
+		}
+		out.Count = len(out.Logs)
+		return nil, out, nil
+	}
 	total, err := h.store.WithContext(ctx).CountLogs(filter)
 	if err != nil {
 		return nil, QueryLogsOutput{}, fmt.Errorf("count results: %w", err)
@@ -105,14 +132,17 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 
 	out := QueryLogsOutput{Page: filter.Page, Limit: limit, Total: total, HasMore: filter.Page <= total/limit && filter.Page*limit < total, SessionID: sessionID, Logs: []LogOut{}}
 	for _, l := range logs {
-		out.Logs = append(out.Logs, LogOut{
+		row := LogOut{
 			TimestampNs: l.TimestampNs,
 			Severity:    severityString(l.Severity),
 			Body:        l.Body,
 			Service:     l.ServiceName,
 			TraceID:     l.TraceID,
 			SpanID:      l.SpanID,
-		})
+		}
+		_ = json.Unmarshal([]byte(l.Attributes), &row.Attributes)
+		_ = json.Unmarshal([]byte(l.Resource), &row.Resource)
+		out.Logs = append(out.Logs, row)
 		if len(out.Logs) >= limit {
 			break
 		}

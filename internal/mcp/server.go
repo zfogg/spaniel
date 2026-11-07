@@ -184,6 +184,7 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 	h.registerTraceTools(s)
 	h.registerDiagnosticTools(s)
 	h.registerLogTools(s)
+	h.registerSignalQueries(s)
 	h.registerTopologyTools(s)
 	h.registerAgentTools(s)
 	h.registerSessionTools(s)

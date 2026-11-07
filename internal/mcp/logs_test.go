@@ -135,4 +135,8 @@ func TestQueryLogsExactNanosecondWindow(t *testing.T) {
 	if out.Count != 1 || out.Logs[0].TimestampNs != 1794074157898417901 {
 		t.Fatalf("incorrect nanosecond filter: %#v", out)
 	}
+	out = callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"query": "timestamp_ns > 1794074157898417900"})
+	if out.Count != 1 || out.Logs[0].TimestampNs != 1794074157898417901 {
+		t.Fatalf("DSL rounded timestamp: %#v", out)
+	}
 }
