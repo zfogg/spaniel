@@ -43,6 +43,23 @@ export function RendererSettings({
       />
     </label>
   )
+  if (display === 'single_value')
+    return (
+      <div>
+        <label className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={settings.show_history === true}
+            onChange={(event) => update({ ...settings, show_history: event.target.checked })}
+          />
+          Show value history
+        </label>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Samples while this panel is viewed, at most once per minute; history is limited to 24
+          hours and may be pruned under storage pressure.
+        </p>
+      </div>
+    )
   if (['bar', 'pie', 'gauge'].includes(display))
     return (
       <div className="grid gap-2 sm:col-span-2 sm:grid-cols-3">

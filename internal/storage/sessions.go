@@ -144,6 +144,9 @@ func (d *DB) DeleteSession(id string) error {
 	err := func() error {
 		return d.maintenanceTransaction(d.namedGORM("DeleteSession"), func(g *gorm.DB) error {
 			tx := querygen.Use(g)
+			if _, err := tx.DashboardPanelSample.Where(tx.DashboardPanelSample.SessionID.Eq(id)).Delete(); err != nil {
+				return err
+			}
 			if _, err := tx.MetricAdmissionObservation.Where(tx.MetricAdmissionObservation.SessionID.Eq(id)).Delete(); err != nil {
 				return err
 			}

@@ -2321,6 +2321,13 @@ export interface components {
         /** Format: double */
         value?: number
       }
+      /** @description Bounded observations of this saved single-value panel for the current query, variables, and session. */
+      history?: {
+        /** Format: int64 */
+        timestamp_ms: number
+        /** Format: double */
+        value: number
+      }[]
       display_type?: string
       notification_preview?: {
         destination: string
@@ -5488,6 +5495,8 @@ export interface operations {
         'application/json': {
           /** @description Selects how the query result is visualized, such as a chart, table, or stat. */
           display_type?: string
+          /** @description Optional saved panel ID; when its single-value history is enabled, return and sample its bounded history. */
+          panel_id?: string
           /** @description Sets the human-readable name shown in the Spaniel interface. */
           name?: string
           /** @description Supplies the read-only query Spaniel evaluates to produce this result or alert. */

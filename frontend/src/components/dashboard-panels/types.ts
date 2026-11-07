@@ -6,4 +6,5 @@ export interface DashboardPanelRendererProps {
   panel: DashboardPanel
   rows: PanelRow[]
   columns: QueryPreview['columns']
+  history?: { timestamp_ms: number; value: number }[]
 }

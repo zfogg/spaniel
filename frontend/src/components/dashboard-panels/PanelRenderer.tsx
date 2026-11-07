@@ -31,9 +31,14 @@ export function PanelRenderer({
 }) {
   const panel = liveDashboardPanel(savedPanel, live)
   let annotationQuery = ''
+  let showHistory = false
   try {
-    annotationQuery =
-      (JSON.parse(panel.settings_json) as { annotation_query?: string }).annotation_query ?? ''
+    const settings = JSON.parse(panel.settings_json) as {
+      annotation_query?: string
+      show_history?: boolean
+    }
+    annotationQuery = settings.annotation_query ?? ''
+    showHistory = settings.show_history === true
   } catch {
     /* settings are optional */
   }
@@ -44,7 +49,7 @@ export function PanelRenderer({
   const session = useQuery({
     queryKey: qk.activeSession(),
     queryFn: () => api.sessions.getActive().then((response) => response.data),
-    enabled: usesSession || annotationUsesSession,
+    enabled: usesSession || annotationUsesSession || showHistory,
     refetchInterval: useRefreshInterval(),
     staleTime: 5000,
   })
@@ -55,14 +60,20 @@ export function PanelRenderer({
       panel.id,
       panel.query_sql,
       panel.display_type,
+      showHistory,
       variables,
-      usesSession ? session.data?.id : null,
+      usesSession || showHistory ? session.data?.id : null,
     ],
     queryFn: ({ signal }) =>
       api.dashboards
         .preview(
           dashboardId,
-          { query_sql: panel.query_sql, display_type: panel.display_type, variables },
+          {
+            query_sql: panel.query_sql,
+            display_type: panel.display_type,
+            variables,
+            ...(panel.display_type === 'single_value' && showHistory ? { panel_id: panel.id } : {}),
+          },
           signal,
         )
         .then((response) => response.data),
@@ -127,7 +138,22 @@ export function PanelRenderer({
         annotationError={annotations.error instanceof Error ? annotations.error.message : undefined}
       />
     )
-  return <PanelResult panel={panel} rows={result.data.rows} columns={result.data.columns} />
+  return (
+    <>
+      <PanelResult
+        panel={panel}
+        rows={result.data.rows}
+        columns={result.data.columns}
+        history={result.data.history}
+      />
+      {showHistory &&
+        result.data.warnings?.map((warning) => (
+          <p key={warning} role="status" className="text-xs text-muted-foreground">
+            {warning}
+          </p>
+        ))}
+    </>
+  )
 }
 
 // Shared by saved panels and the SQL studio: no separate preview visualization.

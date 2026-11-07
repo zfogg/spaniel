@@ -3030,6 +3030,19 @@
             },
             "type": "object"
           },
+          "history": {
+            "type": "array",
+            "description": "Bounded observations of this saved single-value panel for the current query, variables, and session.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["timestamp_ms", "value"],
+              "properties": {
+                "timestamp_ms": {"type": "integer", "format": "int64"},
+                "value": {"type": "number", "format": "double"}
+              }
+            }
+          },
           "display_type": {
             "type": "string"
           },
@@ -9897,6 +9910,10 @@
                   "display_type": {
                     "type": "string",
                     "description": "Selects how the query result is visualized, such as a chart, table, or stat."
+                  },
+                  "panel_id": {
+                    "type": "string",
+                    "description": "Optional saved panel ID; when its single-value history is enabled, return and sample its bounded history."
                   },
                   "name": {
                     "type": "string",

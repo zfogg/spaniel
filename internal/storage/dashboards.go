@@ -186,13 +186,22 @@ func (d *DB) UpdateDashboard(x *Dashboard) error {
 func (d *DB) DeleteDashboard(id string) error {
 	err := func() error {
 		return d.namedQuery("DeleteDashboard").Transaction(func(tx *querygen.Query) error {
+			panels, err := tx.DashboardPanel.Where(tx.DashboardPanel.DashboardID.Eq(id)).Find()
+			if err != nil {
+				return err
+			}
+			for _, panel := range panels {
+				if _, err := tx.DashboardPanelSample.Where(tx.DashboardPanelSample.PanelID.Eq(panel.ID)).Delete(); err != nil {
+					return err
+				}
+			}
 			if _, err := tx.DashboardPanel.Where(tx.DashboardPanel.DashboardID.Eq(id)).Delete(); err != nil {
 				return err
 			}
 			if _, err := tx.DashboardVariable.Where(tx.DashboardVariable.DashboardID.Eq(id)).Delete(); err != nil {
 				return err
 			}
-			_, err := tx.Dashboard.Where(tx.Dashboard.ID.Eq(id)).Delete()
+			_, err = tx.Dashboard.Where(tx.Dashboard.ID.Eq(id)).Delete()
 			return err
 		})
 	}()
@@ -335,12 +344,20 @@ func (d *DB) UpdateDashboardPanel(p *DashboardPanel) error {
 }
 func (d *DB) DeleteDashboardPanel(dashboardID, id string) error {
 	err := func() error {
-		q := d.namedQuery("DeleteDashboardPanel")
-		_, err := q.DashboardPanel.Where(
-			q.DashboardPanel.ID.Eq(id),
-			q.DashboardPanel.DashboardID.Eq(dashboardID),
-		).Delete()
-		return err
+		return d.namedQuery("DeleteDashboardPanel").Transaction(func(q *querygen.Query) error {
+			count, err := q.DashboardPanel.Where(q.DashboardPanel.ID.Eq(id), q.DashboardPanel.DashboardID.Eq(dashboardID)).Count()
+			if err != nil {
+				return err
+			}
+			if count == 0 {
+				return nil
+			}
+			if _, err := q.DashboardPanelSample.Where(q.DashboardPanelSample.PanelID.Eq(id)).Delete(); err != nil {
+				return err
+			}
+			_, err = q.DashboardPanel.Where(q.DashboardPanel.ID.Eq(id), q.DashboardPanel.DashboardID.Eq(dashboardID)).Delete()
+			return err
+		})
 	}()
 	if err == nil {
 		d.changed("DeleteDashboardPanel", "dashboards", "dashboard-panel")
