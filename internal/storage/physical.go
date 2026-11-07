@@ -99,6 +99,7 @@ func (d *DB) rewritePhysicalLocked() (err error) {
 	if d.path == "" || d.path == ":memory:" {
 		return nil
 	}
+	var dataBytes int64
 	b := d.batcher
 	if b != nil {
 		b.mu.Lock()
@@ -174,6 +175,9 @@ func (d *DB) rewritePhysicalLocked() (err error) {
 			}
 		}
 		if err == nil {
+			// Capture both measurements from this copy before writers resume.
+			d.retentionPhysicalData.Store(dataBytes)
+			d.retentionPhysicalSnapshot.Store(d.FileSize())
 			d.retentionPhysicalLast.Store(time.Now().UnixNano())
 			_ = os.Remove(d.path + ".repack-old")
 		}
@@ -190,7 +194,7 @@ func (d *DB) rewritePhysicalLocked() (err error) {
 	old := d.path + ".repack-old"
 	// Only this private connection permits file I/O. The serving pool keeps its
 	// external-access/extension restrictions and is closed throughout the copy.
-	if err = copyPhysicalDatabase(d.path, candidate); err != nil {
+	if err = copyPhysicalDatabase(d.path, candidate, &dataBytes); err != nil {
 		return err
 	}
 	// Catalog-qualified indexes in this DuckDB version require the same base
@@ -267,6 +271,7 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 	if !d.retentionPhysicalReady.Load() {
 		d.retentionPhysicalFreed.Store(0)
 		d.retentionPhysicalRatio.Store(0)
+		d.retentionPhysicalGrace.Store(false)
 	}
 	lastCopy := d.retentionPhysicalLast.Load()
 	reclaimFirst := !d.retentionPhysicalReady.Load() && (lastCopy == 0 || time.Since(time.Unix(0, lastCopy)) >= 10*time.Minute)
@@ -288,6 +293,7 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 			return res, err
 		}
 		before := d.FileSize()
+		dataBaselineValid := d.retentionPhysicalReady.Load()
 		fraction := float64(before-cfg.MaxDBSizeBytes) / float64(before)
 		if freed := d.retentionPhysicalFreed.Load(); freed > 0 {
 			// Counts are not bytes: an old metric can be much smaller than a
@@ -310,14 +316,35 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 		if n == 0 {
 			return res, fmt.Errorf("%w: no evictable telemetry; physical bytes=%d", ErrRetentionTargetUnreached, before)
 		}
+		beforeData := d.retentionPhysicalData.Load()
+		beforeSnapshot := d.retentionPhysicalSnapshot.Load()
 		if err = d.rewritePhysicalLocked(); err != nil {
 			return res, err
 		}
 		after := d.FileSize()
 		slog.Info("physical retention batch", "deleted", n, "before_bytes", before, "after_bytes", after, "target_bytes", cfg.MaxDBSizeBytes)
 		if after >= before {
+			// A new, small indexed stream can allocate whole index blocks while
+			// the copied data itself shrinks. Allow one additional measured
+			// attempt in this cycle; repeated no-progress still fails closed.
+			afterData := d.retentionPhysicalData.Load()
+			afterSnapshot := d.retentionPhysicalSnapshot.Load()
+			if physicalIndexGrowthRetry(dataBaselineValid, d.retentionPhysicalGrace.Load(), beforeSnapshot, afterSnapshot, beforeData, afterData) {
+				d.retentionPhysicalGrace.Store(true)
+				// The previous whole-file ratio is no longer representative of
+				// this larger index footprint; do not amplify the next batch.
+				d.retentionPhysicalFreed.Store(0)
+				d.retentionPhysicalRatio.Store(0)
+				d.retentionPhysicalReady.Store(true)
+				slog.Info("physical retention data shrank while indexes grew; allowing one retry", "data_before_bytes", beforeData, "data_after_bytes", afterData)
+				if cfg.MaxDuration > 0 {
+					return res, nil
+				}
+				continue
+			}
 			return res, fmt.Errorf("%w: physical rewrite made no progress; refusing further deletion", ErrRetentionTargetUnreached)
 		}
+		d.retentionPhysicalGrace.Store(false)
 		d.retentionPhysicalFreed.Store(before - after)
 		d.retentionPhysicalRatio.Store(math.Float64bits(fraction))
 		d.retentionPhysicalReady.Store(after > cfg.MaxDBSizeBytes)
@@ -327,4 +354,14 @@ func (d *DB) PrunePhysical(cfg RetentionConfig, activeID string) (res PruneResul
 	}
 	d.retentionPhysicalReady.Store(false)
 	return res, nil
+}
+
+// physicalIndexGrowthRetry permits one further batch only when a comparable
+// native copy shows data shrinking and index allocation accounts for the lack
+// of total progress. Unknown data sizes and consecutive failures stay closed.
+func physicalIndexGrowthRetry(baselineValid, used bool, before, after, beforeData, afterData int64) bool {
+	if !baselineValid || used || beforeData <= 0 || afterData <= 0 || beforeData >= before || afterData >= after || afterData >= beforeData || after < before {
+		return false
+	}
+	return after-afterData > before-beforeData
 }

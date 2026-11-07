@@ -20,6 +20,15 @@ import (
 )
 
 func TestPhysicalPruningKeepsDirectOTLPIngestionAvailable(t *testing.T) {
+	testPhysicalPruningDirectOTLP(t, false)
+}
+
+func TestPhysicalPruningReclaimsThroughIndexGrowth(t *testing.T) {
+	testPhysicalPruningDirectOTLP(t, true)
+}
+
+func testPhysicalPruningDirectOTLP(t *testing.T, requireLowWater bool) {
+	t.Helper()
 	db, err := storage.Open(filepath.Join(t.TempDir(), "direct.duckdb"))
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +66,7 @@ func TestPhysicalPruningKeepsDirectOTLPIngestionAvailable(t *testing.T) {
 	accepted := 0
 	var maxLatency time.Duration
 	for phase := range 12 {
-		if phase > 0 && (db.FileSize() <= cap*storagePruneTargetPercent/100 || db.RetentionBackingOff()) {
+		if phase > 0 && (db.FileSize() <= cap*storagePruneTargetPercent/100 || (!requireLowWater && db.RetentionBackingOff())) {
 			break
 		}
 		policy.nextPruneAfter.Store(0)
@@ -95,6 +104,9 @@ func TestPhysicalPruningKeepsDirectOTLPIngestionAvailable(t *testing.T) {
 		}
 	}
 	if db.FileSize() > cap*storagePruneTargetPercent/100 {
+		if requireLowWater {
+			t.Fatalf("pruning never reached physical low water: size=%d cap=%d", db.FileSize(), cap)
+		}
 		// A physical rewrite can fail to reclaim space even after a batch is
 		// deleted. The safety stop must back off below the hard cap rather
 		// than repeatedly evicting live telemetry to chase optional headroom.

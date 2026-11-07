@@ -18,28 +18,31 @@ import (
 )
 
 type DB struct {
-	changeNotify             func([]string, string)
-	pool                     *switchablePool
-	maintenanceMu            *sync.Mutex
-	gorm                     *gorm.DB
-	query                    *querygen.Query
-	batcher                  *Batcher
-	path                     string
-	activeSession            *atomic.Pointer[activeSessionState]
-	full                     *atomic.Bool // writes rejected when true (see full.go); shared across WithContext copies
-	notificationMu           *sync.Mutex  // shared by WithContext copies; serializes inbox deduplication
-	traceLintMu              *sync.Mutex  // shared by WithContext copies; serializes incremental trace lint insertion
-	metricCatalogEpoch       *atomic.Uint64
-	retentionFloor           *atomic.Int64  // failed reclamation floor; prevents repeated destructive retries
-	retentionRetry           *atomic.Int64  // automatic size reclamation retry time, Unix nanoseconds
-	retentionCheckpointReady *atomic.Bool   // next automatic size pass may rebuild or evict after a separate checkpoint pass
-	retentionReclaimed       *atomic.Bool   // measured allocation progress across one-table rebuild phases
-	retentionRebuildVisited  *atomic.Uint64 // tables already reclaimed in the current oldest-prefix cycle
-	retentionPhysicalLast    *atomic.Int64  // last successful rewrite; rapid repeat pressure requires eviction
-	retentionPhysicalReady   *atomic.Bool   // fragmentation was reclaimed; next automatic phase may evict
-	retentionPhysicalFreed   *atomic.Int64  // measured bytes reclaimed by the previous physical eviction
-	retentionPhysicalRatio   *atomic.Uint64 // float64 bits: fraction of oldest groups selected in that eviction
-	maintenanceOwned         bool           // all SQL leases are reserved until maintenance and recovery finish
+	changeNotify              func([]string, string)
+	pool                      *switchablePool
+	maintenanceMu             *sync.Mutex
+	gorm                      *gorm.DB
+	query                     *querygen.Query
+	batcher                   *Batcher
+	path                      string
+	activeSession             *atomic.Pointer[activeSessionState]
+	full                      *atomic.Bool // writes rejected when true (see full.go); shared across WithContext copies
+	notificationMu            *sync.Mutex  // shared by WithContext copies; serializes inbox deduplication
+	traceLintMu               *sync.Mutex  // shared by WithContext copies; serializes incremental trace lint insertion
+	metricCatalogEpoch        *atomic.Uint64
+	retentionFloor            *atomic.Int64  // failed reclamation floor; prevents repeated destructive retries
+	retentionRetry            *atomic.Int64  // automatic size reclamation retry time, Unix nanoseconds
+	retentionCheckpointReady  *atomic.Bool   // next automatic size pass may rebuild or evict after a separate checkpoint pass
+	retentionReclaimed        *atomic.Bool   // measured allocation progress across one-table rebuild phases
+	retentionRebuildVisited   *atomic.Uint64 // tables already reclaimed in the current oldest-prefix cycle
+	retentionPhysicalLast     *atomic.Int64  // last successful rewrite; rapid repeat pressure requires eviction
+	retentionPhysicalReady    *atomic.Bool   // fragmentation was reclaimed; next automatic phase may evict
+	retentionPhysicalFreed    *atomic.Int64  // measured bytes reclaimed by the previous physical eviction
+	retentionPhysicalRatio    *atomic.Uint64 // float64 bits: fraction of oldest groups selected in that eviction
+	retentionPhysicalData     *atomic.Int64  // last native copy size before secondary indexes
+	retentionPhysicalSnapshot *atomic.Int64  // total bytes from the same locked copy
+	retentionPhysicalGrace    *atomic.Bool   // at most one index-growth retry without total progress
+	maintenanceOwned          bool           // all SQL leases are reserved until maintenance and recovery finish
 }
 
 // WithContext returns a shallow copy of DB whose GORM queries carry ctx, so the
@@ -117,7 +120,7 @@ func Open(path string) (*DB, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping duckdb: %w", err)
 	}
-	d := &DB{activeSession: &atomic.Pointer[activeSessionState]{}, gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, notificationMu: &sync.Mutex{}, metricCatalogEpoch: &atomic.Uint64{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalLast: &atomic.Int64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}}
+	d := &DB{activeSession: &atomic.Pointer[activeSessionState]{}, gorm: g, pool: pool, maintenanceMu: &sync.Mutex{}, path: path, full: &atomic.Bool{}, traceLintMu: &sync.Mutex{}, notificationMu: &sync.Mutex{}, metricCatalogEpoch: &atomic.Uint64{}, retentionFloor: &atomic.Int64{}, retentionRetry: &atomic.Int64{}, retentionCheckpointReady: &atomic.Bool{}, retentionReclaimed: &atomic.Bool{}, retentionRebuildVisited: &atomic.Uint64{}, retentionPhysicalLast: &atomic.Int64{}, retentionPhysicalReady: &atomic.Bool{}, retentionPhysicalFreed: &atomic.Int64{}, retentionPhysicalRatio: &atomic.Uint64{}, retentionPhysicalData: &atomic.Int64{}, retentionPhysicalSnapshot: &atomic.Int64{}, retentionPhysicalGrace: &atomic.Bool{}}
 	if err := d.recoverReclaimIndexes(); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("recover interrupted reclamation: %w", err)

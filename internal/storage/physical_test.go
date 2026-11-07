@@ -125,6 +125,29 @@ func TestNativePhysicalCopyPreservesViewsAndQualifiedIndexes(t *testing.T) {
 	}
 }
 
+func TestPhysicalIndexGrowthRetryRequiresMeasuredProgress(t *testing.T) {
+	for _, tc := range []struct {
+		name                                 string
+		baseline, used                       bool
+		before, after, dataBefore, dataAfter int64
+		want                                 bool
+	}{
+		{"index allocation masks data reduction", true, false, 100, 110, 80, 60, true},
+		{"no baseline", false, false, 100, 110, 80, 60, false},
+		{"retry already used", true, true, 100, 110, 80, 60, false},
+		{"portable copy has no measurement", true, false, 100, 110, 0, 60, false},
+		{"data unchanged", true, false, 100, 110, 80, 80, false},
+		{"data grew", true, false, 100, 110, 80, 90, false},
+		{"already made physical progress", true, false, 100, 90, 80, 60, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := physicalIndexGrowthRetry(tc.baseline, tc.used, tc.before, tc.after, tc.dataBefore, tc.dataAfter); got != tc.want {
+				t.Fatalf("retry = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestPhysicalRewriteReclaimsHolesWithoutEvictingSurvivors(t *testing.T) {
 	d, err := Open(filepath.Join(t.TempDir(), "holes.duckdb"))
 	if err != nil {
