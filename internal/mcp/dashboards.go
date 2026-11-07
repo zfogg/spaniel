@@ -29,7 +29,7 @@ func (h *handler) registerDashboardTools(s *mcpsdk.Server) {
 	if !h.opts.AllowWrites {
 		return
 	}
-	addTOONTool(s, &mcpsdk.Tool{Name: "apply_dashboard", Description: "Create or replace a complete structured dashboard definition. Supports dry-run and optimistic updated_at checks.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false), IdempotentHint: true}}, h.applyDashboard)
+	addTOONTool(s, &mcpsdk.Tool{Name: "apply_dashboard", Description: "Create or replace a complete structured dashboard definition. Supports dry-run and optimistic updated_at checks.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false)}}, h.applyDashboard)
 	addTOONTool(s, &mcpsdk.Tool{Name: "import_dashboard_yaml", Description: "Validate and import portable dashboard YAML. A stable id updates or creates that dashboard; omit id to create a new dashboard. Supports dry-run.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false)}}, h.importDashboardYAML)
 	addTOONTool(s, &mcpsdk.Tool{Name: "delete_dashboard", Description: "Delete a local dashboard and its panels and variables. File-managed dashboards cannot be deleted.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(true)}}, h.deleteDashboard)
 }
@@ -367,11 +367,14 @@ func (h *handler) exportDashboardYAML(ctx context.Context, _ *mcpsdk.CallToolReq
 }
 
 type DeleteDashboardInput struct {
-	DashboardID string `json:"dashboard_id"`
+	DashboardID       string `json:"dashboard_id"`
+	DryRun            bool   `json:"dry_run,omitempty" jsonschema:"preview the deletion without changing data"`
+	ExpectedUpdatedAt string `json:"expected_updated_at,omitempty" jsonschema:"exact decimal updated_at read from the definition"`
 }
 
 type MutationOutput struct {
-	OK bool `json:"ok"`
+	OK     bool `json:"ok"`
+	DryRun bool `json:"dry_run,omitempty"`
 }
 
 func (h *handler) deleteDashboard(ctx context.Context, _ *mcpsdk.CallToolRequest, in DeleteDashboardInput) (*mcpsdk.CallToolResult, MutationOutput, error) {
@@ -381,6 +384,16 @@ func (h *handler) deleteDashboard(ctx context.Context, _ *mcpsdk.CallToolRequest
 	}
 	if dashboard.SourceFile != "" {
 		return nil, MutationOutput{}, fmt.Errorf("dashboard is managed by YAML file %s", dashboard.SourceFile)
+	}
+	expected, err := parseExpectedUpdatedAt(in.ExpectedUpdatedAt)
+	if err != nil {
+		return nil, MutationOutput{}, err
+	}
+	if expected != 0 && dashboard.UpdatedAt != expected {
+		return nil, MutationOutput{}, fmt.Errorf("dashboard changed since it was read: expected updated_at %d, got %d", expected, dashboard.UpdatedAt)
+	}
+	if in.DryRun {
+		return nil, MutationOutput{OK: true, DryRun: true}, nil
 	}
 	if err := h.store.WithContext(ctx).DeleteDashboard(in.DashboardID); err != nil {
 		return nil, MutationOutput{}, err

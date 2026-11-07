@@ -395,6 +395,9 @@ func TestErrorIncludesRequestID(t *testing.T) {
 	if _, ok := body["error"]; !ok {
 		t.Errorf("error field missing from body: %v", body)
 	}
+	if body["code"] != "not_found" || body["retryable"] != false {
+		t.Errorf("machine-readable error = %v", body)
+	}
 }
 
 func TestListAlertsPaginatesAndPromotesFiringRules(t *testing.T) {
@@ -450,5 +453,48 @@ func TestListAlertsPaginatesAndPromotesFiringRules(t *testing.T) {
 	}
 	if response.Data.Summary.RuleCounts["firing"] != 1 || response.Data.Summary.RuleCounts["resolved"] != 15 {
 		t.Fatalf("unexpected rule summary: %#v", response.Data.Summary.RuleCounts)
+	}
+}
+
+func TestGetIssuesRespectsTraceAndSessionScope(t *testing.T) {
+	handler, store := setupRouter(t)
+	for _, session := range []string{"one", "two"} {
+		if err := store.UpsertTraceIssue(&storage.TraceIssue{ID: "issue-" + session, TraceID: "shared", SessionID: session, Kind: session, Fingerprint: session}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/issues?traceId=shared&sessionId=two", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", res.Code, res.Body.String())
+	}
+	var out struct {
+		Data []storage.TraceIssue `json:"data"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Data) != 1 || out.Data[0].SessionID != "two" {
+		t.Fatalf("issues: %#v", out.Data)
+	}
+}
+func TestErrorCodesAndRetryability(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		code   string
+		retry  bool
+	}{{400, "invalid_argument", false}, {404, "not_found", false}, {409, "conflict", false}, {429, "rate_limited", true}, {503, "unavailable", true}, {500, "internal_error", false}} {
+		t.Run(tc.code, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			respondErr(w, httptest.NewRequest(http.MethodGet, "/", nil), tc.status, "example")
+			var body map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body["code"] != tc.code || body["retryable"] != tc.retry {
+				t.Fatalf("error = %#v", body)
+			}
+		})
 	}
 }

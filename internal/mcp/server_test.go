@@ -215,12 +215,15 @@ func TestToolOutputSchemaAndStructuredContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var out IngestionHealthOutput
+	var out map[string]any
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.MaxDBSizeBytes != 123456 {
-		t.Fatalf("structured limit = %d", out.MaxDBSizeBytes)
+	if out["max_db_size_bytes"] != float64(123456) {
+		t.Fatalf("structured limit = %v", out["max_db_size_bytes"])
+	}
+	if _, ok := out["evaluated_at_ns"].(string); !ok {
+		t.Fatalf("timestamp must retain integer precision: %#v", out["evaluated_at_ns"])
 	}
 	if _, ok := result.Content[0].(*mcpsdk.TextContent); !ok {
 		t.Fatalf("missing compact text: %#v", result.Content)
@@ -260,5 +263,29 @@ func TestIngestionHealthSourceFreshness(t *testing.T) {
 				t.Fatalf("status = %#v, want %s", out, tc.want)
 			}
 		})
+	}
+}
+func TestServerInfoAdvertisesAgentCapabilities(t *testing.T) {
+	enabled := true
+	cs, _ := connect(t, Options{AutoPrune: func() bool { return enabled }})
+	first := callStructured[ServerInfo](t, cs, "get_server_info", nil)
+	if first.Capabilities.GuideURI != guideURI || first.Capabilities.SchemaURI != schemaURI || first.Capabilities.SQLDefaultMaxRows != 1000 || first.Capabilities.SQLMaxRows != 50000 || first.Capabilities.SQLTimeoutSeconds != 30 || first.Capabilities.DashboardSessionParameter != "$session_id" || first.Capabilities.AutoPrune == nil || !*first.Capabilities.AutoPrune {
+		t.Fatalf("capabilities: %#v", first.Capabilities)
+	}
+	enabled = false
+	second := callStructured[ServerInfo](t, cs, "get_server_info", nil)
+	if second.Capabilities.AutoPrune == nil || *second.Capabilities.AutoPrune {
+		t.Fatalf("stale policy: %#v", second.Capabilities)
+	}
+}
+func TestMCPToolExecutionErrorHasMachineReadableCode(t *testing.T) {
+	cs, _ := connect(t, Options{})
+	result, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "get_trace", Arguments: map[string]any{"trace_id": "missing"}})
+	if err != nil || !result.IsError {
+		t.Fatalf("expected tool error: %#v %v", result, err)
+	}
+	fields, ok := result.StructuredContent.(map[string]any)
+	if !ok || fields["code"] != "tool_error" || fields["retryable"] != nil || fields["message"] == "" {
+		t.Fatalf("missing machine-readable error: %#v", result.StructuredContent)
 	}
 }

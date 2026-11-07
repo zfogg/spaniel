@@ -35,7 +35,7 @@ func (h *handler) registerAlertTools(s *mcpsdk.Server) {
 	addTOONTool(s, &mcpsdk.Tool{Name: "unacknowledge_alert_instance", Description: "Remove acknowledgement metadata from one alert instance and record the action.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false), IdempotentHint: true}}, h.unacknowledgeAlertInstance)
 	addTOONTool(s, &mcpsdk.Tool{Name: "silence_alert", Description: "Create a bounded alert silence for a whole rule or one group key.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false)}}, h.silenceAlert)
 	addTOONTool(s, &mcpsdk.Tool{Name: "remove_alert_silence", Description: "Remove one alert silence before it expires.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(true), IdempotentHint: true}}, h.removeAlertSilence)
-	addTOONTool(s, &mcpsdk.Tool{Name: "apply_alert", Description: "Create or replace a complete structured alert definition. Supports dry-run and optimistic updated_at checks.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false), IdempotentHint: true}}, h.applyAlert)
+	addTOONTool(s, &mcpsdk.Tool{Name: "apply_alert", Description: "Create or replace a complete structured alert definition. Supports dry-run and optimistic updated_at checks.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false)}}, h.applyAlert)
 	addTOONTool(s, &mcpsdk.Tool{Name: "import_alert_yaml", Description: "Validate and import a portable alert YAML definition, or dry-run it without saving.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false)}}, h.importAlertYAML)
 	addTOONTool(s, &mcpsdk.Tool{Name: "delete_alert", Description: "Delete a local alert rule and its runtime instances. File-managed alerts cannot be deleted.", Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(true)}}, h.deleteAlert)
 }
@@ -505,7 +505,9 @@ func (h *handler) removeAlertSilence(ctx context.Context, _ *mcpsdk.CallToolRequ
 }
 
 type DeleteAlertInput struct {
-	AlertID string `json:"alert_id"`
+	AlertID           string `json:"alert_id"`
+	DryRun            bool   `json:"dry_run,omitempty" jsonschema:"preview the deletion without changing data"`
+	ExpectedUpdatedAt string `json:"expected_updated_at,omitempty" jsonschema:"exact decimal updated_at read from the definition"`
 }
 
 func (h *handler) deleteAlert(ctx context.Context, _ *mcpsdk.CallToolRequest, in DeleteAlertInput) (*mcpsdk.CallToolResult, MutationOutput, error) {
@@ -515,6 +517,16 @@ func (h *handler) deleteAlert(ctx context.Context, _ *mcpsdk.CallToolRequest, in
 	}
 	if rule.SourceFile != "" {
 		return nil, MutationOutput{}, fmt.Errorf("alert is managed by YAML file %s", rule.SourceFile)
+	}
+	expected, err := parseExpectedUpdatedAt(in.ExpectedUpdatedAt)
+	if err != nil {
+		return nil, MutationOutput{}, err
+	}
+	if expected != 0 && rule.UpdatedAt != expected {
+		return nil, MutationOutput{}, fmt.Errorf("alert changed since it was read: expected updated_at %d, got %d", expected, rule.UpdatedAt)
+	}
+	if in.DryRun {
+		return nil, MutationOutput{OK: true, DryRun: true}, nil
 	}
 	if err := h.store.WithContext(ctx).DeleteAlertRule(in.AlertID); err != nil {
 		return nil, MutationOutput{}, err

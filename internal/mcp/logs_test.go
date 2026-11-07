@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/zfogg/spaniel/internal/storage"
 )
 
 func TestQueryLogs_Default(t *testing.T) {
@@ -59,10 +60,10 @@ func TestQueryLogs_Filters(t *testing.T) {
 	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"trace_id": "nope"}); got.Count != 0 {
 		t.Errorf("trace filter (miss): expected 0, got %d", got.Count)
 	}
-	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"from_ns": 2_600_000, "to_ns": 2_600_000, "max_severity": "ERROR"}); got.Count != 1 {
+	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"from_ns": "2600000", "to_ns": "2600000", "max_severity": "ERROR"}); got.Count != 1 {
 		t.Errorf("time and maximum severity filters: expected 1, got %d", got.Count)
 	}
-	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"to_ns": 2_599_999}); got.Count != 0 {
+	if got := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"to_ns": "2599999"}); got.Count != 0 {
 		t.Errorf("time filter before log: expected 0, got %d", got.Count)
 	}
 }
@@ -119,5 +120,19 @@ func TestLogSearchToolsRegistered(t *testing.T) {
 		if !names[want] {
 			t.Errorf("tool %q not registered; have %v", want, names)
 		}
+	}
+}
+
+func TestQueryLogsExactNanosecondWindow(t *testing.T) {
+	cs, db := connect(t, Options{})
+	session := db.ActiveSessionID()
+	for _, ts := range []int64{1794074157898417900, 1794074157898417901} {
+		if err := db.InsertLog(&storage.Log{TimestampNs: ts, Body: "sample", SessionID: session, ReceivedAt: 1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out := callStructured[QueryLogsOutput](t, cs, "query_logs", map[string]any{"from_ns": "1794074157898417901", "to_ns": "1794074157898417901"})
+	if out.Count != 1 || out.Logs[0].TimestampNs != 1794074157898417901 {
+		t.Fatalf("incorrect nanosecond filter: %#v", out)
 	}
 }

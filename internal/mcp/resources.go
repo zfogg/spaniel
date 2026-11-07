@@ -36,7 +36,7 @@ func (h *handler) registerResourcesAndPrompts(s *mcpsdk.Server) {
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "investigate_incident",
-		Description: "Return the complete read-only workflow for investigating an incident across Spaniel signals. This tool mirrors the MCP prompt for clients that do not expose prompts.",
+		Description: "Gather bounded, read-only incident evidence from ingestion health, alerts, service errors, and slow spans, with next investigation steps and uncertainty.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, h.investigateIncident)
 
@@ -134,10 +134,11 @@ import_* accepts the portable YAML document. Exported dashboard and alert YAML
 includes a stable id: keep it to update that object, or remove it to create a
 copy. Mutating tools are absent unless the server enables MCP writes.
 
-Structured tools return both compact TOON text and typed structured content; YAML exports return text. Dynamic resources use
+Structured tools return both compact TOON text and typed structured content; integers outside the JavaScript safe range are decimal strings so timestamps and revisions retain precision. Execution errors carry a code, message, and nullable retryable flag in structured content; validate input errors may use the MCP protocol response instead. A transient error does not by itself make a mutation safe to retry. YAML exports return text. Dynamic resources use
 spaniel://dashboards/{dashboard_id}, spaniel://alerts/{alert_id},
-spaniel://spans/{span_id}, spaniel://traces/{trace_id}, and scoped log/metric
-templates so a client can attach a specific live object as model context.
+spaniel://spans/{session_id}/{span_id}, spaniel://traces/{session_id}/{trace_id},
+and scoped log/metric templates. One-ID span and trace resources use the active
+session. Explicit session IDs preserve scope across drill-downs. Clients can attach these live objects as model context.
 
 ## Dashboard and alert SQL parameters
 - $session_id is a built-in SQL parameter bound to the active session. It is reserved and cannot be declared as a dashboard variable.
@@ -175,7 +176,11 @@ func userPrompt(desc, text string) (*mcpsdk.GetPromptResult, error) {
 }
 
 type InvestigateIncidentInput struct {
-	Focus string `json:"focus,omitempty" jsonschema:"optional alert id, service name, symptom, or error text"`
+	Focus     string    `json:"focus,omitempty" jsonschema:"optional symptom or investigation guidance"`
+	Service   string    `json:"service,omitempty" jsonschema:"optional service filter"`
+	SessionID string    `json:"session_id,omitempty" jsonschema:"session id; defaults to active session"`
+	FromNs    UnixNanos `json:"from_ns,omitempty" jsonschema:"start of observation window, Unix nanoseconds; defaults to one hour before end"`
+	ToNs      UnixNanos `json:"to_ns,omitempty" jsonschema:"end of observation window, Unix nanoseconds; defaults to now"`
 }
 
 type CompareSessionToBaselineInput struct {
@@ -191,11 +196,6 @@ type DraftObservabilityPackInput struct {
 type WorkflowPromptOutput struct {
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
-}
-
-func (h *handler) investigateIncident(_ context.Context, _ *mcpsdk.CallToolRequest, in InvestigateIncidentInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {
-	description, instructions := investigateIncidentWorkflow(in.Focus)
-	return nil, WorkflowPromptOutput{Description: description, Instructions: instructions}, nil
 }
 
 func (h *handler) compareSessionToBaseline(_ context.Context, _ *mcpsdk.CallToolRequest, in CompareSessionToBaselineInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {

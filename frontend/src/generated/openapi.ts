@@ -1996,6 +1996,10 @@ export interface components {
       error: string
       /** @description Stable machine-readable error code; authentication failures use token_required, token_invalid, token_expired, or token_revoked. */
       code?: string
+      /** @description Whether the condition may be transient; retry mutations only when safe to repeat. */
+      retryable?: boolean
+      /** @description Request identifier when available. */
+      request_id?: string
     }
     ForwarderStatus: {
       /** Format: double */

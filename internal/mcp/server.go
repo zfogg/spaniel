@@ -205,21 +205,35 @@ func (h *handler) registerTools(s *mcpsdk.Server) {
 // an object schema with no properties from it.
 type emptyInput struct{}
 
+// AgentCapabilities describes discovery and query limits for MCP clients.
+type AgentCapabilities struct {
+	GuideURI                  string   `json:"guide_uri"`
+	SchemaURI                 string   `json:"schema_uri"`
+	Signals                   []string `json:"signals"`
+	SQLDefaultMaxRows         int      `json:"sql_default_max_rows"`
+	SQLMaxRows                int      `json:"sql_max_rows"`
+	SQLTimeoutSeconds         int      `json:"sql_timeout_seconds"`
+	TimeFormat                string   `json:"time_format"`
+	DashboardSessionParameter string   `json:"dashboard_session_parameter"`
+	AutoPrune                 *bool    `json:"auto_prune,omitempty"`
+}
+
 // ServerInfo is the output of get_server_info.
 type ServerInfo struct {
-	Version            string `json:"version" jsonschema:"git describe --tags --dirty at build time"`
-	GitSHA             string `json:"git_sha" jsonschema:"git commit SHA at build time"`
-	OpenAPIURL         string `json:"openapi_url" jsonschema:"absolute URL of the OpenAPI JSON specification"`
-	ActiveSessionID    string `json:"active_session_id" jsonschema:"id of the session new telemetry is written to"`
-	ActiveSessionLabel string `json:"active_session_label" jsonschema:"human-readable label of the active session"`
-	WritesEnabled      bool   `json:"writes_enabled" jsonschema:"whether dedicated mutation tools are available; independent of SQL write permission"`
-	SQLWritesEnabled   bool   `json:"sql_writes_enabled" jsonschema:"whether query_sql permits mutations; independent of dedicated tool write permission"`
-	SpanCount          int    `json:"span_count"`
-	TraceCount         int    `json:"trace_count"`
-	LogCount           int    `json:"log_count"`
-	SessionCount       int    `json:"session_count"`
-	DBSizeBytes        int64  `json:"db_size_bytes"`
-	MaxDBSizeBytes     int64  `json:"max_db_size_bytes" jsonschema:"telemetry database limit in bytes; zero means unlimited"`
+	Capabilities       AgentCapabilities `json:"capabilities"`
+	Version            string            `json:"version" jsonschema:"git describe --tags --dirty at build time"`
+	GitSHA             string            `json:"git_sha" jsonschema:"git commit SHA at build time"`
+	OpenAPIURL         string            `json:"openapi_url" jsonschema:"absolute URL of the OpenAPI JSON specification"`
+	ActiveSessionID    string            `json:"active_session_id" jsonschema:"id of the session new telemetry is written to"`
+	ActiveSessionLabel string            `json:"active_session_label" jsonschema:"human-readable label of the active session"`
+	WritesEnabled      bool              `json:"writes_enabled" jsonschema:"whether dedicated mutation tools are available; independent of SQL write permission"`
+	SQLWritesEnabled   bool              `json:"sql_writes_enabled" jsonschema:"whether query_sql permits mutations; independent of dedicated tool write permission"`
+	SpanCount          int               `json:"span_count"`
+	TraceCount         int               `json:"trace_count"`
+	LogCount           int               `json:"log_count"`
+	SessionCount       int               `json:"session_count"`
+	DBSizeBytes        int64             `json:"db_size_bytes"`
+	MaxDBSizeBytes     int64             `json:"max_db_size_bytes" jsonschema:"telemetry database limit in bytes; zero means unlimited"`
 }
 
 func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ServerInfo, error) {
@@ -231,7 +245,13 @@ func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	if publicURL == "" {
 		publicURL, _ = ctx.Value(requestOriginKey{}).(string)
 	}
+	capabilities := AgentCapabilities{GuideURI: "spaniel://guide", SchemaURI: "spaniel://schema", Signals: []string{"traces", "spans", "logs", "metrics"}, SQLDefaultMaxRows: 1000, SQLMaxRows: 50000, SQLTimeoutSeconds: int(sqlQueryTimeout.Seconds()), TimeFormat: "Unix nanoseconds; consult each tool input schema for decimal string or number", DashboardSessionParameter: "$session_id"}
+	if h.opts.AutoPrune != nil {
+		enabled := h.opts.AutoPrune()
+		capabilities.AutoPrune = &enabled
+	}
 	info := ServerInfo{
+		Capabilities:       capabilities,
 		Version:            h.opts.Version,
 		GitSHA:             h.opts.GitSHA,
 		OpenAPIURL:         strings.TrimRight(publicURL, "/") + "/api/openapi.json",

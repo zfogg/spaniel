@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -78,6 +79,10 @@ type TraceSummary struct {
 }
 
 type ListTracesOutput struct {
+	Page      int            `json:"page"`
+	Limit     int            `json:"limit"`
+	Total     int            `json:"total"`
+	HasMore   bool           `json:"has_more"`
 	SessionID string         `json:"session_id"`
 	Count     int            `json:"count"`
 	Traces    []TraceSummary `json:"traces"`
@@ -105,7 +110,7 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 		return nil, ListTracesOutput{}, err
 	}
 
-	rows, err := h.store.WithContext(ctx).ListTraces(storage.TraceFilter{
+	filter := storage.TraceFilter{
 		Attributes:         in.Attributes,
 		ResourceAttributes: in.ResourceAttributes,
 		SessionID:          sessionID,
@@ -115,12 +120,20 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 		MinDurationNs: int64(in.MinDurationMs * 1_000_000), IssueKind: in.IssueKind,
 		Limit: limit,
 		Page:  in.Page,
-	})
+	}
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	total, err := h.store.WithContext(ctx).CountTraces(filter)
+	if err != nil {
+		return nil, ListTracesOutput{}, fmt.Errorf("count results: %w", err)
+	}
+	rows, err := h.store.WithContext(ctx).ListTraces(filter)
 	if err != nil {
 		return nil, ListTracesOutput{}, fmt.Errorf("list traces: %w", err)
 	}
 
-	out := ListTracesOutput{SessionID: sessionID, Traces: []TraceSummary{}}
+	out := ListTracesOutput{Page: filter.Page, Limit: limit, Total: total, HasMore: filter.Page <= total/limit && filter.Page*limit < total, SessionID: sessionID, Traces: []TraceSummary{}}
 	for _, r := range rows {
 		kinds := r.IssueKinds
 		if kinds == nil {
@@ -145,8 +158,9 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 // ---- get_trace ----
 
 type GetTraceInput struct {
-	TraceID string `json:"trace_id" jsonschema:"the trace id to fetch (from list_traces or search)"`
-	MaxLogs int    `json:"max_logs,omitempty" jsonschema:"max correlated log lines to include (default 100)"`
+	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	TraceID   string `json:"trace_id" jsonschema:"the trace id to fetch (from list_traces or search)"`
+	MaxLogs   int    `json:"max_logs,omitempty" jsonschema:"max correlated log lines to include (default 100)"`
 }
 
 type TraceSpanOut struct {
@@ -186,15 +200,19 @@ type LintOut struct {
 }
 
 type GetTraceOutput struct {
-	TraceID    string          `json:"trace_id"`
-	SessionID  string          `json:"session_id"`
-	SpanCount  int             `json:"span_count"`
-	DurationMs float64         `json:"duration_ms"`
-	Waterfall  string          `json:"waterfall"`
-	Spans      []TraceSpanOut  `json:"spans"`
-	Issues     []TraceIssueOut `json:"issues"`
-	Logs       []TraceLogOut   `json:"logs"`
-	Lint       []LintOut       `json:"lint"`
+	ObservedAtNs  int64           `json:"observed_at_ns" jsonschema:"evaluation time as decimal Unix nanoseconds"`
+	TraceID       string          `json:"trace_id"`
+	SessionID     string          `json:"session_id"`
+	SpanCount     int             `json:"span_count"`
+	DurationMs    float64         `json:"duration_ms"`
+	Waterfall     string          `json:"waterfall"`
+	Spans         []TraceSpanOut  `json:"spans"`
+	Issues        []TraceIssueOut `json:"issues"`
+	Logs          []TraceLogOut   `json:"logs"`
+	Lint          []LintOut       `json:"lint"`
+	LogsTruncated *bool           `json:"logs_truncated" jsonschema:"whether correlated logs were truncated; null means unknown"`
+	LogLimit      int             `json:"log_limit"`
+	Warnings      []string        `json:"warnings"`
 }
 
 func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetTraceInput) (*mcpsdk.CallToolResult, GetTraceOutput, error) {
@@ -206,7 +224,14 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 		maxLogs = 100
 	}
 
-	spans, err := h.store.WithContext(ctx).GetTrace(in.TraceID)
+	if maxLogs > 1000 {
+		maxLogs = 1000
+	}
+	sessionID := h.resolveSession(in.SessionID)
+	if sessionID == "" {
+		return nil, GetTraceOutput{}, fmt.Errorf("session_id is required when there is no active session")
+	}
+	spans, err := h.store.WithContext(ctx).GetTrace(in.TraceID, sessionID)
 	if err != nil {
 		return nil, GetTraceOutput{}, fmt.Errorf("get trace: %w", err)
 	}
@@ -215,14 +240,17 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 	}
 
 	out := GetTraceOutput{
-		TraceID:   in.TraceID,
-		SessionID: spans[0].SessionID,
-		SpanCount: len(spans),
-		Waterfall: renderWaterfall(in.TraceID, spans),
-		Spans:     []TraceSpanOut{},
-		Issues:    []TraceIssueOut{},
-		Logs:      []TraceLogOut{},
-		Lint:      []LintOut{},
+		ObservedAtNs: time.Now().UnixNano(),
+		TraceID:      in.TraceID,
+		SessionID:    spans[0].SessionID,
+		SpanCount:    len(spans),
+		Waterfall:    renderWaterfall(in.TraceID, spans),
+		Spans:        []TraceSpanOut{},
+		Issues:       []TraceIssueOut{},
+		Logs:         []TraceLogOut{},
+		Lint:         []LintOut{},
+		LogLimit:     maxLogs,
+		Warnings:     []string{},
 	}
 
 	var minStart, maxEnd int64 = spans[0].StartNs, spans[0].EndNs
@@ -249,7 +277,7 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 	out.DurationMs = nsToMs(maxEnd - minStart)
 
 	// Detected issues (best-effort; absence isn't fatal).
-	if issues, err := h.store.WithContext(ctx).GetTraceIssues(in.TraceID); err == nil {
+	if issues, err := h.store.WithContext(ctx).GetTraceIssues(in.TraceID, sessionID); err == nil {
 		for _, is := range issues {
 			out.Issues = append(out.Issues, TraceIssueOut{
 				Kind:          is.Kind,
@@ -259,10 +287,15 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 				ExampleSpanID: is.ExampleSpanID,
 			})
 		}
+	} else {
+		out.Warnings = append(out.Warnings, "Trace issues could not be retrieved.")
 	}
 
 	// Correlated logs.
-	if logs, err := h.store.WithContext(ctx).ListLogs(storage.LogFilter{TraceID: in.TraceID, Limit: maxLogs}); err == nil {
+	logFilter := storage.LogFilter{TraceID: in.TraceID, SessionID: sessionID, Limit: maxLogs}
+	if logs, err := h.store.WithContext(ctx).ListLogs(logFilter); err == nil {
+		truncated := false
+		out.LogsTruncated = &truncated
 		for _, l := range logs {
 			out.Logs = append(out.Logs, TraceLogOut{
 				TimestampNs: l.TimestampNs,
@@ -272,6 +305,17 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 				Service:     l.ServiceName,
 			})
 		}
+		if len(logs) == maxLogs {
+			total, err := h.store.WithContext(ctx).CountLogs(logFilter)
+			if err != nil {
+				out.Warnings = append(out.Warnings, "Log completeness could not be determined.")
+				out.LogsTruncated = nil
+			} else {
+				*out.LogsTruncated = total > len(logs)
+			}
+		}
+	} else {
+		out.Warnings = append(out.Warnings, "Correlated logs could not be retrieved.")
 	}
 
 	// Lint warnings for this trace (the store exposes them per-session; filter).
@@ -287,6 +331,8 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 				Message:  w.Message,
 			})
 		}
+	} else {
+		out.Warnings = append(out.Warnings, "Trace lint warnings could not be retrieved.")
 	}
 
 	// addTOONTool serializes the waterfall together with the precise span data,
@@ -297,7 +343,8 @@ func (h *handler) getTrace(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 // ---- get_span ----
 
 type GetSpanInput struct {
-	SpanID string `json:"span_id" jsonschema:"the span id to fetch"`
+	SessionID string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	SpanID    string `json:"span_id" jsonschema:"the span id to fetch"`
 }
 
 type SpanEventOut struct {
@@ -313,6 +360,9 @@ type SpanLinkOut struct {
 }
 
 type GetSpanOutput struct {
+	ObservedAtNs  int64             `json:"observed_at_ns" jsonschema:"evaluation time as decimal Unix nanoseconds"`
+	SessionID     string            `json:"session_id"`
+	Warnings      []string          `json:"warnings"`
 	SpanID        string            `json:"span_id"`
 	TraceID       string            `json:"trace_id"`
 	ParentSpanID  string            `json:"parent_span_id"`
@@ -333,7 +383,11 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 	if in.SpanID == "" {
 		return nil, GetSpanOutput{}, fmt.Errorf("span_id is required")
 	}
-	span, err := h.store.WithContext(ctx).GetSpan(in.SpanID)
+	sessionID := h.resolveSession(in.SessionID)
+	if sessionID == "" {
+		return nil, GetSpanOutput{}, fmt.Errorf("session_id is required when there is no active session")
+	}
+	span, err := h.store.WithContext(ctx).GetSpan(in.SpanID, sessionID)
 	if err != nil {
 		return nil, GetSpanOutput{}, fmt.Errorf("get span: %w", err)
 	}
@@ -342,6 +396,9 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 	}
 
 	out := GetSpanOutput{
+		ObservedAtNs:  time.Now().UnixNano(),
+		SessionID:     span.SessionID,
+		Warnings:      []string{},
 		SpanID:        span.SpanID,
 		TraceID:       span.TraceID,
 		ParentSpanID:  span.ParentSpanID,
@@ -358,7 +415,7 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 		Links:         []SpanLinkOut{},
 	}
 
-	if events, err := h.store.WithContext(ctx).ListEventsBySpan(span.SpanID); err == nil {
+	if events, err := h.store.WithContext(ctx).ListEventsBySpan(span.SpanID, span.SessionID, span.TraceID); err == nil {
 		for _, e := range events {
 			out.Events = append(out.Events, SpanEventOut{
 				TimeNs:     e.TimeNs,
@@ -366,8 +423,10 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 				Attributes: parseAttrs(e.Attributes),
 			})
 		}
+	} else {
+		out.Warnings = append(out.Warnings, "Span events could not be retrieved.")
 	}
-	if links, err := h.store.WithContext(ctx).ListLinksBySpan(span.SpanID); err == nil {
+	if links, err := h.store.WithContext(ctx).ListLinksBySpan(span.SpanID, span.SessionID, span.TraceID); err == nil {
 		for _, l := range links {
 			out.Links = append(out.Links, SpanLinkOut{
 				LinkedTraceID: l.LinkedTraceID,
@@ -375,6 +434,8 @@ func (h *handler) getSpan(ctx context.Context, _ *mcpsdk.CallToolRequest, in Get
 				Attributes:    parseAttrs(l.Attributes),
 			})
 		}
+	} else {
+		out.Warnings = append(out.Warnings, "Span links could not be retrieved.")
 	}
 	return nil, out, nil
 }
