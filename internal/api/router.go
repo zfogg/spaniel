@@ -828,7 +828,7 @@ func (r *Router) getIssues(w http.ResponseWriter, req *http.Request) {
 	sessionID := q.Get("sessionId")
 
 	if traceID != "" {
-		issues, err := r.store.WithContext(req.Context()).GetTraceIssues(traceID)
+		issues, err := r.store.WithContext(req.Context()).GetTraceIssues(traceID, sessionID)
 		if err != nil {
 			respondErr(w, req, 500, err.Error())
 			return

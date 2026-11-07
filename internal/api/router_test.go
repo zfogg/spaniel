@@ -452,3 +452,27 @@ func TestListAlertsPaginatesAndPromotesFiringRules(t *testing.T) {
 		t.Fatalf("unexpected rule summary: %#v", response.Data.Summary.RuleCounts)
 	}
 }
+
+func TestGetIssuesRespectsTraceAndSessionScope(t *testing.T) {
+	handler, store := setupRouter(t)
+	for _, session := range []string{"one", "two"} {
+		if err := store.UpsertTraceIssue(&storage.TraceIssue{ID: "issue-" + session, TraceID: "shared", SessionID: session, Kind: session, Fingerprint: session}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/issues?traceId=shared&sessionId=two", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", res.Code, res.Body.String())
+	}
+	var out struct {
+		Data []storage.TraceIssue `json:"data"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Data) != 1 || out.Data[0].SessionID != "two" {
+		t.Fatalf("issues: %#v", out.Data)
+	}
+}

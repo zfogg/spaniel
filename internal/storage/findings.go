@@ -120,9 +120,12 @@ func (d *DB) UpsertTraceIssue(issue *TraceIssue) error {
 	})
 }
 
-func (d *DB) GetTraceIssues(traceID string) ([]*TraceIssue, error) {
-	result, err := d.query.TraceIssue.Where(d.query.TraceIssue.TraceID.Eq(traceID)).
-		Order(d.query.TraceIssue.WastedNs.Desc()).Find()
+func (d *DB) GetTraceIssues(traceID string, scope ...string) ([]*TraceIssue, error) {
+	q := d.query.TraceIssue.Where(d.query.TraceIssue.TraceID.Eq(traceID))
+	if session := optionalScope(scope, 0); session != "" {
+		q = q.Where(d.query.TraceIssue.SessionID.Eq(session))
+	}
+	result, err := q.Order(d.query.TraceIssue.WastedNs.Desc()).Find()
 	if err != nil {
 		return nil, err
 	}

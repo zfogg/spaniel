@@ -134,10 +134,11 @@ import_* accepts the portable YAML document. Exported dashboard and alert YAML
 includes a stable id: keep it to update that object, or remove it to create a
 copy. Mutating tools are absent unless the server enables MCP writes.
 
-Structured tools return both compact TOON text and typed structured content; YAML exports return text. Dynamic resources use
+Structured tools return both compact TOON text and typed structured content; integers outside the JavaScript safe range are decimal strings so timestamps and revisions retain precision. YAML exports return text. Dynamic resources use
 spaniel://dashboards/{dashboard_id}, spaniel://alerts/{alert_id},
-spaniel://spans/{span_id}, spaniel://traces/{trace_id}, and scoped log/metric
-templates so a client can attach a specific live object as model context.
+spaniel://spans/{session_id}/{span_id}, spaniel://traces/{session_id}/{trace_id},
+and scoped log/metric templates. One-ID span and trace resources use the active
+session. Explicit session IDs preserve scope across drill-downs. Clients can attach these live objects as model context.
 
 ## Dashboard and alert SQL parameters
 - $session_id is a built-in SQL parameter bound to the active session. It is reserved and cannot be declared as a dashboard variable.

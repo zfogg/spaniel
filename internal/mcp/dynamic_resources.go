@@ -20,7 +20,9 @@ func (h *handler) registerDynamicResources(s *mcpsdk.Server) {
 		{"spaniel://dashboards/{dashboard_id}", "spaniel-dashboard", "Spaniel dashboard", "A saved dashboard with panels and variables, encoded as TOON."},
 		{"spaniel://alerts/{alert_id}", "spaniel-alert", "Spaniel alert", "An alert definition and current instances, encoded as TOON."},
 		{"spaniel://spans/{span_id}", "spaniel-span", "Spaniel span", "A stored OpenTelemetry span, encoded as TOON."},
-		{"spaniel://traces/{trace_id}", "spaniel-trace", "Spaniel trace", "All spans in a stored trace, encoded as TOON."},
+		{"spaniel://traces/{trace_id}", "spaniel-trace", "Spaniel trace", "Spans in the active session's trace, encoded as TOON."},
+		{"spaniel://traces/{session_id}/{trace_id}", "spaniel-scoped-trace", "Spaniel session trace", "Spans in a trace scoped to an explicit session."},
+		{"spaniel://spans/{session_id}/{span_id}", "spaniel-scoped-span", "Spaniel session span", "A span scoped to an explicit session."},
 		{"spaniel://logs/{session_id}/{timestamp_ns}", "spaniel-log-records", "Spaniel log records", "Log records at one timestamp in a session, encoded as TOON."},
 		{"spaniel://metrics/{session_id}/{service}/{name}", "spaniel-metric-series", "Spaniel metric series", "Up to the most recent 1000 points for a metric stream, encoded as TOON."},
 	}
@@ -54,16 +56,33 @@ func (h *handler) readDynamicResource(ctx context.Context, req *mcpsdk.ReadResou
 			return nil, mcpsdk.ResourceNotFoundError(raw)
 		}
 		value, err = h.store.WithContext(ctx).GetAlertRule(parts[0])
-	case "spans":
-		if len(parts) != 1 {
+	case "spans", "traces":
+		sessionID, id := h.store.ActiveSessionID(), ""
+		if len(parts) == 1 {
+			id = parts[0]
+		} else if len(parts) == 2 {
+			sessionID, id = parts[0], parts[1]
+		} else {
 			return nil, mcpsdk.ResourceNotFoundError(raw)
 		}
-		value, err = h.store.WithContext(ctx).GetSpan(parts[0])
-	case "traces":
-		if len(parts) != 1 {
+		if sessionID == "" {
 			return nil, mcpsdk.ResourceNotFoundError(raw)
 		}
-		value, err = h.store.WithContext(ctx).GetTrace(parts[0])
+		if u.Host == "spans" {
+			var span *storage.Span
+			span, err = h.store.WithContext(ctx).GetSpan(id, sessionID)
+			if span == nil {
+				return nil, mcpsdk.ResourceNotFoundError(raw)
+			}
+			value = span
+		} else {
+			var spans []*storage.Span
+			spans, err = h.store.WithContext(ctx).GetTrace(id, sessionID)
+			if len(spans) == 0 {
+				return nil, mcpsdk.ResourceNotFoundError(raw)
+			}
+			value = spans
+		}
 	case "logs":
 		if len(parts) != 2 {
 			return nil, mcpsdk.ResourceNotFoundError(raw)
