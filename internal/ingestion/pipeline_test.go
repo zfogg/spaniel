@@ -133,22 +133,23 @@ func TestPipelineIngestTraces_LintWarningsCreated(t *testing.T) {
 		t.Fatalf("IngestTraces: %v", err)
 	}
 
-	// lintSpan runs in a goroutine — poll briefly.
-	var warnings []*storage.LintWarning
+	// Rules are persisted independently by a goroutine, so other warnings can
+	// appear before both of the specific rules this test expects.
+	ruleIDs := map[string]bool{}
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		warnings, _ = db.ListLintWarnings(sess.ID)
-		if len(warnings) >= 2 {
+		warnings, err := db.ListLintWarnings(sess.ID)
+		if err != nil {
+			t.Fatalf("ListLintWarnings: %v", err)
+		}
+		clear(ruleIDs)
+		for _, w := range warnings {
+			ruleIDs[w.RuleID] = true
+		}
+		if ruleIDs["http.missing_method"] && ruleIDs["http.missing_status_code"] {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
-	}
-	if len(warnings) < 2 {
-		t.Fatalf("expected lint warnings to be created async, got %d", len(warnings))
-	}
-	ruleIDs := map[string]bool{}
-	for _, w := range warnings {
-		ruleIDs[w.RuleID] = true
 	}
 	if !ruleIDs["http.missing_method"] || !ruleIDs["http.missing_status_code"] {
 		t.Errorf("expected http.missing_method and http.missing_status_code, got %v", ruleIDs)
