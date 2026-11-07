@@ -134,7 +134,7 @@ import_* accepts the portable YAML document. Exported dashboard and alert YAML
 includes a stable id: keep it to update that object, or remove it to create a
 copy. Mutating tools are absent unless the server enables MCP writes.
 
-Structured tools return both compact TOON text and typed structured content; integers outside the JavaScript safe range are decimal strings so timestamps and revisions retain precision. YAML exports return text. Dynamic resources use
+Structured tools return both compact TOON text and typed structured content; integers outside the JavaScript safe range are decimal strings so timestamps and revisions retain precision. Execution errors carry a code, message, and nullable retryable flag in structured content; validate input errors may use the MCP protocol response instead. A transient error does not by itself make a mutation safe to retry. YAML exports return text. Dynamic resources use
 spaniel://dashboards/{dashboard_id}, spaniel://alerts/{alert_id},
 spaniel://spans/{session_id}/{span_id}, spaniel://traces/{session_id}/{trace_id},
 and scoped log/metric templates. One-ID span and trace resources use the active

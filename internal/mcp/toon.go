@@ -18,6 +18,7 @@ import (
 
 	"github.com/zfogg/spaniel/internal/errtext"
 	"github.com/zfogg/spaniel/internal/sqlformat"
+	"github.com/zfogg/spaniel/internal/storage"
 )
 
 var registeredToolNames sync.Map
@@ -49,7 +50,20 @@ func addTOONTool[In, Out any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler mcpsd
 		var zero any
 		result, out, err := handler(ctx, req, in)
 		if err != nil {
-			return result, zero, errors.New(errtext.Message(err.Error()))
+			message := errtext.Message(err.Error())
+			code := "tool_error"
+			var retryable *bool
+			switch {
+			case errors.Is(err, context.DeadlineExceeded):
+				code = "deadline_exceeded"
+				transient := true
+				retryable = &transient
+			case errors.Is(err, context.Canceled):
+				code = "cancelled"
+			case errors.Is(err, storage.ErrStorageFull):
+				code = "storage_full"
+			}
+			return &mcpsdk.CallToolResult{IsError: true, Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: message}}, StructuredContent: map[string]any{"code": code, "message": message, "retryable": retryable}}, zero, nil
 		}
 		data, err := toongo.Marshal(sqlformat.Presentation(out))
 		if err != nil {

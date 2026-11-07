@@ -278,3 +278,14 @@ func TestServerInfoAdvertisesAgentCapabilities(t *testing.T) {
 		t.Fatalf("stale policy: %#v", second.Capabilities)
 	}
 }
+func TestMCPToolExecutionErrorHasMachineReadableCode(t *testing.T) {
+	cs, _ := connect(t, Options{})
+	result, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "get_trace", Arguments: map[string]any{"trace_id": "missing"}})
+	if err != nil || !result.IsError {
+		t.Fatalf("expected tool error: %#v %v", result, err)
+	}
+	fields, ok := result.StructuredContent.(map[string]any)
+	if !ok || fields["code"] != "tool_error" || fields["retryable"] != nil || fields["message"] == "" {
+		t.Fatalf("missing machine-readable error: %#v", result.StructuredContent)
+	}
+}
