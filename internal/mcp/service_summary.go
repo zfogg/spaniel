@@ -35,29 +35,34 @@ type ServiceFindingOut struct {
 	ExampleTraceID string  `json:"example_trace_id"`
 }
 type ServiceSummaryOutput struct {
-	SessionID        string                     `json:"session_id"`
-	Service          string                     `json:"service"`
-	FromNs           string                     `json:"from_ns"`
-	ToNs             string                     `json:"to_ns"`
-	ObservedAtNs     string                     `json:"observed_at_ns"`
-	SpanCount        int64                      `json:"span_count"`
-	TraceCount       int64                      `json:"trace_count"`
-	ErrorSpanCount   int64                      `json:"error_span_count"`
-	SpanErrorRate    float64                    `json:"span_error_rate"`
-	P50Ms            float64                    `json:"p50_ms"`
-	P95Ms            float64                    `json:"p95_ms"`
-	P99Ms            float64                    `json:"p99_ms"`
-	LastSpanNs       string                     `json:"last_span_ns"`
-	LogCount         int64                      `json:"log_count"`
-	ErrorLogCount    int64                      `json:"error_log_count"`
-	LastLogNs        string                     `json:"last_log_ns"`
-	MetricPointCount int64                      `json:"metric_point_count"`
-	LastMetricNs     string                     `json:"last_metric_ns"`
-	Operations       []ServiceOperationOut      `json:"operations"`
-	Findings         []ServiceFindingOut        `json:"findings"`
-	Dependencies     []ServiceEdgeOut           `json:"dependencies"`
-	SessionCoverage  []coverage.ServiceCoverage `json:"session_coverage"`
-	Notes            []string                   `json:"notes"`
+	SessionID             string                     `json:"session_id"`
+	EvidenceStatus        string                     `json:"evidence_status" jsonschema:"available or no_data"`
+	Warnings              []string                   `json:"warnings"`
+	OperationsTruncated   bool                       `json:"operations_truncated"`
+	FindingsTruncated     bool                       `json:"findings_truncated"`
+	DependenciesTruncated bool                       `json:"dependencies_truncated"`
+	Service               string                     `json:"service"`
+	FromNs                string                     `json:"from_ns"`
+	ToNs                  string                     `json:"to_ns"`
+	ObservedAtNs          string                     `json:"observed_at_ns"`
+	SpanCount             int64                      `json:"span_count"`
+	TraceCount            int64                      `json:"trace_count"`
+	ErrorSpanCount        int64                      `json:"error_span_count"`
+	SpanErrorRate         float64                    `json:"span_error_rate"`
+	P50Ms                 float64                    `json:"p50_ms"`
+	P95Ms                 float64                    `json:"p95_ms"`
+	P99Ms                 float64                    `json:"p99_ms"`
+	LastSpanNs            string                     `json:"last_span_ns"`
+	LogCount              int64                      `json:"log_count"`
+	ErrorLogCount         int64                      `json:"error_log_count"`
+	LastLogNs             string                     `json:"last_log_ns"`
+	MetricPointCount      int64                      `json:"metric_point_count"`
+	LastMetricNs          string                     `json:"last_metric_ns"`
+	Operations            []ServiceOperationOut      `json:"operations"`
+	Findings              []ServiceFindingOut        `json:"findings"`
+	Dependencies          []ServiceEdgeOut           `json:"dependencies"`
+	SessionCoverage       []coverage.ServiceCoverage `json:"session_coverage"`
+	Notes                 []string                   `json:"notes"`
 }
 
 func (h *handler) getServiceSummary(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetServiceSummaryInput) (*mcpsdk.CallToolResult, ServiceSummaryOutput, error) {
@@ -78,12 +83,22 @@ func (h *handler) getServiceSummary(ctx context.Context, _ *mcpsdk.CallToolReque
 	}
 	sessionID := h.resolveSession(in.SessionID)
 	db := h.store.WithContext(ctx)
-	data, err := db.GetServiceSummary(sessionID, in.Service, from, to, limit)
+	data, err := db.GetServiceSummary(sessionID, in.Service, from, to, limit+1)
 	if err != nil {
 		return nil, out, err
 	}
 	overview := data.Overview
 	out = ServiceSummaryOutput{SessionID: sessionID, Service: in.Service, FromNs: strconv.FormatInt(from, 10), ToNs: strconv.FormatInt(to, 10), ObservedAtNs: strconv.FormatInt(time.Now().UnixNano(), 10), SpanCount: overview.SpanCount, TraceCount: overview.TraceCount, ErrorSpanCount: overview.ErrorCount, P50Ms: nsToMs(overview.P50Ns), P95Ms: nsToMs(overview.P95Ns), P99Ms: nsToMs(overview.P99Ns), LastSpanNs: strconv.FormatInt(overview.LastSpanNs, 10), LastLogNs: "0", LastMetricNs: "0", Operations: []ServiceOperationOut{}, Findings: []ServiceFindingOut{}, Dependencies: []ServiceEdgeOut{}, SessionCoverage: []coverage.ServiceCoverage{}, Notes: []string{"Latency percentiles and error rate describe all service spans, not request throughput. Findings belong to their parent/example span (detectors) or offending span (lint). Coverage covers the entire session, independent of the time window. Operation and finding lists are bounded by limit; counts cover all matching data."}}
+	out.EvidenceStatus = "available"
+	out.Warnings = []string{}
+	if len(data.Operations) > limit {
+		out.OperationsTruncated = true
+		data.Operations = data.Operations[:limit]
+	}
+	if len(data.Findings) > limit {
+		out.FindingsTruncated = true
+		data.Findings = data.Findings[:limit]
+	}
 	if overview.SpanCount > 0 {
 		out.SpanErrorRate = float64(overview.ErrorCount) / float64(overview.SpanCount)
 	}
@@ -99,6 +114,12 @@ func (h *handler) getServiceSummary(ctx context.Context, _ *mcpsdk.CallToolReque
 		} else {
 			out.MetricPointCount, out.LastMetricNs = s.Count, strconv.FormatInt(s.LastNs, 10)
 		}
+	}
+	if out.SpanCount == 0 && out.LogCount == 0 && out.MetricPointCount == 0 {
+		out.EvidenceStatus = "no_data"
+		out.Warnings = append(out.Warnings, "No matching telemetry was observed; zero counts do not establish service health.")
+	} else if out.SpanCount == 0 {
+		out.Warnings = append(out.Warnings, "No spans matched; latency and span error rate have no supporting samples.")
 	}
 	graph, err := db.GetServiceMapInWindow(sessionID, from, to)
 	if err != nil {
@@ -120,6 +141,7 @@ func (h *handler) getServiceSummary(ctx context.Context, _ *mcpsdk.CallToolReque
 		return a.To < b.To
 	})
 	if len(out.Dependencies) > limit {
+		out.DependenciesTruncated = true
 		out.Dependencies = out.Dependencies[:limit]
 		out.Notes = append(out.Notes, "Dependency list truncated to limit; get_service_map returns the complete graph.")
 	}

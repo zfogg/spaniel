@@ -111,7 +111,17 @@ func TestServiceSummaryScopes(t *testing.T) {
 	if out.SpanCount != 1 || out.TraceCount != 1 || out.ErrorSpanCount != 1 || out.SpanErrorRate != 1 || out.P95Ms != 300 || out.LogCount != 0 || len(out.Findings) != 2 || len(out.Dependencies) != 1 {
 		t.Fatalf("summary: %+v", out)
 	}
+	limited := callAgentTool[ServiceSummaryOutput](t, cs, "get_service_summary", map[string]any{"service": "postgres", "limit": 1})
+	if !limited.FindingsTruncated || len(limited.Findings) != 1 {
+		t.Fatalf("findings truncation: %#v", limited)
+	}
 	empty := callAgentTool[ServiceSummaryOutput](t, cs, "get_service_summary", map[string]any{"service": "absent"})
+	if empty.EvidenceStatus != "no_data" || len(empty.Warnings) == 0 {
+		t.Fatalf("missing empty evidence warning: %#v", empty)
+	}
+	if out.EvidenceStatus != "available" {
+		t.Fatalf("missing evidence status: %#v", out)
+	}
 	if empty.SpanCount != 0 || empty.P95Ms != 0 || len(empty.Findings) != 0 {
 		t.Fatalf("empty: %+v", empty)
 	}
