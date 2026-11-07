@@ -17,6 +17,7 @@ func (h *handler) registerIngestionTools(s *mcpsdk.Server) {
 type IngestionHealthOutput struct {
 	Healthy             bool                  `json:"healthy"`
 	StorageFull         bool                  `json:"storage_full"`
+	MaxDBSizeBytes      int64                 `json:"max_db_size_bytes" jsonschema:"telemetry database limit in bytes; zero means unlimited"`
 	DBSizeBytes         int64                 `json:"db_size_bytes"`
 	Throughput          storage.Throughput    `json:"throughput"`
 	Sources             []storage.SourceStats `json:"sources"`
@@ -32,7 +33,7 @@ func (h *handler) getIngestionHealth(ctx context.Context, _ *mcpsdk.CallToolRequ
 	if err != nil {
 		return nil, IngestionHealthOutput{}, fmt.Errorf("get storage stats: %w", err)
 	}
-	out := IngestionHealthOutput{Healthy: !stats.StorageFull, StorageFull: stats.StorageFull, DBSizeBytes: stats.DBSize, Throughput: stats.Throughput, Sources: []storage.SourceStats{}, DroppedSpans: stats.DroppedSpans, DroppedLogs: stats.DroppedLogs, DroppedMetricPoints: stats.DroppedMetricPoints, LastDropAt: stats.LastDropAt, Forwarders: []forwarder.Status{}}
+	out := IngestionHealthOutput{Healthy: !stats.StorageFull, StorageFull: stats.StorageFull, DBSizeBytes: stats.DBSize, MaxDBSizeBytes: h.maxDBSizeBytes(), Throughput: stats.Throughput, Sources: []storage.SourceStats{}, DroppedSpans: stats.DroppedSpans, DroppedLogs: stats.DroppedLogs, DroppedMetricPoints: stats.DroppedMetricPoints, LastDropAt: stats.LastDropAt, Forwarders: []forwarder.Status{}}
 	if h.opts.Throughput != nil {
 		out.Throughput = h.opts.Throughput.Throughput()
 	}

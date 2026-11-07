@@ -173,6 +173,7 @@ type StatsOutput struct {
 	TraceCount          int    `json:"trace_count"`
 	LogCount            int    `json:"log_count"`
 	SessionCount        int    `json:"session_count"`
+	MaxDBSizeBytes      int64  `json:"max_db_size_bytes" jsonschema:"telemetry database limit in bytes; zero means unlimited"`
 	DBSizeBytes         int64  `json:"db_size_bytes"`
 	DroppedSpans        int64  `json:"dropped_spans"`
 	DroppedLogs         int64  `json:"dropped_logs"`
@@ -192,6 +193,7 @@ func (h *handler) getStats(ctx context.Context, _ *mcpsdk.CallToolRequest, in Ge
 		LogCount:            stats.LogCount,
 		SessionCount:        stats.SessionCount,
 		DBSizeBytes:         stats.DBSize,
+		MaxDBSizeBytes:      h.maxDBSizeBytes(),
 		DroppedSpans:        stats.DroppedSpans,
 		DroppedLogs:         stats.DroppedLogs,
 		DroppedMetricPoints: stats.DroppedMetricPoints,

@@ -166,3 +166,20 @@ func TestDNSRebindingProtectionDisabled(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 }
+
+func TestDatabaseSizeLimitFollowsLivePolicy(t *testing.T) {
+	limit := int64(123 << 20)
+	cs, _ := connect(t, Options{MaxDBSizeBytes: func() int64 { return limit }})
+	for _, want := range []int64{123 << 20, 0, 456 << 20} {
+		limit = want
+		if got := callStructured[IngestionHealthOutput](t, cs, "get_ingestion_health", nil).MaxDBSizeBytes; got != want {
+			t.Fatalf("ingestion limit = %d, want %d", got, want)
+		}
+		if got := callStructured[ServerInfo](t, cs, "get_server_info", nil).MaxDBSizeBytes; got != want {
+			t.Fatalf("server limit = %d, want %d", got, want)
+		}
+		if got := callStructured[StatsOutput](t, cs, "get_stats", nil).MaxDBSizeBytes; got != want {
+			t.Fatalf("stats limit = %d, want %d", got, want)
+		}
+	}
+}

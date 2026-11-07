@@ -23,6 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Describe source
+        id: source
+        run: echo "describe=$(git describe --tags --dirty)" >> "$GITHUB_OUTPUT"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -53,7 +58,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ steps.source.outputs.describe }}
+            GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -94,6 +100,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -113,7 +121,9 @@ jobs:
       - name: Resolve version
         id: ver
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "describe=$(git describe --tags --dirty)" >> "$GITHUB_OUTPUT"
 
       - name: Build
         shell: bash
@@ -126,7 +136,7 @@ jobs:
         run: |
           mkdir -p dist
           go build -trimpath \
-            -ldflags "-s -w -X main.version=${{ steps.ver.outputs.version }}" \
+            -ldflags "-s -w -X main.version=${{ steps.ver.outputs.describe }} -X main.gitSHA=${{ github.sha }}" \
             -o "dist/spaniel${{ matrix.ext }}" ./cmd/spaniel
 
       - name: Archive (tar.gz)
@@ -180,7 +190,8 @@ jobs:
 
       - name: Resolve version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
         env:

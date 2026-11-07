@@ -20,7 +20,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,10 +50,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-// version is overridden at release-build time via -ldflags "-X main.version=...".
-// The Makefile sets it from `git describe --tags`. When unset (e.g. `go run`),
-// init() falls back to the VCS metadata Go embeds in the binary.
-var version = "dev"
+// Build metadata is supplied by the build system.
+var version = "unknown"
+var gitSHA = "unknown"
 
 // spaHandler serves a React SPA with client-side routing.
 // Falls back to index.html for any request that doesn't match a static asset.
@@ -99,40 +97,6 @@ func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(indexData)
-}
-
-func init() {
-	if version != "dev" {
-		return // pinned by ldflags (release build)
-	}
-	bi, ok := debug.ReadBuildInfo()
-	if !ok {
-		return
-	}
-	// `go install module@vX.Y.Z` records the tag here; local builds get "(devel)".
-	if bi.Main.Version != "" && bi.Main.Version != "(devel)" {
-		version = bi.Main.Version
-		return
-	}
-	// Fall back to the embedded commit hash + dirty flag.
-	var rev, modified string
-	for _, s := range bi.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			rev = s.Value
-		case "vcs.modified":
-			modified = s.Value
-		}
-	}
-	if rev != "" {
-		if len(rev) > 12 {
-			rev = rev[:12]
-		}
-		if modified == "true" {
-			rev += "-dirty"
-		}
-		version = rev
-	}
 }
 
 func main() {
@@ -215,6 +179,10 @@ func main() {
 			return run(cfg)
 		},
 	}
+
+	root.AddCommand(&cobra.Command{Use: "version", Short: "Print build version", Run: func(cmd *cobra.Command, _ []string) {
+		fmt.Fprintf(cmd.OutOrStdout(), "version: %s\ngit_sha: %s\n", version, gitSHA)
+	}})
 
 	root.PersistentFlags().StringVar(&dbPath, "db-path", "", "Path to DuckDB file")
 	root.Flags().StringVar(&dashboardsDir, "dashboards-dir", "", "Directory of dashboard YAML files (default ~/.spaniel/dashboards)")
@@ -934,6 +902,7 @@ func run(cfg runConfig) error {
 		mcpHandler = mcp.NewHandler(store, mcp.Options{
 			Security:       securitySvc,
 			Version:        version,
+			GitSHA:         gitSHA,
 			AllowWrites:    cfg.MCPAllowWrites,
 			AllowSQLWrites: cfg.MCPAllowWritesSQL,
 			PublicURL:      cfg.PublicURL,
@@ -943,6 +912,7 @@ func run(cfg runConfig) error {
 			Throughput:     pipeline,
 			Drops:          pipeline.DropCounters(),
 			Sources:        pipeline,
+			MaxDBSizeBytes: storagePolicy.maxBytes.Load,
 		})
 	}
 	// Include the effective CLI token in settings persistence as well.
@@ -982,6 +952,7 @@ func run(cfg runConfig) error {
 		},
 		SetLiveGRPCPort: startGRPC,
 		SetLiveHTTPPort: startOTLPHTTP,
+		MaxDBSizeBytes:  storagePolicy.maxBytes.Load,
 		SetStoragePolicy: func(maxDBSizeMB int, autoPrune bool) {
 			storagePolicy.Update(int64(maxDBSizeMB)*1024*1024, autoPrune)
 			telemetry.Catalog().SetStorageDBSizeLimit(int64(maxDBSizeMB) * 1024 * 1024)

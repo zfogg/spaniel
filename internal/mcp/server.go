@@ -34,6 +34,7 @@ type Options struct {
 	// Version is the spaniel build version, reported in the MCP handshake and by
 	// get_server_info.
 	Version string
+	GitSHA  string
 	// PublicURL overrides the request origin when advertising HTTP links.
 	PublicURL string
 	// AllowWrites gates registration of the mutating tools (create/activate
@@ -51,6 +52,8 @@ type Options struct {
 	Throughput ThroughputProvider
 	Drops      DropCounterProvider
 	Sources    SourcesProvider
+	// MaxDBSizeBytes returns the current telemetry database limit; zero means unlimited.
+	MaxDBSizeBytes func() int64
 }
 
 type ThroughputProvider interface{ Throughput() storage.Throughput }
@@ -202,7 +205,8 @@ type emptyInput struct{}
 
 // ServerInfo is the output of get_server_info.
 type ServerInfo struct {
-	Version            string `json:"version" jsonschema:"spaniel build version"`
+	Version            string `json:"version" jsonschema:"git describe --tags --dirty at build time"`
+	GitSHA             string `json:"git_sha" jsonschema:"git commit SHA at build time"`
 	OpenAPIURL         string `json:"openapi_url" jsonschema:"absolute URL of the OpenAPI JSON specification"`
 	ActiveSessionID    string `json:"active_session_id" jsonschema:"id of the session new telemetry is written to"`
 	ActiveSessionLabel string `json:"active_session_label" jsonschema:"human-readable label of the active session"`
@@ -213,6 +217,7 @@ type ServerInfo struct {
 	LogCount           int    `json:"log_count"`
 	SessionCount       int    `json:"session_count"`
 	DBSizeBytes        int64  `json:"db_size_bytes"`
+	MaxDBSizeBytes     int64  `json:"max_db_size_bytes" jsonschema:"telemetry database limit in bytes; zero means unlimited"`
 }
 
 func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, _ emptyInput) (*mcpsdk.CallToolResult, ServerInfo, error) {
@@ -226,6 +231,7 @@ func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	}
 	info := ServerInfo{
 		Version:            h.opts.Version,
+		GitSHA:             h.opts.GitSHA,
 		OpenAPIURL:         strings.TrimRight(publicURL, "/") + "/api/openapi.json",
 		ActiveSessionID:    h.store.ActiveSessionID(),
 		ActiveSessionLabel: h.store.ActiveSessionLabel(),
@@ -236,6 +242,14 @@ func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		LogCount:           stats.LogCount,
 		SessionCount:       stats.SessionCount,
 		DBSizeBytes:        stats.DBSize,
+		MaxDBSizeBytes:     h.maxDBSizeBytes(),
 	}
 	return nil, info, nil
+}
+
+func (h *handler) maxDBSizeBytes() int64 {
+	if h.opts.MaxDBSizeBytes == nil {
+		return 0
+	}
+	return h.opts.MaxDBSizeBytes()
 }

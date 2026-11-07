@@ -3508,6 +3508,10 @@ components:
                 logs_per_sec:
                     format: double
                     type: number
+                max_db_size_bytes:
+                    description: Telemetry database size limit in bytes; zero means unlimited.
+                    format: int64
+                    type: integer
                 metrics_per_sec:
                     format: double
                     type: number
@@ -3531,6 +3535,7 @@ components:
                 - trace_count
                 - log_count
                 - db_size
+                - max_db_size_bytes
                 - spans_per_sec
                 - logs_per_sec
                 - metrics_per_sec

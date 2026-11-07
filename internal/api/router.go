@@ -797,6 +797,9 @@ func (r *Router) getStats(w http.ResponseWriter, req *http.Request) {
 		respondErr(w, req, 500, err.Error())
 		return
 	}
+	if r.settings != nil && r.settings.MaxDBSizeBytes != nil {
+		stats.MaxDBSizeBytes = r.settings.MaxDBSizeBytes()
+	}
 	if r.tp != nil {
 		stats.Throughput = r.tp.Throughput()
 	}

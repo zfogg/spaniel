@@ -25,3 +25,8 @@ Dockerfile
 .dockerignore
 README.md
 LICENSE
+
+/.pnpm-store/
+/.tmp-yaml-ui/
+/.codex/
+/.agents/

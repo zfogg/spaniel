@@ -4629,6 +4629,11 @@
             "type": "number",
             "format": "double"
           },
+          "max_db_size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Telemetry database size limit in bytes; zero means unlimited."
+          },
           "dropped_logs": {
             "type": "number",
             "format": "double"
@@ -4683,6 +4688,7 @@
           "trace_count",
           "log_count",
           "db_size",
+          "max_db_size_bytes",
           "spans_per_sec",
           "logs_per_sec",
           "metrics_per_sec",

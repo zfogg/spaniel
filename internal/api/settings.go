@@ -59,6 +59,7 @@ type SettingsService struct {
 	// SetStoragePolicy hot-applies the database size cap and auto-prune mode.
 	// nil = settings are persisted but take effect on the next restart.
 	SetStoragePolicy func(maxDBSizeMB int, autoPrune bool)
+	MaxDBSizeBytes   func() int64
 
 	// SetMCPAllowWrites rebuilds the MCP server with or without mutating tools.
 	// nil = settings are persisted but take effect on the next restart.

@@ -2803,6 +2803,11 @@ export interface components {
     Stats: {
       /** Format: double */
       db_size: number
+      /**
+       * Format: int64
+       * @description Telemetry database size limit in bytes; zero means unlimited.
+       */
+      max_db_size_bytes: number
       /** Format: double */
       dropped_logs: number
       /** Format: double */

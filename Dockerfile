@@ -28,8 +28,9 @@ COPY . .
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 
 ENV CGO_ENABLED=1 GOOS=linux
-ARG VERSION=dev
-RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+ARG VERSION=unknown
+ARG GIT_SHA=unknown
+RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.gitSHA=${GIT_SHA}" \
     -o /out/spaniel ./cmd/spaniel
 
 # ── Stage 3: minimal runtime ─────────────────────────────────────────────────

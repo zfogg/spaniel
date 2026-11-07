@@ -66,7 +66,7 @@ build:
 
 build-server:
 	mkdir -p $(BIN_DIR)
-	go build -ldflags "-X main.version=$$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o $(BIN) ./cmd/spaniel
+	go build -ldflags "-X main.version=$$(git describe --tags --dirty 2>/dev/null || echo unknown) -X main.gitSHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown)" -o $(BIN) ./cmd/spaniel
 
 .PHONY: build-assert test-assert
 build-assert:

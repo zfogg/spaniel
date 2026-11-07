@@ -21,6 +21,7 @@ type Stats struct {
 	TraceCount          int   `json:"trace_count"`
 	LogCount            int   `json:"log_count"`
 	DBSize              int64 `json:"db_size"`
+	MaxDBSizeBytes      int64 `json:"max_db_size_bytes"`
 	SessionCount        int   `json:"session_count"`
 	OldestSessionAt     int64 `json:"oldest_session_at"`
 	DroppedSpans        int64 `json:"dropped_spans"`
