@@ -275,7 +275,7 @@ type AlertInstanceDiscoveryDefinition struct {
 
 type AlertDefinition struct {
 	Name              string                            `json:"name"`
-	Query             string                            `json:"query"`
+	Query             string                            `json:"query" jsonschema:"read-only SQL; see server instructions and spaniel://guide for shared parameter bindings"`
 	Condition         AlertConditionDefinition          `json:"condition"`
 	GroupBy           []string                          `json:"group_by,omitempty"`
 	PendingFor        string                            `json:"pending_for"`

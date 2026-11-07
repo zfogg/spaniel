@@ -178,7 +178,7 @@ type DashboardVariableDefinition struct {
 type DashboardPanelDefinition struct {
 	Title       string         `json:"title"`
 	DisplayType string         `json:"display_type"`
-	Query       string         `json:"query"`
+	Query       string         `json:"query" jsonschema:"read-only SQL; see server instructions and spaniel://guide for shared parameter bindings"`
 	Settings    map[string]any `json:"settings,omitempty"`
 	Layout      map[string]any `json:"layout,omitempty"`
 	Position    int            `json:"position"`

@@ -139,7 +139,7 @@ func buildHandler(store *storage.DB, opts Options) http.Handler {
 		Version:    opts.Version,
 		WebsiteURL: "https://github.com/zfogg/spaniel",
 	}
-	server := mcpsdk.NewServer(impl, nil)
+	server := mcpsdk.NewServer(impl, &mcpsdk.ServerOptions{Instructions: agentInstructions})
 
 	// One receiving middleware instruments every MCP method (and names tool
 	// calls by tool) so MCP usage shows up as spans in Spaniel itself.

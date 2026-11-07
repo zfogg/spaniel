@@ -107,6 +107,8 @@ func (h *handler) readSchemaResource(ctx context.Context, _ *mcpsdk.ReadResource
 	}, nil
 }
 
+const agentInstructions = `Spaniel dashboard and alert SQL supports $session_id, bound to the active telemetry session. Dashboard SQL can also bind declared dashboard variables by name (for example $service); pass overrides as values, never interpolate SQL. Read spaniel://guide for workflows, query contracts, and write semantics.`
+
 const spanielGuide = `# Using Spaniel via MCP
 
 Spaniel stores local OpenTelemetry data in DuckDB and exposes it through these tools.
@@ -132,10 +134,16 @@ import_* accepts the portable YAML document. Exported dashboard and alert YAML
 includes a stable id: keep it to update that object, or remove it to create a
 copy. Mutating tools are absent unless the server enables MCP writes.
 
-Tool results are TOON text except the two YAML exports. Dynamic resources use
+Structured tools return both compact TOON text and typed structured content; YAML exports return text. Dynamic resources use
 spaniel://dashboards/{dashboard_id}, spaniel://alerts/{alert_id},
 spaniel://spans/{span_id}, spaniel://traces/{trace_id}, and scoped log/metric
 templates so a client can attach a specific live object as model context.
+
+## Dashboard and alert SQL parameters
+- $session_id is a built-in SQL parameter bound to the active session. It is reserved and cannot be declared as a dashboard variable.
+- Dashboard variables are declared in the dashboard definition and bound as $name; run_dashboard_panel accepts validated overrides. Values are bound parameters, not SQL fragments.
+- Alert SQL supports $session_id; dashboard variables are not alert parameters. query_sql does not automatically bind these parameters.
+- Read a complete definition with get_dashboard or get_alert before editing. apply_dashboard and apply_alert replace the full definition: preserve fields you want to keep and pass expected_updated_at to detect conflicts. Use dry_run and validate_* before applying. delete_* removes local definitions; file-managed definitions must be changed at their source.
 
 ## Agent summaries and attribute filters
 - get_service_summary gives one service's span counts/latency/errors, top operations/findings, dependencies, and signal freshness. Coverage is explicitly session-wide.

@@ -42,7 +42,7 @@ func TestDashboardYAMLToolsCreateAndUpdateStableID(t *testing.T) {
 	if run.RowCount != 1 || len(run.Columns) != 1 || run.Columns[0] != "value" {
 		t.Fatalf("panel result = %#v", run)
 	}
-	definition := map[string]any{"name": "Applied", "panels": []any{map[string]any{"title": "Count", "display_type": "single_value", "query": "SELECT 2 AS value", "position": 0}}}
+	definition := map[string]any{"name": "Applied", "panels": []any{map[string]any{"title": "Count", "display_type": "single_value", "query": "SELECT 2 AS value", "position": 0, "settings": map[string]any{"unit": "requests"}, "layout": map[string]any{"x": 2, "y": 1, "w": 6, "h": 2}}}}
 	validated := callStructured[DashboardValidationOutput](t, cs, "validate_dashboard", map[string]any{"definition": definition})
 	if !validated.Valid || len(validated.Panels) != 1 {
 		t.Fatalf("dashboard validation = %#v", validated)
@@ -50,6 +50,10 @@ func TestDashboardYAMLToolsCreateAndUpdateStableID(t *testing.T) {
 	applied := callStructured[ApplyDashboardOutput](t, cs, "apply_dashboard", map[string]any{"dashboard_id": created.Dashboard.ID, "expected_updated_at": strconv.FormatInt(created.Dashboard.UpdatedAt, 10), "definition": definition})
 	if !applied.Applied || applied.Dashboard.Name != "Applied" {
 		t.Fatalf("dashboard apply = %#v", applied)
+	}
+	read := callStructured[DashboardOutput](t, cs, "get_dashboard", map[string]any{"dashboard_id": created.Dashboard.ID})
+	if len(read.Dashboard.Panels) != 1 || !strings.Contains(read.Dashboard.Panels[0].QuerySQL, "2 AS value") || !strings.Contains(read.Dashboard.Panels[0].LayoutJSON, "6") || !strings.Contains(read.Dashboard.Panels[0].SettingsJSON, "requests") {
+		t.Fatalf("dashboard panel = %#v", read.Dashboard.Panels[0])
 	}
 	exported := callText(t, cs, "export_dashboard_yaml", map[string]any{"dashboard_id": created.Dashboard.ID})
 	if !strings.Contains(exported, "id: dashboard-mcp-test") {
@@ -63,6 +67,10 @@ func TestDashboardYAMLToolsCreateAndUpdateStableID(t *testing.T) {
 	listed := callStructured[ListDashboardsOutput](t, cs, "list_dashboards", nil)
 	if listed.Count != 1 {
 		t.Fatalf("dashboard count = %d, want stable-id update", listed.Count)
+	}
+	deleted := callStructured[MutationOutput](t, cs, "delete_dashboard", map[string]any{"dashboard_id": created.Dashboard.ID})
+	if !deleted.OK || callStructured[ListDashboardsOutput](t, cs, "list_dashboards", nil).Count != 0 {
+		t.Fatal("dashboard was not deleted")
 	}
 }
 
@@ -97,6 +105,14 @@ func TestAlertYAMLToolsAndCoverageSpecs(t *testing.T) {
 	exported := callText(t, cs, "export_alert_yaml", map[string]any{"alert_id": alert.Rule.ID})
 	if !strings.Contains(exported, "id: alert-mcp-test") {
 		t.Fatalf("alert export omitted id:\n%s", exported)
+	}
+	updatedAlert := callStructured[AlertOutput](t, cs, "get_alert", map[string]any{"alert_id": alert.Rule.ID})
+	if !strings.Contains(updatedAlert.Rule.QuerySQL, "count(*) AS value") || updatedAlert.Rule.Severity != "critical" {
+		t.Fatalf("alert query = %q severity = %q", updatedAlert.Rule.QuerySQL, updatedAlert.Rule.Severity)
+	}
+	deletedAlert := callStructured[MutationOutput](t, cs, "delete_alert", map[string]any{"alert_id": alert.Rule.ID})
+	if !deletedAlert.OK || callStructured[ListAlertsOutput](t, cs, "list_alerts", map[string]any{"state": "all"}).Total != 0 {
+		t.Fatal("alert was not deleted")
 	}
 
 	openapi := "openapi: 3.1.0\ninfo: {title: Test, version: '1'}\npaths:\n  /orders:\n    get:\n      responses: {'200': {description: ok}}\n"

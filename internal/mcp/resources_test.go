@@ -50,6 +50,9 @@ func TestResource_Guide(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read guide: %v", err)
 	}
+	if !strings.Contains(cs.InitializeResult().Instructions, "$session_id") || !strings.Contains(out.Contents[0].Text, "$session_id") || !strings.Contains(out.Contents[0].Text, "expected_updated_at") {
+		t.Fatal("shared parameter and mutation guidance missing")
+	}
 	if !strings.Contains(out.Contents[0].Text, "Data model") {
 		t.Errorf("guide missing expected content")
 	}
