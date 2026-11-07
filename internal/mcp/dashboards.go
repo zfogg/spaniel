@@ -55,6 +55,10 @@ type DashboardSummary struct {
 
 type ListDashboardsOutput struct {
 	Count      int                `json:"count"`
+	Total      int                `json:"total"`
+	Page       int                `json:"page"`
+	Limit      int                `json:"limit"`
+	HasMore    bool               `json:"has_more"`
 	Dashboards []DashboardSummary `json:"dashboards"`
 }
 
@@ -74,23 +78,24 @@ func (h *handler) listDashboards(ctx context.Context, _ *mcpsdk.CallToolRequest,
 	if page < 1 {
 		page = 1
 	}
-	out := ListDashboardsOutput{Dashboards: []DashboardSummary{}}
+	if page > 1000000 {
+		return nil, ListDashboardsOutput{}, fmt.Errorf("page must not exceed 1000000")
+	}
+	out := ListDashboardsOutput{Dashboards: []DashboardSummary{}, Page: page, Limit: limit}
 	matched, start := 0, (page-1)*limit
 	for _, dashboard := range dashboards {
 		managed := dashboard.SourceFile != ""
 		if needle != "" && !strings.Contains(strings.ToLower(dashboard.Name+"\n"+dashboard.Description), needle) || in.ManagedByFile != nil && managed != *in.ManagedByFile {
 			continue
 		}
-		if matched < start {
-			matched++
+		matched++
+		if matched <= start || len(out.Dashboards) >= limit {
 			continue
 		}
-		matched++
 		out.Dashboards = append(out.Dashboards, DashboardSummary{Updated: dashboard.Updated, ID: dashboard.ID, Name: dashboard.Name, Description: dashboard.Description, PanelCount: len(dashboard.Panels), VariableCount: len(dashboard.Variables), ManagedByFile: managed, UpdatedAt: dashboard.UpdatedAt, Link: "/dashboards?id=" + dashboard.ID})
-		if len(out.Dashboards) >= limit {
-			break
-		}
 	}
+	out.Total = matched
+	out.HasMore = start+len(out.Dashboards) < matched
 	out.Count = len(out.Dashboards)
 	return nil, out, nil
 }

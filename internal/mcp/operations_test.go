@@ -210,3 +210,20 @@ func TestDynamicResourceTemplatesAndDashboardResource(t *testing.T) {
 		}
 	}
 }
+
+func TestListDashboardsReportsPagination(t *testing.T) {
+	cs, db := connect(t, Options{})
+	for _, name := range []string{"Page A", "Page B", "Page C"} {
+		if _, err := db.CreateDashboard(name, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first := callStructured[ListDashboardsOutput](t, cs, "list_dashboards", map[string]any{"limit": 2})
+	if first.Total != 3 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasMore {
+		t.Fatalf("first page: %#v", first)
+	}
+	second := callStructured[ListDashboardsOutput](t, cs, "list_dashboards", map[string]any{"limit": 2, "page": 2})
+	if second.Total != 3 || second.Count != 1 || second.HasMore {
+		t.Fatalf("second page: %#v", second)
+	}
+}
