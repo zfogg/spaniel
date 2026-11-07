@@ -215,7 +215,28 @@ func respondErr(w http.ResponseWriter, req *http.Request, code int, msg string) 
 		w.Header().Set("X-Request-ID", reqID)
 	}
 	w.WriteHeader(code)
-	body := map[string]any{"error": errtext.Message(msg)}
+	errorCode := "internal_error"
+	switch code {
+	case http.StatusBadRequest:
+		errorCode = "invalid_argument"
+	case http.StatusUnauthorized:
+		errorCode = "unauthenticated"
+	case http.StatusForbidden:
+		errorCode = "permission_denied"
+	case http.StatusNotFound:
+		errorCode = "not_found"
+	case http.StatusConflict:
+		errorCode = "conflict"
+	case http.StatusTooManyRequests:
+		errorCode = "rate_limited"
+	case http.StatusServiceUnavailable:
+		errorCode = "unavailable"
+	default:
+		if code >= 400 && code < 500 {
+			errorCode = "request_failed"
+		}
+	}
+	body := map[string]any{"error": errtext.Message(msg), "code": errorCode, "retryable": code == http.StatusTooManyRequests || code == http.StatusServiceUnavailable}
 	if reqID != "" {
 		body["request_id"] = reqID
 	}

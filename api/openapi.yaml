@@ -1455,6 +1455,12 @@ components:
                     type: string
                 error:
                     type: string
+                request_id:
+                    description: Request identifier when available.
+                    type: string
+                retryable:
+                    description: Whether the condition may be transient; retry mutations only when safe to repeat.
+                    type: boolean
             required:
                 - error
             type: object

@@ -1971,6 +1971,14 @@
           "code": {
             "type": "string",
             "description": "Stable machine-readable error code; authentication failures use token_required, token_invalid, token_expired, or token_revoked."
+          },
+          "retryable": {
+            "type": "boolean",
+            "description": "Whether the condition may be transient; retry mutations only when safe to repeat."
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Request identifier when available."
           }
         },
         "required": [
