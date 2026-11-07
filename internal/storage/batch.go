@@ -473,7 +473,7 @@ func (b *Batcher) AppendSpanLinks(links []*SpanLink) error {
 func (b *Batcher) AppendLog(l *Log) error {
 	return b.append("logs",
 		l.TimestampNs, l.TraceID, l.SpanID, l.Severity, l.Body,
-		l.Attributes, l.ServiceName, l.SessionID, l.ReceivedAt,
+		l.Attributes, l.ServiceName, l.SessionID, l.ReceivedAt, l.Resource,
 	)
 }
 

@@ -548,6 +548,7 @@ func (p *Pipeline) ingestLogs(ctx context.Context, logs plog.Logs) error {
 	for i := 0; i < logs.ResourceLogs().Len(); i++ {
 		rl := logs.ResourceLogs().At(i)
 		svcName := serviceNameFromAttrs(rl.Resource().Attributes())
+		resource := mapToJSON(rl.Resource().Attributes())
 
 		for j := 0; j < rl.ScopeLogs().Len(); j++ {
 			sl := rl.ScopeLogs().At(j)
@@ -567,6 +568,7 @@ func (p *Pipeline) ingestLogs(ctx context.Context, logs plog.Logs) error {
 					Severity:    int(lr.SeverityNumber()),
 					Body:        lr.Body().AsString(),
 					Attributes:  mapToJSON(lr.Attributes()),
+					Resource:    resource,
 					ServiceName: svcName,
 					SessionID:   sessionID,
 					ReceivedAt:  time.Now().UnixNano(),

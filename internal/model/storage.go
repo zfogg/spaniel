@@ -270,6 +270,7 @@ type Log struct {
 	ServiceName string `json:"service_name"`
 	SessionID   string `json:"session_id"`
 	ReceivedAt  int64  `json:"received_at"`
+	Resource    string `json:"resource"`
 }
 
 func (Log) TableName() string { return "logs" }

@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "fingerprint": "a67abde0d6db5ffa78db5f479b5344bac1ccb1d9ae15dd67b6f77db16b4d5a9e",
+  "fingerprint": "1b19bea7ad325afbef10ee72cc207a81463fdffbc9969f28f64caa7b89bb850e",
   "views": [
     {
       "name": "telemetry_spans",
@@ -301,6 +301,13 @@
           "description": "Time Spaniel received the signal, in Unix nanoseconds.",
           "use_it_for": "Ingestion-rate analysis and arrival-time ordering.",
           "sensitivity": "none"
+        },
+        {
+          "name": "resource",
+          "type": "VARCHAR",
+          "description": "Serialized resource attributes as JSON.",
+          "use_it_for": "Filtering deployment and service resource fields.",
+          "sensitivity": "may contain user data"
         }
       ],
       "samples": [

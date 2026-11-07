@@ -1,0 +1,3 @@
+DROP VIEW IF EXISTS telemetry_logs;
+ALTER TABLE logs ADD COLUMN IF NOT EXISTS resource VARCHAR;
+CREATE VIEW telemetry_logs AS SELECT * FROM logs;

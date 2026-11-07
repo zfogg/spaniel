@@ -442,6 +442,7 @@ func TestPipeline_BroadcastsLog(t *testing.T) {
 	p := NewPipeline(db, hub)
 
 	ld := makeLogs("log-svc", func(rl plog.ResourceLogs) {
+		rl.Resource().Attributes().PutStr("deployment.region", "west")
 		sl := rl.ScopeLogs().AppendEmpty()
 		lr := sl.LogRecords().AppendEmpty()
 		lr.SetSeverityNumber(plog.SeverityNumberInfo)
@@ -450,6 +451,10 @@ func TestPipeline_BroadcastsLog(t *testing.T) {
 
 	if err := p.IngestLogs(context.Background(), ld); err != nil {
 		t.Fatalf("IngestLogs: %v", err)
+	}
+	stored, err := db.ListLogs(storage.LogFilter{SessionID: sess.ID})
+	if err != nil || len(stored) != 1 || !strings.Contains(stored[0].Resource, `"deployment.region":"west"`) {
+		t.Fatalf("resource attributes not persisted: %#v %v", stored, err)
 	}
 
 	// Read frames until we find a "log" event (span broadcasts may arrive first)

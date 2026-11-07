@@ -1,6 +1,6 @@
 # Spaniel database schema
 
-Catalog version `1`; schema fingerprint `a67abde0d6db5ffa78db5f479b5344bac1ccb1d9ae15dd67b6f77db16b4d5a9e`.
+Catalog version `1`; schema fingerprint `1b19bea7ad325afbef10ee72cc207a81463fdffbc9969f28f64caa7b89bb850e`.
 
 ## `telemetry_spans`
 
@@ -95,6 +95,7 @@ One row per structured log record.
 | `service_name` | `VARCHAR` | Grouping or filtering by service. |
 | `session_id` | `VARCHAR` | The automatic $session_id scope; normally do not hard-code it. |
 | `received_at` | `BIGINT` | Ingestion-rate analysis and arrival-time ordering. |
+| `resource` | `VARCHAR` | Filtering deployment and service resource fields. |
 
 ### Log volume by severity
 

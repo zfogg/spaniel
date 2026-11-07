@@ -333,3 +333,45 @@ func TestMigrateLegacyDB(t *testing.T) {
 		t.Fatalf("legacy JSON column not converted to VARCHAR: attributes=%q (want verbatim, not double-encoded)", got[0].Attributes)
 	}
 }
+func TestMigrationAddsLogResourceWithoutLosingData(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "logs-upgrade.duckdb")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = db.InsertLog(&Log{Body: "old", SessionID: "session"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{`DROP VIEW telemetry_logs`, `ALTER TABLE logs DROP COLUMN resource`, `CREATE VIEW telemetry_logs AS SELECT * FROM logs`, `DELETE FROM migrations WHERE id = '0045_log_resource'`} {
+		if err = db.gorm.Exec(statement).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err = db.AppendLog(&Log{Body: "new", SessionID: "session", Resource: `{"region":"west"}`}); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.FlushBatch(); err != nil {
+		t.Fatal(err)
+	}
+	logs, err := db.ListLogs(LogFilter{SessionID: "session"})
+	if err != nil || len(logs) != 2 {
+		t.Fatalf("logs after upgrade: %#v %v", logs, err)
+	}
+	found := false
+	for _, l := range logs {
+		if l.Body == "new" && l.Resource == `{"region":"west"}` {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("resource data missing: %#v", logs)
+	}
+}

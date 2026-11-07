@@ -38,6 +38,7 @@ func newLog(db *gorm.DB, opts ...gen.DOOption) log {
 	_log.ServiceName = field.NewString(tableName, "service_name")
 	_log.SessionID = field.NewString(tableName, "session_id")
 	_log.ReceivedAt = field.NewInt64(tableName, "received_at")
+	_log.Resource = field.NewString(tableName, "resource")
 
 	_log.fillFieldMap()
 
@@ -57,6 +58,7 @@ type log struct {
 	ServiceName field.String
 	SessionID   field.String
 	ReceivedAt  field.Int64
+	Resource    field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -82,6 +84,7 @@ func (l *log) updateTableName(table string) *log {
 	l.ServiceName = field.NewString(table, "service_name")
 	l.SessionID = field.NewString(table, "session_id")
 	l.ReceivedAt = field.NewInt64(table, "received_at")
+	l.Resource = field.NewString(table, "resource")
 
 	l.fillFieldMap()
 
@@ -98,7 +101,7 @@ func (l *log) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (l *log) fillFieldMap() {
-	l.fieldMap = make(map[string]field.Expr, 9)
+	l.fieldMap = make(map[string]field.Expr, 10)
 	l.fieldMap["timestamp_ns"] = l.TimestampNs
 	l.fieldMap["trace_id"] = l.TraceID
 	l.fieldMap["span_id"] = l.SpanID
@@ -108,6 +111,7 @@ func (l *log) fillFieldMap() {
 	l.fieldMap["service_name"] = l.ServiceName
 	l.fieldMap["session_id"] = l.SessionID
 	l.fieldMap["received_at"] = l.ReceivedAt
+	l.fieldMap["resource"] = l.Resource
 }
 
 func (l log) clone(db *gorm.DB) log {
