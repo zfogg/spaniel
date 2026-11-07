@@ -36,7 +36,7 @@ func (h *handler) registerResourcesAndPrompts(s *mcpsdk.Server) {
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "investigate_incident",
-		Description: "Return the complete read-only workflow for investigating an incident across Spaniel signals. This tool mirrors the MCP prompt for clients that do not expose prompts.",
+		Description: "Gather bounded, read-only incident evidence from ingestion health, alerts, service errors, and slow spans, with next investigation steps and uncertainty.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, h.investigateIncident)
 
@@ -176,7 +176,11 @@ func userPrompt(desc, text string) (*mcpsdk.GetPromptResult, error) {
 }
 
 type InvestigateIncidentInput struct {
-	Focus string `json:"focus,omitempty" jsonschema:"optional alert id, service name, symptom, or error text"`
+	Focus     string    `json:"focus,omitempty" jsonschema:"optional symptom or investigation guidance"`
+	Service   string    `json:"service,omitempty" jsonschema:"optional service filter"`
+	SessionID string    `json:"session_id,omitempty" jsonschema:"session id; defaults to active session"`
+	FromNs    UnixNanos `json:"from_ns,omitempty" jsonschema:"start of observation window, Unix nanoseconds; defaults to one hour before end"`
+	ToNs      UnixNanos `json:"to_ns,omitempty" jsonschema:"end of observation window, Unix nanoseconds; defaults to now"`
 }
 
 type CompareSessionToBaselineInput struct {
@@ -192,11 +196,6 @@ type DraftObservabilityPackInput struct {
 type WorkflowPromptOutput struct {
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
-}
-
-func (h *handler) investigateIncident(_ context.Context, _ *mcpsdk.CallToolRequest, in InvestigateIncidentInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {
-	description, instructions := investigateIncidentWorkflow(in.Focus)
-	return nil, WorkflowPromptOutput{Description: description, Instructions: instructions}, nil
 }
 
 func (h *handler) compareSessionToBaseline(_ context.Context, _ *mcpsdk.CallToolRequest, in CompareSessionToBaselineInput) (*mcpsdk.CallToolResult, WorkflowPromptOutput, error) {
