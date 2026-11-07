@@ -53,6 +53,10 @@ type LogOut struct {
 }
 
 type QueryLogsOutput struct {
+	Page      int      `json:"page"`
+	Limit     int      `json:"limit"`
+	Total     int      `json:"total"`
+	HasMore   bool     `json:"has_more"`
 	SessionID string   `json:"session_id"`
 	Count     int      `json:"count"`
 	Logs      []LogOut `json:"logs"`
@@ -70,7 +74,7 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 	minSev := severityNum(in.MinSeverity)
 	maxSev := severityNum(in.MaxSeverity)
 
-	logs, err := h.store.WithContext(ctx).ListLogs(storage.LogFilter{
+	filter := storage.LogFilter{
 		Attributes:  in.Attributes,
 		SessionID:   sessionID,
 		Service:     in.Service,
@@ -82,12 +86,20 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 		ToNs:        in.ToNs,
 		Limit:       limit,
 		Page:        in.Page,
-	})
+	}
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	total, err := h.store.WithContext(ctx).CountLogs(filter)
+	if err != nil {
+		return nil, QueryLogsOutput{}, fmt.Errorf("count results: %w", err)
+	}
+	logs, err := h.store.WithContext(ctx).ListLogs(filter)
 	if err != nil {
 		return nil, QueryLogsOutput{}, fmt.Errorf("query logs: %w", err)
 	}
 
-	out := QueryLogsOutput{SessionID: sessionID, Logs: []LogOut{}}
+	out := QueryLogsOutput{Page: filter.Page, Limit: limit, Total: total, HasMore: filter.Page <= total/limit && filter.Page*limit < total, SessionID: sessionID, Logs: []LogOut{}}
 	for _, l := range logs {
 		out.Logs = append(out.Logs, LogOut{
 			TimestampNs: l.TimestampNs,

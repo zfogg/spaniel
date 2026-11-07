@@ -79,6 +79,10 @@ type TraceSummary struct {
 }
 
 type ListTracesOutput struct {
+	Page      int            `json:"page"`
+	Limit     int            `json:"limit"`
+	Total     int            `json:"total"`
+	HasMore   bool           `json:"has_more"`
 	SessionID string         `json:"session_id"`
 	Count     int            `json:"count"`
 	Traces    []TraceSummary `json:"traces"`
@@ -106,7 +110,7 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 		return nil, ListTracesOutput{}, err
 	}
 
-	rows, err := h.store.WithContext(ctx).ListTraces(storage.TraceFilter{
+	filter := storage.TraceFilter{
 		Attributes:         in.Attributes,
 		ResourceAttributes: in.ResourceAttributes,
 		SessionID:          sessionID,
@@ -116,12 +120,20 @@ func (h *handler) listTraces(ctx context.Context, _ *mcpsdk.CallToolRequest, in 
 		MinDurationNs: int64(in.MinDurationMs * 1_000_000), IssueKind: in.IssueKind,
 		Limit: limit,
 		Page:  in.Page,
-	})
+	}
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	total, err := h.store.WithContext(ctx).CountTraces(filter)
+	if err != nil {
+		return nil, ListTracesOutput{}, fmt.Errorf("count results: %w", err)
+	}
+	rows, err := h.store.WithContext(ctx).ListTraces(filter)
 	if err != nil {
 		return nil, ListTracesOutput{}, fmt.Errorf("list traces: %w", err)
 	}
 
-	out := ListTracesOutput{SessionID: sessionID, Traces: []TraceSummary{}}
+	out := ListTracesOutput{Page: filter.Page, Limit: limit, Total: total, HasMore: filter.Page <= total/limit && filter.Page*limit < total, SessionID: sessionID, Traces: []TraceSummary{}}
 	for _, r := range rows {
 		kinds := r.IssueKinds
 		if kinds == nil {
