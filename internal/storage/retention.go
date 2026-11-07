@@ -87,8 +87,9 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (res PruneResult, err e
 		defer cancel()
 		d = d.WithContext(ctx)
 	}
+	historyPruned := false
 	defer func() {
-		if err != nil || res.DeletedByAge+res.DeletedByCount+res.DeletedBySize > 0 {
+		if err != nil || historyPruned || res.DeletedByAge+res.DeletedByCount+res.DeletedBySize > 0 {
 			d.changed("retention", "traces", "trace", "spans", "span", "logs", "metrics", "metric-series", "lint", "issues", "dashboard-panel", "alerts", "sessions", "stats", "sources", "services", "coverage", "service-map")
 		}
 	}()
@@ -129,6 +130,15 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (res PruneResult, err e
 				return res, err
 			}
 			needed = len(ids) > 0
+			if !needed {
+				q := d.namedQuery("RetentionHistoryAgeCheck").DashboardPanelSample
+				var count int64
+				count, err = q.Where(q.BucketNs.Lt(time.Now().Add(-min(cfg.MaxAge, dashboardSampleMaxAge)).UnixNano())).Count()
+				if err != nil {
+					return res, err
+				}
+				needed = count > 0
+			}
 		}
 		if !needed {
 			res.FinalDBSizeBytes = d.FileSize()
@@ -138,6 +148,19 @@ func (d *DB) Prune(cfg RetentionConfig, activeID string) (res PruneResult, err e
 
 	err = d.withMaintenance(func(d *DB) error {
 		if cfg.MaxAge > 0 {
+			q := d.namedQuery("RetentionHistoryByAge").DashboardPanelSample
+			cutoff := time.Now().Add(-min(cfg.MaxAge, dashboardSampleMaxAge)).UnixNano()
+			count, err := q.Where(q.BucketNs.Lt(cutoff)).Count()
+			if err != nil {
+				return fmt.Errorf("count old panel history: %w", err)
+			}
+			if count > 0 {
+				deleted, err := q.Where(q.BucketNs.Lt(cutoff)).Delete()
+				if err != nil {
+					return fmt.Errorf("delete old panel history: %w", err)
+				}
+				historyPruned = deleted.RowsAffected > 0
+			}
 			n, err := d.deleteByAge(cfg.MaxAge, activeID)
 			if err != nil {
 				return fmt.Errorf("delete by age: %w", err)
@@ -225,6 +248,9 @@ func (d *DB) clearWithCheckpoint(clear func(*DB) error, checkpoint func(*DB) err
 func (d *DB) deleteAllSessionData() error {
 	return d.maintenanceTransaction(d.namedGORM("DeleteAllSessions"), func(g *gorm.DB) error {
 		tx := querygen.Use(g)
+		if _, err := tx.DashboardPanelSample.Where(tx.DashboardPanelSample.SeriesKey.IsNotNull()).Delete(); err != nil {
+			return err
+		}
 		if _, err := tx.MetricAdmissionObservation.Where(tx.MetricAdmissionObservation.SessionID.IsNotNull()).Delete(); err != nil {
 			return err
 		}
@@ -442,10 +468,34 @@ func (d *DB) reclaimRetentionSpace(progress ...*reclaimProgress) error {
 // Saved rules, dashboards and current alert state are never size candidates.
 // Auxiliary trace rows leave before their spans. It returns rows removed.
 func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64) (int, error) {
+	// Derived panel samples are evicted before their source telemetry under
+	// pressure, preserving the newest observation per panel.
+	var hasPrunableHistory bool
+	if err := d.namedGORM("PruneDashboardSamplesCheck").Raw(`SELECT EXISTS (
+        SELECT 1 FROM dashboard_panel_samples GROUP BY panel_id HAVING count(*) > 1
+    )`).Scan(&hasPrunableHistory).Error; err != nil {
+		return 0, err
+	}
+	if hasPrunableHistory {
+		result := d.namedGORM("PruneDashboardSamples").Exec(`DELETE FROM dashboard_panel_samples WHERE rowid IN (
+            SELECT sample_row FROM (
+                SELECT rowid AS sample_row, bucket_ns,
+                    row_number() OVER (PARTITION BY panel_id ORDER BY bucket_ns DESC, series_key DESC) AS recency
+                FROM dashboard_panel_samples
+            ) ranked WHERE recency > 1 ORDER BY bucket_ns LIMIT 10000
+        )`)
+		if result.Error != nil {
+			return 0, result.Error
+		}
+		if result.RowsAffected > 0 {
+			return int(result.RowsAffected), nil
+		}
+	}
+
 	// Use one age-ordered queue across all signals. Small proportional batches
 	// avoid discarding 1,000 traces (or all logs) to free a few database blocks.
 	// Correlated logs leave with their trace rather than being pruned early.
-	candidates := `
+	rawCandidates := `
 		SELECT 'trace' AS kind, session_id, trace_id, 0::BIGINT AS record_id, MIN(start_ns) AS age
 		FROM spans GROUP BY session_id, trace_id
 		UNION ALL SELECT 'log', session_id, '', rowid, timestamp_ns FROM logs l
@@ -457,8 +507,35 @@ func (d *DB) deleteOldestTelemetryBatch(activeID string, sizeFraction ...float64
 		WHERE NOT EXISTS (SELECT 1 FROM spans s WHERE s.session_id = i.session_id AND s.trace_id = i.trace_id)
 		UNION ALL SELECT 'lint', session_id, trace_id, rowid, created_at FROM lint_warnings l
 		WHERE NOT EXISTS (SELECT 1 FROM spans s WHERE s.session_id = l.session_id AND s.trace_id = l.trace_id)`
+	// Keep the newest signal and inbox/history candidates while size pruning.
+	// Orphaned findings have no surviving evidence and remain eligible. If the
+	// floor is too large, report that rather than erase the last signal.
+	candidates := `SELECT kind, session_id, trace_id, record_id, age FROM (
+        SELECT *, row_number() OVER (PARTITION BY kind ORDER BY age DESC, session_id DESC, trace_id DESC, record_id DESC) AS recency
+        FROM (` + rawCandidates + `) candidates
+    ) ranked
+    WHERE (kind IN ('issue', 'lint') OR recency > 1)
+      AND (kind != 'trace' OR NOT EXISTS (
+        SELECT 1 FROM logs newest_log
+        WHERE newest_log.rowid = (SELECT rowid FROM logs ORDER BY timestamp_ns DESC, rowid DESC LIMIT 1)
+          AND newest_log.session_id = ranked.session_id AND newest_log.trace_id = ranked.trace_id
+      ))
+      AND (kind != 'trace' OR NOT EXISTS (
+        SELECT 1 FROM trace_issues newest_issue
+        WHERE newest_issue.rowid = (SELECT i.rowid FROM trace_issues i WHERE EXISTS (
+            SELECT 1 FROM spans s WHERE s.session_id = i.session_id AND s.trace_id = i.trace_id
+        ) ORDER BY i.created_at DESC, i.rowid DESC LIMIT 1)
+          AND newest_issue.session_id = ranked.session_id AND newest_issue.trace_id = ranked.trace_id
+      ))
+      AND (kind != 'trace' OR NOT EXISTS (
+        SELECT 1 FROM lint_warnings newest_lint
+        WHERE newest_lint.rowid = (SELECT l.rowid FROM lint_warnings l WHERE EXISTS (
+            SELECT 1 FROM spans s WHERE s.session_id = l.session_id AND s.trace_id = l.trace_id
+        ) ORDER BY l.created_at DESC, l.rowid DESC LIMIT 1)
+          AND newest_lint.session_id = ranked.session_id AND newest_lint.trace_id = ranked.trace_id
+      ))`
 	var groups int64
-	if err := d.namedGORM("RetentionCandidateCount").Raw(`SELECT COUNT(*) FROM (` + candidates + `) candidates`).Scan(&groups).Error; err != nil {
+	if err := d.namedGORM("RetentionCandidateCount").Raw(`SELECT COUNT(*) FROM (` + rawCandidates + `) candidates`).Scan(&groups).Error; err != nil {
 		return 0, err
 	}
 	batch := min(int64(pruneTraceBatch), max(int64(1), (groups+99)/100))
@@ -550,6 +627,9 @@ func (d *DB) resetData(all bool) error {
 	// each predicate makes the intended whole-table maintenance deletion explicit.
 	return d.maintenanceTransaction(d.namedGORM("ResetTelemetry"), func(g *gorm.DB) error {
 		tx := querygen.Use(g)
+		if _, err := tx.DashboardPanelSample.Where(tx.DashboardPanelSample.SeriesKey.IsNotNull()).Delete(); err != nil {
+			return err
+		}
 		if _, err := tx.MetricAdmissionObservation.Where(tx.MetricAdmissionObservation.SessionID.IsNotNull()).Delete(); err != nil {
 			return err
 		}

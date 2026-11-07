@@ -41,3 +41,63 @@ it('refetches a current-session panel when the active session changes', async ()
     expect.objectContaining({ aborted: false }),
   )
 })
+
+it('samples enabled history and follows session changes for session-independent SQL', async () => {
+  vi.spyOn(api.sessions, 'getActive').mockResolvedValue({
+    data: { id: 'first', label: 'First' },
+    meta: { total: 1 },
+  })
+  const preview = vi.spyOn(api.dashboards, 'preview').mockResolvedValue({
+    data: {
+      columns: ['value'],
+      rows: [{ value: 1 }],
+      history: [{ timestamp_ms: 1000, value: 1 }],
+      warnings: [],
+    },
+    meta: { total: 1 },
+  })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(qk.activeSession(), { id: 'first', label: 'First' })
+  const panel = {
+    id: 'history',
+    query_sql: 'SELECT 1 AS value',
+    display_type: 'single_value',
+    title: 'Value',
+    settings_json: '{"show_history":true}',
+  } as DashboardPanel
+  render(
+    <QueryClientProvider client={client}>
+      <PanelRenderer dashboardId="dashboard" panel={panel} />
+    </QueryClientProvider>,
+  )
+  await waitFor(() => expect(preview).toHaveBeenCalledTimes(1))
+  expect(preview).toHaveBeenLastCalledWith(
+    'dashboard',
+    expect.objectContaining({ panel_id: 'history' }),
+    expect.anything(),
+  )
+  act(() => client.setQueryData(qk.activeSession(), { id: 'second', label: 'Second' }))
+  await waitFor(() => expect(preview).toHaveBeenCalledTimes(2))
+})
+
+it('still loads a session-independent value if there is no active session', async () => {
+  vi.spyOn(api.sessions, 'getActive').mockRejectedValue(new Error('No active session'))
+  const preview = vi.spyOn(api.dashboards, 'preview').mockResolvedValue({
+    data: { columns: ['value'], rows: [{ value: 1 }], warnings: [] },
+    meta: { total: 1 },
+  })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const panel = {
+    id: 'history',
+    query_sql: 'SELECT 1 AS value',
+    display_type: 'single_value',
+    title: 'Value',
+    settings_json: '{"show_history":true}',
+  } as DashboardPanel
+  render(
+    <QueryClientProvider client={client}>
+      <PanelRenderer dashboardId="dashboard" panel={panel} />
+    </QueryClientProvider>,
+  )
+  await waitFor(() => expect(preview).toHaveBeenCalled())
+})

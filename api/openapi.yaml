@@ -2232,6 +2232,22 @@ components:
                     type: object
                 display_type:
                     type: string
+                history:
+                    description: Bounded observations of this saved single-value panel for the current query, variables, and session.
+                    items:
+                        additionalProperties: false
+                        properties:
+                            timestamp_ms:
+                                format: int64
+                                type: integer
+                            value:
+                                format: double
+                                type: number
+                        required:
+                            - timestamp_ms
+                            - value
+                        type: object
+                    type: array
                 notification_preview:
                     items:
                         additionalProperties: false
@@ -6571,6 +6587,9 @@ paths:
                                     type: string
                                 name:
                                     description: Sets the human-readable name shown in the Spaniel interface.
+                                    type: string
+                                panel_id:
+                                    description: Optional saved panel ID; when its single-value history is enabled, return and sample its bounded history.
                                     type: string
                                 query_sql:
                                     description: Supplies the read-only query Spaniel evaluates to produce this result or alert.

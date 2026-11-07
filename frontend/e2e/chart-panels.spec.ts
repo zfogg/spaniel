@@ -13,7 +13,12 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
       display_type: kind,
       query_sql: "SELECT 'orders' AS label, 25 AS value",
       query_version: 1,
-      settings_json: kind === 'gauge' ? '{"min":0,"max":200,"unit":"ms"}' : '{}',
+      settings_json:
+        kind === 'gauge'
+          ? '{"min":0,"max":200,"unit":"ms"}'
+          : kind === 'single_value'
+            ? '{"show_history":true}'
+            : '{}',
       layout_json: JSON.stringify({ x: 1, y: position + 1, w: 12, h: 1 }),
       position,
     }),
@@ -72,6 +77,13 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
                       ? Array.from({ length: 30 }, (_, i) => ({ label: `category-${i}`, value: i }))
                       : []),
                   ],
+        history:
+          kind === 'single_value'
+            ? [
+                { timestamp_ms: 1000, value: 10 },
+                { timestamp_ms: 2000, value: 25 },
+              ]
+            : undefined,
         warnings: [],
       }
     } else if (path === '/api/sessions/active') data = { id: 'session', label: 'Session' }
@@ -95,7 +107,12 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
   const single = page.getByRole('heading', { name: 'single_value requests', exact: true })
   expect(
     await single.evaluate((el) => el.closest('article')!.getBoundingClientRect().height),
-  ).toBeLessThan(240)
+  ).toBeLessThan(300)
+  await expect(
+    page.getByRole('img', { name: /Value history, minimum 10, maximum 25/ }),
+  ).toBeVisible()
+  await expect(page.getByText('max 25', { exact: true })).toBeVisible()
+  await expect(page.getByText('min 10', { exact: true })).toBeVisible()
   const bars = page.getByTestId('bar-panel')
   const longLabel = bars.getByRole('button', {
     name: 'ascii-chat-client / ascii-chat.audio.buffer.overruns-with-a-long-label',
@@ -139,6 +156,13 @@ test('bar, pie and gauge panels render saved query results and survive reload', 
   await page.keyboard.press('End')
   await expect.poll(() => legend.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
   await page.setViewportSize({ width: 390, height: 844 })
+  await single.scrollIntoViewIfNeeded()
+  expect(
+    await single.evaluate((element) => {
+      const article = element.closest('article')!
+      return article.scrollWidth <= article.clientWidth
+    }),
+  ).toBe(true)
   for (const kind of ['bar', 'pie', 'gauge']) {
     const panel = page.getByTestId(`${kind}-panel`)
     await panel.scrollIntoViewIfNeeded()

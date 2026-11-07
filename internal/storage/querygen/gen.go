@@ -25,6 +25,7 @@ var (
 	CoverageSpec               *coverageSpec
 	Dashboard                  *dashboard
 	DashboardPanel             *dashboardPanel
+	DashboardPanelSample       *dashboardPanelSample
 	DashboardVariable          *dashboardVariable
 	LintWarning                *lintWarning
 	Log                        *log
@@ -50,6 +51,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	CoverageSpec = &Q.CoverageSpec
 	Dashboard = &Q.Dashboard
 	DashboardPanel = &Q.DashboardPanel
+	DashboardPanelSample = &Q.DashboardPanelSample
 	DashboardVariable = &Q.DashboardVariable
 	LintWarning = &Q.LintWarning
 	Log = &Q.Log
@@ -76,6 +78,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		CoverageSpec:               newCoverageSpec(db, opts...),
 		Dashboard:                  newDashboard(db, opts...),
 		DashboardPanel:             newDashboardPanel(db, opts...),
+		DashboardPanelSample:       newDashboardPanelSample(db, opts...),
 		DashboardVariable:          newDashboardVariable(db, opts...),
 		LintWarning:                newLintWarning(db, opts...),
 		Log:                        newLog(db, opts...),
@@ -103,6 +106,7 @@ type Query struct {
 	CoverageSpec               coverageSpec
 	Dashboard                  dashboard
 	DashboardPanel             dashboardPanel
+	DashboardPanelSample       dashboardPanelSample
 	DashboardVariable          dashboardVariable
 	LintWarning                lintWarning
 	Log                        log
@@ -133,6 +137,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		CoverageSpec:               q.CoverageSpec.clone(db),
 		Dashboard:                  q.Dashboard.clone(db),
 		DashboardPanel:             q.DashboardPanel.clone(db),
+		DashboardPanelSample:       q.DashboardPanelSample.clone(db),
 		DashboardVariable:          q.DashboardVariable.clone(db),
 		LintWarning:                q.LintWarning.clone(db),
 		Log:                        q.Log.clone(db),
@@ -168,6 +173,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		CoverageSpec:               q.CoverageSpec.replaceDB(db),
 		Dashboard:                  q.Dashboard.replaceDB(db),
 		DashboardPanel:             q.DashboardPanel.replaceDB(db),
+		DashboardPanelSample:       q.DashboardPanelSample.replaceDB(db),
 		DashboardVariable:          q.DashboardVariable.replaceDB(db),
 		LintWarning:                q.LintWarning.replaceDB(db),
 		Log:                        q.Log.replaceDB(db),
@@ -193,6 +199,7 @@ type queryCtx struct {
 	CoverageSpec               ICoverageSpecDo
 	Dashboard                  IDashboardDo
 	DashboardPanel             IDashboardPanelDo
+	DashboardPanelSample       IDashboardPanelSampleDo
 	DashboardVariable          IDashboardVariableDo
 	LintWarning                ILintWarningDo
 	Log                        ILogDo
@@ -218,6 +225,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		CoverageSpec:               q.CoverageSpec.WithContext(ctx),
 		Dashboard:                  q.Dashboard.WithContext(ctx),
 		DashboardPanel:             q.DashboardPanel.WithContext(ctx),
+		DashboardPanelSample:       q.DashboardPanelSample.WithContext(ctx),
 		DashboardVariable:          q.DashboardVariable.WithContext(ctx),
 		LintWarning:                q.LintWarning.WithContext(ctx),
 		Log:                        q.Log.WithContext(ctx),

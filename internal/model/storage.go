@@ -428,6 +428,17 @@ type DashboardPanel struct {
 
 func (DashboardPanel) TableName() string { return "dashboard_panels" }
 
+// DashboardPanelSample stores a bounded observation of one panel/variable/session series.
+type DashboardPanelSample struct {
+	SeriesKey string  `json:"series_key" gorm:"primaryKey"`
+	PanelID   string  `json:"panel_id"`
+	SessionID string  `json:"session_id"`
+	BucketNs  int64   `json:"bucket_ns" gorm:"primaryKey"`
+	Value     float64 `json:"value"`
+}
+
+func (DashboardPanelSample) TableName() string { return "dashboard_panel_samples" }
+
 type AlertRule struct {
 	Updated                       bool             `json:"updated" gorm:"-"`
 	ID                            string           `json:"id"`

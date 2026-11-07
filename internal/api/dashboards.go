@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -519,6 +522,7 @@ func dashboardHasVariable(dashboard *model.Dashboard, name string) bool {
 func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request) {
 	var in struct {
 		QuerySQL    string            `json:"query_sql" validate:"required,max=16000"`
+		PanelID     string            `json:"panel_id"`
 		SessionID   string            `json:"sessionId"`
 		Name        string            `json:"name" validate:"omitempty,max=200"`
 		DisplayType string            `json:"display_type" validate:"omitempty,oneof=bar pie gauge single_value time_series table heatmap entity_list trace_list span_list log_list deploy_correlation"`
@@ -575,7 +579,44 @@ func (r *Router) previewDashboardQuery(w http.ResponseWriter, req *http.Request)
 		respondErr(w, req, 400, err.Error())
 		return
 	}
-	respond(w, map[string]any{"columns": columns, "rows": rowsForColumns(columns, valuesRows), "truncated": truncated, "query_version": dashboardQueryVersion}, len(valuesRows), 1)
+	result := map[string]any{"columns": columns, "rows": rowsForColumns(columns, valuesRows), "truncated": truncated, "query_version": dashboardQueryVersion}
+	if in.PanelID != "" && in.DisplayType == "single_value" && len(valuesRows) > 0 {
+		for _, panel := range dashboard.Panels {
+			if panel.ID != in.PanelID || panel.DisplayType != "single_value" {
+				continue
+			}
+			var settings struct {
+				ShowHistory bool `json:"show_history"`
+			}
+			if json.Unmarshal([]byte(panel.SettingsJSON), &settings) != nil || !settings.ShowHistory {
+				break
+			}
+			for i, column := range columns {
+				if !strings.EqualFold(column, "value") || i >= len(valuesRows[0]) || valuesRows[0][i] == nil {
+					continue
+				}
+				value, err := strconv.ParseFloat(fmt.Sprint(valuesRows[0][i]), 64)
+				if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+					break
+				}
+				sessionID := r.scopeSession(in.SessionID)
+				identity, _ := json.Marshal(struct {
+					Panel, Session, Query string
+					Variables             map[string]string
+				}{panel.ID, sessionID, in.QuerySQL, values})
+				hash := sha256.Sum256(identity)
+				history, err := r.store.WithContext(req.Context()).DashboardSampleHistory(hex.EncodeToString(hash[:]), panel.ID, sessionID, value, time.Now())
+				if err != nil {
+					result["warnings"] = []string{"Panel history is temporarily unavailable."}
+				} else {
+					result["history"] = history
+				}
+				break
+			}
+			break
+		}
+	}
+	respond(w, result, len(valuesRows), 1)
 }
 
 func validatePanelResult(display string, columns []string) error {

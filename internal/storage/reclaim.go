@@ -9,7 +9,7 @@ import (
 
 // Only these tables participate in oldest-prefix telemetry eviction. A fixed
 // cycle prevents frequently updated metadata from starving a large span rebuild.
-var retentionReclaimTables = [...]string{"lint_warnings", "logs", "metrics", "sessions", "span_events", "span_links", "spans", "trace_issues"}
+var retentionReclaimTables = [...]string{"lint_warnings", "logs", "metrics", "sessions", "span_events", "span_links", "spans", "trace_issues", "dashboard_panel_samples"}
 
 func retentionReclaimBit(table string) uint64 {
 	for i, name := range retentionReclaimTables {
@@ -67,7 +67,7 @@ func (d *DB) rebuildTelemetry(progress ...*reclaimProgress) error {
 			continue
 		}
 		switch table.TableName {
-		case "spans", "logs", "metrics", "span_events", "span_links":
+		case "spans", "logs", "metrics", "span_events", "span_links", "dashboard_panel_samples":
 			if len(progress) > 0 {
 				progress[0].HadTelemetryDeletes = true
 				// Protect an initial cycle too: preexisting tombstones whose
