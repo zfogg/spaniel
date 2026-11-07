@@ -38,7 +38,7 @@ func (h *handler) registerWriteTools(s *mcpsdk.Server) {
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "prune_data",
-		Description: "Apply a retention policy now, deleting old sessions to free space. Provide any of retention_days, max_sessions, max_db_size_mb (omitted/0 = no limit for that dimension). The active session is never deleted. Returns what was removed. This is destructive.",
+		Description: "Apply a retention policy now, deleting old sessions to free space. Provide any of retention_days, max_sessions, max_db_size_mb (omitted/0 = no limit for that dimension). Age and session-count limits protect active and baseline sessions; size pressure can remove telemetry from any session. Returns what was removed. This is destructive.",
 		Annotations: destructive,
 	}, h.pruneData)
 }

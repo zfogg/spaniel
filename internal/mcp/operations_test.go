@@ -69,6 +69,14 @@ func TestDashboardYAMLToolsCreateAndUpdateStableID(t *testing.T) {
 	if listed.Count != 1 {
 		t.Fatalf("dashboard count = %d, want stable-id update", listed.Count)
 	}
+	previewDelete := callStructured[MutationOutput](t, cs, "delete_dashboard", map[string]any{"dashboard_id": created.Dashboard.ID, "dry_run": true, "expected_updated_at": strconv.FormatInt(updated.Dashboard.UpdatedAt, 10)})
+	if !previewDelete.OK || !previewDelete.DryRun {
+		t.Fatalf("delete preview: %#v", previewDelete)
+	}
+	stale, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "delete_dashboard", Arguments: map[string]any{"dashboard_id": created.Dashboard.ID, "expected_updated_at": "1"}})
+	if err == nil && !stale.IsError {
+		t.Fatal("stale delete accepted")
+	}
 	deleted := callStructured[MutationOutput](t, cs, "delete_dashboard", map[string]any{"dashboard_id": created.Dashboard.ID})
 	if !deleted.OK || callStructured[ListDashboardsOutput](t, cs, "list_dashboards", nil).Count != 0 {
 		t.Fatal("dashboard was not deleted")
@@ -110,6 +118,14 @@ func TestAlertYAMLToolsAndCoverageSpecs(t *testing.T) {
 	updatedAlert := callStructured[AlertOutput](t, cs, "get_alert", map[string]any{"alert_id": alert.Rule.ID})
 	if !strings.Contains(updatedAlert.Rule.QuerySQL, "count(*) AS value") || updatedAlert.Rule.Severity != "critical" || updatedAlert.Rule.PendingForNs != int64(2*time.Minute) || updatedAlert.Rule.CooldownNs != int64(3*time.Minute) || updatedAlert.Rule.RepeatIntervalNs != int64(5*time.Minute) {
 		t.Fatalf("alert query = %q severity = %q", updatedAlert.Rule.QuerySQL, updatedAlert.Rule.Severity)
+	}
+	previewAlertDelete := callStructured[MutationOutput](t, cs, "delete_alert", map[string]any{"alert_id": alert.Rule.ID, "dry_run": true, "expected_updated_at": strconv.FormatInt(updatedAlert.Rule.UpdatedAt, 10)})
+	if !previewAlertDelete.OK || !previewAlertDelete.DryRun {
+		t.Fatalf("delete preview: %#v", previewAlertDelete)
+	}
+	stale, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "delete_alert", Arguments: map[string]any{"alert_id": alert.Rule.ID, "expected_updated_at": "1"}})
+	if err == nil && !stale.IsError {
+		t.Fatal("stale delete accepted")
 	}
 	deletedAlert := callStructured[MutationOutput](t, cs, "delete_alert", map[string]any{"alert_id": alert.Rule.ID})
 	if !deletedAlert.OK || callStructured[ListAlertsOutput](t, cs, "list_alerts", map[string]any{"state": "all"}).Total != 0 {
