@@ -6,8 +6,6 @@ import (
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/zfogg/spaniel/internal/storage"
 )
 
 // registerWriteTools adds the mutating tools. It is only called when
@@ -16,7 +14,6 @@ import (
 func (h *handler) registerWriteTools(s *mcpsdk.Server) {
 	additive := &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false)}
 	idempotent := &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(false), IdempotentHint: true}
-	destructive := &mcpsdk.ToolAnnotations{DestructiveHint: boolPtr(true)}
 
 	addTOONTool(s, &mcpsdk.Tool{
 		Name:        "create_session",
@@ -36,11 +33,6 @@ func (h *handler) registerWriteTools(s *mcpsdk.Server) {
 		Annotations: idempotent,
 	}, h.setBaseline)
 
-	addTOONTool(s, &mcpsdk.Tool{
-		Name:        "prune_data",
-		Description: "Apply a retention policy now, deleting old sessions to free space. Provide any of retention_days, max_sessions, max_db_size_mb (omitted/0 = no limit for that dimension). Age and session-count limits protect active and baseline sessions; size pressure can remove telemetry from any session. Use dry_run to inspect current size and policy without deleting; the exact effects cannot be predicted. Returns what was removed. This is destructive.",
-		Annotations: destructive,
-	}, h.pruneData)
 }
 
 func boolPtr(b bool) *bool { return &b }
@@ -122,55 +114,4 @@ func (h *handler) setBaseline(ctx context.Context, _ *mcpsdk.CallToolRequest, in
 		return nil, OKOutput{}, fmt.Errorf("set baseline: %w", err)
 	}
 	return nil, OKOutput{OK: true}, nil
-}
-
-// ---- prune_data ----
-
-type PruneDataInput struct {
-	DryRun        bool `json:"dry_run,omitempty" jsonschema:"return current storage and policy without pruning; does not predict deletions"`
-	RetentionDays int  `json:"retention_days,omitempty" jsonschema:"delete sessions older than N days (0 = no age limit)"`
-	MaxSessions   int  `json:"max_sessions,omitempty" jsonschema:"keep at most N sessions (0 = unlimited)"`
-	MaxDBSizeMB   int  `json:"max_db_size_mb,omitempty" jsonschema:"shrink to at most N MB on disk (0 = unlimited)"`
-}
-
-type PruneDataOutput struct {
-	DryRun           bool   `json:"dry_run"`
-	Warning          string `json:"warning,omitempty"`
-	RetentionDays    int    `json:"retention_days"`
-	MaxSessions      int    `json:"max_sessions"`
-	MaxDBSizeMB      int    `json:"max_db_size_mb"`
-	DeletedByAge     int    `json:"deleted_by_age"`
-	DeletedByCount   int    `json:"deleted_by_count"`
-	DeletedBySize    int    `json:"deleted_by_size"`
-	FinalSessions    int    `json:"final_sessions"`
-	FinalDBSizeBytes int64  `json:"final_db_size_bytes"`
-}
-
-func (h *handler) pruneData(ctx context.Context, _ *mcpsdk.CallToolRequest, in PruneDataInput) (*mcpsdk.CallToolResult, PruneDataOutput, error) {
-	cfg := storage.RetentionConfig{MaxSessions: in.MaxSessions}
-	if in.RetentionDays > 0 {
-		cfg.MaxAge = time.Duration(in.RetentionDays) * 24 * time.Hour
-	}
-	if in.MaxDBSizeMB > 0 {
-		cfg.MaxDBSizeBytes = int64(in.MaxDBSizeMB) * 1024 * 1024
-	}
-	if in.DryRun {
-		stats, err := h.store.WithContext(ctx).GetStats("")
-		if err != nil {
-			return nil, PruneDataOutput{}, fmt.Errorf("read storage stats: %w", err)
-		}
-		return nil, PruneDataOutput{DryRun: true, Warning: "Preview shows current storage and requested policy; it cannot predict exact deletions or reclaimed bytes.", RetentionDays: in.RetentionDays, MaxSessions: in.MaxSessions, MaxDBSizeMB: in.MaxDBSizeMB, FinalSessions: stats.SessionCount, FinalDBSizeBytes: stats.DBSize}, nil
-	}
-	res, err := h.store.Prune(cfg, h.store.ActiveSessionID())
-	if err != nil {
-		return nil, PruneDataOutput{}, fmt.Errorf("prune: %w", err)
-	}
-	return nil, PruneDataOutput{
-		RetentionDays: in.RetentionDays, MaxSessions: in.MaxSessions, MaxDBSizeMB: in.MaxDBSizeMB,
-		DeletedByAge:     res.DeletedByAge,
-		DeletedByCount:   res.DeletedByCount,
-		DeletedBySize:    res.DeletedBySize,
-		FinalSessions:    res.FinalSessions,
-		FinalDBSizeBytes: res.FinalDBSizeBytes,
-	}, nil
 }

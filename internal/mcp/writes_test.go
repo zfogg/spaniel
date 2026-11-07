@@ -5,7 +5,7 @@ import (
 )
 
 var writeToolNames = []string{
-	"create_session", "activate_session", "set_baseline", "prune_data",
+	"create_session", "activate_session", "set_baseline",
 	"apply_dashboard", "import_dashboard_yaml", "delete_dashboard",
 	"acknowledge_alert_instance", "unacknowledge_alert_instance", "silence_alert", "remove_alert_silence", "apply_alert", "import_alert_yaml", "delete_alert",
 	"apply_coverage_spec", "delete_coverage_spec", "mark_notification_read", "acknowledge_notification",
@@ -90,30 +90,14 @@ func TestSetBaseline(t *testing.T) {
 	}
 }
 
-func TestPruneData(t *testing.T) {
-	cs, store := connect(t, Options{Version: "t", AllowWrites: true})
-	// connect() created the active session; add a few more.
-	for _, l := range []string{"old1", "old2", "old3"} {
-		if _, err := store.CreateSession(l, false); err != nil {
-			t.Fatalf("create %s: %v", l, err)
+func TestRemovedToolsAreNotRegistered(t *testing.T) {
+	for _, writes := range []bool{false, true} {
+		cs, _ := connect(t, Options{AllowWrites: writes})
+		names := toolNames(t, cs)
+		for _, name := range []string{"format_sql", "prune_data"} {
+			if names[name] {
+				t.Errorf("%s should not be registered", name)
+			}
 		}
-	}
-	active := store.ActiveSessionID()
-
-	preview := callStructured[PruneDataOutput](t, cs, "prune_data", map[string]any{"max_sessions": 1, "dry_run": true})
-	if !preview.DryRun || preview.FinalSessions != 4 || preview.Warning == "" {
-		t.Fatalf("preview = %#v", preview)
-	}
-	sessions, err := store.ListSessions()
-	if err != nil || len(sessions) != 4 {
-		t.Fatalf("preview changed sessions: %v %v", sessions, err)
-	}
-	out := callStructured[PruneDataOutput](t, cs, "prune_data", map[string]any{"max_sessions": 1})
-	if out.DeletedByCount < 1 {
-		t.Errorf("expected some sessions deleted by count, got %+v", out)
-	}
-	// The active session must survive pruning.
-	if got, _ := store.GetSession(active); got == nil {
-		t.Error("active session was deleted by prune")
 	}
 }
