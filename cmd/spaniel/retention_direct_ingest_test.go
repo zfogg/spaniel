@@ -57,7 +57,7 @@ func TestPhysicalPruningKeepsDirectOTLPIngestionAvailable(t *testing.T) {
 	accepted := 0
 	var maxLatency time.Duration
 	for phase := range 12 {
-		if phase > 0 && db.FileSize() <= cap*storagePruneTargetPercent/100 {
+		if phase > 0 && (db.FileSize() <= cap*storagePruneTargetPercent/100 || db.RetentionBackingOff()) {
 			break
 		}
 		policy.nextPruneAfter.Store(0)
@@ -95,7 +95,16 @@ func TestPhysicalPruningKeepsDirectOTLPIngestionAvailable(t *testing.T) {
 		}
 	}
 	if db.FileSize() > cap*storagePruneTargetPercent/100 {
-		t.Fatalf("pruning never reached physical low water: size=%d cap=%d", db.FileSize(), cap)
+		// A physical rewrite can fail to reclaim space even after a batch is
+		// deleted. The safety stop must back off below the hard cap rather
+		// than repeatedly evicting live telemetry to chase optional headroom.
+		if !db.RetentionBackingOff() || db.FileSize() >= cap {
+			t.Fatalf("pruning neither reached low water nor safely backed off below the cap: size=%d cap=%d", db.FileSize(), cap)
+		}
+		var survivors int
+		if err := db.SQL().QueryRow("SELECT count(*) FROM spans WHERE name != 'newest'").Scan(&survivors); err != nil || survivors < 900 {
+			t.Fatalf("safety stop lost too much existing data: survivors=%d err=%v", survivors, err)
+		}
 	}
 	var newest int
 	if err := db.WithContext(context.Background()).SQL().QueryRow("SELECT count(*) FROM spans WHERE name='newest'").Scan(&newest); err != nil || newest == 0 {
