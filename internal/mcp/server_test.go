@@ -265,3 +265,16 @@ func TestIngestionHealthSourceFreshness(t *testing.T) {
 		})
 	}
 }
+func TestServerInfoAdvertisesAgentCapabilities(t *testing.T) {
+	enabled := true
+	cs, _ := connect(t, Options{AutoPrune: func() bool { return enabled }})
+	first := callStructured[ServerInfo](t, cs, "get_server_info", nil)
+	if first.Capabilities.GuideURI != guideURI || first.Capabilities.SchemaURI != schemaURI || first.Capabilities.SQLDefaultMaxRows != 1000 || first.Capabilities.SQLMaxRows != 50000 || first.Capabilities.SQLTimeoutSeconds != 30 || first.Capabilities.DashboardSessionParameter != "$session_id" || first.Capabilities.AutoPrune == nil || !*first.Capabilities.AutoPrune {
+		t.Fatalf("capabilities: %#v", first.Capabilities)
+	}
+	enabled = false
+	second := callStructured[ServerInfo](t, cs, "get_server_info", nil)
+	if second.Capabilities.AutoPrune == nil || *second.Capabilities.AutoPrune {
+		t.Fatalf("stale policy: %#v", second.Capabilities)
+	}
+}
