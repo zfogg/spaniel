@@ -88,8 +88,8 @@ func callStructured[T any](t *testing.T, cs *mcpsdk.ClientSession, name string, 
 	if res.IsError {
 		t.Fatalf("%s returned tool error: %+v", name, res.Content[0])
 	}
-	if res.StructuredContent != nil {
-		t.Fatalf("%s unexpectedly duplicated its result as JSON structuredContent", name)
+	if res.StructuredContent == nil {
+		t.Fatalf("%s omitted structuredContent", name)
 	}
 	if len(res.Content) != 1 {
 		t.Fatalf("%s returned %d content blocks, want one TOON block", name, len(res.Content))

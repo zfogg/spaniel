@@ -15,27 +15,24 @@ import (
 
 var registeredToolNames sync.Map
 
-// addTOONTool keeps MCP's JSON Schema input contract while returning the
-// semantic result exactly once as TOON text. The SDK's typed AddTool helper
-// normally duplicates every output as JSON structuredContent and JSON text;
-// using any as the wire output suppresses that duplicate representation.
+// addTOONTool returns compact TOON text alongside schema-validated structured data.
 func addTOONTool[In, Out any](s *mcpsdk.Server, tool *mcpsdk.Tool, handler mcpsdk.ToolHandlerFor[In, Out]) {
 	registeredToolNames.Store(tool.Name, struct{}{})
-	mcpsdk.AddTool[In, any](s, tool, func(ctx context.Context, req *mcpsdk.CallToolRequest, in In) (*mcpsdk.CallToolResult, any, error) {
+	mcpsdk.AddTool[In, Out](s, tool, func(ctx context.Context, req *mcpsdk.CallToolRequest, in In) (*mcpsdk.CallToolResult, Out, error) {
+		var zero Out
 		result, out, err := handler(ctx, req, in)
 		if err != nil {
-			return result, nil, errors.New(errtext.Message(err.Error()))
+			return result, zero, errors.New(errtext.Message(err.Error()))
 		}
 		data, err := toongo.Marshal(sqlformat.Presentation(out))
 		if err != nil {
-			return nil, nil, fmt.Errorf("encode TOON result: %w", err)
+			return nil, zero, fmt.Errorf("encode TOON result: %w", err)
 		}
 		if result == nil {
 			result = &mcpsdk.CallToolResult{}
 		}
 		result.Content = []mcpsdk.Content{&mcpsdk.TextContent{Text: string(data)}}
-		result.StructuredContent = nil
-		return result, nil, nil
+		return result, out, nil
 	})
 }
 

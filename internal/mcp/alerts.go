@@ -220,12 +220,12 @@ func (h *handler) listAlertHistory(ctx context.Context, _ *mcpsdk.CallToolReques
 }
 
 type AlertPreviewOutput struct {
-	AlertID   string          `json:"alert_id,omitempty"`
-	Columns   []string        `json:"columns"`
-	Rows      [][]any         `json:"rows"`
-	RowCount  int             `json:"row_count"`
-	Truncated bool            `json:"truncated"`
-	Condition json.RawMessage `json:"condition"`
+	AlertID   string         `json:"alert_id,omitempty"`
+	Columns   []string       `json:"columns"`
+	Rows      [][]any        `json:"rows"`
+	RowCount  int            `json:"row_count"`
+	Truncated bool           `json:"truncated"`
+	Condition map[string]any `json:"condition"`
 }
 
 func (h *handler) previewAlert(ctx context.Context, _ *mcpsdk.CallToolRequest, in GetAlertInput) (*mcpsdk.CallToolResult, AlertPreviewOutput, error) {
@@ -252,7 +252,11 @@ func (h *handler) previewAlertRule(ctx context.Context, rule *model.AlertRule) (
 	if err != nil {
 		return nil, AlertPreviewOutput{}, fmt.Errorf("preview alert: %w", err)
 	}
-	return nil, AlertPreviewOutput{AlertID: rule.ID, Columns: columns, Rows: rows, RowCount: len(rows), Truncated: truncated, Condition: json.RawMessage(rule.ConditionJSON)}, nil
+	var parsedCondition map[string]any
+	if err := json.Unmarshal([]byte(rule.ConditionJSON), &parsedCondition); err != nil {
+		return nil, AlertPreviewOutput{}, fmt.Errorf("decode alert condition: %w", err)
+	}
+	return nil, AlertPreviewOutput{AlertID: rule.ID, Columns: columns, Rows: rows, RowCount: len(rows), Truncated: truncated, Condition: parsedCondition}, nil
 }
 
 type AlertConditionDefinition struct {

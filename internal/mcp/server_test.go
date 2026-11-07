@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -181,5 +182,46 @@ func TestDatabaseSizeLimitFollowsLivePolicy(t *testing.T) {
 		if got := callStructured[StatsOutput](t, cs, "get_stats", nil).MaxDBSizeBytes; got != want {
 			t.Fatalf("stats limit = %d, want %d", got, want)
 		}
+	}
+}
+
+func TestToolOutputSchemaAndStructuredContent(t *testing.T) {
+	cs, _ := connect(t, Options{Version: "test", MaxDBSizeBytes: func() int64 { return 123456 }})
+	list, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tool := range list.Tools {
+		if tool.Name == "get_ingestion_health" {
+			found = true
+			if tool.OutputSchema == nil {
+				t.Fatal("missing output schema")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("missing get_ingestion_health")
+	}
+	result, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "get_ingestion_health"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError || result.StructuredContent == nil || len(result.Content) != 1 {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	raw, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out IngestionHealthOutput
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.MaxDBSizeBytes != 123456 {
+		t.Fatalf("structured limit = %d", out.MaxDBSizeBytes)
+	}
+	if _, ok := result.Content[0].(*mcpsdk.TextContent); !ok {
+		t.Fatalf("missing compact text: %#v", result.Content)
 	}
 }
