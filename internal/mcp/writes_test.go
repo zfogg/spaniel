@@ -100,6 +100,14 @@ func TestPruneData(t *testing.T) {
 	}
 	active := store.ActiveSessionID()
 
+	preview := callStructured[PruneDataOutput](t, cs, "prune_data", map[string]any{"max_sessions": 1, "dry_run": true})
+	if !preview.DryRun || preview.FinalSessions != 4 || preview.Warning == "" {
+		t.Fatalf("preview = %#v", preview)
+	}
+	sessions, err := store.ListSessions()
+	if err != nil || len(sessions) != 4 {
+		t.Fatalf("preview changed sessions: %v %v", sessions, err)
+	}
 	out := callStructured[PruneDataOutput](t, cs, "prune_data", map[string]any{"max_sessions": 1})
 	if out.DeletedByCount < 1 {
 		t.Errorf("expected some sessions deleted by count, got %+v", out)
