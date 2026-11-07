@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -93,7 +94,7 @@ func TestAlertYAMLToolsAndCoverageSpecs(t *testing.T) {
 	if preview.RowCount != 1 || len(preview.Columns) != 1 || preview.Columns[0] != "value" {
 		t.Fatalf("alert preview = %#v", preview)
 	}
-	definition := map[string]any{"name": "Updated error count", "query": "SELECT count(*) AS value FROM telemetry_spans", "condition": map[string]any{"kind": "threshold", "operator": ">", "threshold": 0}, "pending_for": "0s", "cooldown": "0s", "severity": "critical", "enabled": true, "browser_enabled": true, "pushover_enabled": false}
+	definition := map[string]any{"name": "Updated error count", "query": "SELECT count(*) AS value FROM telemetry_spans", "condition": map[string]any{"kind": "threshold", "operator": ">", "threshold": 0}, "pending_for": "2m", "cooldown": "3m", "repeat_interval": "5m", "severity": "critical", "enabled": true, "browser_enabled": true, "pushover_enabled": false}
 	validated := callStructured[AlertValidationOutput](t, cs, "validate_alert", map[string]any{"definition": definition})
 	if !validated.Valid || len(validated.Columns) != 1 {
 		t.Fatalf("alert validation = %#v", validated)
@@ -107,7 +108,7 @@ func TestAlertYAMLToolsAndCoverageSpecs(t *testing.T) {
 		t.Fatalf("alert export omitted id:\n%s", exported)
 	}
 	updatedAlert := callStructured[AlertOutput](t, cs, "get_alert", map[string]any{"alert_id": alert.Rule.ID})
-	if !strings.Contains(updatedAlert.Rule.QuerySQL, "count(*) AS value") || updatedAlert.Rule.Severity != "critical" {
+	if !strings.Contains(updatedAlert.Rule.QuerySQL, "count(*) AS value") || updatedAlert.Rule.Severity != "critical" || updatedAlert.Rule.PendingForNs != int64(2*time.Minute) || updatedAlert.Rule.CooldownNs != int64(3*time.Minute) || updatedAlert.Rule.RepeatIntervalNs != int64(5*time.Minute) {
 		t.Fatalf("alert query = %q severity = %q", updatedAlert.Rule.QuerySQL, updatedAlert.Rule.Severity)
 	}
 	deletedAlert := callStructured[MutationOutput](t, cs, "delete_alert", map[string]any{"alert_id": alert.Rule.ID})
