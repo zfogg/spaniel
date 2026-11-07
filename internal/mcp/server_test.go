@@ -215,12 +215,15 @@ func TestToolOutputSchemaAndStructuredContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var out IngestionHealthOutput
+	var out map[string]any
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.MaxDBSizeBytes != 123456 {
-		t.Fatalf("structured limit = %d", out.MaxDBSizeBytes)
+	if out["max_db_size_bytes"] != float64(123456) {
+		t.Fatalf("structured limit = %v", out["max_db_size_bytes"])
+	}
+	if _, ok := out["evaluated_at_ns"].(string); !ok {
+		t.Fatalf("timestamp must retain integer precision: %#v", out["evaluated_at_ns"])
 	}
 	if _, ok := result.Content[0].(*mcpsdk.TextContent); !ok {
 		t.Fatalf("missing compact text: %#v", result.Content)
