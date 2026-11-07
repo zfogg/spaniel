@@ -19,7 +19,7 @@ import (
 // These limits cover queued AND executing exports. Bytes are protobuf size,
 // not a claim about the Go heap size of decoded pdata or HTTP request bodies.
 const (
-	batchWindow   = time.Second
+	batchWindow   = 50 * time.Millisecond
 	batchRows     = 4096
 	batchBytes    = 4 << 20
 	queueRequests = 256

@@ -21,6 +21,27 @@ func awaitBatch(t *testing.T, b *ingestBatcher, w *batchWork) error {
 	}
 }
 
+func TestSharedBatchDefaultAcknowledgesPromptly(t *testing.T) {
+	b := newIngestBatcher(func(context.Context, bool) error { return nil }, func() {})
+	work, err := b.enqueue(t.Context(), 1, 1, func(context.Context) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- b.wait(work) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(750 * time.Millisecond):
+		t.Fatal("default batch did not acknowledge promptly")
+	}
+	if err := b.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSharedBatchCoalescesAndPublishesAfterFlush(t *testing.T) {
 	var flushes, processed, published, notified atomic.Int64
 	flushed := false
