@@ -31,16 +31,16 @@ func (h *handler) registerLogTools(s *mcpsdk.Server) {
 type QueryLogsInput struct {
 	Attributes map[string]string `json:"attributes,omitempty" jsonschema:"exact top-level attribute key/value filters; AND; scalar values compared as text; applied before pagination"`
 
-	SessionID   string `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
-	TraceID     string `json:"trace_id,omitempty" jsonschema:"only logs correlated with this trace"`
-	SpanID      string `json:"span_id,omitempty" jsonschema:"only logs correlated with this span"`
-	Service     string `json:"service,omitempty" jsonschema:"only logs from this service.name"`
-	MinSeverity string `json:"min_severity,omitempty" jsonschema:"minimum severity: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL"`
-	MaxSeverity string `json:"max_severity,omitempty" jsonschema:"maximum severity: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL"`
-	FromNs      int64  `json:"from_ns,omitempty" jsonschema:"inclusive timestamp lower bound (unix ns); 0 = no bound"`
-	ToNs        int64  `json:"to_ns,omitempty" jsonschema:"inclusive timestamp upper bound (unix ns); 0 = no bound"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"max log records to return (default 100, max 1000)"`
-	Page        int    `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
+	SessionID   string    `json:"session_id,omitempty" jsonschema:"session to query; defaults to the active session"`
+	TraceID     string    `json:"trace_id,omitempty" jsonschema:"only logs correlated with this trace"`
+	SpanID      string    `json:"span_id,omitempty" jsonschema:"only logs correlated with this span"`
+	Service     string    `json:"service,omitempty" jsonschema:"only logs from this service.name"`
+	MinSeverity string    `json:"min_severity,omitempty" jsonschema:"minimum severity: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL"`
+	MaxSeverity string    `json:"max_severity,omitempty" jsonschema:"maximum severity: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL"`
+	FromNs      UnixNanos `json:"from_ns,omitempty" jsonschema:"inclusive Unix nanoseconds as a decimal string; omit for no bound"`
+	ToNs        UnixNanos `json:"to_ns,omitempty" jsonschema:"inclusive Unix nanoseconds as a decimal string; omit for no bound"`
+	Limit       int       `json:"limit,omitempty" jsonschema:"max log records to return (default 100, max 1000)"`
+	Page        int       `json:"page,omitempty" jsonschema:"1-based page number (default 1)"`
 }
 
 type LogOut struct {
@@ -73,6 +73,10 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 	sessionID := h.resolveSession(in.SessionID)
 	minSev := severityNum(in.MinSeverity)
 	maxSev := severityNum(in.MaxSeverity)
+	fromNs, toNs, err := parseTimeWindow(in.FromNs, in.ToNs)
+	if err != nil {
+		return nil, QueryLogsOutput{}, err
+	}
 
 	filter := storage.LogFilter{
 		Attributes:  in.Attributes,
@@ -82,8 +86,8 @@ func (h *handler) queryLogs(ctx context.Context, _ *mcpsdk.CallToolRequest, in Q
 		SpanID:      in.SpanID,
 		MinSeverity: minSev,
 		MaxSeverity: maxSev,
-		FromNs:      in.FromNs,
-		ToNs:        in.ToNs,
+		FromNs:      fromNs,
+		ToNs:        toNs,
 		Limit:       limit,
 		Page:        in.Page,
 	}

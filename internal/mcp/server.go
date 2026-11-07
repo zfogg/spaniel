@@ -245,7 +245,7 @@ func (h *handler) getServerInfo(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	if publicURL == "" {
 		publicURL, _ = ctx.Value(requestOriginKey{}).(string)
 	}
-	capabilities := AgentCapabilities{GuideURI: "spaniel://guide", SchemaURI: "spaniel://schema", Signals: []string{"traces", "spans", "logs", "metrics"}, SQLDefaultMaxRows: 1000, SQLMaxRows: 50000, SQLTimeoutSeconds: int(sqlQueryTimeout.Seconds()), TimeFormat: "Unix nanoseconds as decimal strings", DashboardSessionParameter: "$session_id"}
+	capabilities := AgentCapabilities{GuideURI: "spaniel://guide", SchemaURI: "spaniel://schema", Signals: []string{"traces", "spans", "logs", "metrics"}, SQLDefaultMaxRows: 1000, SQLMaxRows: 50000, SQLTimeoutSeconds: int(sqlQueryTimeout.Seconds()), TimeFormat: "Unix nanoseconds; consult each tool input schema for decimal string or number", DashboardSessionParameter: "$session_id"}
 	if h.opts.AutoPrune != nil {
 		enabled := h.opts.AutoPrune()
 		capabilities.AutoPrune = &enabled
