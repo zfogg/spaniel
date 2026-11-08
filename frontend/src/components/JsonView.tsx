@@ -6,33 +6,33 @@ import { TelemetrySQL } from './SQLDiagnostics'
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 240
 
-function compactLongValues(value: unknown): { value: unknown; truncated: number } {
+function compactLongValues(value: unknown): { value: unknown; badges: string[] } {
   if (typeof value === 'string' && value.length > MAX_ATTRIBUTE_VALUE_LENGTH) {
     return {
-      value: `${value.slice(0, MAX_ATTRIBUTE_VALUE_LENGTH)}… +${value.length - MAX_ATTRIBUTE_VALUE_LENGTH} chars`,
-      truncated: 1,
+      value: value.slice(0, MAX_ATTRIBUTE_VALUE_LENGTH),
+      badges: [`… +${value.length - MAX_ATTRIBUTE_VALUE_LENGTH} chars`],
     }
   }
   if (Array.isArray(value)) {
-    let truncated = 0
+    let badges: string[] = []
     const compacted = value.map((item) => {
       const result = compactLongValues(item)
-      truncated += result.truncated
+      badges = [...badges, ...result.badges]
       return result.value
     })
-    return { value: compacted, truncated }
+    return { value: compacted, badges }
   }
   if (value && typeof value === 'object') {
-    let truncated = 0
+    let badges: string[] = []
     const compacted: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(value)) {
       const result = compactLongValues(item)
-      truncated += result.truncated
+      badges = [...badges, ...result.badges]
       compacted[key] = result.value
     }
-    return { value: compacted, truncated }
+    return { value: compacted, badges }
   }
-  return { value, truncated: 0 }
+  return { value, badges: [] }
 }
 
 // Collapsible JSON viewer for span/log/event attributes and resource maps —
@@ -66,11 +66,26 @@ export default function JsonView({ data, showSQL = true }: { data: unknown; show
       data-testid="json-view"
       className="px-3.5 py-1 font-mono text-[10.5px] leading-[1.5] break-words [&>div]:!bg-transparent"
     >
+      {statements.map(([key]) => (
+        <div
+          key={key}
+          className="mx-3.5 mb-1 inline-flex items-center rounded border border-yellow-500/50 bg-yellow-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-yellow-900 dark:bg-yellow-950/60 dark:text-yellow-200"
+        >
+          {key} · formatted below
+        </div>
+      ))}
       {showSQL && attributes && <TelemetrySQL attributes={attributes} />}
-      {compacted.truncated > 0 && (
-        <div className="mx-3.5 mb-1 rounded border border-[var(--accent)] bg-[var(--accent-bg)] px-2 py-1 font-mono text-[9px] text-[var(--accent-ink)]">
-          … {compacted.truncated} long value{compacted.truncated === 1 ? '' : 's'} abbreviated after{' '}
-          {MAX_ATTRIBUTE_VALUE_LENGTH} characters
+      {compacted.badges.length > 0 && (
+        <div className="mx-3.5 mb-1 flex flex-wrap items-center gap-1">
+          {compacted.badges.map((badge, index) => (
+            <span
+              key={`${badge}-${index}`}
+              className="inline-flex rounded border border-yellow-500/50 bg-yellow-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-yellow-900 dark:bg-yellow-950/60 dark:text-yellow-200"
+              title={`Value abbreviated after ${MAX_ATTRIBUTE_VALUE_LENGTH} characters`}
+            >
+              {badge}
+            </span>
+          ))}
         </div>
       )}
       <RJVLite data={compacted.value as object} shouldExpandNode={allExpanded} style={styles} />
