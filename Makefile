@@ -210,7 +210,7 @@ test-dashboard-cli:
 generate:
 	$(GO) run ./cmd/genliveevent
 	cd frontend && pnpm exec oxfmt --write src/generated/liveevent.ts
-	$(GO) run ./cmd/genquery
+	GOCACHEPROG= $(GO) run ./cmd/genquery
 	$(GO) run ./cmd/genschema
 	cd frontend && pnpm exec oxfmt --write src/generated/schemaCatalog.ts
 	$(MAKE) generate-openapi
