@@ -191,7 +191,7 @@ your app  ──OTLP──►  spaniel :4317/:4318
                     React UI  :8080
 ```
 
-Data retention defaults to 7 days and 500 MB; old sessions are pruned automatically. Configure with `~/.spaniel/config.yaml` or flags.
+Data retention defaults to 7 days and 400 MB; old sessions are pruned automatically. Configure with `~/.spaniel/config.yaml` or flags.
 
 A few things for the paranoid and the high-volume:
 
@@ -456,7 +456,7 @@ dashboards_dir: ~/.spaniel/dashboards
 alerts_dir: ~/.spaniel/alerts
 retention_days: 7
 max_sessions: 50
-max_db_size_mb: 500
+max_db_size_mb: 400
 auto_prune: true      # physical DB file + WAL: start at 80%, reclaim to 70%; false = preserve data and stop ingest at cap
 no_browser: false
 mcp_enabled: true        # serve the MCP endpoint at /mcp

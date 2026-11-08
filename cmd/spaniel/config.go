@@ -73,7 +73,7 @@ retention_days: 7
 max_sessions: 50
 
 # Retention: shrink DB to at most N MB (0 = unlimited)
-max_db_size_mb: 500
+max_db_size_mb: 400
 
 # Automatically evict oldest telemetry at 95% until storage reaches 70%.
 # After the hard cap pauses ingestion, recovery stays paused until that target.
@@ -188,7 +188,7 @@ func initViper(v *viper.Viper) {
 	v.SetDefault("alerts_dir", "~/.spaniel/alerts")
 	v.SetDefault("retention_days", 7)
 	v.SetDefault("max_sessions", 50)
-	v.SetDefault("max_db_size_mb", 500)
+	v.SetDefault("max_db_size_mb", 400)
 	v.SetDefault("auto_prune", true)
 	v.SetDefault("advance_session_on_start", true)
 	v.SetDefault("active_session_id", "")
