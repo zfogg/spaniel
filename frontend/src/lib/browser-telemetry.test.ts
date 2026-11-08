@@ -28,12 +28,22 @@ describe('browser trace propagation', () => {
     const [span] = f.exporter.getFinishedSpans()
     expect(span.resource.attributes['service.name']).toBe('spaniel-web')
     expect(span.kind).toBe(SpanKind.CLIENT)
+    expect(span.name).toBe('http.client.GET /api/settings')
     expect(span.parentSpanContext).toBeUndefined()
     const headers = new Headers(original.mock.calls[0][1]?.headers)
     expect(headers.get('Authorization')).toBe('Bearer test')
     expect(headers.get('traceparent')).toBe(
       `00-${span.spanContext().traceId}-${span.spanContext().spanId}-01`,
     )
+    await f.provider.shutdown()
+  })
+
+  it('uses the gotel HTTP client naming shape for resource routes', async () => {
+    const original = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}'))
+    const f = fixture(original)
+    await f.fetch('/api/traces/3816d107-32a5-4a39-af88-09f092d508f1')
+    await f.provider.forceFlush()
+    expect(f.exporter.getFinishedSpans()[0].name).toBe('http.client.GET /api/traces/{id}')
     await f.provider.shutdown()
   })
 

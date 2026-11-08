@@ -2,6 +2,7 @@ import { ROOT_CONTEXT, SpanKind, SpanStatusCode, type Tracer } from '@openteleme
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { BatchSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
+import { browserHttpClientSpanName } from '@zfogg/gotel'
 
 // Only same-origin API traffic belongs to Spaniel. Exports use the original
 // fetch and /v1/traces is excluded, so observing the UI cannot trace its exporter.
@@ -17,7 +18,12 @@ export function telemetryFetch(
 
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const span = tracer.startSpan(
-      `HTTP ${method}`,
+      browserHttpClientSpanName({
+        applicationOrigin: origin,
+        method,
+        prefix: '',
+        responseUrl: url.href,
+      }),
       {
         kind: SpanKind.CLIENT,
         attributes: { 'http.request.method': method, 'url.path': url.pathname },
