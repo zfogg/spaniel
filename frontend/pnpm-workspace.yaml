@@ -1,3 +1,4 @@
 allowBuilds:
+  '@zfogg/gotel': true
   esbuild: true
   msw: true
