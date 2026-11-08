@@ -9,13 +9,13 @@ type QueryOccurrenceMethods interface {
 	//
 	// WITH target AS (
 	//   SELECT trace_id, span_id, session_id, service_name,
-	//     json_extract_string(attributes, '$."gotel.db.query.fingerprint"') AS fingerprint,
-	//     coalesce(json_extract_string(attributes, '$."db.namespace"'), json_extract_string(attributes, '$."db.name"'), '') AS namespace,
-	//     coalesce(json_extract_string(attributes, '$."server.address"'), json_extract_string(attributes, '$."net.peer.name"'), '') AS address,
-	//     coalesce(json_extract_string(attributes, '$."server.port"'), json_extract_string(attributes, '$."net.peer.port"'), '') AS port
+	//     json_extract_string(try_cast(attributes AS JSON), '$."gotel.db.query.fingerprint"') AS fingerprint,
+	//     coalesce(json_extract_string(try_cast(attributes AS JSON), '$."db.namespace"'), json_extract_string(try_cast(attributes AS JSON), '$."db.name"'), '') AS namespace,
+	//     coalesce(json_extract_string(try_cast(attributes AS JSON), '$."server.address"'), json_extract_string(try_cast(attributes AS JSON), '$."net.peer.name"'), '') AS address,
+	//     coalesce(json_extract_string(try_cast(attributes AS JSON), '$."server.port"'), json_extract_string(try_cast(attributes AS JSON), '$."net.peer.port"'), '') AS port
 	//   FROM @@table
 	//   WHERE span_id IN @spanIDs
-	//     AND regexp_full_match(json_extract_string(attributes, '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
+	//     AND regexp_full_match(json_extract_string(try_cast(attributes AS JSON), '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
 	// ), identities AS (
 	//   SELECT DISTINCT session_id, service_name, fingerprint, namespace, address, port FROM target
 	// ), counts AS (
@@ -24,10 +24,10 @@ type QueryOccurrenceMethods interface {
 	//   FROM identities
 	//   JOIN @@table candidate ON candidate.session_id = identities.session_id
 	//     AND candidate.service_name = identities.service_name
-	//     AND json_extract_string(candidate.attributes, '$."gotel.db.query.fingerprint"') = identities.fingerprint
-	//     AND coalesce(json_extract_string(candidate.attributes, '$."db.namespace"'), json_extract_string(candidate.attributes, '$."db.name"'), '') = identities.namespace
-	//     AND coalesce(json_extract_string(candidate.attributes, '$."server.address"'), json_extract_string(candidate.attributes, '$."net.peer.name"'), '') = identities.address
-	//     AND coalesce(json_extract_string(candidate.attributes, '$."server.port"'), json_extract_string(candidate.attributes, '$."net.peer.port"'), '') = identities.port
+	//     AND json_extract_string(try_cast(candidate.attributes AS JSON), '$."gotel.db.query.fingerprint"') = identities.fingerprint
+	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."db.namespace"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."db.name"'), '') = identities.namespace
+	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."server.address"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."net.peer.name"'), '') = identities.address
+	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."server.port"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."net.peer.port"'), '') = identities.port
 	//   GROUP BY identities.session_id, identities.service_name, identities.fingerprint, identities.namespace, identities.address, identities.port
 	// )
 	// SELECT target.trace_id, target.span_id, counts.count
@@ -372,27 +372,27 @@ type SpanListMethods interface {
 	//   SELECT
 	//     service_name,
 	//     CASE
-	//       WHEN json_extract_string(attributes, '$."http.route"') != ''
+	//       WHEN json_extract_string(try_cast(attributes AS JSON), '$."http.route"') != ''
 	//       THEN COALESCE(
-	//       NULLIF(json_extract_string(attributes, '$."http.request.method"'), ''),
-	//       NULLIF(json_extract_string(attributes, '$."http.method"'), ''),
+	//       NULLIF(json_extract_string(try_cast(attributes AS JSON), '$."http.request.method"'), ''),
+	//       NULLIF(json_extract_string(try_cast(attributes AS JSON), '$."http.method"'), ''),
 	//       'GET'
 	//     )
-	//       WHEN json_extract_string(attributes, '$."rpc.method"') != ''
+	//       WHEN json_extract_string(try_cast(attributes AS JSON), '$."rpc.method"') != ''
 	//       THEN 'RPC'
 	//       WHEN kind = 2
 	//         AND name != ''
 	//       THEN ''
 	//     END AS method,
 	//     CASE
-	//       WHEN json_extract_string(attributes, '$."http.route"') != ''
-	//       THEN json_extract_string(attributes, '$."http.route"')
-	//       WHEN json_extract_string(attributes, '$."rpc.method"') != ''
+	//       WHEN json_extract_string(try_cast(attributes AS JSON), '$."http.route"') != ''
+	//       THEN json_extract_string(try_cast(attributes AS JSON), '$."http.route"')
+	//       WHEN json_extract_string(try_cast(attributes AS JSON), '$."rpc.method"') != ''
 	//       THEN
 	//         CASE
-	//           WHEN json_extract_string(attributes, '$."rpc.service"') != ''
-	//           THEN json_extract_string(attributes, '$."rpc.service"') || '.' || json_extract_string(attributes, '$."rpc.method"')
-	//           ELSE json_extract_string(attributes, '$."rpc.method"')
+	//           WHEN json_extract_string(try_cast(attributes AS JSON), '$."rpc.service"') != ''
+	//           THEN json_extract_string(try_cast(attributes AS JSON), '$."rpc.service"') || '.' || json_extract_string(try_cast(attributes AS JSON), '$."rpc.method"')
+	//           ELSE json_extract_string(try_cast(attributes AS JSON), '$."rpc.method"')
 	//         END
 	//       WHEN kind = 2
 	//         AND name != ''
@@ -425,17 +425,17 @@ type SpanListMethods interface {
 	//
 	// SELECT
 	//   COUNT(*) FILTER (
-	//     WHERE kind = 2 AND COALESCE(json_extract_string(attributes, '$."http.route"'), '') = ''
+	//     WHERE kind = 2 AND COALESCE(json_extract_string(try_cast(attributes AS JSON), '$."http.route"'), '') = ''
 	//   ) AS missing_route_spans,
 	//   COUNT(*) FILTER (
-	//     WHERE json_extract_string(attributes, '$."http.route"') IN ('/', '/api/')
+	//     WHERE json_extract_string(try_cast(attributes AS JSON), '$."http.route"') IN ('/', '/api/')
 	//   ) AS generic_route_spans,
 	//   COUNT(*) FILTER (
 	//     WHERE regexp_matches(
-	//       COALESCE(json_extract_string(attributes, '$."http.route"'), ''),
+	//       COALESCE(json_extract_string(try_cast(attributes AS JSON), '$."http.route"'), ''),
 	//       '/[0-9]+($|/)'
 	//     ) OR regexp_matches(
-	//       COALESCE(json_extract_string(attributes, '$."http.route"'), ''),
+	//       COALESCE(json_extract_string(try_cast(attributes AS JSON), '$."http.route"'), ''),
 	//       '[0-9a-f]{8}-[0-9a-f-]{27,}'
 	//     )
 	//   ) AS dynamic_route_spans

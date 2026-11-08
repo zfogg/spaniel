@@ -10,6 +10,14 @@ import (
 )
 
 func copyPhysicalDatabase(source, candidate string, dataBytes ...*int64) error {
+	err := copyPhysicalDatabaseNative(source, candidate, dataBytes...)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "invalid unicode") {
+		return err
+	}
+	return copyPhysicalDatabaseRepairUnicode(source, candidate, dataBytes...)
+}
+
+func copyPhysicalDatabaseNative(source, candidate string, dataBytes ...*int64) error {
 	copyDB, e := sql.Open("duckdb", source+"?threads=4&memory_limit=2GB&storage_compatibility_version=latest")
 	if e != nil {
 		return e
