@@ -1,6 +1,6 @@
 services:
   spaniel:
-    image: ${SPANIEL_IMAGE:-ghcr.io/zfogg/spaniel:latest}
+    image: ghcr.io/zfogg/spaniel:latest
     command: ["--db-path", "/data/spaniel.duckdb", "--no-browser", "--mcp-allow-writes", "--dashboards-dir", "/etc/spaniel/dashboards"]
     container_name: spaniel
     restart: unless-stopped
