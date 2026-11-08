@@ -39,7 +39,6 @@ export function usePeriodicRefresh() {
               'service-map',
               'coverage',
               'issues',
-              'settings',
             ].includes(String(q.queryKey[0])),
         },
         { cancelRefetch: false },
