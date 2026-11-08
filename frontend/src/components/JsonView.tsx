@@ -8,7 +8,7 @@ import { TelemetrySQL } from './SQLDiagnostics'
 // replaces the bespoke key/value tree code in the inspectors. Themed to blend
 // into the surrounding panel (transparent container, mono, small) and follows
 // the app's light/dark mode. Attribute maps are shallow, so we expand by default.
-export default function JsonView({ data }: { data: unknown }) {
+export default function JsonView({ data, showSQL = true }: { data: unknown; showSQL?: boolean }) {
   const { resolvedTheme } = useTheme()
   const styles = resolvedTheme === 'dark' ? darkStyles : defaultStyles
   const attributes =
@@ -34,7 +34,7 @@ export default function JsonView({ data }: { data: unknown }) {
       data-testid="json-view"
       className="px-3.5 py-1 font-mono text-[10.5px] leading-[1.5] break-words [&>div]:!bg-transparent"
     >
-      {attributes && <TelemetrySQL attributes={attributes} />}
+      {showSQL && attributes && <TelemetrySQL attributes={attributes} />}
       <RJVLite data={remaining as object} shouldExpandNode={allExpanded} style={styles} />
     </div>
   )

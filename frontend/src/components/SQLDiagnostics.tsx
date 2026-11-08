@@ -128,7 +128,9 @@ const reasons: Record<string, string> = {
 }
 
 export function TelemetrySQL({ attributes }: { attributes: Record<string, unknown> }) {
-  const query = attributes['db.query.text'] ?? attributes['db.statement']
+  const queryAttribute =
+    typeof attributes['db.query.text'] === 'string' ? 'db.query.text' : 'db.statement'
+  const query = attributes[queryAttribute]
   const text = typeof query === 'string' ? query : ''
   const dialect = telemetrySQLDialect(attributes)
   const diagnostics = attributes['db.query.diagnostics']
@@ -170,6 +172,9 @@ export function TelemetrySQL({ attributes }: { attributes: Record<string, unknow
       aria-label="SQL analysis"
       className="my-2 min-w-0 max-h-[max(50vh,650px)] overflow-y-auto rounded border border-border p-2"
     >
+      <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+        {queryAttribute}
+      </div>
       {rejected && (
         <p role="alert">
           SQL diagnostic metadata was rejected as invalid or unsupported. The original SQL is

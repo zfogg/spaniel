@@ -9,6 +9,7 @@ import { fmtNs, KIND_LABELS, httpDisplayName } from '@/lib/span-utils'
 import { n1IssueForSpan } from '@/components/trace-waterfall-utils'
 import { fmtRelMs } from '@/lib/events-format'
 import JsonView from '@/components/JsonView'
+import { TelemetrySQL } from '@/components/SQLDiagnostics'
 import ServiceNameBadge from '@/components/ServiceNameBadge'
 import { TimestampWithAgo } from '@/components/shared/TimestampWithAgo'
 
@@ -595,7 +596,8 @@ export default function SpanInspector({
                 <span className="flex-1" />
                 <span className="normal-case tracking-normal">{attrEntries.length}</span>
               </div>
-              <JsonView data={attrs} />
+              <JsonView data={attrs} showSQL={false} />
+              <TelemetrySQL attributes={attrs} />
             </>
           )}
           {resEntries.length > 0 && (
