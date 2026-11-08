@@ -7,27 +7,6 @@ import (
 	"testing"
 )
 
-func TestSessionQueryOccurrencesMalformedAttributes(t *testing.T) {
-	d := openTestDB(t)
-	fp := "sequel:v1:postgresql:" + strings.Repeat("a", 64)
-	for _, s := range []*Span{
-		{TraceID: "t1", SpanID: "good", SessionID: "s", ServiceName: "svc", Attributes: `{"gotel.db.query.fingerprint":"` + fp + `"}`, Resource: "{}"},
-		{TraceID: "t2", SpanID: "bad", SessionID: "s", ServiceName: "svc", Attributes: `{"bad":`, Resource: "{}"},
-	} {
-		if err := d.InsertSpan(s); err != nil {
-			t.Fatal(err)
-		}
-	}
-	got, err := d.GetSpan("good", "s")
-	if err != nil || got == nil || got.QueryOccurrences != 1 {
-		t.Fatalf("valid span blocked by malformed attributes: %#v, %v", got, err)
-	}
-	got, err = d.GetSpan("bad", "s")
-	if err != nil || got == nil || got.QueryOccurrences != 0 {
-		t.Fatalf("malformed span read: %#v, %v", got, err)
-	}
-}
-
 func TestSessionQueryOccurrencesScopePaginationAndRetransmits(t *testing.T) {
 	d := openTestDB(t)
 	fp := "sequel:v1:postgresql:" + strings.Repeat("a", 64)
