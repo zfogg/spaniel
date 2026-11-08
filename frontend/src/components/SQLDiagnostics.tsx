@@ -166,7 +166,10 @@ export function TelemetrySQL({ attributes }: { attributes: Record<string, unknow
   )
   if (!relevant) return null
   return (
-    <section aria-label="SQL analysis" className="my-2 min-w-0 rounded border border-border p-2">
+    <section
+      aria-label="SQL analysis"
+      className="my-2 min-w-0 max-h-[max(50vh,650px)] overflow-y-auto rounded border border-border p-2"
+    >
       {rejected && (
         <p role="alert">
           SQL diagnostic metadata was rejected as invalid or unsupported. The original SQL is
