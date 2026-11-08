@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // TestSetup_NoEndpointIsNoop verifies the contract for an empty Endpoint: Setup
-// installs NOTHING and returns a usable no-op shutdown. This is deliberate — the
+// installs no SDK provider and returns a usable no-op shutdown. This is deliberate — the
 // OTel global delegate only back-fills already-created tracers on the FIRST
 // SetTracerProvider, so installing a (non-exporting) provider here would
 // permanently orphan every tracer obtained at startup (storage's GORM plugin,
@@ -17,12 +18,17 @@ import (
 // obtained now must still be safe to use (no-op span).
 func TestSetup_NoEndpointIsNoop(t *testing.T) {
 	ctx := context.Background()
+	previousPropagation := otel.GetTextMapPropagator()
+	t.Cleanup(func() { otel.SetTextMapPropagator(previousPropagation) })
 	shutdown, err := Setup(ctx, Config{ServiceName: "test-svc", Version: "0.0.1"})
 	if err != nil {
 		t.Fatalf("Setup returned error: %v", err)
 	}
 	if shutdown == nil {
 		t.Fatal("Setup returned nil shutdown func")
+	}
+	if _, ok := otel.GetTextMapPropagator().(propagation.TraceContext); !ok {
+		t.Fatalf("Setup installed %T propagator, want propagation.TraceContext", otel.GetTextMapPropagator())
 	}
 	if err := shutdown(ctx); err != nil {
 		t.Errorf("no-op shutdown returned error: %v", err)

@@ -7,9 +7,11 @@ import (
 
 	"github.com/zfogg/gotel/go"
 	"github.com/zfogg/gotel/go/otelhost"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/exemplar"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -45,6 +47,10 @@ type Config struct {
 // An empty endpoint intentionally leaves the global delegate untouched
 // so a later hot-enabled provider can back-fill already-created instruments.
 func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error) {
+	// The browser sends W3C traceparent headers for same-origin API requests.
+	// Install the matching extractor globally so otelhttp creates the API span
+	// as a child of the browser span instead of starting a second root trace.
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 	if cfg.Endpoint == "" {
 		return func(context.Context) error { return nil }, nil
 	}
