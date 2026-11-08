@@ -1,6 +1,20 @@
 import { useMemo } from 'react'
+import { sql } from '@codemirror/lang-sql'
+import { tags, tagHighlighter, highlightTree } from '@lezer/highlight'
 import { displayRange, useSQLAnalysis, type SQLDiagnostic } from '@/lib/sql-analysis'
 import { telemetrySQLDialect } from '@/lib/sql-format'
+
+const staticSQL = sql().language
+const staticHighlight = tagHighlighter([
+  { tag: tags.keyword, class: 'font-bold text-[var(--sql-keyword)]' },
+  { tag: [tags.string, tags.special(tags.string)], class: 'text-[var(--sql-string)]' },
+  { tag: tags.number, class: 'text-[var(--sql-number)]' },
+  {
+    tag: [tags.comment, tags.lineComment, tags.blockComment],
+    class: 'italic text-[var(--sql-comment)]',
+  },
+  { tag: [tags.operatorKeyword, tags.operator], class: 'text-[var(--sql-operator)]' },
+])
 
 export function SQLDiagnosticList({ diagnostics }: { diagnostics: SQLDiagnostic[] }) {
   return (
@@ -42,9 +56,18 @@ export function DiagnosticSQL({
       const r = displayRange(d, text)
       return r ? [{ start: r[0], end: r[1], d }] : []
     })
-    const points = [...new Set([0, text.length, ...ranges.flatMap((r) => [r.start, r.end])])].sort(
-      (a, b) => a - b,
-    )
+    const syntaxRanges: { start: number; end: number; className: string }[] = []
+    highlightTree(staticSQL.parser.parse(text), staticHighlight, (start, end, className) => {
+      syntaxRanges.push({ start, end, className })
+    })
+    const points = [
+      ...new Set([
+        0,
+        text.length,
+        ...ranges.flatMap((r) => [r.start, r.end]),
+        ...syntaxRanges.flatMap((r) => [r.start, r.end]),
+      ]),
+    ].sort((a, b) => a - b)
     return points.flatMap((point, i) => {
       const anchors = ranges
         .filter((r) => r.start === point && r.end === point)
@@ -63,6 +86,8 @@ export function DiagnosticSQL({
       if (end === undefined) return anchors
       const active = ranges.filter((r) => r.start < end && r.end > point)
       const part = text.slice(point, end)
+      const token = syntaxRanges.find((r) => r.start <= point && r.end >= end)
+      const content = token ? <span className={token.className}>{part}</span> : part
       return [
         ...anchors,
         active.length ? (
@@ -75,10 +100,10 @@ export function DiagnosticSQL({
             title={active.map((r) => r.d.message).join('; ')}
             className="bg-transparent text-inherit underline decoration-wavy decoration-destructive underline-offset-4"
           >
-            {part}
+            {content}
           </mark>
         ) : (
-          part
+          content
         ),
       ]
     })
