@@ -4,11 +4,34 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
+
+// The optional fixture is a private, already isolated database with actual
+// invalid UTF-8. Never point it at a live database.
+func TestPhysicalUnicodeRealCorruptFixture(t *testing.T) {
+	source := os.Getenv("SPANIEL_UNICODE_FIXTURE")
+	if source == "" {
+		t.Skip("no private corrupt fixture")
+	}
+	candidate := filepath.Join(t.TempDir(), filepath.Base(source))
+	if err := copyPhysicalDatabase(source, candidate); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("duckdb", candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM spans WHERE attributes LIKE '%spaniel.invalid_utf8_base64%'`).Scan(&count); err != nil || count < 1 {
+		t.Fatalf("preserved corrupt payloads=%d err=%v", count, err)
+	}
+}
 
 func TestPhysicalUnicodeScanLeavesValidDatabaseUntouched(t *testing.T) {
 	db, err := sql.Open("duckdb", filepath.Join(t.TempDir(), "spaniel.duckdb"))
