@@ -24,6 +24,7 @@ type QueryOccurrenceMethods interface {
 	//   FROM identities
 	//   JOIN @@table candidate ON candidate.session_id = identities.session_id
 	//     AND candidate.service_name = identities.service_name
+	//     AND (contains(candidate.attributes, identities.fingerprint) OR contains(candidate.attributes, chr(92) || 'u'))
 	//     AND json_extract_string(try_cast(candidate.attributes AS JSON), '$."gotel.db.query.fingerprint"') = identities.fingerprint
 	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."db.namespace"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."db.name"'), '') = identities.namespace
 	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."server.address"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."net.peer.name"'), '') = identities.address

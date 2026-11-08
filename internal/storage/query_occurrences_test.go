@@ -13,6 +13,7 @@ func TestQueryOccurrencesSkipsMalformedAttributes(t *testing.T) {
 	for _, s := range []*Span{
 		{TraceID: "t1", SpanID: "good", SessionID: "s", ServiceName: "svc", Attributes: `{"gotel.db.query.fingerprint":"` + fp + `"}`, Resource: "{}"},
 		{TraceID: "t2", SpanID: "bad", SessionID: "s", ServiceName: "svc", Attributes: `{"bad":`, Resource: "{}"},
+		{TraceID: "t3", SpanID: "escaped", SessionID: "s", ServiceName: "svc", Attributes: `{"gotel.db.query.fingerprint":"sequel\u003av1\u003apostgresql\u003a` + strings.Repeat("a", 64) + `"}`, Resource: "{}"},
 	} {
 		if err := d.InsertSpan(s); err != nil {
 			t.Fatal(err)
@@ -23,7 +24,7 @@ func TestQueryOccurrencesSkipsMalformedAttributes(t *testing.T) {
 		t.Fatalf("detection trace: %#v, %v", bare, err)
 	}
 	got, err := d.GetTraceInSession("t1", "s")
-	if err != nil || len(got) != 1 || got[0].QueryOccurrences != 1 {
+	if err != nil || len(got) != 1 || got[0].QueryOccurrences != 2 {
 		t.Fatalf("enriched trace: %#v, %v", got, err)
 	}
 	got, err = d.GetTraceInSession("t2", "s")
