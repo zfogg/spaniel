@@ -289,6 +289,11 @@ export function useLiveInvalidation() {
             }
           },
         )
+        // The pushed row patch keeps the visible first page responsive, but
+        // server-derived sidebar fields (session totals, service counts, and
+        // query_occurrences) still need the authoritative list response.
+        for (const prefix of ['spans', 'traces', 'trace', 'sessions', 'services', 'stats'])
+          dirty.add(prefix)
       }
       if (ev.type === 'log' && ev.payload.row) {
         const row = ev.payload.row
@@ -322,6 +327,9 @@ export function useLiveInvalidation() {
                 log.body === row.body,
             ),
         )
+        // Keep log totals, service/session filter counts, and an open trace's
+        // log sidebar synchronized with durable server state.
+        for (const prefix of ['logs', 'trace', 'sessions', 'services', 'stats']) dirty.add(prefix)
       }
       if (ev.type === 'metric' && ev.payload.row) {
         const row = ev.payload.row
