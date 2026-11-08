@@ -9,7 +9,7 @@ const MAX_ATTRIBUTE_VALUE_LENGTH = 240
 function compactLongValues(value: unknown): { value: unknown; badges: string[] } {
   if (typeof value === 'string' && value.length > MAX_ATTRIBUTE_VALUE_LENGTH) {
     return {
-      value: value.slice(0, MAX_ATTRIBUTE_VALUE_LENGTH),
+      value: `${value.slice(0, MAX_ATTRIBUTE_VALUE_LENGTH)}… +${value.length - MAX_ATTRIBUTE_VALUE_LENGTH} chars`,
       badges: [`… +${value.length - MAX_ATTRIBUTE_VALUE_LENGTH} chars`],
     }
   }
