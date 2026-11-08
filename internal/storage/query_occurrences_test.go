@@ -7,6 +7,31 @@ import (
 	"testing"
 )
 
+func TestQueryOccurrencesSkipsMalformedAttributes(t *testing.T) {
+	d := openTestDB(t)
+	fp := "sequel:v1:postgresql:" + strings.Repeat("a", 64)
+	for _, s := range []*Span{
+		{TraceID: "t1", SpanID: "good", SessionID: "s", ServiceName: "svc", Attributes: `{"gotel.db.query.fingerprint":"` + fp + `"}`, Resource: "{}"},
+		{TraceID: "t2", SpanID: "bad", SessionID: "s", ServiceName: "svc", Attributes: `{"bad":`, Resource: "{}"},
+	} {
+		if err := d.InsertSpan(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bare, err := d.GetTraceInSessionForDetection("t1", "s")
+	if err != nil || len(bare) != 1 || bare[0].QueryOccurrences != 0 {
+		t.Fatalf("detection trace: %#v, %v", bare, err)
+	}
+	got, err := d.GetTraceInSession("t1", "s")
+	if err != nil || len(got) != 1 || got[0].QueryOccurrences != 1 {
+		t.Fatalf("enriched trace: %#v, %v", got, err)
+	}
+	got, err = d.GetTraceInSession("t2", "s")
+	if err != nil || len(got) != 1 || got[0].QueryOccurrences != 0 {
+		t.Fatalf("malformed trace: %#v, %v", got, err)
+	}
+}
+
 func TestSessionQueryOccurrencesScopePaginationAndRetransmits(t *testing.T) {
 	d := openTestDB(t)
 	fp := "sequel:v1:postgresql:" + strings.Repeat("a", 64)

@@ -167,8 +167,7 @@ func (d *DB) ListTracesInWindow(f TraceOverlayFilter) ([]*TraceOverlay, error) {
 
 // GetTraceInSession always restricts the trace to its recorded session, including an empty session ID.
 func (d *DB) GetTraceInSession(traceID, sessionID string) ([]*Span, error) {
-	q := d.query.Span
-	spans, err := q.Where(q.TraceID.Eq(traceID), q.SessionID.Eq(sessionID)).Order(q.StartNs).Find()
+	spans, err := d.GetTraceInSessionForDetection(traceID, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -176,6 +175,13 @@ func (d *DB) GetTraceInSession(traceID, sessionID string) ([]*Span, error) {
 		return nil, err
 	}
 	return spans, nil
+}
+
+// GetTraceInSessionForDetection returns the scoped trace without calculating
+// session-wide query occurrence counts, which detectors do not use.
+func (d *DB) GetTraceInSessionForDetection(traceID, sessionID string) ([]*Span, error) {
+	q := d.query.Span
+	return q.Where(q.TraceID.Eq(traceID), q.SessionID.Eq(sessionID)).Order(q.StartNs).Find()
 }
 
 func (d *DB) GetTrace(traceID string, scope ...string) ([]*Span, error) {

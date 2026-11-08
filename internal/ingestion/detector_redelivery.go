@@ -19,7 +19,7 @@ type redeliveryDetector struct {
 }
 
 func (p *Pipeline) runRedeliveryDetector(traceID, sessionID string) {
-	spans, err := p.store.GetTraceInSession(traceID, sessionID)
+	spans, err := p.store.GetTraceInSessionForDetection(traceID, sessionID)
 	if err != nil {
 		slog.Warn("redelivery detector read failed", "trace_id", traceID, "error", err)
 		return

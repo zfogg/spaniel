@@ -32,7 +32,7 @@ func runDetectors(traceID, sessionID string, store *storage.DB, hub *ws.Hub, tra
 		trace.WithAttributes(attribute.String("trace_id", traceID)))
 	defer dspan.End()
 
-	spans, err := store.GetTraceInSession(traceID, sessionID)
+	spans, err := store.GetTraceInSessionForDetection(traceID, sessionID)
 	if err != nil {
 		slog.Warn("trace detector read failed", "trace_id", traceID, "error", err)
 		return

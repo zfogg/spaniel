@@ -9,13 +9,13 @@ type QueryOccurrenceMethods interface {
 	//
 	// WITH target AS (
 	//   SELECT trace_id, span_id, session_id, service_name,
-	//     json_extract_string(attributes, '$."gotel.db.query.fingerprint"') AS fingerprint,
-	//     coalesce(json_extract_string(attributes, '$."db.namespace"'), json_extract_string(attributes, '$."db.name"'), '') AS namespace,
-	//     coalesce(json_extract_string(attributes, '$."server.address"'), json_extract_string(attributes, '$."net.peer.name"'), '') AS address,
-	//     coalesce(json_extract_string(attributes, '$."server.port"'), json_extract_string(attributes, '$."net.peer.port"'), '') AS port
+	//     json_extract_string(try_cast(attributes AS JSON), '$."gotel.db.query.fingerprint"') AS fingerprint,
+	//     coalesce(json_extract_string(try_cast(attributes AS JSON), '$."db.namespace"'), json_extract_string(try_cast(attributes AS JSON), '$."db.name"'), '') AS namespace,
+	//     coalesce(json_extract_string(try_cast(attributes AS JSON), '$."server.address"'), json_extract_string(try_cast(attributes AS JSON), '$."net.peer.name"'), '') AS address,
+	//     coalesce(json_extract_string(try_cast(attributes AS JSON), '$."server.port"'), json_extract_string(try_cast(attributes AS JSON), '$."net.peer.port"'), '') AS port
 	//   FROM @@table
 	//   WHERE span_id IN @spanIDs
-	//     AND regexp_full_match(json_extract_string(attributes, '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
+	//     AND regexp_full_match(json_extract_string(try_cast(attributes AS JSON), '$."gotel.db.query.fingerprint"'), 'sequel:v1:(generic|postgresql|sqlite|mysql|duckdb|clickhouse):[0-9a-f]{64}')
 	// ), identities AS (
 	//   SELECT DISTINCT session_id, service_name, fingerprint, namespace, address, port FROM target
 	// ), counts AS (
@@ -24,10 +24,10 @@ type QueryOccurrenceMethods interface {
 	//   FROM identities
 	//   JOIN @@table candidate ON candidate.session_id = identities.session_id
 	//     AND candidate.service_name = identities.service_name
-	//     AND json_extract_string(candidate.attributes, '$."gotel.db.query.fingerprint"') = identities.fingerprint
-	//     AND coalesce(json_extract_string(candidate.attributes, '$."db.namespace"'), json_extract_string(candidate.attributes, '$."db.name"'), '') = identities.namespace
-	//     AND coalesce(json_extract_string(candidate.attributes, '$."server.address"'), json_extract_string(candidate.attributes, '$."net.peer.name"'), '') = identities.address
-	//     AND coalesce(json_extract_string(candidate.attributes, '$."server.port"'), json_extract_string(candidate.attributes, '$."net.peer.port"'), '') = identities.port
+	//     AND json_extract_string(try_cast(candidate.attributes AS JSON), '$."gotel.db.query.fingerprint"') = identities.fingerprint
+	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."db.namespace"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."db.name"'), '') = identities.namespace
+	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."server.address"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."net.peer.name"'), '') = identities.address
+	//     AND coalesce(json_extract_string(try_cast(candidate.attributes AS JSON), '$."server.port"'), json_extract_string(try_cast(candidate.attributes AS JSON), '$."net.peer.port"'), '') = identities.port
 	//   GROUP BY identities.session_id, identities.service_name, identities.fingerprint, identities.namespace, identities.address, identities.port
 	// )
 	// SELECT target.trace_id, target.span_id, counts.count

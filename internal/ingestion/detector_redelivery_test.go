@@ -32,6 +32,30 @@ func TestRedeliveryIgnoresNonMessagingTrace(t *testing.T) {
 		t.Fatal("non-messaging trace initialized redelivery state")
 	}
 }
+
+func TestRedeliveryProcessesTraceWithMalformedSessionAttributes(t *testing.T) {
+	db := openTestDB(t)
+	session, err := db.CreateSession("malformed", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.InsertSpan(&storage.Span{TraceID: "bad", SpanID: "bad", SessionID: session.ID, ServiceName: "consumer", Attributes: `{"bad":`}); err != nil {
+		t.Fatal(err)
+	}
+	p := &Pipeline{store: db}
+	for i := range 3 {
+		s := delivery(fmt.Sprintf("trace-%d", i), fmt.Sprintf("span-%d", i), "message", "orders", int64(i+1), 2, `,"gotel.db.query.fingerprint":"sequel:v1:postgresql:`+strings.Repeat("a", 64)+`"`)
+		s.SessionID = session.ID
+		if err := db.InsertSpan(s); err != nil {
+			t.Fatal(err)
+		}
+		p.runRedeliveryDetector(s.TraceID, session.ID)
+	}
+	issues, err := db.ListTraceIssuesBySession(session.ID)
+	if err != nil || len(issues) != 1 || issues[0].Count != 3 {
+		t.Fatalf("issues: %+v, err=%v", issues, err)
+	}
+}
 func TestRedeliveryPersistsAcrossTraces(t *testing.T) {
 	db := openTestDB(t)
 	session, err := db.CreateSession("redelivery", false)
