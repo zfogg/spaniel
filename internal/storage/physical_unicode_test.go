@@ -19,7 +19,7 @@ func TestPhysicalUnicodeRealCorruptFixture(t *testing.T) {
 		t.Skip("no private corrupt fixture")
 	}
 	candidate := filepath.Join(t.TempDir(), filepath.Base(source))
-	if err := copyPhysicalDatabase(source, candidate); err != nil {
+	if err := copyPhysicalDatabaseRepairUnicode(source, candidate); err != nil {
 		t.Fatal(err)
 	}
 	db, err := sql.Open("duckdb", candidate)
