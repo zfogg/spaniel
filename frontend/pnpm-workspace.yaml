@@ -1,4 +1,4 @@
-allowBuilds:
-  '@zfogg/gotel': true
-  esbuild: true
-  msw: true
+onlyBuiltDependencies:
+  - '@zfogg/gotel'
+  - esbuild
+  - msw
