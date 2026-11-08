@@ -733,6 +733,7 @@ export default function Sessions() {
   const { data: settings = null } = useQuery({
     queryKey: qk.settings(),
     queryFn: () => api.settings.get().then((r) => r.data),
+    staleTime: Infinity,
   })
   const activeId = activeData?.id ?? ''
   const baselineId = sessions.find((s) => s.is_baseline)?.id ?? null

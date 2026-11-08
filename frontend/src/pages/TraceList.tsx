@@ -127,6 +127,7 @@ function EmptyState() {
   const { data: settings } = useQuery({
     queryKey: qk.settings(),
     queryFn: () => api.settings.get().then((r) => r.data),
+    staleTime: Infinity,
   })
 
   return (

@@ -6,6 +6,7 @@ export function useDefaultTimeRange<T extends string>() {
   const { data } = useQuery({
     queryKey: qk.settings(),
     queryFn: () => api.settings.get().then((r) => r.data),
+    staleTime: Infinity,
   })
   const [selected, setSelected] = useState<T>()
   return [selected ?? ((data?.default_time_range ?? '1h') as T), setSelected] as const
@@ -15,6 +16,7 @@ export function useRefreshInterval() {
   const { data } = useQuery({
     queryKey: qk.settings(),
     queryFn: () => api.settings.get().then((r) => r.data),
+    staleTime: Infinity,
   })
   const seconds = data?.refresh_interval_seconds ?? 5
   return seconds > 0 ? seconds * 1000 : false

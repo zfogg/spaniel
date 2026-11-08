@@ -1352,6 +1352,7 @@ export default function Settings() {
   const settingsQuery = useQuery({
     queryKey: qk.settings(),
     queryFn: () => api.settings.get().then((r) => r.data),
+    staleTime: Infinity,
   })
   const data = settingsQuery.data ?? null
   const error = localError ?? (settingsQuery.isError ? String(settingsQuery.error) : null)
