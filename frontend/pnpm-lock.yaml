@@ -111,8 +111,8 @@ importers:
         specifier: ^6.201.1
         version: 6.201.1
       '@zfogg/gotel':
-        specifier: github:zfogg/gotel#5aa6d97522ca11b5ccd4cf9f4ce481430ca4ef7a
-        version: https://codeload.github.com/zfogg/gotel/tar.gz/5aa6d97522ca11b5ccd4cf9f4ce481430ca4ef7a(@opentelemetry/api@1.10.0)(@opentelemetry/core@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-http@0.300.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation-fetch@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/resources@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-web@2.12.0(@opentelemetry/api@1.10.0))
+        specifier: github:zfogg/gotel#v0.14.0
+        version: https://codeload.github.com/zfogg/gotel/tar.gz/577ca4810b6f2b345e022ac46a2d0b249b1c8d11(@opentelemetry/api@1.10.0)(@opentelemetry/core@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-http@0.300.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation-fetch@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/resources@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-web@2.12.0(@opentelemetry/api@1.10.0))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2452,9 +2452,9 @@ packages:
   '@vvo/tzdb@6.201.1':
     resolution: {integrity: sha512-ib7ymHHyiGD9N/WWGMX5951hmxaFnOP3W8l0ATUxaH0Y/NczPHWS4cQgJUd1S9zyjCq0od8WXxRHlnjlHNPdNg==}
 
-  '@zfogg/gotel@https://codeload.github.com/zfogg/gotel/tar.gz/5aa6d97522ca11b5ccd4cf9f4ce481430ca4ef7a':
-    resolution: {tarball: https://codeload.github.com/zfogg/gotel/tar.gz/5aa6d97522ca11b5ccd4cf9f4ce481430ca4ef7a}
-    version: 0.13.0
+  '@zfogg/gotel@https://codeload.github.com/zfogg/gotel/tar.gz/577ca4810b6f2b345e022ac46a2d0b249b1c8d11':
+    resolution: {tarball: https://codeload.github.com/zfogg/gotel/tar.gz/577ca4810b6f2b345e022ac46a2d0b249b1c8d11}
+    version: 0.14.0
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0 <2.0.0'
       '@opentelemetry/core': '>=2.2.0 <4.0.0'
@@ -7146,7 +7146,7 @@ snapshots:
 
   '@vvo/tzdb@6.201.1': {}
 
-  '@zfogg/gotel@https://codeload.github.com/zfogg/gotel/tar.gz/5aa6d97522ca11b5ccd4cf9f4ce481430ca4ef7a(@opentelemetry/api@1.10.0)(@opentelemetry/core@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-http@0.300.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation-fetch@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/resources@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-web@2.12.0(@opentelemetry/api@1.10.0))':
+  '@zfogg/gotel@https://codeload.github.com/zfogg/gotel/tar.gz/577ca4810b6f2b345e022ac46a2d0b249b1c8d11(@opentelemetry/api@1.10.0)(@opentelemetry/core@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-http@0.300.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation-fetch@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.223.0(@opentelemetry/api@1.10.0))(@opentelemetry/resources@3.0.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-web@2.12.0(@opentelemetry/api@1.10.0))':
     dependencies:
       '@opentelemetry/api': 1.10.0
       '@opentelemetry/core': 3.0.0(@opentelemetry/api@1.10.0)
