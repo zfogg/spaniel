@@ -23,9 +23,10 @@ import (
 // writes (sessions, trace_issues, lint_warnings) stay
 // on GORM — only the per-record hot path moves here.
 const (
-	// batchMaxRows flushes an appender once it has buffered this many rows,
-	// bounding memory and visibility latency for very large ingest requests.
-	batchMaxRows = 4096
+	// Keep appender commits small. A large DuckDB appender flush can retain
+	// multiple column vectors until commit and approach the process allocator
+	// ceiling before the storage guard gets a chance to reclaim old telemetry.
+	batchMaxRows = 1024
 	// batchInterval is a liveness backstop: any pending rows are flushed at
 	// least this often once processing has appended them. Shared ingest groups
 	// flush explicitly at completion; the interval also protects long groups.
